@@ -43,6 +43,12 @@ export enum Routes {
   SettingsPlatforms = '/settings/platforms',
   SettingsInvite = '/settings/invite',
   SettingsLogout = '/settings/logout',
+
+  // crossborder demo (P0)
+  Crossborder = '/crossborder',
+  CrossborderTenants = '/crossborder/tenants',
+  CrossborderSyncHealth = '/crossborder/sync-health',
+  CrossborderPendingActions = '/crossborder/pending-actions',
 }
 
 /**
