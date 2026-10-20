@@ -21,8 +21,6 @@
     "@hono/zod-validator": "^0.7.6",
     "@scalar/hono-api-reference": "^0.10.5",
     "@t3-oss/env-core": "^0.13.11",
-    "@workspace/auth": "workspace:*",
-    "@workspace/billing": "workspace:*",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.7.5",
