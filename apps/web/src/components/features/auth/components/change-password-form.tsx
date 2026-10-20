@@ -16,7 +16,7 @@ import {
 } from '@workspace/ui/components/card'
 import { FormInputPassword } from '@/components/features/form/form-input'
 import { authClient } from '@/lib/auth-client'
-import { trpc } from '@/lib/trpc/client'
+import { Routes } from '@/lib/routes'
 import {
   createPasswordPolicySchema,
   PASSWORD_MAX_LENGTH,
@@ -40,7 +40,6 @@ type FormValues = z.infer<typeof schema>
 export function ChangePasswordForm() {
   const router = useRouter()
   const [pending, setPending] = useState(false)
-  const completePasswordChange = trpc.firstLogin.completePasswordChange.useMutation()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -69,9 +68,8 @@ export function ChangePasswordForm() {
           },
         },
       })
-      await completePasswordChange.mutateAsync()
       toast.success('密码已更新，请继续使用系统')
-      router.push('/dashboard')
+      router.push(Routes.Settings)
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '修改密码失败')

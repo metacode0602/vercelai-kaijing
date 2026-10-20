@@ -6,7 +6,7 @@ import { cn } from '@workspace/ui/lib/utils'
 import { routing } from '@/lib/i18n/routing'
 import { notFound } from 'next/navigation'
 
-import './globals.css'
+import '@/app/globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
