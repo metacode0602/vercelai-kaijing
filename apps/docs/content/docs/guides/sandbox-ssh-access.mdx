@@ -1,0 +1,142 @@
+---
+title: "SSH access"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# SSH access
+
+<Callout type="info">
+  If you just need an interactive terminal, you can connect directly to the sandbox's Remote Shell with the CLI `connect` command — no SSH setup required. See [Remote Shell](/guides/sandbox-cli-remote-shell) for details.
+</Callout>
+
+You can use a WebSocket proxy to connect to your sandbox via SSH.
+
+By using SSH, you can securely connect to a remote command-line environment, transfer files through protocols such as SCP or SFTP, and work with software that relies on SSH-based connections.
+
+## Quickstart
+
+### 1. Build the SSH template
+
+Define a template that includes an OpenSSH server for SSH access and [websocat](https://github.com/vi/websocat) for forwarding WebSocket-based connections.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun, waitForPort } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  const template = gpurun.template
+    .fromUbuntuImage('25.04')
+    .aptInstall(['openssh-server'])
+    .runCmd(
+      [
+        'curl -fsSL -o /usr/local/bin/websocat https://github.com/vi/websocat/releases/latest/download/websocat.x86_64-unknown-linux-musl',
+        'chmod a+x /usr/local/bin/websocat',
+      ],
+      { user: 'root' }
+    )
+    .setStartCmd(
+      'sudo websocat -b --exit-on-eof ws-l:0.0.0.0:8081 tcp:127.0.0.1:22',
+      waitForPort(8081)
+    )
+
+  await gpurun.template.build(template, 'ssh-ready', {
+    cpuCount: 2,
+    memoryMB: 2048,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  template = (
+      gpurun.template.from_ubuntu_image("25.04")
+      .apt_install(["openssh-server"])
+      .run_cmd(
+          [
+              "curl -fsSL -o /usr/local/bin/websocat https://github.com/vi/websocat/releases/latest/download/websocat.x86_64-unknown-linux-musl",
+              "chmod a+x /usr/local/bin/websocat",
+          ],
+          user="root",
+      )
+      .set_start_cmd(
+          "sudo websocat -b --exit-on-eof ws-l:0.0.0.0:8081 tcp:127.0.0.1:22",
+          gpurun.template.wait_for_port(8081),
+      )
+  )
+
+  gpurun.template.build(template, "ssh-ready", cpu_count=2, memory_mb=2048)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### 2. Launch a sandbox from that template
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sbx = await gpurun.sandbox.create('ssh-ready')
+  console.log(sbx.sandboxId)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sbx = gpurun.sandbox.create("ssh-ready")
+  print(sbx.sandbox_id)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### 3. Connect from your local machine
+
+**macOS**
+
+```bash CLI icon="terminal" theme={"system"}
+# Install websocat
+brew install websocat
+
+# Connect to your sandbox
+ssh -o 'ProxyCommand=websocat --binary -B 65536 - wss://8081-%h.sandbox.gpurun.ai' user@
+```
+
+
+**Linux**
+
+```bash CLI icon="terminal" theme={"system"}
+# Install websocat
+sudo curl -fsSL -o /usr/local/bin/websocat https://github.com/vi/websocat/releases/latest/download/websocat.x86_64-unknown-linux-musl
+sudo chmod a+x /usr/local/bin/websocat
+
+# Connect to your sandbox
+ssh -o 'ProxyCommand=websocat --binary -B 65536 - wss://8081-%h.sandbox.gpurun.ai' user@
+```
+
+
+## How it works
+
+[Websocat](https://github.com/vi/websocat) acts as the proxy, and SSH connections are forwarded over WebSocket through the sandbox's exposed ports.

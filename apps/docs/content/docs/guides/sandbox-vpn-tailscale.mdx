@@ -1,0 +1,326 @@
+---
+title: "Tailscale"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Tailscale
+
+Tailscale lets you connect a GPURun sandbox to your private tailnet, so the sandbox can securely reach — and be reached by — other devices on your network. Create the sandbox from the `tailscale` template, which comes with Tailscale pre-installed and ready to use.
+
+This guide covers three ways to connect a sandbox to your tailnet:
+
+* **Browser Login** — run `tailscale up`, open the printed login URL in your browser to authorize the sandbox, and it joins your tailnet. Best for interactive, one-off setups.
+* **Tailscale auth key** — connect non-interactively with a pre-generated auth key. Best for automated scripts, CI/CD pipelines, or any scenario without manual browser interaction.
+* **Manual installation** — install Tailscale and apply the required workaround yourself when starting from a template other than `tailscale` (e.g. `base`).
+
+***
+
+## Prerequisites
+
+* `pip install gpurun-sandbox` (or `npm i gpurun-sandbox`)
+* `export GPURUN_API_KEY=...`
+* A Tailscale account to authorize the login
+
+***
+
+## Browser Login
+
+Run `tailscale up` in the foreground with no timeout. It blocks and prints a login URL; open that URL in your browser to authorize, and the command returns once the sandbox is connected. Then read back the assigned Tailscale IP.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```python
+  import os
+  import time
+
+  from gpurun_sandbox import GPURun
+
+
+  gpurun = GPURun(api_key=os.getenv("GPURUN_API_KEY", ""))
+  sandbox = gpurun.sandbox.create(template="tailscale")
+  print("Sandbox created:", sandbox.sandbox_id)
+  try:
+      # Run `tailscale up` in the foreground and stream its output.
+      # It blocks until you authorize in the browser, printing a login
+      # URL to stderr in the meantime, then returns once connected.
+      print("\n=== Open the login URL below in your browser to authorize ===")
+      sandbox.commands.run(
+          'sudo tailscale up --hostname="${SANDBOX_ID:-no-name-sandbox-$(date +%s)}"',
+          on_stdout=lambda data: print(data, end=""),
+          on_stderr=lambda data: print(data, end=""),
+          timeout=0,  # no limit — wait for the interactive browser login
+      )
+      print("=" * 60)
+
+      # Show the assigned Tailscale IP.
+      ip = sandbox.commands.run("sudo tailscale ip -4 || true")
+      print("Connected! Tailscale IP:", ip.stdout.strip())
+
+      # Keep the sandbox alive until the user interrupts.
+      print("\nSandbox is connected. Press Ctrl+C to disconnect and kill it.")
+      try:
+          while True:
+              time.sleep(3600)
+      except KeyboardInterrupt:
+          print("\nInterrupted — shutting down.")
+  finally:
+      sandbox.kill()
+      print("Sandbox killed")
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```js
+  import { GPURun } from "gpurun-sandbox"
+
+  async function main() {
+    const gpurun = new GPURun({ apiKey: process.env.GPURUN_API_KEY })
+    const sandbox = await gpurun.sandbox.create({
+      template: "tailscale",
+    })
+    console.log("Sandbox created:", sandbox.sandboxId)
+
+    try {
+      // Run `tailscale up` in the foreground and stream its output.
+      // It blocks until you authorize in the browser, printing a login
+      // URL to stderr in the meantime, then returns once connected.
+      console.log("\n=== Open the login URL below in your browser to authorize ===")
+      await sandbox.commands.run('sudo tailscale up --hostname="${SANDBOX_ID:-no-name-sandbox-$(date +%s)}"', {
+        onStdout: (data) => process.stdout.write(data),
+        onStderr: (data) => process.stdout.write(data),
+        timeoutMs: 0, // no limit — wait for the interactive browser login
+      })
+      console.log("=".repeat(60))
+
+      // Show the assigned Tailscale IP.
+      const ip = await sandbox.commands.run("sudo tailscale ip -4 || true")
+      console.log("Connected! Tailscale IP:", ip.stdout.trim())
+
+      // Keep the sandbox alive until the user interrupts.
+      console.log("\nSandbox is connected. Press Ctrl+C to disconnect and kill it.")
+      await new Promise(() => {})
+    } finally {
+      await sandbox.kill()
+      console.log("Sandbox killed")
+    }
+  }
+
+  main().catch(console.error)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+***
+
+## Tailscale auth key
+
+Using an auth key provides a non-interactive way to connect your GPURun sandbox to Tailscale, making it suitable for automated scripts, CI/CD pipelines, or any scenario where manual browser interaction is not available.
+
+1. Access your [Tailscale admin console](https://console.tailscale.com/admin/machines).
+2. Click **Add device** and select **Linux server**.
+3. Apply the configuration and click **Generate install script**.
+
+This will generate a script that you can use to install Tailscale and connect to the Tailscale network:
+
+```bash CLI icon="terminal" theme={"system"}
+curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --auth-key=<AUTH_KEY> --hostname="${SANDBOX_ID:-no-name-sandbox-$(date +%s)}"
+```
+
+
+Run that command inside the sandbox from the SDK. Because the auth key logs in non-interactively, no browser step is required.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```python
+  import os
+
+  from gpurun_sandbox import GPURun
+
+  AUTH_KEY = os.environ["TS_AUTH_KEY"]  # tskey-auth-...
+
+  gpurun = GPURun(api_key=os.getenv("GPURUN_API_KEY", ""))
+  sandbox = gpurun.sandbox.create(template="tailscale")
+  print("Sandbox created:", sandbox.sandbox_id)
+
+  result = sandbox.commands.run(
+      f"sudo tailscale up --auth-key={AUTH_KEY} --hostname=\"${{SANDBOX_ID:-no-name-sandbox-$(date +%s)}}\"",
+      on_stdout=lambda data: print(data, end=""),
+      on_stderr=lambda data: print(data, end=""),
+      timeout=120,
+  )
+  if result.exit_code != 0:
+      raise RuntimeError(f"tailscale up failed:\n{result.stderr}")
+
+  ip = sandbox.commands.run("sudo tailscale ip -4 || true")
+  print("Connected! Tailscale IP:", ip.stdout.strip())
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```js
+  import { GPURun } from "gpurun-sandbox"
+
+  const AUTH_KEY = process.env.TS_AUTH_KEY // tskey-auth-...
+
+  const gpurun = new GPURun({ apiKey: process.env.GPURUN_API_KEY })
+  const sandbox = await gpurun.sandbox.create({
+    template: "tailscale",
+  })
+  console.log("Sandbox created:", sandbox.sandboxId)
+
+  const result = await sandbox.commands.run(
+    `sudo tailscale up --auth-key=${AUTH_KEY} --hostname="${'${SANDBOX_ID:-no-name-sandbox-$(date +%s)}'}"`,
+    {
+      onStdout: (data) => process.stdout.write(data),
+      onStderr: (data) => process.stdout.write(data),
+      timeoutMs: 120_000,
+    }
+  )
+  if (result.exitCode !== 0) {
+    throw new Error(`tailscale up failed:\n${result.stderr}`)
+  }
+
+  const ip = await sandbox.commands.run("sudo tailscale ip -4 || true")
+  console.log("Connected! Tailscale IP:", ip.stdout.trim())
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+***
+
+## Manually install
+
+The `tailscale` template already includes Tailscale and the workaround described below, so Browser Login works out of the box. If you start from another template (e.g. `base`), you need to install Tailscale and apply the workaround yourself before `tailscale up` will work.
+
+<Callout type="info">
+  **Why the extra steps?** A sandbox's `eth0` uses a link-local address (`169.254.x.x`). Tailscale's `isUsableV4` check treats link-local addresses as "not usable for internet" — **except** in AWS Lambda / Azure App Service environments. As a result, `tailscaled` reports `network is down` and `tailscale up` hangs without ever printing the login URL. The fix is to make `tailscaled` believe it runs in AWS Lambda by injecting four `AWS_LAMBDA_*` environment variables, which makes `isUsableV4` accept the link-local address. See [tailscale/tailscale#20496](https://github.com/tailscale/tailscale/issues/20496) for the related upstream issue.
+</Callout>
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from "gpurun-sandbox"
+
+  const gpurun = new GPURun({ apiKey: process.env.GPURUN_API_KEY })
+  const sandbox = await gpurun.sandbox.create({
+    template: "base",
+  })
+  console.log("Sandbox created:", sandbox.sandboxId)
+
+  // 1. Install Tailscale.
+  console.log("Installing Tailscale...")
+  const install = await sandbox.commands.run(
+    "curl -fsSL https://tailscale.com/install.sh | sh",
+    { timeoutMs: 300_000 }
+  )
+  if (install.exitCode !== 0) {
+    throw new Error(`Install failed:\n${install.stderr}`)
+  }
+
+  // 2. Add a systemd override so tailscaled starts with AWS Lambda env vars,
+  //    then (re)start it via systemd. This is the workaround for the
+  //    link-local address issue described above.
+  console.log("Configuring tailscaled systemd override...")
+  const override = `[Service]
+  Environment="AWS_LAMBDA_FUNCTION_NAME=x"
+  Environment="AWS_LAMBDA_FUNCTION_VERSION=1"
+  Environment="AWS_LAMBDA_INITIALIZATION_TYPE=on-demand"
+  Environment="AWS_LAMBDA_RUNTIME_API=127.0.0.1:9001"
+  `
+  await sandbox.commands.run("sudo mkdir -p /etc/systemd/system/tailscaled.service.d")
+  await sandbox.files.write(
+    "/etc/systemd/system/tailscaled.service.d/override.conf",
+    override,
+  )
+
+  console.log("Reloading systemd and (re)starting tailscaled...")
+  await sandbox.commands.run("sudo systemctl daemon-reload")
+  await sandbox.commands.run("sudo systemctl restart tailscaled")
+  await new Promise((r) => setTimeout(r, 3000))
+
+  // 3. Now log in. `tailscale up` prints a login URL; open it in your browser.
+  console.log("\n=== Open the login URL below in your browser to authorize ===")
+  await sandbox.commands.run('sudo tailscale up --hostname="${SANDBOX_ID:-no-name-sandbox-$(date +%s)}"', {
+    onStdout: (data) => process.stdout.write(data),
+    onStderr: (data) => process.stdout.write(data),
+    timeoutMs: 0,
+  })
+
+  const ip = await sandbox.commands.run("sudo tailscale ip -4 || true")
+  console.log("Connected! Tailscale IP:", ip.stdout.trim())
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  import os
+  import time
+
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun(api_key=os.getenv("GPURUN_API_KEY", ""))
+  sandbox = gpurun.sandbox.create(template="base")
+  print("Sandbox created:", sandbox.sandbox_id)
+
+  # 1. Install Tailscale.
+  print("Installing Tailscale...")
+  install = sandbox.commands.run(
+      "curl -fsSL https://tailscale.com/install.sh | sh",
+      timeout=300,
+  )
+  if install.exit_code != 0:
+      raise RuntimeError(f"Install failed:\n{install.stderr}")
+
+  # 2. Add a systemd override so tailscaled starts with AWS Lambda env vars,
+  #    then (re)start it via systemd. This is the workaround for the
+  #    link-local address issue described above.
+  print("Configuring tailscaled systemd override...")
+  override = """[Service]
+  Environment="AWS_LAMBDA_FUNCTION_NAME=x"
+  Environment="AWS_LAMBDA_FUNCTION_VERSION=1"
+  Environment="AWS_LAMBDA_INITIALIZATION_TYPE=on-demand"
+  Environment="AWS_LAMBDA_RUNTIME_API=127.0.0.1:9001"
+  """
+  sandbox.commands.run("sudo mkdir -p /etc/systemd/system/tailscaled.service.d")
+  sandbox.files.write(
+      "/etc/systemd/system/tailscaled.service.d/override.conf",
+      override,
+  )
+
+  print("Reloading systemd and (re)starting tailscaled...")
+  sandbox.commands.run("sudo systemctl daemon-reload")
+  sandbox.commands.run("sudo systemctl restart tailscaled")
+  time.sleep(3)
+
+  # 3. Now log in. `tailscale up` prints a login URL; open it in your browser.
+  print("\n=== Open the login URL below in your browser to authorize ===")
+  sandbox.commands.run(
+      'sudo tailscale up --hostname="${SANDBOX_ID:-no-name-sandbox-$(date +%s)}"',
+      on_stdout=lambda data: print(data, end=""),
+      on_stderr=lambda data: print(data, end=""),
+      timeout=0,
+  )
+
+  ip = sandbox.commands.run("sudo tailscale ip -4 || true")
+  print("Connected! Tailscale IP:", ip.stdout.strip())
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

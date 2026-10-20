@@ -1,0 +1,264 @@
+---
+title: "Internet access"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Internet access
+
+Internet access is enabled in every sandbox by default, but you can disable it for isolated workloads.
+
+Services running inside a sandbox can also be exposed through a public URL.
+
+## Toggling internet access
+
+When creating a sandbox, you can use the `allowInternetAccess` / `allow_internet_access` parameter to configure internet connectivity. Internet access is turned on by default, but it can be disabled for workloads with stricter security requirements.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Create sandbox with internet access enabled (default).
+  const sandbox = await gpurun.sandbox.create({ allowInternetAccess: true })
+
+  // Create sandbox without internet access.
+  const isolatedSandbox = await gpurun.sandbox.create({ allowInternetAccess: false })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  # Create sandbox with internet access enabled (default).
+  sandbox = gpurun.sandbox.create(allow_internet_access=True)
+
+  # Create sandbox without internet access.
+  isolated_sandbox = gpurun.sandbox.create(allow_internet_access=False)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Create a sandbox with internet access enabled (default behavior, no extra arguments)
+  gpurun sandbox create base -d
+
+  # Create a sandbox without internet access
+  gpurun sandbox create base --no-internet -d
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Fine-grained network control
+
+Network configuration provides finer-grained control over outbound traffic by allowing you to define allowlists and denylists.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Deny all traffic except specific IPs.
+  const sandbox = await gpurun.sandbox.create({
+    network: {
+      denyOut: ['0.0.0.0/0'],
+      allowOut: ['1.1.1.1', '8.8.8.0/24'],
+    },
+  })
+
+  // Allow only traffic to selected domains.
+  const domainSandbox = await gpurun.sandbox.create({
+    network: {
+      allowOut: ['api.example.com', '*.github.com'],
+      denyOut: ['0.0.0.0/0'],
+    },
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  # Deny all traffic except specific IPs.
+  sandbox = gpurun.sandbox.create(
+      network={
+          'deny_out': ['0.0.0.0/0'],
+          'allow_out': ['1.1.1.1', '8.8.8.0/24'],
+      }
+  )
+
+  # Allow only traffic to selected domains.
+  domain_sandbox = gpurun.sandbox.create(
+      network={
+          'allow_out': ['api.example.com', '*.github.com'],
+          'deny_out': ['0.0.0.0/0'],
+      }
+  )
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Deny all traffic except the allowed IPs
+  # (--allow-out / --deny-out accept comma-separated CIDR lists and can be repeated)
+  gpurun sandbox create base -d \
+    --deny-out 0.0.0.0/0 \
+    --allow-out 1.1.1.1,8.8.8.0/24
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Sandbox public URL
+
+Services in a sandbox can be accessed by using the sandbox's public URL.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  const host = sandbox.getHost(3000)
+  console.log(`https://${host}`)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  host = sandbox.get_host(3000)
+  print(f'https://{host}')
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Create a sandbox and allow public traffic to access its URL directly
+  # (--public-traffic makes the sandbox URL accessible without an access token)
+  gpurun sandbox create base --public-traffic -d
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Connecting to a server running inside the sandbox
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  const process = await sandbox.commands.run('python -m http.server 3000', { background: true })
+  const url = `https://${sandbox.getHost(3000)}`
+  console.log('Server started at:', url)
+
+  const response = await fetch(url)
+  const data = await response.text()
+  console.log('Response from server inside sandbox:', data)
+
+  await process.kill()
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  import requests
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  process = sandbox.commands.run('python -m http.server 3000', background=True)
+  url = f'https://{sandbox.get_host(3000)}'
+  print('Server started at:', url)
+
+  response = requests.get(url)
+  data = response.text
+  print('Response from server inside sandbox:', data)
+
+  process.kill()
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Masking request host headers
+
+You can use the `maskRequestHost` / `mask_request_host` option to customize the Host header sent to services running inside the sandbox.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create({
+    network: {
+      maskRequestHost: 'localhost:${PORT}',
+    },
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create(
+      network={
+          'mask_request_host': 'localhost:${PORT}',
+      }
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

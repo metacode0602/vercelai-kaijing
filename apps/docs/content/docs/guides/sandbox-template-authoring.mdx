@@ -1,0 +1,268 @@
+---
+title: "Defining Template"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Defining Template
+
+The template builder exposes a chainable API for defining how an image is built: choosing a base image, running commands, copying files, setting environment variables, installing packages, and cloning repositories. In the current SDK shape, use the `GPURun` client as the main entry point. In JavaScript and TypeScript, start with `gpurun.template.new()`. In Python, the same builder is available through `gpurun.template.new()` as well.
+
+## Private registry
+
+To build from an image hosted in a private or cloud registry, pass credentials when selecting the base image. For a generic registry use `fromImage` / `from_image` with a username and password; dedicated helpers exist for AWS ECR, Google Container Registry, Oracle Cloud (OCI), and Huawei Cloud SWR.
+
+| Registry             | Method (JS / Python)                                     | Credentials                                                      |
+| -------------------- | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| Generic (basic auth) | `fromImage` / `from_image`                               | `username`, `password`                                           |
+| AWS ECR              | `fromAWSRegistry` / `from_aws_registry`                  | `accessKeyId`, `secretAccessKey`, `region`                       |
+| Google GCR / GAR     | `fromGCPRegistry` / `from_gcp_registry`                  | `serviceAccountJSON` (path, JSON string, or object)              |
+| Oracle OCI           | `fromOCIRegistry` / `from_oci_registry`                  | `tenancyOcid`, `userOcid`, `fingerprint`, `privateKey`, `region` |
+| Huawei Cloud SWR     | `fromHuaweiCloudRegistry` / `from_huawei_cloud_registry` | `accessKeyId`, `secretAccessKey`, `region`                       |
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Generic private registry (basic auth)
+  const template = gpurun.template.new().fromImage('myregistry.com/team/app:latest', {
+    username: process.env.REGISTRY_USERNAME,
+    password: process.env.REGISTRY_PASSWORD,
+  })
+
+  // AWS ECR
+  gpurun.template.new().fromAWSRegistry('123456789.dkr.ecr.us-west-2.amazonaws.com/app:latest', {
+    accessKeyId: 'AKIA...',
+    secretAccessKey: '...',
+    region: 'us-west-2',
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  import os
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  # Generic private registry (basic auth)
+  template = gpurun.template.new().from_image(
+      "myregistry.com/team/app:latest",
+      username=os.environ.get("REGISTRY_USERNAME"),
+      password=os.environ.get("REGISTRY_PASSWORD"),
+  )
+
+  # AWS ECR
+  gpurun.template.new().from_aws_registry(
+      "123456789.dkr.ecr.us-west-2.amazonaws.com/app:latest",
+      access_key_id="AKIA...",
+      secret_access_key="...",
+      region="us-west-2",
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Run command
+
+`runCmd` / `run_cmd` runs a shell command during the build. It accepts a single command string or an array/list of commands (joined with `&&`), and an optional `user` to run as.
+
+| Parameter             | Type                | Description                                       |
+| --------------------- | ------------------- | ------------------------------------------------- |
+| `command`             | string \| string\[] | A command, or a list of commands joined with `&&` |
+| `user` / options.user | string (optional)   | User to run the command as (e.g. `root`)          |
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  template.runCmd('apt-get update')
+  template.runCmd(['pip install numpy', 'pip install pandas'])
+  template.runCmd('apt-get install vim', { user: 'root' })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  template.run_cmd('apt-get update')
+  template.run_cmd(['pip install numpy', 'pip install pandas'])
+  template.run_cmd('apt-get install vim', user='root')
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Copy files
+
+`copy` includes local files or directories in the image. `src` may be a single path or a list of paths; `dest` is the destination in the template. Options control ownership, permissions, and upload behavior.
+
+| Parameter                              | Type               | Description                           |
+| -------------------------------------- | ------------------ | ------------------------------------- |
+| `src`                                  | path \| path\[]    | Source file(s) or directory path(s)   |
+| `dest`                                 | path               | Destination path in the template      |
+| `forceUpload` / `force_upload`         | boolean (optional) | Force upload even if files are cached |
+| `user`                                 | string (optional)  | Owner of the copied files             |
+| `mode`                                 | number (optional)  | File permissions, e.g. `0o755`        |
+| `resolveSymlinks` / `resolve_symlinks` | boolean (optional) | Resolve symlinks while copying        |
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  template.copy('requirements.txt', '/home/user/')
+  template.copy(['app.ts', 'config.ts'], '/app/', { mode: 0o755 })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  template.copy('requirements.txt', '/home/user/')
+  template.copy(['app.py', 'config.py'], '/app/', mode=0o755)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Set envs
+
+`setEnvs` / `set_envs` sets environment variables from a key/value mapping.
+
+<Callout type="info">
+  **Important:** Environment variables defined with `setEnvs` / `set_envs` are available **only during the template build**, not at sandbox runtime.
+</Callout>
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  template.setEnvs({ NODE_ENV: 'production', PORT: '8080' })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  template.set_envs({'APP_ENV': 'production', 'PORT': '8000'})
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Package setup (pip, npm, bun, apt)
+
+Dedicated helpers wrap common package managers. Each accepts a single package name or a list; when packages are omitted, the language helpers install from the current project (`pip install .` or `package.json`).
+
+| Method (JS / Python)         | Options                                                                       | Notes                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `pipInstall` / `pip_install` | `g` (default **true**)                                                        | Installs globally by default; `g: false` installs with `--user`. No packages → `pip install .` |
+| `npmInstall` / `npm_install` | `g`, `dev`                                                                    | `g` for global (`-g`), `dev` for dev deps. No packages → installs from package.json            |
+| `bunInstall` / `bun_install` | `g`, `dev`                                                                    | Same as npm but uses `bun`                                                                     |
+| `aptInstall` / `apt_install` | `noInstallRecommends` / `no_install_recommends`, `fixMissing` / `fix_missing` | Runs `apt-get update` then installs as root; packages are required                             |
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  template.pipInstall('numpy')
+  template.pipInstall(['pandas', 'scikit-learn'])
+  template.pipInstall('numpy', { g: false })
+  template.pipInstall()
+
+  template.npmInstall('express')
+  template.npmInstall('tsx', { g: true })
+  template.npmInstall('typescript', { dev: true })
+
+  template.bunInstall(['lodash', 'axios'])
+
+  template.aptInstall(['git', 'curl', 'wget'])
+  template.aptInstall(['vim'], { noInstallRecommends: true })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  template.pip_install('numpy')
+  template.pip_install(['pandas', 'scikit-learn'])
+  template.pip_install('numpy', g=False)
+  template.pip_install()
+
+  template.npm_install('express')
+  template.npm_install('tsx', g=True)
+  template.npm_install('typescript', dev=True)
+
+  template.bun_install(['lodash', 'axios'])
+
+  template.apt_install(['git', 'curl', 'wget'])
+  template.apt_install(['vim'], no_install_recommends=True)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Git clone
+
+`gitClone` / `git_clone` clones a repository into the image. Only the URL is required; an optional destination path and clone options are supported.
+
+| Parameter | Type              | Description                              |
+| --------- | ----------------- | ---------------------------------------- |
+| `url`     | string            | Repository URL (required)                |
+| `path`    | path (optional)   | Destination path for the clone           |
+| `branch`  | string (optional) | Branch to clone (adds `--single-branch`) |
+| `depth`   | number (optional) | Shallow-clone depth                      |
+| `user`    | string (optional) | User to run the clone as                 |
+
+<Callout type="info">
+  **Note:**`gitClone` / `git_clone` has no dedicated auth parameters. For a private repository, embed credentials/token in the URL or set them up via a prior `runCmd` / `setEnvs` step.
+</Callout>
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  template.gitClone('https://github.com/user/repo.git', '/app/repo')
+  template.gitClone('https://github.com/user/repo.git', undefined, {
+    branch: 'main',
+    depth: 1,
+  })
+  template.gitClone('https://github.com/user/repo.git', '/app/repo', { user: 'root' })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  template.git_clone('https://github.com/user/repo.git', '/app/repo')
+  template.git_clone(
+      'https://github.com/user/repo.git',
+      branch='main',
+      depth=1,
+  )
+  template.git_clone('https://github.com/user/repo.git', '/app/repo', user='root')
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

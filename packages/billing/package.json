@@ -1,0 +1,53 @@
+{
+  "name": "@workspace/billing",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "diagnose:payment": "tsx src/scripts/diagnose-payment.ts"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "tsx": "^4.19.2",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^0.45.0"
+  },
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./order-number": {
+      "default": "./src/order-number.ts"
+    },
+    "./payment-order": {
+      "default": "./src/payment-order.ts"
+    },
+    "./balance": {
+      "default": "./src/balance.ts"
+    },
+    "./merchant-account": {
+      "default": "./src/merchant-account.ts"
+    },
+    "./recharge": {
+      "default": "./src/recharge.ts"
+    },
+    "./types": {
+      "default": "./src/types.ts"
+    },
+    "./pricing-resolver": "./src/pricing-resolver.ts",
+    "./money": "./src/money.ts"
+  }
+}

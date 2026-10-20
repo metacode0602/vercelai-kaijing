@@ -1,0 +1,471 @@
+{
+  "Common": {
+    "language": "切换语言",
+    "help": "帮助",
+    "notifications": "通知",
+    "settings": "设置",
+    "billing": "账单",
+    "logout": "退出登录",
+    "theme": {
+      "toggle": "切换主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "balance": {
+      "remaining": "剩余额度",
+      "accountBalance": "账户余额",
+      "availableCredit": "可用额度",
+      "coupons": "优惠券",
+      "recharge": "充值",
+      "goToBilling": "前往账单"
+    }
+  },
+  "AuthPage": {
+    "common": {
+      "byClickingContinue": "继续即表示您同意我们的",
+      "termsOfService": "服务条款",
+      "privacyPolicy": "隐私政策",
+      "and": "和"
+    },
+    "error": {
+      "title": "认证错误"
+    },
+    "register": {
+      "title": "创建账户",
+      "description": "注册以开始使用 GPU 云服务"
+    }
+  },
+  "Auth": {
+    "login": {
+      "title": "欢迎回来",
+      "description": "使用您的邮箱继续",
+      "email": "邮箱",
+      "emailPlaceholder": "name@company.com",
+      "password": "密码",
+      "passwordPlaceholder": "******",
+      "emailRequired": "请输入邮箱",
+      "passwordRequired": "请输入密码",
+      "signIn": "登录",
+      "forgotPassword": "忘记密码？",
+      "noAccount": "还没有账户？",
+      "signUp": "注册",
+      "phoneLogin": "手机号登录",
+      "welcomeBack": "欢迎回来",
+      "signUpHint": "还没有账户？立即注册",
+      "switchToPhone": "使用手机号登录",
+      "error": "邮箱或密码错误",
+      "success": "登录成功！"
+    },
+    "phoneLogin": {
+      "title": "手机号登录",
+      "description": "使用您的手机号继续",
+      "phoneNumber": "手机号",
+      "phonePlaceholder": "请输入手机号",
+      "verificationCode": "验证码",
+      "codePlaceholder": "请输入验证码",
+      "sendCode": "发送验证码",
+      "countdown": "{seconds}s 后重发",
+      "codeSent": "验证码已发送",
+      "signIn": "登录",
+      "switchToEmail": "使用邮箱登录",
+      "welcomeBack": "欢迎回来",
+      "phoneRequired": "请输入手机号",
+      "invalidPhone": "手机号格式不正确",
+      "codeRequired": "请输入验证码",
+      "sendCodeFailed": "发送验证码失败",
+      "verifyFailed": "验证失败，请重试",
+      "captchaTitle": "安全验证",
+      "captchaHint": "请完成拼图验证",
+      "captchaLoading": "加载中...",
+      "captchaVerifying": "验证中...",
+      "captchaChallengeFailed": "加载验证码失败",
+      "captchaVerifyFailed": "验证失败",
+      "captchaMismatch": "滑块位置不匹配，请重试",
+      "captchaTooManyAttempts": "尝试次数过多，请稍后再试",
+      "verifySuccess": "验证成功",
+      "error": "验证码错误",
+      "success": "登录成功！"
+    },
+    "register": {
+      "title": "创建账户",
+      "description": "填写以下信息开始使用",
+      "name": "姓名",
+      "namePlaceholder": "请输入姓名",
+      "email": "邮箱",
+      "emailPlaceholder": "name@company.com",
+      "password": "密码",
+      "passwordPlaceholder": "******",
+      "confirmPassword": "确认密码",
+      "confirmPasswordPlaceholder": "请再次输入密码",
+      "signUp": "注册",
+      "signInHint": "已有账户？登录",
+      "haveAccount": "已有账户？",
+      "signIn": "登录",
+      "nameRequired": "请输入姓名",
+      "emailRequired": "请输入邮箱",
+      "passwordMinLength": "密码至少8位",
+      "passwordUppercase": "密码需包含大写字母",
+      "passwordLowercase": "密码需包含小写字母",
+      "passwordNumber": "密码需包含数字",
+      "confirmPasswordRequired": "请确认密码",
+      "passwordMismatch": "两次密码输入不一致",
+      "error": "注册失败",
+      "success": "注册成功！"
+    },
+    "forgotPassword": {
+      "title": "忘记密码",
+      "description": "输入注册邮箱，我们将发送重置密码链接",
+      "email": "邮箱",
+      "emailPlaceholder": "name@company.com",
+      "send": "发送重置密码链接",
+      "backToLogin": "返回登录",
+      "checkEmail": "请检查您的邮箱，重置链接已发送",
+      "emailRequired": "请输入邮箱",
+      "sendFailed": "邮件发送失败，请稍后重试",
+      "networkError": "网络错误，请稍后重试"
+    },
+    "resetPassword": {
+      "title": "重置密码",
+      "description": "设置一个新密码",
+      "password": "新密码",
+      "passwordPlaceholder": "******",
+      "confirmPassword": "确认新密码",
+      "reset": "重置密码",
+      "backToLogin": "返回登录",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码",
+      "minLength": "密码至少需要 8 个字符",
+      "passwordMismatch": "两次输入的密码不一致",
+      "invalidToken": "重置链接无效或已过期",
+      "success": "密码已重置，请使用新密码登录",
+      "resetFailed": "重置失败，链接可能已失效"
+    }
+  },
+  "Console": {
+    "brand": "GPU Cloud",
+    "productSwitcher": "GPUs",
+    "docs": "文档",
+    "groups": {
+      "instances": "容器云",
+      "serverless": "Serverless",
+      "metal": "裸金属",
+      "other": "其他"
+    },
+    "breadcrumbs": {
+      "deploy": "部署",
+      "instances": "我的实例",
+      "endpoints": "我的端点",
+      "deployEndpoint": "部署端点",
+      "deployMetalInstance": "部署裸金属",
+      "createInstance": "创建实例",
+      "confirmRental": "确认租用",
+      "details": "详情"
+    },
+    "nav": {
+      "usage": "用量",
+      "apps": "应用程序",
+      "templates": "模板",
+      "deployInstance": "容器云",
+      "myInstances": "我的容器",
+      "deployServerless": "Serverless",
+      "myEndpoints": "我的端点",
+      "deployMetal": "裸金属",
+      "myMetalInstances": "我的裸金属",
+      "preloaded": "镜像预加载",
+      "storage": "网络存储卷",
+      "tasks": "任务",
+      "settings": "设置",
+      "billing": "账单",
+      "recharge": "充值"
+    },
+    "usage": {
+      "title": "用量",
+      "description": "查看各产品线的 GPU 使用时长、任务调用量和费用变化。",
+      "demoBadge": "示例数据",
+      "balance": "账户余额",
+      "ranges": {
+        "7d": "近 7 天",
+        "30d": "近 30 天",
+        "month": "本月"
+      },
+      "metrics": {
+        "cost": "消费金额",
+        "hours": "GPU 时长"
+      },
+      "exportCsv": "导出 CSV",
+      "vsPrevious": "较上期",
+      "units": {
+        "gpuHours": "GPU·小时",
+        "gpuHour": "GPU·小时"
+      },
+      "productLines": {
+        "containerCloud": "容器云",
+        "serverless": "Serverless",
+        "bareMetal": "裸金属 GPU",
+        "tasks": "GPU 任务"
+      },
+      "kpis": {
+        "spend": "本期消费",
+        "spendHint": "日均 {amount}",
+        "gpuHours": "GPU 使用时长",
+        "gpuHoursHint": "日均 {amount}",
+        "tasks": "任务调用量",
+        "tasksHint": "成功率 {rate}%",
+        "unitCost": "平均 GPU 小时成本",
+        "unitCostHint": "费用 ÷ GPU 使用时长"
+      },
+      "charts": {
+        "trend": {
+          "title": "每日用量趋势",
+          "description": "{start} 至 {end}，按产品线拆分",
+          "total": "所选周期用量",
+          "dailyAverage": "日均用量"
+        },
+        "share": {
+          "title": "产品线占比",
+          "description": "当前范围内各产品线的用量占比",
+          "total": "总用量"
+        },
+        "ranking": {
+          "title": "产品线用量排行",
+          "description": "按当前指标识别用量最高的产品线"
+        }
+      },
+      "table": {
+        "title": "产品线明细",
+        "description": "按费用排序的产品线用量明细",
+        "date": "日期",
+        "productLine": "产品线",
+        "gpuHours": "GPU·小时",
+        "cost": "费用",
+        "share": "占比",
+        "unitCost": "单位成本",
+        "total": "合计",
+        "gpuHourUnit": "GPU·小时表示 GPU 设备的累计运行小时",
+        "updatedAt": "数据更新至 {date}"
+      },
+      "empty": {
+        "title": "所选周期暂无用量",
+        "description": "切换时间范围后再查看用量统计。"
+      }
+    },
+    "dashboard": {
+      "greeting": "欢迎回来，{name}",
+      "greetingDefault": "欢迎回来",
+      "subtitle": "在一个地方管理您的 GPU 实例、Serverless 端点和账户",
+      "stats": {
+        "balance": "账户余额",
+        "runningInstances": "运行中实例",
+        "serverCount": "{count} 个容器云",
+        "serverCount_plural": "{count} 个容器云",
+        "metalCount": "{count} 个裸金属",
+        "metalCount_plural": "{count} 个裸金属",
+        "viewInstances": "查看所有实例",
+        "volumes": "网络卷",
+        "volumesHint": "已挂载的 S3 卷",
+        "manageVolumes": "管理卷",
+        "quickActions": "快速操作"
+      },
+      "actions": {
+        "deployInstance": "部署容器实例",
+        "deployServerless": "部署 Serverless 端点"
+      },
+      "quickLinks": "快捷入口",
+      "links": {
+        "appsDesc": "一键部署热门 AI 应用",
+        "instanceDesc": "带 SSH 访问的完整 GPU 实例",
+        "serverlessDesc": "自动扩缩容推理端点",
+        "metalDesc": "裸金属 GPU 服务器",
+        "billingDesc": "查看用量明细和管理支付",
+        "tasksDesc": "批量训练和推理任务"
+      },
+      "appTemplates": "从模板部署",
+      "templates": {
+        "comfyuiDesc": "运行 SD & FLUX 工作流",
+        "vllmDesc": "LLM 推理服务",
+        "pytorchDesc": "自定义训练与开发环境",
+        "jupyterDesc": "交互式笔记本"
+      }
+    },
+    "pages": {
+      "instances": {
+        "title": "我的实例",
+        "empty": "暂无实例",
+        "emptyDesc": "部署您的第一个 GPU 实例开始使用"
+      },
+      "endpoints": {
+        "title": "我的端点",
+        "empty": "暂无端点",
+        "emptyDesc": "部署您的第一个 Serverless 端点"
+      },
+      "templates": {
+        "title": "模板",
+        "desc": "选择预设模板，一键部署到实例或 Serverless 端点。",
+        "featured": "推荐",
+        "deployInstance": "部署实例"
+      },
+      "deployInstance": {
+        "title": "容器云"
+      },
+      "myInstances": {
+        "title": "我的容器云",
+        "desc": "管理您的容器云实例。",
+        "deploy": "容器云"
+      },
+      "deployServerless": {
+        "title": "部署 Serverless"
+      },
+      "myEndpoints": {
+        "title": "我的端点",
+        "desc": "管理您的 Serverless 推理端点。",
+        "deploy": "部署 Serverless"
+      },
+      "storage": {
+        "title": "网络存储卷"
+      },
+      "preloaded": {
+        "title": "镜像预加载",
+        "createTask": "创建预加载任务",
+        "banner": {
+          "prefix": "预加载镜像免费存储，但创建实例时会产生",
+          "storageFee": "标准存储费用",
+          "middle": "。",
+          "helpDoc": "查看帮助文档",
+          "suffix": ""
+        }
+      }
+    },
+    "comingSoon": {
+      "billing": {
+        "title": "账单",
+        "desc": "用量明细、充值和发票管理即将上线。"
+      },
+      "tasks": {
+        "title": "任务",
+        "desc": "批量训练和推理任务调度与监控即将上线。"
+      },
+      "settings": {
+        "title": "设置",
+        "desc": "API 密钥、SSH 公钥和团队成员管理即将上线。"
+      },
+      "docs": {
+        "title": "文档",
+        "desc": "API 参考、SDK 和快速入门指南即将上线。"
+      }
+    }
+  },
+  "Product": {
+    "gpus": "GPUs",
+    "agentSandbox": "Agent 沙箱"
+  },
+  "Sandbox": {
+    "brand": "Agent 沙箱",
+    "nav": {
+      "quickStart": "快速开始",
+      "billing": "账单",
+      "recharge": "充值",
+      "settings": "设置",
+      "quota": "配额与层级",
+      "usage": "用量详情",
+      "templates": "模板"
+    },
+    "docs": "文档"
+  },
+  "SiteMessages": {
+    "title": "站内信",
+    "markAllRead": "全部已读",
+    "noMessages": "暂无消息",
+    "empty": "没有新消息"
+  },
+  "Verify": {
+    "title": "实名认证",
+    "description": "进行编辑/创建/删除操作前需要进行实名认证",
+    "individual": "个人认证",
+    "individualStatus": "个人认证状态",
+    "enterprise": "企业认证",
+    "enterpriseStatus": "企业认证状态",
+    "alreadyVerified": "已认证",
+    "verifiedDesc": "您的账户已完成实名认证，可以进行所有操作",
+    "realName": "真实姓名",
+    "realNamePlaceholder": "请输入真实姓名",
+    "idNumber": "身份证号码",
+    "idNumberPlaceholder": "请输入 18 位身份证号",
+    "mobile": "手机号",
+    "mobilePlaceholder": "11 位手机号",
+    "smsCode": "验证码",
+    "smsCodePlaceholder": "短信验证码",
+    "getSmsCode": "获取验证码",
+    "companyName": "企业名称",
+    "companyNamePlaceholder": "请输入企业全称",
+    "uscc": "统一社会信用代码",
+    "usccPlaceholder": "请输入 18 位统一社会信用代码",
+    "legalPersonName": "法人姓名",
+    "legalPersonNamePlaceholder": "请输入法人姓名",
+    "applicantRole": "办理身份",
+    "legalPerson": "法人本人",
+    "authorizedPerson": "授权人",
+    "authorizedPersonName": "授权人姓名",
+    "authorizedPersonNamePlaceholder": "请输入授权人姓名",
+    "businessLicense": "营业执照",
+    "idFront": "身份证正面",
+    "idBack": "身份证反面",
+    "authLetter": "授权书",
+    "uploadHint": "支持 JPG、PNG、PDF，单个文件不超过 10MB",
+    "uploaded": "已上传",
+    "submit": "提交认证",
+    "submittedTitle": "提交成功",
+    "submittedDesc": "认证信息已提交，请等待审核",
+    "back": "返回",
+    "currentStatus": "当前状态",
+    "statusUnverified": "未认证",
+    "statusPending": "审核中",
+    "statusIndividualVerified": "个人已认证",
+    "statusEnterpriseVerified": "企业已认证",
+    "statusRejected": "已拒绝",
+    "reviewPending": "申请审核中，请耐心等待",
+    "reviewRejected": "驳回原因",
+    "pendingNotice": "审核完成前不可重复提交",
+    "upgradeToEnterprise": "升级为企业实名",
+    "upgradeHint": "当前为个人实名升级为企业实名",
+    "upgradeDesc": "升级后可享受企业级服务与额度",
+    "renameNotice": "企业已实名。如需改名，请联系运营或后续在本页提交改名申请。",
+    "individualDesc": "个人用户实名认证，需提供身份证信息",
+    "enterpriseDesc": "企业实名认证，需提供营业执照等企业资料",
+    "guardTitle": "需要实名认证",
+    "guardDescription": "此操作需要进行实名认证（个人或企业），请先完成认证后再继续",
+    "goToVerify": "去认证",
+    "cancel": "取消"
+  },
+  "Metadata": {
+    "title": "GPU 云控制台 | Serverless 与实例部署",
+    "description": "部署 Serverless 端点、GPU 服务器实例与 S3 标准网络卷的云控制台",
+    "name": "GPURun 云"
+  },
+  "Mail": {
+    "common": {
+      "team": "{name} 团队",
+      "copyright": "© {year} 保留所有权利。"
+    },
+    "forgotPassword": {
+      "subject": "重置密码",
+      "title": "您好 {name}，",
+      "body": "我们收到了重置密码的请求，请点击下方按钮继续。",
+      "resetPassword": "重置密码"
+    },
+    "emailOtp": {
+      "subject": "邮箱验证码",
+      "anonymous": "您好",
+      "greeting": "{name}，您好：",
+      "action": {
+        "sign-in": "您正在登录账号，请使用以下验证码完成登录。",
+        "email-verification": "请使用以下验证码验证您的邮箱。",
+        "forget-password": "您正在重置密码，请使用以下验证码完成验证。",
+        "change-email": "您正在修改账号绑定邮箱，请使用以下验证码完成验证。"
+      },
+      "code": "验证码：{code}",
+      "expires": "验证码 5 分钟内有效，请勿转发给他人。",
+      "ignore": "如果这不是您本人的操作，请忽略此邮件。"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+---
+title: "Snapshot Overview"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Snapshot Overview
+
+A snapshot is a reusable saved state of a sandbox. It captures the sandbox filesystem and memory state so you can start new sandboxes from that point later.
+
+<Callout type="info">
+  **Note:** Snapshot is only supported in [v2 regions](/guides/sandbox-overview#regions).
+</Callout>
+
+Use snapshots when you want to:
+
+* Prepare dependencies once and reuse them in later sandboxes.
+* Save a known-good state before running risky or expensive work.
+* Start multiple sandboxes from the same captured environment.
+* Keep a reusable state after the original sandbox is no longer needed.
+
+***
+
+**Snapshots vs Templates**
+
+Snapshots and templates both let you spawn new sandboxes from a predefined starting point, but they differ in how that point is produced and what it captures.
+
+**A template is built** from a Docker image with declared steps (install packages, copy files, set environment variables) — a clean, reproducible blueprint you author up front.
+
+**A snapshot is captured** from a running sandbox at a moment in time, preserving its filesystem and live memory state, including anything created at runtime.
+
+* Use a template for a clean, reproducible base environment built from a Docker image and declared setup steps.
+* Use a snapshot when you want to preserve the exact state of a specific running sandbox, including files created at runtime and its live memory state.
+
+## Terminology
+
+| Term               | Description                                                 |
+| ------------------ | ----------------------------------------------------------- |
+| **Origin Sandbox** | The sandbox instance used to create the snapshot.           |
+| **Snapshot**       | The saved state that can be reused to create new sandboxes. |
+| **New Sandbox**    | A sandbox created from the snapshot.                        |

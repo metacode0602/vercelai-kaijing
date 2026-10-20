@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<rect width="64" height="64" rx="14" fill="#171717"/>
+<rect x="14" y="15" width="11" height="11" rx="2.5" fill="#F6F6F6"/>
+<rect x="14" y="30" width="11" height="11" rx="2.5" fill="#F6F6F6"/>
+<rect x="29" y="15" width="11" height="11" rx="2.5" fill="#F6F6F6"/>
+<path d="M33 26L47 32L33 38V26Z" fill="#F6F6F6"/>
+<text x="32" y="55" text-anchor="middle" fill="#F6F6F6" font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="700" letter-spacing="-0.05em">GPURun</text>
+</svg>

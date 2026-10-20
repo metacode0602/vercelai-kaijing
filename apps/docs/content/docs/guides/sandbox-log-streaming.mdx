@@ -1,0 +1,224 @@
+---
+title: "Log Streaming"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Log Streaming
+
+When you run a command in a sandbox, its `stdout` and `stderr` output can be consumed in two ways: streamed in real time through callbacks, or retrieved in full after the command finishes. Real-time streaming suits long-running or background commands you want to monitor as they run; retrieving the full output suits commands with a predictable, short duration.
+
+## Stream logs with callbacks
+
+Pass `onStdout` / `onStderr` (JavaScript) or `on_stdout` / `on_stderr` (Python) to `commands.run(...)`. Each callback receives output as soon as it is produced, with stdout and stderr delivered separately.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  const result = await sandbox.commands.run(
+    'for i in 1 2 3; do echo line $i; sleep 1; done',
+    {
+      onStdout: (data) => process.stdout.write(`OUT: ${data}`),
+      onStderr: (data) => process.stderr.write(`ERR: ${data}`),
+    }
+  )
+
+  console.log('exit code:', result.exitCode)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  result = sandbox.commands.run(
+      'for i in 1 2 3; do echo line $i; sleep 1; done',
+      on_stdout=lambda data: print('OUT:', data, end=''),
+      on_stderr=lambda data: print('ERR:', data, end=''),
+  )
+  print('exit code:', result.exit_code)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+<Callout type="info">
+  Keep callbacks lightweight. Avoid long blocking work inside a callback — it holds up event processing and can cause the underlying connection to disconnect. Buffer or hand off to another task/thread if you need to do heavy processing.
+</Callout>
+
+## Stream a background command
+
+To keep your program running while a command streams, start it with `background: true` (JS) or `background=True` (Python). This returns a `CommandHandle` instead of waiting for the result. You can attach the same `onStdout` / `onStderr` callbacks, continue with other work, then call `wait()` to block until the command finishes and get its `CommandResult`.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  // Returns a CommandHandle immediately (does not wait)
+  const handle = await sandbox.commands.run(
+    'for i in $(seq 1 5); do echo tick $i; sleep 1; done',
+    {
+      background: true,
+      onStdout: (data) => process.stdout.write(data),
+      onStderr: (data) => process.stderr.write(data),
+    }
+  )
+
+  console.log('running as pid:', handle.pid)
+
+  // ... do other work while logs stream in the background ...
+
+  // Wait for completion and get the final result
+  const result = await handle.wait()
+  console.log('exit code:', result.exitCode)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  # Returns a CommandHandle immediately (does not wait)
+  handle = sandbox.commands.run(
+      'for i in $(seq 1 5); do echo tick $i; sleep 1; done',
+      background=True,
+  )
+
+  print('running as pid:', handle.pid)
+
+  # ... do other work while the command runs ...
+
+  # Stream logs and wait for completion; callbacks fire as output arrives
+  result = handle.wait(
+      on_stdout=lambda data: print(data, end=''),
+      on_stderr=lambda data: print(data, end=''),
+  )
+  print('exit code:', result.exit_code)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Retrieve all logs after completion
+
+If you do not need real-time output, run the command in the foreground and read the full `stdout` and `stderr` from the returned `CommandResult`. This is the simplest approach for commands with a predictable, short duration.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  const result = await sandbox.commands.run('echo hello && echo oops 1>&2')
+
+  console.log('stdout:', result.stdout)
+  console.log('stderr:', result.stderr)
+  console.log('exit code:', result.exitCode)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  result = sandbox.commands.run('echo hello && echo oops 1>&2')
+
+  print('stdout:', result.stdout)
+  print('stderr:', result.stderr)
+  print('exit code:', result.exit_code)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+For a command started in the background, the accumulated output is also available on the handle after it completes.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  const handle = await sandbox.commands.run('echo done', { background: true })
+
+  const result = await handle.wait()
+
+  // Full output collected during execution
+  console.log(result.stdout)
+  console.log(result.stderr)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  handle = sandbox.commands.run('echo done', background=True)
+
+  result = handle.wait()
+
+  # Full output collected during execution
+  print(result.stdout)
+  print(result.stderr)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## CommandResult fields
+
+| Field (JS / Python)      | Description                                             |
+| ------------------------ | ------------------------------------------------------- |
+| `stdout`                 | Full standard output collected from the command.        |
+| `stderr`                 | Full standard error collected from the command.         |
+| `exitCode` / `exit_code` | Command exit code. `0` indicates success.               |
+| `error`                  | Error message when the command failed; otherwise empty. |
+
+<Callout type="info">
+  A command that exits with a non-zero exit code raises `CommandExitError` (JS) / `CommandExitException` (Python). The exception carries the same `stdout`, `stderr`, `exitCode`, and `error` fields, so you can still inspect the output on failure.
+</Callout>

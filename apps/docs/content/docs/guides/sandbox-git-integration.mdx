@@ -1,0 +1,572 @@
+---
+title: "Git Integration"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Git Integration
+
+GPURun Sandbox exposes `sandbox.git` helpers for common repository workflows such as cloning, branching, committing, pulling, pushing, managing remotes, and configuring Git.
+
+## Authentication and identity
+
+### Inline credentials
+
+For private HTTPS repositories, pass a username and password or token directly to operations such as `push`, `pull`, or `clone`.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  await sandbox.git.push(repoPath, {
+    username: process.env.GIT_USERNAME,
+    password: process.env.GIT_TOKEN,
+  })
+
+  await sandbox.git.pull(repoPath, {
+    username: process.env.GIT_USERNAME,
+    password: process.env.GIT_TOKEN,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+  import os
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  sandbox.git.push(
+      repo_path,
+      username=os.environ.get('GIT_USERNAME'),
+      password=os.environ.get('GIT_TOKEN'),
+  )
+
+  sandbox.git.pull(
+      repo_path,
+      username=os.environ.get('GIT_USERNAME'),
+      password=os.environ.get('GIT_TOKEN'),
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### Authenticate once with the Git credential helper
+
+You can use `dangerouslyAuthenticate()` in JavaScript or `dangerously_authenticate()` in Python to store credentials inside the sandbox credential helper.
+
+<Callout type="info">
+  Credentials are written to disk inside the sandbox and can be read by anything with sandbox access.
+</Callout>
+
+Credentials may be stored for GitHub by default or for a custom HTTPS host.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  await sandbox.git.dangerouslyAuthenticate({
+    username: process.env.GIT_USERNAME,
+    password: process.env.GIT_TOKEN,
+  })
+
+  await sandbox.git.dangerouslyAuthenticate({
+    username: process.env.GIT_USERNAME,
+    password: process.env.GIT_TOKEN,
+    host: 'git.example.com',
+    protocol: 'https',
+  })
+
+  await sandbox.git.clone('https://git.example.com/org/repo.git', {
+    path: '/home/user/repo',
+  })
+
+  await sandbox.git.push('/home/user/repo')
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+  import os
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  sandbox.git.dangerously_authenticate(
+      username=os.environ.get('GIT_USERNAME'),
+      password=os.environ.get('GIT_TOKEN'),
+  )
+
+  sandbox.git.dangerously_authenticate(
+      username=os.environ.get('GIT_USERNAME'),
+      password=os.environ.get('GIT_TOKEN'),
+      host='git.example.com',
+      protocol='https',
+  )
+
+  sandbox.git.clone(
+      'https://git.example.com/org/repo.git',
+      path='/home/user/repo',
+  )
+
+  sandbox.git.push('/home/user/repo')
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### Keep credentials in the remote URL
+
+By default, credentials are removed from the remote URL after clone. To retain them in `.git/config`, set `dangerouslyStoreCredentials: true` (JS) or `dangerously_store_credentials=True` (Python).
+
+<Callout type="info">
+  Credentials kept in a remote URL remain in repo config and are readable by sandbox processes.
+</Callout>
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  await sandbox.git.clone('https://git.example.com/org/repo.git', {
+    path: '/home/user/repo',
+    username: process.env.GIT_USERNAME,
+    password: process.env.GIT_TOKEN,
+  })
+
+  await sandbox.git.clone('https://git.example.com/org/repo.git', {
+    path: '/home/user/repo',
+    username: process.env.GIT_USERNAME,
+    password: process.env.GIT_TOKEN,
+    dangerouslyStoreCredentials: true,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+  import os
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  sandbox.git.clone(
+      'https://git.example.com/org/repo.git',
+      path='/home/user/repo',
+      username=os.environ.get('GIT_USERNAME'),
+      password=os.environ.get('GIT_TOKEN'),
+  )
+
+  sandbox.git.clone(
+      'https://git.example.com/org/repo.git',
+      path='/home/user/repo',
+      username=os.environ.get('GIT_USERNAME'),
+      password=os.environ.get('GIT_TOKEN'),
+      dangerously_store_credentials=True,
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Configure commit identity
+
+You can use `configureUser` (JS) or `configure_user` (Python) to set commit author details globally or locally for a repository.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  await sandbox.git.configureUser('GPURun Bot', 'bot@example.com')
+
+  await sandbox.git.configureUser('GPURun Bot', 'bot@example.com', {
+    scope: 'local',
+    path: repoPath,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  sandbox.git.configure_user('GPURun Bot', 'bot@example.com')
+
+  sandbox.git.configure_user(
+      'GPURun Bot',
+      'bot@example.com',
+      scope='local',
+      path=repo_path,
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Clone repositories
+
+Supported clone options include destination path, branch selection, depth, username, password, and credential-storage behavior.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  await sandbox.git.clone(repoUrl, {
+    path: repoPath,
+  })
+
+  await sandbox.git.clone(repoUrl, {
+    path: repoPath,
+    branch: 'main',
+  })
+
+  await sandbox.git.clone(repoUrl, {
+    path: repoPath,
+    depth: 1,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  sandbox.git.clone(repo_url, path=repo_path)
+
+  sandbox.git.clone(repo_url, path=repo_path, branch='main')
+
+  sandbox.git.clone(repo_url, path=repo_path, depth=1)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Check repository status and branches
+
+You can use `status()` to inspect current branch, ahead/behind counts, and file status.
+
+You can use `branches()` to get the branch list and current branch.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  const status = await sandbox.git.status(repoPath)
+  console.log(status.currentBranch)
+  console.log(status.ahead)
+  console.log(status.behind)
+  console.log(status.fileStatus)
+
+  const branches = await sandbox.git.branches(repoPath)
+  console.log(branches.currentBranch)
+  console.log(branches.branches)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  status = sandbox.git.status(repo_path)
+  print(status.current_branch)
+  print(status.ahead)
+  print(status.behind)
+  print(status.file_status)
+
+  branches = sandbox.git.branches(repo_path)
+  print(branches.current_branch)
+  print(branches.branches)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Create, switch, and delete branches
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  await sandbox.git.createBranch(repoPath, 'feature/new-docs')
+
+  await sandbox.git.checkoutBranch(repoPath, 'main')
+
+  await sandbox.git.deleteBranch(repoPath, 'feature/old-docs')
+
+  await sandbox.git.deleteBranch(repoPath, 'feature/stale-docs', {
+    force: true,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  sandbox.git.create_branch(repo_path, 'feature/new-docs')
+
+  sandbox.git.checkout_branch(repo_path, 'main')
+
+  sandbox.git.delete_branch(repo_path, 'feature/old-docs')
+
+  sandbox.git.delete_branch(
+      repo_path,
+      'feature/stale-docs',
+      force=True,
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Stage and commit changes
+
+You can use `add` to stage all changes or selected files.
+
+You can use `commit` to create commits. Options include custom author name, author email, and empty commits.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  await sandbox.git.add(repoPath)
+
+  await sandbox.git.commit(repoPath, 'Initial commit')
+
+  await sandbox.git.add(repoPath, {
+    files: ['README.md', 'src/index.ts'],
+  })
+
+  await sandbox.git.commit(repoPath, 'Docs sync', {
+    authorName: 'GPURun Bot',
+    authorEmail: 'bot@example.com',
+    allowEmpty: true,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  sandbox.git.add(repo_path)
+
+  sandbox.git.commit(repo_path, 'Initial commit')
+
+  sandbox.git.add(
+      repo_path,
+      files=['README.md', 'src/index.ts'],
+  )
+
+  sandbox.git.commit(
+      repo_path,
+      'Docs sync',
+      author_name='GPURun Bot',
+      author_email='bot@example.com',
+      allow_empty=True,
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Pull and push
+
+`push` and `pull` can use the configured upstream by default. You can also specify remote, branch, and upstream configuration.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  await sandbox.git.push(repoPath)
+
+  await sandbox.git.pull(repoPath)
+
+  await sandbox.git.push(repoPath, {
+    remote: 'origin',
+    branch: 'main',
+    setUpstream: true,
+  })
+
+  await sandbox.git.pull(repoPath, {
+    remote: 'origin',
+    branch: 'main',
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  sandbox.git.push(repo_path)
+
+  sandbox.git.pull(repo_path)
+
+  sandbox.git.push(
+      repo_path,
+      remote='origin',
+      branch='main',
+      set_upstream=True,
+  )
+
+  sandbox.git.pull(
+      repo_path,
+      remote='origin',
+      branch='main',
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Manage remotes
+
+You can use `remoteAdd` (JS) or `remote_add` (Python) to add remotes, optionally fetch after adding, or overwrite an existing remote.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  await sandbox.git.remoteAdd(repoPath, 'origin', repoUrl)
+
+  await sandbox.git.remoteAdd(repoPath, 'origin', repoUrl, {
+    fetch: true,
+  })
+
+  await sandbox.git.remoteAdd(repoPath, 'origin', repoUrl, {
+    overwrite: true,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  sandbox.git.remote_add(repo_path, 'origin', repo_url)
+
+  sandbox.git.remote_add(
+      repo_path,
+      'origin',
+      repo_url,
+      fetch=True,
+  )
+
+  sandbox.git.remote_add(
+      repo_path,
+      'origin',
+      repo_url,
+      overwrite=True,
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Git configuration
+
+You can use `setConfig` / `set_config` and `getConfig` / `get_config` to manage Git settings globally or per repository.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  await sandbox.git.setConfig('pull.rebase', 'false')
+
+  const value = await sandbox.git.getConfig('pull.rebase')
+
+  await sandbox.git.setConfig('pull.rebase', 'false', {
+    scope: 'local',
+    path: repoPath,
+  })
+
+  const localValue = await sandbox.git.getConfig('pull.rebase', {
+    scope: 'local',
+    path: repoPath,
+  })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  sandbox.git.set_config('pull.rebase', 'false')
+
+  value = sandbox.git.get_config('pull.rebase')
+
+  sandbox.git.set_config(
+      'pull.rebase',
+      'false',
+      scope='local',
+      path=repo_path,
+  )
+
+  local_value = sandbox.git.get_config(
+      'pull.rebase',
+      scope='local',
+      path=repo_path,
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

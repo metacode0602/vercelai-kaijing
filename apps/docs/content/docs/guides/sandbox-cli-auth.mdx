@@ -1,0 +1,75 @@
+---
+title: "Authentication"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Authentication
+
+Before using the GPURun Sandbox CLI, you need to authenticate. The `gpurun auth` command group manages your login session, active team, and local credentials. Credentials are stored locally at `~/.gpurun/config.json`.
+
+## Login
+
+Use `auth login` to sign in to your GPURun account. The CLI opens a browser-based authorization page; once you approve, it captures your access token, selects your default team, and writes the credentials to `~/.gpurun/config.json`.
+
+```bash CLI icon="terminal" theme={"system"}
+gpurun auth login
+```
+
+
+On success you will see the logged-in email and the selected team:
+
+```text Output icon="code" theme={"system"}
+Logged in as you@example.com with selected team my-team
+```
+
+
+If you are already logged in, the command reports the current session instead of signing in again. To sign in as a different user, run `auth logout` first; to switch teams, run `auth configure`.
+
+## Logout
+
+Use `auth logout` to sign out. This deletes the local credential file at `~/.gpurun/config.json`.
+
+```bash CLI icon="terminal" theme={"system"}
+gpurun auth logout
+```
+
+
+If a session exists, the CLI prints `Logged out.`; if you are not logged in, it prints `Not logged in, nothing to do`.
+
+## Info
+
+Use `auth info` to show information about the current user, including the logged-in email and the selected team.
+
+```bash CLI icon="terminal" theme={"system"}
+gpurun auth info
+```
+
+
+Example output:
+
+```text Output icon="code" theme={"system"}
+You are logged in as you@example.com,
+Selected team: my-team (team-id)
+```
+
+
+If no credentials are found, it prints `Not logged in`.
+
+## Configure
+
+Use `auth configure` to change the active team for an existing session. The CLI fetches the teams you belong to and prompts you to select one; the chosen team's name, ID, and API key are saved back to `~/.gpurun/config.json`.
+
+```bash CLI icon="terminal" theme={"system"}
+gpurun auth configure
+```
+
+
+You must be logged in first. If no user config is found, the CLI asks you to run `gpurun auth login` before configuring a team. After selecting, it confirms the chosen team:
+
+```text Output icon="code" theme={"system"}
+Team my-team (team-id) selected.
+```
+

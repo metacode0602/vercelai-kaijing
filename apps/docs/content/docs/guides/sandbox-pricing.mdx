@@ -1,0 +1,91 @@
+---
+title: "Pricing"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Pricing
+
+GPURun Sandbox is billed per second for CPU and RAM while a sandbox is **running**. Storage is billed separately for **paused** sandboxes when usage **exceeds the free allowance**.
+
+## Billing Items
+
+| Billing Item                                    | Description                                                                                                                                                                                                           |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPU                                             | Billed based on the number of vCPU cores used and usage duration (accurate to the second). See pricing [details](https://gpurun.ai/pricing?sandbox=1). Billing stops when the sandbox stops.                          |
+| RAM (memory)                                    | Billed based on allocated memory capacity and usage duration (accurate to the second). See pricing [details](https://gpurun.ai/pricing?sandbox=1). Billing stops when the sandbox stops.                              |
+| [Ephemeral Storage](/guides/sandbox-filesystem) | Each sandbox includes 20 GB of Ephemeral Storage while running. When paused, data is retained as Persistent Storage.                                                                                                  |
+| Persistent Storage                              | Templates and Snapshots are saved as persistent storage. Persistent storage is billed daily and includes a 60 GB free allowance. See the [pricing page](https://gpurun.ai/pricing?sandbox=1) for current unit prices. |
+
+<Callout type="info">
+  **Billing when a Sandbox is paused:** Once a Sandbox is paused, **CPU and RAM stop being billed**. You are only charged for **Persistent Storage** used to retain the sandbox data (60 GB free per account; usage beyond that is billed at \$0.00009/GB/h). See the Storage section below for details.
+</Callout>
+
+## Free Sandbox Usage
+
+New users can complete a quick account setup survey to receive \$100 in promotional credits for eligible GPURun Sandbox usage. No credit card is required.
+
+Promotional credits are applied to eligible GPURun Sandbox usage first, including CPU, RAM, and billable storage usage where applicable. After credits are used up or expired, continued usage is billed pay-as-you-go per current pricing.
+
+Credits may be subject to availability, validity period, usage scope, and quota limits. You can check your balance and voucher status on the [Payments](https://gpurun.ai/en/billing) page.
+
+Promotional credits do not change the underlying unit prices listed below.
+
+## Pricing
+
+### CPU
+
+| vCPUs (cores) | Unit Price    |
+| ------------- | ------------- |
+| 1             | \$0.0000098/s |
+| 2             | \$0.0000196/s |
+| 3             | \$0.0000294/s |
+| 4             | \$0.0000392/s |
+| 5             | \$0.000049/s  |
+| 6             | \$0.0000588/s |
+| 7             | \$0.0000686/s |
+| 8             | \$0.0000784/s |
+
+### RAM (memory)
+
+| Memory (MiB)                                                 | Unit Price        |
+| ------------------------------------------------------------ | ----------------- |
+| Valid values: multiples of 512 MiB, from 512 MiB to 8192 MiB | \$0.0000032/GiB/s |
+| 512 MiB                                                      | \$0.0000016/s     |
+| 1 GiB                                                        | \$0.0000032/s     |
+| 2 GiB                                                        | \$0.0000064/s     |
+
+### Storage
+
+Each sandbox includes 20 GB of Ephemeral Storage while running. When paused, data is retained as Persistent Storage. Each account includes 60 GB of free Persistent Storage. Usage beyond the free amount is billed at the standard rate.
+
+| Storage State                           | Unit Price                                                                 |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| Ephemeral Storage for running sandboxes | Free (20 GB per sandbox)                                                   |
+| Persistent Storage for paused sandboxes | 60 GB free per account, \$0.00009/GB/h for usage beyond 60 GB free storage |
+
+## Get Bills
+
+You can view and export Agent Sandbox bills in "Billing - Billing Details - Usage-based Billing".
+
+* Go to the [billing details page](https://gpurun.ai/billing/details);
+* Select the "Usage-based Billing" tab on the right, then click the "Agent Sandbox" secondary tab below;
+* You can set the "Time Range" and "Group By" filters;
+* You can click "Export" button after querying to export bill data as an .xlsx file.
+
+## Overdue Payment Notice
+
+If the account's available balance (including available balance and voucher balance) is less than the bill to be paid, the account is considered overdue. Overdue payments result in sandboxes being terminated and data loss. During usage, ensure sufficient account balance. After overdue, system sends notification emails; recharge promptly.
+
+Balance and vouchers confirmable on the [payments](https://gpurun.ai/billing) page; recharge as needed.
+
+To avoid overdue payments affecting service, setting up [low balance alerts](https://gpurun.ai/billing/balance-warning) is recommended. When balance is less than the alert threshold set, a notification email is sent.
+
+The specific overdue payment impacts:
+
+* Unable to start new sandboxes.
+* Running sandboxes will be terminated.
+
+[Source: Pricing — gpurun.ai](/guides/sandbox-pricing)

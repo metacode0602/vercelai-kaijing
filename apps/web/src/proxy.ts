@@ -1,0 +1,145 @@
+import { getSessionCookie } from "better-auth/cookies"
+import createIntlMiddleware from "next-intl/middleware"
+import type { NextRequest } from "next/server"
+import { NextResponse } from "next/server"
+
+import { auth } from "@/lib/auth"
+import { normalizeAppRole } from "@/lib/auth/app-role"
+import { canAccessPath, defaultHomeForRole } from "@/lib/auth/route-access"
+import { DEFAULT_LOCALE, LOCALES, routing } from "@/lib/i18n/routing"
+import { websiteConfig } from "@/lib/config/website"
+
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, x-request-id, X-Request-Id",
+}
+
+const handleI18nRouting = createIntlMiddleware(routing)
+
+/**
+ * Strip an optional `[locale]` prefix so auth checks use stable paths
+ * (e.g. `/en/sign-in` → `/sign-in`, `/sign-in` stays `/sign-in` for default locale).
+ */
+function pathnameWithoutLocale(pathname: string): {
+  locale: string
+  pathnameWithoutLocale: string
+} {
+  const segments = pathname.split("/").filter(Boolean)
+  const first = segments[0]
+  if (first && LOCALES.includes(first)) {
+    const rest = segments.slice(1).join("/")
+    return {
+      locale: first,
+      pathnameWithoutLocale: rest ? `/${rest}` : "/",
+    }
+  }
+  return {
+    locale: DEFAULT_LOCALE,
+    pathnameWithoutLocale: pathname || "/",
+  }
+}
+
+function buildLocalizedHref(locale: string, href: string): string {
+  if (locale === DEFAULT_LOCALE) {
+    return href
+  }
+  return `/${locale}${href === "/" ? "" : href}`
+}
+
+function isNavigationRedirect(response: NextResponse): boolean {
+  return response.status >= 300 && response.status < 400
+}
+
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  if (pathname.startsWith("/api/v1/generate")) {
+    if (request.method === "OPTIONS") {
+      return new NextResponse(null, { status: 204, headers: corsHeaders })
+    }
+    const res = NextResponse.next()
+    for (const [k, v] of Object.entries(corsHeaders)) {
+      res.headers.set(k, v)
+    }
+    return res
+  }
+
+  // Locale negotiation, prefix handling, and alternate links — see:
+  // https://next-intl.dev/docs/routing/middleware
+  const intlResponse = handleI18nRouting(request)
+
+  if (isNavigationRedirect(intlResponse)) {
+    return intlResponse
+  }
+
+  const sessionCookie = getSessionCookie(request, {
+    cookiePrefix: websiteConfig.auth.cookiePrefix,
+  })
+  const { locale, pathnameWithoutLocale: pathForAuth } = pathnameWithoutLocale(pathname)
+
+  if (
+    pathForAuth.startsWith("/login") ||
+    pathForAuth.startsWith("/auth/login") ||
+    pathForAuth.startsWith("/auth/register") ||
+    pathForAuth.startsWith("/register") ||
+    pathForAuth.startsWith("/signup")
+  ) {
+    const signInHref = buildLocalizedHref(locale, "/signin")
+    return NextResponse.redirect(new URL(signInHref, request.url))
+  }
+
+  // 公开路由需与实际页面路径一致（均挂在 /auth/* 下，见 Routes 与 app/[locale]/(auth)/auth/*）
+  const isPublicRoute =
+    pathForAuth === "/" ||
+    pathForAuth.startsWith("/signin") ||
+    pathForAuth.startsWith("/auth/forgot-password") ||
+    pathForAuth.startsWith("/auth/reset-password") ||
+    pathForAuth.startsWith("/auth/error")
+
+  const isChangePasswordRoute = pathForAuth.startsWith("/change-password")
+
+  if (!sessionCookie && !isPublicRoute) {
+    const signInHref = buildLocalizedHref(locale, "/signin")
+    return NextResponse.redirect(new URL(signInHref, request.url))
+  }
+
+  if (sessionCookie && !isPublicRoute) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    const mustChangePassword = Boolean(
+      (session?.user as { mustChangePassword?: boolean } | undefined)?.mustChangePassword,
+    )
+
+    if (mustChangePassword && !isChangePasswordRoute) {
+      const changePasswordHref = buildLocalizedHref(locale, "/change-password")
+      return NextResponse.redirect(new URL(changePasswordHref, request.url))
+    }
+
+    if (!mustChangePassword && isChangePasswordRoute) {
+      const role = normalizeAppRole(session?.user?.role)
+      const homeHref = buildLocalizedHref(
+        locale,
+        role ? defaultHomeForRole(role) : "/dashboard",
+      )
+      return NextResponse.redirect(new URL(homeHref, request.url))
+    }
+
+    const role = normalizeAppRole(session?.user?.role)
+    if (role && !isPublicRoute && !isChangePasswordRoute && !canAccessPath(role, pathForAuth)) {
+      const homeHref = buildLocalizedHref(locale, defaultHomeForRole(role))
+      return NextResponse.redirect(new URL(homeHref, request.url))
+    }
+  }
+
+  return intlResponse
+}
+
+export const config = {
+  matcher: [
+    // Match all pathnames except api, Next internals, Vercel, and static files with extensions
+    // https://next-intl.dev/docs/routing/middleware#matcher-config
+    "/((?!api|_next|_vercel|.*\\..*).*)",
+    "/api/v1/generate/:path*",
+  ],
+}

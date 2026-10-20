@@ -1,0 +1,69 @@
+---
+title: "Installing"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Installing
+
+GPURun Sandbox provides official SDKs for multiple programming languages, along with a CLI for performing sandbox operations from the terminal.
+
+Currently supported:
+
+* Python
+* JavaScript & TypeScript
+* CLI
+
+You can install the GPURun SDK for application code and the CLI for terminal-based sandbox operations.
+
+## Install SDK
+
+You can install the GPURun SDK by executing the following commands.
+
+<Callout type="info">
+  **Prerequisites:**
+
+  * JS: Node.js 20+
+  * Python: Python 3.9+
+</Callout>
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  npm i gpurun-sandbox
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  pip install gpurun-sandbox
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Install CLI
+
+The GPURun Sandbox CLI helps you manage sandboxes, run commands, build templates, and perform common development tasks directly from the terminal.
+
+```bash CLI icon="terminal" theme={"system"}
+npm i -g gpurun-sandbox-cli
+```
+
+
+## Install Agent Skills
+
+If your agent supports skills, install the GPURun Sandbox skill with the following command:
+
+```bash theme={"system"}
+npx skills add gpurunlabs/gpurun-skills --skill gpurun-sandbox-skills
+```
+
+
+[View the skill on GitHub →](https://github.com/gpurunlabs/gpurun-skills).

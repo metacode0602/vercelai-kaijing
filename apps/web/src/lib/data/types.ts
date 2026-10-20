@@ -1,0 +1,955 @@
+// 模拟数据类型定义（v3.0：Customer / Project / PlatformTenant）
+
+import type { ProjectStage } from '@/lib/types/crm'
+import type {
+  ConversionReason,
+  OpportunitySource,
+} from '@/lib/crm/commission-constants'
+
+/** 期望规模 — 单条卡型及数量 */
+export type ExpectedScaleCardEntry = {
+  cardTypeId: string
+  cardCount: number
+}
+
+/** 期望规模 — 存储配置 */
+export type ExpectedScaleStorage = {
+  enabled: boolean
+  storageType: 'shared_storage' | 'object_storage'
+  sizeGB: number
+}
+
+/** 期望规模 — 业务线数量 */
+export type ExpectedScaleProductLines = {
+  /** 裸金属 */
+  bareMetal: number
+  /** 弹性服务 */
+  elasticService: number
+  /** Job */
+  job: number
+}
+
+/** 客户期望规模（对应库表 expected_scale jsonb） */
+export type CustomerExpectedScale = {
+  cards: ExpectedScaleCardEntry[]
+  storage: ExpectedScaleStorage
+  productLines: ExpectedScaleProductLines
+}
+
+export const emptyExpectedScale: CustomerExpectedScale = {
+  cards: [],
+  storage: { enabled: false, storageType: 'shared_storage', sizeGB: 0 },
+  productLines: { bareMetal: 0, elasticService: 0, job: 0 },
+}
+
+export function isExpectedScaleEmpty(scale: CustomerExpectedScale): boolean {
+  const hasCards = scale.cards.some((c) => c.cardTypeId && c.cardCount > 0)
+  const hasStorage = scale.storage.enabled && scale.storage.sizeGB > 0
+  const pl = scale.productLines
+  const hasProductLines =
+    pl.bareMetal > 0 || pl.elasticService > 0 || pl.job > 0
+  return !hasCards && !hasStorage && !hasProductLines
+}
+
+/** CRM 客户主体 */
+export interface Customer {
+  id: string
+  name: string
+  /** 客户简称，对应库表 account_name */
+  shortName?: string
+  type: 'B' | 'C'
+  status: 'active' | 'inactive' | 'suspended'
+  contactPerson: string
+  contactPhone: string
+  contactEmail: string
+  industry: string
+  address: string
+  /** 统一社会信用代码 */
+  certCode?: string
+  /** 销售经理 ID */
+  salesManagerId?: string
+  /** 销售经理姓名（展示用） */
+  salesManagerName?: string
+  /** 期望规模：卡型多选 */
+  expectedScale?: CustomerExpectedScale | null
+  createdAt: string
+  /** 首个租户导入时写入的平台注册时间（customer 冗余列，写入后不更新） */
+  platformRegisteredAt?: string
+  /** 是否已完成实名（企业认证审核通过） */
+  identityVerified: boolean
+  /** 实名/审核通过时间 */
+  identityVerifiedAt?: string
+  /** 实名方式：manual 手动 | auto 自动 */
+  identityVerificationType?: 'manual' | 'auto'
+  projectCount: number
+  totalRecharge: number
+  totalConsumption: number
+  /** 下属计费账户余额合计（派生，非持久化） */
+  balance: number
+}
+
+/** 平台计费租户 */
+export interface PlatformTenant {
+  id: string
+  customerId: string
+  name: string
+  platformTenantId?: string
+  phone?: string
+  isDefault: boolean
+  status: 'active' | 'inactive' | 'suspended'
+  balance: number
+  overdueAt?: string
+  creditLimit?: number
+  merchantId?: string
+  merchantName?: string
+}
+
+/** 项目–计费账户关联 */
+export interface ProjectTenant {
+  id: string
+  projectId: string
+  tenantId: string
+  role?: string
+  bindingLabel?: string
+  sortOrder: number
+}
+
+/** 业务线主数据（对应 business_line 表） */
+export interface BusinessLine {
+  id: string
+  code: string
+  name: string
+  description?: string
+  sortOrder: number
+  status: 'active' | 'inactive'
+}
+
+export type ProjectTag = {
+  id: string
+  name: string
+}
+
+export interface Project {
+  id: string
+  name: string
+  customerId: string
+  customerName: string
+  customerType: 'B' | 'C'
+  /** 主计费租户；空则使用客户默认 tenant */
+  primaryTenantId?: string
+  /** 主计费租户对应的平台租户 ID */
+  platformTenantId?: string
+  businessLineId: string
+  businessLineName: string
+  stage: ProjectStage
+  status: 'active' | 'paused' | 'completed'
+  /** API 读模型：来自 project_staff_assignment JOIN user_staff */
+  preSalesManager: string
+  accountManager: string
+  deliveryManager: string
+  projectManager: string
+  description: string
+  createdAt: string
+  startDate: string
+  endDate?: string
+  monthlyBudget: number
+  /** 上月充值（快照） */
+  lastMonthRecharge: number
+  /** 本月充值（快照） */
+  thisMonthRecharge: number
+  /** 上月消费（快照） */
+  lastMonthConsumption: number
+  /** 本月消费（快照） */
+  thisMonthConsumption: number
+  totalConsumption: number
+  balance: number
+  /** 当前收入归属部门 */
+  revenueDepartment?: string
+  /** 当前商机来源 */
+  opportunitySource?: OpportunitySource
+  /** 提成成交锚定月 YYYY-MM */
+  dealClosedMonth?: string
+  /** 项目激励开始设置 */
+  conversionSetting?: {
+    reason: ConversionReason
+    signedOn: string
+    conversionDate: string
+    remark?: string
+  }
+  tags: ProjectTag[]
+}
+
+export interface Contract {
+  id: string
+  contractNo: string
+  projectId: string
+  projectName: string
+  customerId: string
+  customerName: string
+  tenantId: string
+  type: 'standard' | 'enterprise' | 'custom'
+  status: 'draft' | 'pending' | 'active' | 'expired' | 'terminated'
+  startDate: string
+  endDate: string
+  totalAmount: number
+  paidAmount: number
+  signedAt?: string
+  signerName?: string
+  terms: string
+  createdAt: string
+}
+
+export interface Recharge {
+  id: string
+  tenantId: string
+  projectId?: string
+  amount: number
+  paymentMethod: 'bank_transfer' | 'alipay' | 'wechat' | 'invoice'
+  status: 'pending' | 'completed' | 'failed'
+  transactionId: string
+  createdAt: string
+  completedAt?: string
+}
+
+export interface Consumption {
+  id: string
+  tenantId: string
+  projectId: string
+  productLine: 'serverless' | 'cloud_vm' | 'job' | 'bare_metal' | 'offline_order' | 'image_registry' | 'shared_storage' | 'object_storage'
+  resourceName: string
+  amount: number
+  duration: number
+  unit: 'hour' | 'day' | 'month' | 'count'
+  createdAt: string
+}
+
+/** 项目消费按日汇总（consumption_usage_daily） */
+export interface DailyConsumption {
+  id: string
+  tenantId: string
+  tenantName: string
+  usageDate: string
+  usageMonth: string
+  productLine: string
+  amount: number
+  voucherAmount: number
+  balanceAmount: number
+  totalCardHours: number | null
+  voucherCardHours: number | null
+  balanceCardHours: number | null
+  taskCount: number
+}
+
+/** 项目每日消费明细（tenant_consumption_daily_detail） */
+export interface DailyConsumptionDetail {
+  id: string
+  tenantId: string
+  tenantName: string
+  usageDate: string
+  productLine: string
+  dataCenterCode: string
+  dataCenterName: string
+  gpuCardTypeCode: string
+  gpuCardTypeName: string | null
+  platformTaskId: string | null
+  taskName: string | null
+  totalAmount: number
+  voucherAmount: number
+  balanceAmount: number
+  totalCardHours: number | null
+  voucherCardHours: number | null
+  balanceCardHours: number | null
+}
+
+export interface Coupon {
+  id: string
+  tenantId: string
+  tenantName?: string
+  projectId?: string
+  platformRelationId?: number
+  platformTemplateId?: number
+  templateId?: string
+  templateTitle?: string
+  supportProductLines?: string[]
+  code: string
+  name: string
+  type: 'discount' | 'cash'
+  /** 面值（元） */
+  value: number
+  /** 剩余额度（元） */
+  surplusAmount: number
+  minAmount: number
+  /** 平台状态，如 Open / Close */
+  status: string
+  remark?: string
+  validityDay?: number
+  issuedAt: string
+  expiredAt: string
+  usedAt?: string
+  adminNickname?: string
+}
+
+export interface Task {
+  id: string
+  tenantId: string
+  projectId: string
+  title: string
+  description: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  resourceType: 'serverless' | 'cloud_vm' | 'job' | 'bare_metal'
+  gpuCount?: number
+  cpuCount?: number
+  memoryGB?: number
+  startTime: string
+  endTime?: string
+  cost: number
+}
+
+export interface Order {
+  id: string
+  orderNo: string
+  tenantId: string
+  projectId: string
+  productLine: string
+  status: 'pending' | 'processing' | 'completed' | 'cancelled'
+  amount: number
+  items: OrderItem[]
+  createdAt: string
+  completedAt?: string
+}
+
+export interface OrderItem {
+  name: string
+  quantity: number
+  unitPrice: number
+  total: number
+}
+
+export interface Activity {
+  id: string
+  projectId: string
+  /** 工作台最近动态等场景 JOIN 项目名 */
+  projectName?: string
+  type: 'comment' | 'file' | 'task' | 'meeting' | 'stage_change' | 'recharge' | 'consumption'
+  title: string
+  description: string
+  author: string
+  authorStaffId?: string | null
+  authorRole: 'sales' | 'account_manager' | 'pre_sales' | 'system'
+  attachments?: Attachment[]
+  metadata?: Record<string, unknown>
+  createdAt: string
+  editedAt?: string
+}
+
+export interface Attachment {
+  id: string
+  name: string
+  size: number
+  type: string
+  url: string
+}
+
+export interface Bill {
+  id: string
+  tenantId: string
+  projectId: string
+  projectName: string
+  month: string
+  totalAmount: number
+  status: 'pending' | 'paid' | 'overdue'
+  details: BillDetail[]
+  dueDate: string
+  paidAt?: string
+}
+
+export interface BillDetail {
+  productLine: string
+  resourceName: string
+  usage: number
+  unit: string
+  unitPrice: number
+  amount: number
+}
+
+// 产品线中文名称映射
+export const productLineNames: Record<string, string> = {
+  bare_metal: '裸金属短租',
+  offline_order: '线下订单',
+  image_registry: '镜像仓库',
+  shared_storage: '共享存储卷',
+  object_storage: '对象存储加速',
+  pod_deployment: '弹性部署',
+  pod_job: 'Job',
+  pod_development: '开发机',
+  maas_token: 'Token服务',
+  juicefs: '对象存储加速',
+  harbor: '镜像仓库',
+  share_storage: '共享存储卷',
+  prepaid_deduction: '预付费抵扣',
+}
+
+// 阶段中文名称映射
+export const stageNames: Record<string, string> = {
+  lead: '线索孵化',
+  testing: '测试中',
+  converted: '已转正',
+}
+
+// 阶段颜色映射
+export const stageColors: Record<string, string> = {
+  lead: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  testing: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  converted: 'bg-green-500/20 text-green-400 border-green-500/30',
+}
+
+// 状态颜色映射
+export const statusColors: Record<string, string> = {
+  active: 'bg-green-500/20 text-green-400 border-green-500/30',
+  inactive: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  suspended: 'bg-red-500/20 text-red-400 border-red-500/30',
+  paused: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  completed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  running: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  failed: 'bg-red-500/20 text-red-400 border-red-500/30',
+  draft: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  expired: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  terminated: 'bg-red-500/20 text-red-400 border-red-500/30',
+  processing: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  cancelled: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  used: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  paid: 'bg-green-500/20 text-green-400 border-green-500/30',
+  overdue: 'bg-red-500/20 text-red-400 border-red-500/30',
+  negotiating: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  cooperating: 'bg-green-500/20 text-green-400 border-green-500/30',
+}
+
+// 供应商相关类型
+/** 入驻主体类型（Excel 导入 / supplier.onboarding_type） */
+export type SupplierOnboardingType = 'enterprise' | 'individual'
+
+/**
+ * 合作模式（supplier_device.cooperation_type / supplier_bill.cooperation_mode）。
+ * 与合同计价方式是两套独立维度：整租按台/月计费，闲时按 GPU 卡时计费。
+ */
+export type CooperationMode = 'idle_time' | 'whole_rent'
+
+/** 合同约定计价方式 */
+export type ContractPricingMode =
+  | 'card_time'
+  | 'revenue_share'
+  | 'tiered_card_time'
+  | 'tiered_revenue_share'
+
+/**
+ * 账单计价快照（supplier_bill.pricing_mode / supplier_bill_detail.pricing_mode）。
+ * 月账单为 mixed 时，消费侧必须回退到明细行的 pricing_mode。
+ */
+export type BillPricingMode = ContractPricingMode | 'mixed'
+
+export interface ContractPricingTier {
+  tierOrder: number
+  /** 档位划分依据：累计卡时 / 成交刊例比例 */
+  tierBasis?: 'hours' | 'ratio_band'
+  /** 阶梯卡时：起始累计卡时（含） */
+  thresholdFromHours?: number
+  /** 阶梯卡时：结束累计卡时（不含），空表示无上限 */
+  thresholdToHours?: number | null
+  /** 阶梯分成：成交/刊例比例下限（小数，左开） */
+  dealToListRatioMin?: number
+  /** 阶梯分成：成交/刊例比例上限（小数，右闭），空表示无上限 */
+  dealToListRatioMax?: number | null
+  /** 卡时 / 阶梯卡时：元/小时 */
+  unitPricePerHour?: number
+  /** 分成 / 阶梯分成：供应商分成 % */
+  revenueSharePercent?: number
+  /** 阶梯卡时：相对刊例的结算倍数 */
+  listPriceMultiplier?: number
+}
+
+export interface Supplier {
+  id: string
+  /** 供应商编码，对应 DB supplier.code */
+  code?: string
+  name: string
+  shortName: string
+  status: 'negotiating' | 'cooperating' | 'suspended' | 'terminated'
+  /** 合作维度：整租 / 闲时（由 default_cooperation_mode 归一而来） */
+  cooperationMode: CooperationMode
+  /** 供应商默认计价方式（supplier.default_cooperation_mode 原值） */
+  pricingMode: ContractPricingMode
+  revenueShareRatio?: number // 分成比例，仅分成模式使用
+  businessManager: string // 商务经理
+  contactPerson: string
+  contactPhone: string
+  contactEmail: string
+  address: string
+  bankAccount?: string
+  bankName?: string
+  /** 入驻系统 ID（导入幂等） */
+  externalOnboardingId?: string
+  /** 外部平台租户 ID（导入幂等） */
+  externalTenantId?: string
+  /** 门户自助入驻关联的 organization */
+  organizationId?: string
+  platformTenantId?: string
+  onboardingType?: SupplierOnboardingType
+  identityNo?: string
+  businessScope?: string
+  businessLicenseUri?: string
+  idCardFrontUri?: string
+  idCardBackUri?: string
+  bankBranchName?: string
+  bankBranchAddress?: string
+  adminPhone?: string
+  adminEmail?: string
+  deviceInfoRaw?: string
+  auditStatus?: string
+  auditConfirmed?: boolean
+  auditRemark?: string
+  createdAt: string
+  updatedAt?: string
+  dataCenterCount: number
+  totalDeviceCount: number
+  monthlySettlement: number // 月结算金额
+}
+
+export interface SupplierContract {
+  id: string
+  contractNo: string
+  supplierId: string
+  supplierName: string
+  type: 'cooperation' | 'supplement' | 'renewal'
+  status: 'draft' | 'pending' | 'active' | 'expired' | 'terminated'
+  /** @deprecated 请优先使用 pricingMode；保留以兼容旧展示 */
+  cooperationMode: CooperationMode
+  pricingMode: ContractPricingMode
+  /** 固定卡时价（元/小时） */
+  unitPricePerHour?: number
+  /** 固定分成比例 % */
+  revenueShareRatio?: number
+  /** 阶梯卡时 / 阶梯分成档位 */
+  pricingTiers?: ContractPricingTier[]
+  minCommitHours?: number
+  settlementCycle?: 'monthly' | 'quarterly'
+  startDate: string
+  endDate: string
+  terms: string
+  signedAt?: string
+  signerName?: string
+  contractFileUrl?: string
+  /** 站点纳管设备台数（网关 BOM） */
+  siteNodeCount?: number
+  /** 站点规模分档：lte_5 / lte_30 / lte_100 / gt_100 */
+  siteNodeTier?: 'lte_5' | 'lte_30' | 'lte_100' | 'gt_100' | null
+  /** 产品线 multi-select */
+  productLines?: string[] | null
+  /** 公网 IP 数量 */
+  publicIpCount?: number | null
+  /** 供应商是否提供 CPU 主机 */
+  supplierProvidesCpuHosts?: boolean
+  createdAt: string
+}
+
+export interface DataCenter {
+  id: string
+  supplierId: string
+  supplierName: string
+  name: string
+  code: string
+  location: string
+  address: string
+  status: 'online' | 'offline' | 'maintenance'
+  /** active=合作中；pause=合作暂停；inactive=合作终止 */
+  cooperationStatus: 'active' | 'pause' | 'inactive'
+  networkFee: number // 网络费用 (月)
+  managementNodeFee: number // 管控节点费用 (月)
+  totalDeviceCount: number
+  onlineDeviceCount: number
+  /** infra / CPU 库存台数（不计入 GPU 在线率） */
+  cpuDeviceCount: number
+  createdAt: string
+  /** 入驻系统机房 ID（导入辅助，可空） */
+  externalOnboardingId?: string
+  platformTenantId?: string
+  regionTags?: string[]
+  containerInstanceRegion?: string
+  bareMetalRegion?: string
+  description?: string
+  scale?: string
+  publicIpCount?: number
+  internalNetworkCidr?: string
+  auditStatus?: string
+  auditRemark?: string
+  sourceDeleted?: boolean
+  updatedAt?: string
+}
+
+export interface DataCenterStats {
+  total: number
+  online: number
+  offline: number
+  maintenance: number
+  totalGpu: number
+  onlineGpu: number
+}
+
+/** 平台定价详情页 — 接入机房的摘要信息（来自 GPU 库存聚合） */
+export type PlatformPricingDatacenterContext = {
+  dataCenterId: string
+  dataCenterName: string
+  supplierId: string
+  supplierName: string
+  location: string
+  status: DataCenter['status']
+}
+
+export type PhysicalDeviceRoleStats = {
+  total: number
+  online: number
+  maintenance: number
+}
+
+export type OpsStatusBreakdownItem = {
+  opsStatus: string
+  count: number
+}
+
+export type DatacenterPhysicalDeviceStats = {
+  total: number
+  online: number
+  maintenance: number
+  /** 算力卡型（compute）物理机台数 */
+  gpu: PhysicalDeviceRoleStats
+  /** infra / CPU 管控等基础设施台数 */
+  cpu: PhysicalDeviceRoleStats
+  /** 按运维设备状态（ops_status）汇总台数 */
+  opsStatusBreakdown: OpsStatusBreakdownItem[]
+}
+
+export interface DataCenterDetail {
+  dataCenter: DataCenter
+  physicalDeviceStats: DatacenterPhysicalDeviceStats
+  inventoryStats: {
+    cardTypeCount: number
+    totalGpu: number
+    onlineGpu: number
+  }
+}
+
+export type GPUCardTypeManufacturer = 'NVIDIA' | 'AMD' | 'Intel' | 'Huawei' | 'Other'
+
+export type GPUCardTypeStatus = 'active' | 'disabled'
+
+export type GPUCardTypeRole = 'compute' | 'infra' | 'wr_placeholder'
+
+export interface GPUCardType {
+  id: string
+  /** 业务编码，落库 gpu_card_type.code */
+  code?: string
+  name: string
+  manufacturer: GPUCardTypeManufacturer
+  memoryGB: number
+  tdpWatts?: number
+  computeCapability?: string
+  /** compute=算力卡型；infra=管控/存储等无 GPU 卡型 */
+  deviceRole?: GPUCardTypeRole
+  status: GPUCardTypeStatus
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface DataCenterDevice {
+  id: string
+  dataCenterId: string
+  dataCenterName: string
+  supplierId: string
+  /** 供应商简称（列表 JOIN 填充） */
+  supplierShortName?: string
+  cardTypeId: string
+  cardTypeName: string
+  /** compute=算力卡型；infra=管控/存储等无 GPU 卡型 */
+  cardTypeRole?: GPUCardTypeRole
+  quantity: number
+  onlineQuantity: number
+  // 卡时模式成本
+  cardTimeCostPerHour?: number
+  // 分成模式成本
+  revenueShareCostPerHour?: number
+  status: 'online' | 'offline' | 'maintenance'
+  /** 是否划入内部测试池 */
+  isInternalTest?: boolean
+  /** 内部测试占用范围，如 GPU0-GPU3 */
+  internalTestScope?: string
+  /** 内部测试计划结束时间 */
+  internalTestUntil?: string | null
+  /** 与物理机汇总同步时间 */
+  lastSyncedAt?: string | null
+  updatedAt?: string
+}
+
+export interface GpuInventoryDetail {
+  inventory: DataCenterDevice
+  physicalDevices: PhysicalDevice[]
+  physicalDeviceStats: DatacenterPhysicalDeviceStats
+  physicalDevicesTotal: number
+  page: number
+  pageSize: number
+}
+
+/** 设备合作类型（supplier_device.cooperation_type） */
+export type DeviceCooperationType = 'idle_time' | 'whole_rent'
+
+export const DEVICE_COOPERATION_TYPE_LABELS: Record<DeviceCooperationType, string> = {
+  idle_time: '闲时合作',
+  whole_rent: '整租合作',
+}
+
+/**
+ * 账单的 cooperation_mode 是**设备合作类型 + 合同计价方式**的组合，
+ * 不等于 `CooperationMode`：账单生成时按机房下在线设备的 cooperationType 归集，
+ * 一个机房内两种类型混用时会落 `mixed`。所以这里显式列出全部取值，
+ * 不能复用 `ContractPricingMode` —— 那会把 `idle_time` 判成不可能而编译失败。
+ */
+export type BillCooperationMode = DeviceCooperationType | ContractPricingMode | 'mixed'
+
+/** 物理算力设备（supplier_device） */
+export interface PhysicalDevice {
+  id: string
+  supplierId: string
+  supplierShortName: string
+  contractId: string | null
+  onboardingBatchId: string | null
+  dataCenterId: string | null
+  assetNo: string
+  sn: string
+  lifecycleStatus: string
+  onboardingSubstage: string | null
+  idcRegion: string | null
+  idcCode: string
+  gpuCount: number
+  cardTypeName: string
+  externalIp: string | null
+  internalIp: string | null
+  platformResourceId: string | null
+  externalDeviceId: string | null
+  opsStatus: string | null
+  inMaintenance: boolean
+  listingDisabled: boolean
+  cooperationType: DeviceCooperationType
+  deviceSpec: string | null
+  devicePurpose: string | null
+  /** compute_node.cluster_name */
+  clusterName: string | null
+  /** compute_node.node_role */
+  nodeRole: string | null
+  /** compute_node.expected_service */
+  expectedService: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PhysicalDeviceStats {
+  total: number
+  online: number
+  onboarding: number
+}
+
+export interface PhysicalComputeNode {
+  id: string
+  nodeRole: string
+  mgmtIp: string | null
+  clusterId: string | null
+  clusterName: string | null
+  nodeName: string | null
+  expectedService: string | null
+  lifecycleStatus: string
+}
+
+export type PhysicalDeviceFlowRecordKind =
+  | 'state_transition'
+  | 'changelog_import'
+  | 'activity'
+
+export interface PhysicalDeviceFlowRecord {
+  id: string
+  kind: PhysicalDeviceFlowRecordKind
+  title: string
+  description?: string | null
+  changeContent?: string | null
+  detailDescription?: string | null
+  externalDeviceId?: string | null
+  internalIp?: string | null
+  attachmentNames?: string[] | null
+  fromState?: string | null
+  toState?: string | null
+  reasonCode?: string | null
+  operatorName?: string | null
+  ticketNo?: string | null
+  batchCode?: string | null
+  occurredAt: string
+}
+
+export interface PhysicalDeviceDetail {
+  device: PhysicalDevice & {
+    supplierName: string
+    contractNo: string | null
+    onboardingBatchCode: string | null
+    onboardingBatchKind: string | null
+  }
+  computeNodes: PhysicalComputeNode[]
+  flowRecords: PhysicalDeviceFlowRecord[]
+}
+
+/** L1 聚合库存变更记录（Mock） */
+export interface InventoryChangeLog {
+  id: string
+  inventoryId: string
+  changeType: 'status' | 'quantity' | 'internal_test' | 'sync'
+  summary: string
+  fromValue: string
+  toValue: string
+  operatorName: string
+  reasonCode: string
+  occurredAt: string
+}
+
+export interface SupplierBill {
+  id: string
+  supplierId: string
+  supplierName: string
+  month: string
+  // 账单口径含设备合作类型（idle_time/whole_rent）与 mixed，故不能用 CooperationMode
+  cooperationMode: BillCooperationMode
+  /** 计价方式快照；mixed 时须回退到 details[].pricingMode */
+  pricingMode: BillPricingMode
+  status: 'pending' | 'confirmed' | 'paid'
+  totalUsageHours: number
+  totalAmount: number
+  networkFee: number
+  managementFee: number
+  finalAmount: number
+  details: SupplierBillDetail[]
+  dueDate: string
+  paidAt?: string
+  createdAt: string
+}
+
+export interface SupplierBillDetail {
+  dataCenterId: string
+  dataCenterName: string
+  cardTypeName: string
+  /** 该行计价方式快照，决定金额走卡时公式还是分成公式 */
+  pricingMode: ContractPricingMode
+  usageHours: number
+  unitCost: number
+  amount: number
+  /** 客户实际消费；分成模式未结算出消费时为 null，展示为「待结算」 */
+  tenantConsumption?: number | null
+}
+
+/** 机房卡型成本配置状态 */
+export type SupplierPricingConfigStatus = 'active' | 'unavailable'
+
+/** 供应商成本侧计费单位 */
+export type SupplierBillingUnit = 'hour' | 'month'
+
+/** 供应商 × 机房 × 卡型 当前生效单价/分成配置 */
+export interface SupplierPricingRecord {
+  id: string
+  supplierId: string
+  supplierName: string
+  dataCenterId: string
+  dataCenterName: string
+  cardTypeId: string
+  cardTypeName: string
+  /** active 可用 / unavailable 不可用（导入占位） */
+  configStatus?: SupplierPricingConfigStatus
+  cooperationMode: CooperationMode
+  /** 固定卡时 / 阶梯卡时 / 固定分成 / 阶梯分成 */
+  pricingMode?: ContractPricingMode
+  /** 计费单位：hour=卡时价 / month=整租月租 */
+  billingUnit?: SupplierBillingUnit
+  /** 与 billingUnit 对应：hour=元/卡/时，month=元/台/月 */
+  unitPrice?: number
+  /** 月租折算时每台机器 GPU 卡数，默认 8 */
+  cardsPerMachine?: number
+  /** 卡时模式：元/卡时（固定卡时；月租时为按 effectiveFrom 折算的展示值） */
+  unitPricePerHour?: number
+  /** 分成模式：供应商分成比例 %（固定分成） */
+  revenueSharePercent?: number
+  /** 阶梯卡时 / 阶梯分成档位 */
+  pricingTiers?: ContractPricingTier[]
+  effectiveFrom: string
+  /** yyyy-MM-dd HH:mm:ss，空表示长期有效 */
+  effectiveTo?: string | null
+  updatedAt: string
+  updatedBy?: string
+}
+
+/** 单价/分成变更历史，用于追溯 */
+export interface SupplierPricingHistory {
+  id: string
+  pricingRecordId: string
+  supplierId: string
+  supplierName: string
+  dataCenterId: string
+  dataCenterName: string
+  cardTypeId: string
+  cardTypeName: string
+  /** 合作维度：整租 / 闲时（由计费单位推导） */
+  cooperationMode: CooperationMode
+  /** 变更后的计价方式快照 */
+  pricingMode: ContractPricingMode
+  billingUnit?: SupplierBillingUnit
+  previousUnitPrice?: number
+  newUnitPrice?: number
+  previousCardsPerMachine?: number
+  newCardsPerMachine?: number
+  previousUnitPricePerHour?: number
+  newUnitPricePerHour?: number
+  previousRevenueSharePercent?: number
+  newRevenueSharePercent?: number
+  changedAt: string
+  changedBy: string
+  reason?: string
+}
+
+// 合同约定计价方式中文名称 —— **全站唯一来源**。
+//
+// 此前本文件之外还有 2 份手抄副本（supplier/contract-detail-content.tsx、
+// supplier/contracts-content.tsx）以及 2 处硬编码的 Select 选项
+// （contract-create-dialog / contract-edit-dialog），共 4 份真相。
+// 新增计价方式时只改此处；展示一律走 contractPricingModeLabel()。
+export const contractPricingModeNames: Record<ContractPricingMode, string> = {
+  card_time: '固定卡时价',
+  revenue_share: '固定分成',
+  tiered_card_time: '阶梯卡时价',
+  tiered_revenue_share: '阶梯分成',
+}
+
+/**
+ * 取合同计价方式中文名；未登记的取值**回退为原值**而非 undefined。
+ *
+ * 需要兜底的原因：mapSupplierContractRow 用的是**未校验的** `as ContractPricingMode`
+ * 强转（不像 asContractPricingMode 会收敛到 4 值），而
+ * supplier_contract.pricing_mode 是无 CHECK 约束的 varchar —— 脏值会原样到达 UI。
+ * 直接下标取值会渲染成空白单元格。
+ */
+export function contractPricingModeLabel(mode: string): string {
+  return contractPricingModeNames[mode as ContractPricingMode] ?? mode
+}
+
+export function isSharePricingMode(mode: ContractPricingMode): boolean {
+  return mode === 'revenue_share' || mode === 'tiered_revenue_share'
+}
+
+// 卡型制造商名称映射
+export const manufacturerNames: Record<string, string> = {
+  NVIDIA: 'NVIDIA',
+  AMD: 'AMD',
+  Intel: 'Intel',
+  Huawei: '华为',
+  Other: '其他',
+}

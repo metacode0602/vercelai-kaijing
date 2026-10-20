@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenRoute Edge Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/openroute-agent --config /etc/openroute/agent.yaml
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

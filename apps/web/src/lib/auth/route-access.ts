@@ -1,0 +1,93 @@
+import type { AppRole } from '@/lib/auth/app-role'
+
+export const ROUTE_ACCESS = {
+  shared: ['/dashboard/flow', '/crm/tenant-blacklist'],
+  supply: ['/supplier'],
+  crm: ['/crm'],
+  crmAdminOnly: ['/crm/staff'],
+  merchant: ['/merchant'],
+  finance: [
+    '/finance',
+    '/supplier/unit-costs',
+  ],
+  common: [
+    '/settings',
+    '/help',
+    '/change-password',
+    '/supplier/gpu-card-types',
+  ],
+} as const
+
+const FINANCE_SUPPLY_PATHS = new Set(['/supplier/unit-costs'])
+
+function matchesPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`)
+}
+
+function isSharedPath(path: string): boolean {
+  return ROUTE_ACCESS.shared.some((prefix) => matchesPrefix(path, prefix))
+}
+
+function isCommonPath(path: string): boolean {
+  return ROUTE_ACCESS.common.some((prefix) => matchesPrefix(path, prefix))
+}
+
+function isMerchantPath(path: string): boolean {
+  return ROUTE_ACCESS.merchant.some((prefix) => matchesPrefix(path, prefix))
+}
+
+function isFinancePath(path: string): boolean {
+  return ROUTE_ACCESS.finance.some((prefix) => matchesPrefix(path, prefix))
+}
+
+function isCrmAdminOnlyPath(path: string): boolean {
+  return ROUTE_ACCESS.crmAdminOnly.some((prefix) => matchesPrefix(path, prefix))
+}
+
+function isCrmPath(path: string): boolean {
+  return ROUTE_ACCESS.crm.some((prefix) => matchesPrefix(path, prefix))
+}
+
+function isSupplyPath(path: string): boolean {
+  if (FINANCE_SUPPLY_PATHS.has(path) || [...FINANCE_SUPPLY_PATHS].some((p) => matchesPrefix(path, p))) {
+    return false
+  }
+  return ROUTE_ACCESS.supply.some((prefix) => matchesPrefix(path, prefix))
+}
+
+export function defaultHomeForRole(role: AppRole): string {
+  switch (role) {
+    case 'admin':
+      return '/finance'
+    case 'member':
+      return '/supplier'
+    case 'user':
+      return '/crm/workbench'
+  }
+}
+
+export function canAccessPath(role: AppRole, path: string): boolean {
+  const normalized = path || '/'
+
+  if (isSharedPath(normalized) || isCommonPath(normalized)) {
+    return true
+  }
+
+  if (isFinancePath(normalized) || isCrmAdminOnlyPath(normalized)) {
+    return role === 'admin'
+  }
+
+  if (isMerchantPath(normalized)) {
+    return role === 'admin' || role === 'user'
+  }
+
+  if (isSupplyPath(normalized)) {
+    return role === 'admin' || role === 'member'
+  }
+
+  if (isCrmPath(normalized)) {
+    return role === 'admin' || role === 'user'
+  }
+
+  return true
+}

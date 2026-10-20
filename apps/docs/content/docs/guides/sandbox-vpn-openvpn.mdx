@@ -1,0 +1,286 @@
+---
+title: "OpenVPN"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# OpenVPN
+
+You can connect a GPURun Sandbox to an OpenVPN network using a `.ovpn` client configuration file so the sandbox can reach private networks through the VPN tunnel. This is useful for accessing internal services, using a fixed egress path, or routing selected traffic through your own infrastructure.
+
+The flow is: create a sandbox, install OpenVPN, upload the `.ovpn` config, start OpenVPN in the background, then verify the `tun0` tunnel interface is up.
+
+***
+
+## Prerequisites
+
+* `pip install gpurun-sandbox`
+* `export GPURUN_API_KEY=...`
+* An OpenVPN client profile (`.ovpn`) available locally
+
+***
+
+## Connect a sandbox to OpenVPN
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```python
+  """gpurun-openvpn.py
+
+  Connect a GPURun sandbox to an OpenVPN network using a `.ovpn` client
+  configuration file (non-interactive).
+  """
+
+  import os
+  import time
+
+  from gpurun_sandbox import GPURun
+
+  # Path to the local .ovpn client profile (in the project directory).
+  OVPN_PATH = os.path.join(os.path.dirname(__file__), "..", "client1.ovpn")
+  REMOTE_CONFIG = "/home/gpurun/client.ovpn"
+  REMOTE_LOG = "/tmp/openvpn.log"
+
+
+  def setup_openvpn(ovpn_config: str):
+      """Connect a GPURun sandbox to an OpenVPN network."""
+      gpurun = GPURun(api_key=os.environ["GPURUN_API_KEY"])
+
+      # Create the sandbox
+      print("Creating sandbox...")
+      sandbox = gpurun.sandbox.create("base")
+      print(f"Sandbox created: {sandbox.sandbox_id}")
+
+      # Step 1: Install OpenVPN
+      print("\\nInstalling OpenVPN...")
+      response = sandbox.commands.run(
+          "sudo apt update && sudo apt install -y openvpn",
+          timeout=300,
+      )
+      if response.exit_code != 0:
+          print(f"Error installing OpenVPN: {response.stderr}")
+          return sandbox
+      print("OpenVPN installed successfully.")
+
+      # Step 2: Write the OpenVPN config file
+      print("\\nWriting OpenVPN configuration...")
+      sandbox.files.write(REMOTE_CONFIG, ovpn_config)
+      print(f"Configuration written to {REMOTE_CONFIG}")
+
+      # Step 3: Start OpenVPN in background.
+      #   `--pull-filter ignore redirect-gateway` stops the server from taking
+      #   over the sandbox's default route — otherwise the SDK's own control
+      #   connection gets pulled into the tunnel and every later command times
+      #   out. The VPN subnet routes are still installed.
+      print("\\nStarting OpenVPN tunnel...")
+      sandbox.commands.run(
+          f'nohup sudo openvpn --config {REMOTE_CONFIG} '
+          f'--pull-filter ignore "redirect-gateway" '
+          f"> {REMOTE_LOG} 2>&1 &",
+          background=True,
+      )
+
+      # Wait for connection to establish
+      print("Waiting for VPN connection to establish...")
+      time.sleep(10)
+
+      # Step 4: Verify connection — check if the tun0 interface exists
+      print("\\nVerifying OpenVPN connection...")
+      response = sandbox.commands.run("ip addr show tun0 2>/dev/null || true")
+      if "inet " in response.stdout:
+          print("VPN tunnel interface (tun0) is up:")
+          print(response.stdout)
+      else:
+          print("Warning: tun0 interface not found. Checking OpenVPN logs...")
+          log = sandbox.commands.run(f"cat {REMOTE_LOG} 2>/dev/null || true")
+          print(f"OpenVPN log:\\n{log.stdout}")
+          return sandbox
+
+      print("\\nOpenVPN connection established successfully.")
+      return sandbox
+
+
+  def main() -> None:
+      with open(OVPN_PATH, "r") as f:
+          ovpn_config = f.read().strip()
+
+      sandbox = setup_openvpn(ovpn_config)
+      try:
+          print("\\nSandbox is connected. Press Ctrl+C to disconnect and kill it.")
+          while True:
+              time.sleep(3600)
+      except KeyboardInterrupt:
+          print("\\nInterrupted — shutting down.")
+      finally:
+          sandbox.kill()
+          print("Sandbox killed")
+
+
+  if __name__ == "__main__":
+      main()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```js
+  // Connect a GPURun sandbox to an OpenVPN network using a `.ovpn` client
+  // configuration file (non-interactive).
+  import fs from 'fs'
+  import path from 'path'
+
+  import { GPURun } from 'gpurun-sandbox'
+
+  // Path to the local .ovpn client profile (in the project directory).
+  const OVPN_PATH = path.join(__dirname, '..', 'client1.ovpn')
+  const REMOTE_CONFIG = '/home/gpurun/client.ovpn'
+  const REMOTE_LOG = '/tmp/openvpn.log'
+
+  async function setupOpenVPN(ovpnConfig) {
+    const gpurun = new GPURun({ apiKey: process.env.GPURUN_API_KEY })
+
+    // Create the sandbox
+    console.log('Creating sandbox...')
+    const sandbox = await gpurun.sandbox.create('base')
+    console.log(`Sandbox created: ${sandbox.sandboxId}`)
+
+    // Step 1: Install OpenVPN
+    console.log('\\nInstalling OpenVPN...')
+    const install = await sandbox.commands.run(
+      'sudo apt update && sudo apt install -y openvpn',
+      { timeoutMs: 300_000 }
+    )
+    if (install.exitCode !== 0) {
+      console.log(`Error installing OpenVPN: ${install.stderr}`)
+      return sandbox
+    }
+    console.log('OpenVPN installed successfully.')
+
+    // Step 2: Write the OpenVPN config file
+    console.log('\\nWriting OpenVPN configuration...')
+    await sandbox.files.write(REMOTE_CONFIG, ovpnConfig)
+    console.log(`Configuration written to ${REMOTE_CONFIG}`)
+
+    // Step 3: Start OpenVPN in background.
+    //   `--pull-filter ignore redirect-gateway` stops the server from taking
+    //   over the sandbox's default route — otherwise the SDK's own control
+    //   connection gets pulled into the tunnel and every later command times
+    //   out. The VPN subnet routes are still installed.
+    console.log('\\nStarting OpenVPN tunnel...')
+    await sandbox.commands.run(
+      `nohup sudo openvpn --config ${REMOTE_CONFIG} ` +
+        `--pull-filter ignore "redirect-gateway" ` +
+        `> ${REMOTE_LOG} 2>&1 &`,
+      { background: true }
+    )
+
+    // Wait for connection to establish
+    console.log('Waiting for VPN connection to establish...')
+    await new Promise((r) => setTimeout(r, 10_000))
+
+    // Step 4: Verify connection — check if the tun0 interface exists
+    console.log('\\nVerifying OpenVPN connection...')
+    const res = await sandbox.commands.run('ip addr show tun0 2>/dev/null || true')
+    if (res.stdout.includes('inet ')) {
+      console.log('VPN tunnel interface (tun0) is up:')
+      console.log(res.stdout)
+    } else {
+      console.log('Warning: tun0 interface not found. Checking OpenVPN logs...')
+      const log = await sandbox.commands.run(`cat ${REMOTE_LOG} 2>/dev/null || true`)
+      console.log(`OpenVPN log:\\n${log.stdout}`)
+      return sandbox
+    }
+
+    console.log('\\nOpenVPN connection established successfully.')
+    return sandbox
+  }
+
+  async function main() {
+    const ovpnConfig = fs.readFileSync(OVPN_PATH, 'utf8').trim()
+    const sandbox = await setupOpenVPN(ovpnConfig)
+    try {
+      console.log('\\nSandbox is connected. Press Ctrl+C to disconnect and kill it.')
+      await new Promise(() => {}) // keep running until interrupted
+    } finally {
+      await sandbox.kill()
+      console.log('Sandbox killed')
+    }
+  }
+
+  main().catch(console.error)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+<Callout type="info">
+  **Important:** The `--pull-filter ignore "redirect-gateway"` flag prevents the VPN server from taking over the sandbox's default route. Without it,   the SDK's control channel may be routed into the tunnel and subsequent commands can time out. VPN subnet routes are still installed, so you can reach the VPN network while the SDK keeps working.
+</Callout>
+
+OpenVPN is started with `background=True` so it keeps running while you issue further commands. The tunnel is confirmed by checking that the `tun0` interface has an `inet` address; if it doesn't come up, inspect `/tmp/openvpn.log`.
+
+***
+
+## OpenVPN with remote shell
+
+Instead of driving everything from the SDK, you can set up OpenVPN interactively from a remote shell using the CLI. This is handy for one-off connections, editing the `.ovpn` file by hand, or debugging the tunnel live.
+
+### 1. Connect to the sandbox
+
+Open an interactive remote shell into a running sandbox by its ID. This attaches your terminal to a shell inside the sandbox. See [Remote Shell](/guides/sandbox-cli-remote-shell) for details on the connect command.
+
+```bash CLI icon="terminal" theme={"system"}
+gpurun sandbox connect <sandbox_id>
+```
+
+
+### 2. Install OpenVPN and tools
+
+Inside the remote shell, install OpenVPN along with `tmux` (to keep the tunnel running in a background session) and `vim` (to edit the config).
+
+```bash CLI icon="terminal" theme={"system"}
+sudo apt update && sudo apt install -y openvpn tmux vim
+```
+
+
+### 3. Create / edit the .ovpn config
+
+Open the client profile in `vim` and paste in (or adjust) your OpenVPN client configuration, then save and exit. The file is created in the current directory as `client.ovpn`.
+
+```bash CLI icon="terminal" theme={"system"}
+sudo vim client.ovpn
+```
+
+
+### 4. Start OpenVPN in a background tmux session
+
+Launch OpenVPN inside a detached `tmux` session so the tunnel keeps running independently of your shell. `-d` starts the session detached, `-s openvpn` names it, and the quoted command is what runs inside it.
+
+```bash CLI icon="terminal" theme={"system"}
+tmux new -d -s openvpn 'sudo openvpn client.ovpn'
+```
+
+
+The tunnel now runs in the background. You can keep using the current shell, disconnect, or manage the session as needed:
+
+```bash CLI icon="terminal" theme={"system"}
+# Attach to watch the OpenVPN output / logs
+tmux attach -t openvpn
+# Detach again without stopping it: press Ctrl+b then d
+
+# Verify the tunnel interface is up
+ip addr show tun0
+
+# Stop the tunnel by killing the session
+tmux kill-session -t openvpn
+```
+
+
+<Callout type="info">
+  **Note:** Running `tmux attach -t openvpn` reattaches to the session to view live OpenVPN logs; press **Ctrl+b** then **d** to detach and leave it running.
+</Callout>

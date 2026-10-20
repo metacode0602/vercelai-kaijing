@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/redis",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.39.0",
+    "ioredis": "^5.6.1",
+    "tencentcloud-sdk-nodejs": "^4.1.224"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3"
+  },
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    }
+  }
+}

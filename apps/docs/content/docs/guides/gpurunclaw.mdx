@@ -1,0 +1,135 @@
+---
+title: "GPURunClaw Overview"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# GPURunClaw Overview
+
+Deploy a persistent OpenClaw agent on GPURun Sandbox with one command, then manage it from CLI, Web UI, or automation scripts. No session cap — your instance runs 24/7 for as long as you need it.
+
+***
+
+## What's New in v1.6.0
+
+* **Gateway Config Export / Import** — Back up, restore, and migrate your OpenClaw configuration across sandboxes. Export to stdout or file, import with automatic JSON validation and Gateway restart. Supports cross-sandbox migration workflows.
+
+```bash CLI icon="terminal" theme={"system"}
+# Export config
+gpurunclaw gateway config export -o config.json
+# Import into another sandbox
+gpurunclaw gateway config import config.json
+```
+
+
+* **ClawHub Skill Install** — Install OpenClaw extension skills from ClawHub directly into a sandbox. Skills are available immediately with no Gateway restart required.
+
+```bash CLI icon="terminal" theme={"system"}
+gpurunclaw skill install sonoscli
+```
+
+
+### Previous Releases
+
+* **Telegram Channel (CLI)** — Polling and Webhook modes for connecting your agent to Telegram.
+* **Slack Channel** — Socket and HTTP modes for connecting your agent to Slack.
+* **Install Script Improvements** — Install directory changed to `~/.gpurunclaw-cli`, improved `update` command with PEP 668 support and symlink recovery.
+* **On-Demand Mode** — Sandbox auto-pauses after idle, resumes on access. Zero billing while paused.
+* **Feishu Channel** — Connect your agent to Feishu (Lark) via Webhook or Event mode.
+* **Web Terminal** — Browser-based terminal access to your sandbox, no SSH required.
+* **File Manager** — Browse and manage workspace files directly from the browser.
+* **systemd Service Management** — Gateway, Web Terminal, and File Manager are fully managed by systemd with automatic restart on failure.
+* **Crash Auto-Recovery** — Automatic diagnostics, repair, and service restoration on repeated crashes.
+* **Config Auto-Backup** — Every config write creates an automatic backup; crash recovery restores from the latest known-good backup.
+
+***
+
+## Getting Started
+
+### Prerequisites
+
+* Python installed
+* A GPURun API key (create/manage keys in [Key Management](https://gpurun.ai/settings/key-management))
+
+**How to install Python**
+
+**Windows:** Download the Python installer and run it. **Check "Add Python to PATH"** before clicking Install Now — skipping this is the most common reason beginners hit errors later.
+
+**macOS:** Open Terminal and run:
+
+```bash CLI icon="terminal" theme={"system"}
+python3 --version
+```
+
+
+If you see Python 3.10 or higher, you're good. If Terminal prompts you to install Command Line Developer Tools, click Install and wait a few minutes.
+
+**Linux (Ubuntu / Debian):**
+
+```bash CLI icon="terminal" theme={"system"}
+sudo apt update && sudo apt install python3 python3-pip -y
+```
+
+
+### Step 1: Install GPURunClaw
+
+```bash CLI icon="terminal" theme={"system"}
+sudo pip3 install gpurunclaw
+```
+
+
+```powershell PowerShell icon="terminal" theme={"system"}
+pip install gpurunclaw
+```
+
+
+After installation, verify by running `gpurunclaw --help`. If you see a list of commands, you're all set.
+
+### Step 2: Set your API key
+
+```bash CLI icon="terminal" theme={"system"}
+export GPURUN_API_KEY=sk_your_api_key
+```
+
+
+```powershell PowerShell icon="terminal" theme={"system"}
+$env:GPURUN_API_KEY = "sk_your_api_key"
+```
+
+
+### Step 3: Launch your instance
+
+```bash CLI icon="terminal" theme={"system"}
+gpurunclaw launch
+```
+
+
+On success, the CLI returns:
+
+* **Web UI URL** — Chat with your agent
+* **Gateway WebSocket URL & Token** — For programmatic access
+* **Web Terminal URL** — Terminal access to the sandbox in your browser
+* **File Manager URL** — Browse and manage workspace files
+* **Login credentials** — Username and password for Web Terminal & File Manager
+
+Open the returned **Web UI URL** and go to the `Chat` tab to start using your agent.
+
+### Web Terminal
+
+The Web Terminal provides browser-based terminal access to your sandbox environment. Open the **Web Terminal URL** returned by the launch command and log in with the provided credentials. This gives you a full shell session — install packages, inspect logs, or debug your agent directly.
+
+### File Manager
+
+The File Manager lets you browse, upload, download, and manage files in the sandbox workspace through a web interface. Open the **File Manager URL** and log in with the same credentials. Use it to view agent workspace files, edit configurations, or transfer files without needing CLI access.
+
+***
+
+## Pricing
+
+| What you use       | What you pay         |
+| ------------------ | -------------------- |
+| Sandbox runtime    | Sandbox rates        |
+| GPURun-hosted LLMs | Model rates          |
+| Third-party LLMs   | Sandbox runtime only |

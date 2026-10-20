@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791297973819,
+      "tag": "0000_cold_amazoness",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792224000000,
+      "tag": "0001_waverless_orchestrator",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792227600000,
+      "tag": "0002_waverless_billing_p0",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792231200000,
+      "tag": "0003_waverless_billing_contract_snapshot",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,465 @@
+---
+title: "List sandboxes"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# List sandboxes
+
+You can use the `gpurun.sandbox.list()` method to list sandboxes.
+
+Once you have information about a running sandbox, you can [connect](/guides/sandbox-connect) to it using the `gpurun.sandbox.connect()` method.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun, SandboxState } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Create a sandbox.
+  const sandbox = await gpurun.sandbox.create({
+    metadata: {
+      name: 'My Sandbox',
+    },
+  })
+
+  // List all running sandboxes.
+  const runningSandboxesPaginator = await gpurun.sandbox.list({
+    query: {
+      state: [SandboxState.RUNNING],
+    },
+  })
+
+  const runningSandboxes = await runningSandboxesPaginator.nextItems()
+  const runningSandbox = runningSandboxes[0]
+
+  console.log('Running sandbox metadata:', runningSandbox.metadata)
+  console.log('Running sandbox id:', runningSandbox.sandboxId)
+  console.log('Running sandbox started at:', runningSandbox.startedAt)
+  console.log('Running sandbox ends at:', runningSandbox.endAt)
+  console.log('Running sandbox template id:', runningSandbox.templateId)
+  console.log('Running sandbox state:', runningSandbox.state)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxQuery, SandboxState
+
+  gpurun = GPURun()
+
+  sandbox = gpurun.sandbox.create(
+      metadata={
+          'name': 'My Sandbox',
+      },
+  )
+
+  # List all running sandboxes.
+  running_sandboxes_paginator = gpurun.sandbox.list(
+      query=SandboxQuery(
+          state=[SandboxState.RUNNING],
+      ),
+  )
+
+  running_sandboxes = running_sandboxes_paginator.next_items()
+
+  running_sandbox = running_sandboxes[0]
+  print('Running sandbox metadata:', running_sandbox.metadata)
+  print('Running sandbox id:', running_sandbox.sandbox_id)
+  print('Running sandbox started at:', running_sandbox.started_at)
+  print('Running sandbox end at:', running_sandbox.end_at)
+  print('Running sandbox template id:', running_sandbox.template_id)
+  print('Running sandbox state:', running_sandbox.state)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # List running sandboxes (alias: sandbox ls)
+  gpurun sandbox list
+
+  # Filter by metadata
+  gpurun sandbox list --metadata key1=value1
+
+  # JSON output
+  gpurun sandbox list --output json
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Filtering sandboxes
+
+You can filter sandboxes by specifying [Metadata](/guides/sandbox-create) key-value pairs.
+
+Specifying multiple key-value pairs returns sandboxes that match all of them.
+
+This can be useful when you have a large number of sandboxes and want to find only specific ones. The filtering is performed on the server.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Create a sandbox with metadata.
+  const sandbox = await gpurun.sandbox.create({
+    metadata: {
+      env: 'dev',
+      app: 'my-app',
+      userId: '123',
+    },
+  })
+
+  // List all running sandboxes that have the `userId` key with value `123` and the `env` key with value `dev`.
+  const runningSandboxesPaginator = await gpurun.sandbox.list({
+    query: {
+      metadata: { userId: '123', env: 'dev' },
+    },
+  })
+
+  const runningSandboxes = await runningSandboxesPaginator.nextItems()
+  for (const runningSandbox of runningSandboxes) {
+    console.log(
+      `list running sandbox (${runningSandbox.sandboxId}) metadata:`,
+      runningSandbox.metadata,
+    )
+  }
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxQuery
+
+  gpurun = GPURun()
+
+  # Create sandbox with metadata.
+  sandbox = gpurun.sandbox.create(
+      metadata={
+          'env': 'dev',
+          'app': 'my-app',
+          'user_id': '123',
+      },
+  )
+
+  # List all running sandboxes that have the `user_id` key with value `123` and the `env` key with value `dev`.
+  paginator = gpurun.sandbox.list(
+      query=SandboxQuery(
+          metadata={
+              'user_id': '123',
+              'env': 'dev',
+          }
+      ),
+  )
+
+  for running_sandbox in paginator.next_items():
+      print(
+          'list running sandbox (%s) metadata:' % running_sandbox.sandbox_id,
+          running_sandbox.metadata,
+      )
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### Listing sandboxes
+
+Pagination is now supported by the `gpurun.sandbox.list()` method. To learn more about pagination techniques with the updated method, refer to the advanced pagination section.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+  const paginator = await gpurun.sandbox.list()
+
+  // Get the first page of sandboxes (running and paused)
+  const firstPage = await paginator.nextItems()
+  if (paginator.hasNext) {
+    // Get the next page of sandboxes
+    const nextPage = await paginator.nextItems()
+  }
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  # List all sandboxes (running and paused)
+  paginator = gpurun.sandbox.list()
+
+  first_page = paginator.next_items()
+  if paginator.has_next:
+      next_page = paginator.next_items()
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### Filtering sandboxes
+
+You can filter sandboxes based on their current status. The state parameter accepts `running`, `paused`, or both to return sandboxes in the specified states.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun, SandboxState } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  // List all sandboxes that are running or paused.
+  const paginator = await gpurun.sandbox.list({
+    query: {
+      state: [SandboxState.RUNNING, SandboxState.PAUSED],
+    },
+  })
+
+  const sandboxes = await paginator.nextItems()
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxQuery, SandboxState
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  # List all sandboxes that are running or paused.
+  paginator = gpurun.sandbox.list(
+      query=SandboxQuery(
+          state=[SandboxState.RUNNING, SandboxState.PAUSED],
+      ),
+  )
+
+  # Get the first page of sandboxes (running and paused)
+  sandboxes = paginator.next_items()
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+You can specify metadata key-value pairs during sandbox creation and later use them when listing sandboxes.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Create sandbox with metadata.
+  const sandbox = await gpurun.sandbox.create({
+    metadata: {
+      env: 'dev',
+      app: 'my-app',
+      userId: '123',
+    },
+  })
+
+  // List all sandboxes that have the `userId` key with value `123` and the `env` key with value `dev`.
+  const paginator = await gpurun.sandbox.list({
+    query: {
+      metadata: { userId: '123', env: 'dev' },
+    },
+  })
+
+  const sandboxes = await paginator.nextItems()
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxQuery
+
+  gpurun = GPURun()
+
+  # Create sandbox with metadata.
+  sandbox = gpurun.sandbox.create(
+      metadata={
+          'env': 'dev',
+          'app': 'my-app',
+          'user_id': '123',
+      },
+  )
+
+  # List all sandboxes that have the `user_id` key with value `123` and the `env` key with value `dev`.
+  paginator = gpurun.sandbox.list(
+      query=SandboxQuery(
+          metadata={
+              'user_id': '123',
+              'env': 'dev',
+          }
+      ),
+  )
+
+  sandboxes = paginator.next_items()
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### Advanced pagination
+
+For finer control over pagination, specify the number of items to return per page (the default and maximum is 100) and provide an offset parameter (`nextToken` or `next_token`) to indicate where pagination should begin.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  const paginator = await gpurun.sandbox.list({
+    limit: 100,
+    // nextToken: '',
+  })
+
+  // Fetch the next page
+  await paginator.nextItems()
+
+  // Additional paginator properties
+  // Whether there is a next page
+  console.log('paginator.hasNext: ', paginator.hasNext)
+
+  // Next page token
+  console.log('paginator.nextToken: ', paginator.nextToken)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  paginator = gpurun.sandbox.list(
+      limit=100,
+      # next_token='',
+  )
+
+  # Fetch the next page
+  paginator.next_items()
+
+  # Whether there is a next page
+  print('paginator.has_next: ', paginator.has_next)
+
+  # Next page offset parameter
+  print('paginator.next_token: ', paginator.next_token)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+You can retrieve all pages by iterating through the paginator. `hasNext` / `has_next` is initially true before the first page is fetched and becomes false after the last page is returned.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun, SandboxInfo } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+  const paginator = await gpurun.sandbox.list()
+
+  const sandboxes: SandboxInfo[] = []
+  while (paginator.hasNext) {
+    const items = await paginator.nextItems()
+    sandboxes.push(...items)
+  }
+
+  for (const sandbox of sandboxes) {
+    console.log(`list sandbox (${sandbox.sandboxId})`)
+  }
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxInfo
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  paginator = gpurun.sandbox.list()
+
+  # Get all sandboxes
+  sandboxes: list[SandboxInfo] = []
+  while paginator.has_next:
+      items = paginator.next_items()
+      sandboxes.extend(items)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

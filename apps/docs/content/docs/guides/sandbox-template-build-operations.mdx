@@ -1,0 +1,286 @@
+---
+title: "Build Template"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Build Template
+
+A **template** is the blueprint a sandbox is created from — it defines the base image, installed packages, files, environment, and the commands that run at startup. Every sandbox is spawned from a template, so building a template is how you produce a reusable, ready-to-run environment.
+
+Templates are conceptually close to container images: a template is **built from a Docker image**, and the build process is **similar to writing a Dockerfile** — you start from a base image and layer instructions on top. The difference is where and how you express those instructions.
+
+|                       | Template                                                                                       | Dockerfile / Docker image                         |
+| --------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Starts from           | A **Docker image** (e.g. `fromImage('python:3.12')`) or another template                       | A base image via `FROM`                           |
+| How steps are written | SDK builder calls — `runCmd`, `copy`, `setEnvs`, … (like Dockerfile instructions, but in code) | Dockerfile instructions — `RUN`, `COPY`, `ENV`, … |
+| Extra config          | Also captures sandbox settings: start command, ready command, CPU / memory                     | Only the image contents                           |
+| Result                | A `templateId` you pass to `sandbox.create(...)`                                               | An image you run as a container                   |
+
+In short: a template **starts from a Docker image**. Building one feels similar to authoring a Dockerfile, but you describe the steps with the SDK (`fromImage`, `runCmd`, `copy`, `setEnvs`, …) instead of a `Dockerfile`. The output is a `templateId` that GPURun uses to launch sandboxes quickly.
+
+***
+
+## Build
+
+Once a template definition is ready, use `gpurun.template.build(...)` to build it.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const template = gpurun.template.new().fromImage('python:3.12')
+
+  const build = await gpurun.template.build(template, 'my-python-template', {
+    cpuCount: 2,
+    memoryMB: 1024,
+  })
+
+  const sandbox = await gpurun.sandbox.create(build.templateId)
+  console.log(sandbox.sandboxId)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  template = gpurun.template.new().from_image("python:3.12")
+
+  build = gpurun.template.build(
+      template,
+      "my-python-template",
+      cpu_count=2,
+      memory_mb=1024,
+  )
+
+  sandbox = gpurun.sandbox.create(build.template_id)
+  print(sandbox.sandbox_id)
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Build a Dockerfile into a Sandbox template (alias: template ct)
+  # Reads ./gpurun.Dockerfile (or Dockerfile) in the root directory by default
+  gpurun template create my-python-template
+
+  # Specify a Dockerfile, resources, and start command
+  gpurun template create my-python-template \
+    --dockerfile ./gpurun.Dockerfile \
+    --cpu-count 2 \
+    --memory-mb 1024 \
+    --cmd "python app.py"
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Names
+
+Every build needs a template name. Keep names stable for a logical template family. The returned template ID is the immutable build output you use at runtime.
+
+## Base Image
+
+A template definition always starts by choosing a base image (or an existing template) with one of the `from*` methods.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // GPURun's default base image
+  const base = gpurun.template.new().fromBaseImage()
+
+  // A specific language image
+  const python = gpurun.template.new().fromPythonImage('3.12')
+  const ubuntu = gpurun.template.new().fromUbuntuImage('24.04')
+
+  // A custom image (optionally with private registry credentials)
+  const custom = gpurun.template
+    .new()
+    .fromImage('myregistry.com/myimage:latest', {
+      username: 'user',
+      password: 'pass',
+    })
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  # GPURun's default base image
+  base = gpurun.template.new().from_base_image()
+
+  # A specific language image
+  python = gpurun.template.new().from_python_image("3.12")
+  ubuntu = gpurun.template.new().from_ubuntu_image("24.04")
+
+  # A custom image (optionally with private registry credentials)
+  custom = gpurun.template.new().from_image(
+      "myregistry.com/myimage:latest",
+      credentials={"username": "user", "password": "pass"},
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## User and Workdir
+
+After choosing a base image, you can control which user subsequent build steps run as and which directory they run in.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const template = gpurun.template
+    .new()
+    .fromUbuntuImage('24.04')
+    .setUser('root')
+    .aptInstall(['git'])
+    .setUser('user')
+    .setWorkdir('/home/user/app')
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  template = (
+      gpurun.template.new()
+      .from_ubuntu_image("24.04")
+      .set_user("root")
+      .apt_install(["git"])
+      .set_user("user")
+      .set_workdir("/home/user/app")
+  )
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Tags & versioning
+
+Tags let you label builds for release management without changing the underlying template name.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const template = gpurun.template.new().fromPythonImage('3.12')
+
+  const build = await gpurun.template.build(template, 'agent-runtime-base', {
+    tags: ['v1.0.0', 'latest'],
+  })
+
+  await gpurun.template.assignTags('agent-runtime-base:v1.0.0', 'production')
+
+  const tags = await gpurun.template.getTags(build.templateId)
+  console.log(tags)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  template = gpurun.template.new().from_python_image("3.12")
+
+  build = gpurun.template.build(
+      template,
+      "agent-runtime-base",
+      tags=["v1.0.0", "latest"],
+  )
+
+  gpurun.template.assign_tags("agent-runtime-base:v1.0.0", "production")
+
+  tags = gpurun.template.get_tags(build.template_id)
+  print(tags)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Logging
+
+Build logs help you inspect provisioning progress and diagnose failures.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const template = gpurun.template.new().fromPythonImage('3.12')
+
+  const build = await gpurun.template.build(template, 'my-logged-template')
+  console.log(build.buildId)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  template = gpurun.template.new().from_python_image("3.12")
+
+  build = gpurun.template.build(template, "my-logged-template")
+  print(build.build_id)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Error handling
+
+Template builds can fail for several common reasons:
+
+* invalid credentials for a private registry
+* package install failures inside `runCmd(...)` / `run_cmd(...)`
+* a start command that exits unexpectedly
+* a ready command that never succeeds
+* CPU and memory settings that do not satisfy platform limits

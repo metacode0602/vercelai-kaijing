@@ -1,0 +1,168 @@
+'use client'
+
+import Link from 'next/link'
+import { Activity, ChevronRight, Loader2 } from 'lucide-react'
+import { Badge } from '@workspace/ui/components/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import { trpc } from '@/lib/trpc/client'
+import { BATCH_KIND_LABELS } from '@/lib/supplier/device-import-utils'
+import type { OnboardingBatchKind } from '@/lib/types/supplier-domain'
+
+const typeLabels: Record<string, string> = {
+  batch_started: '批次',
+  device_online: '上线',
+  device_onboarding: '接入',
+  internal_test_hold: '测试',
+  fault_opened: '故障',
+  fault_closed: '故障',
+  ops_import: '导入',
+  device_change_imported: '变更导入',
+  pricing_change: '定价',
+  contract_created: '合同',
+}
+
+function formatDt(iso: string) {
+  return new Date(iso).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export function SupplierActivityTimelinePanel({ supplierId }: { supplierId: string }) {
+  const {
+    data: items = [],
+    isLoading,
+    isError,
+    error,
+  } = trpc.supplier.listSupplierActivities.useQuery(
+    { supplierId, limit: 100 },
+    { enabled: Boolean(supplierId) },
+  )
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-medium text-foreground">活动时间线</h2>
+        <p className="text-sm text-muted-foreground">合同、接入、上线、故障与测试等运营事件</p>
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 p-8 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              加载中…
+            </div>
+          ) : isError ? (
+            <p className="p-8 text-center text-destructive text-sm">
+              {error.message || '加载活动记录失败'}
+            </p>
+          ) : items.length === 0 ? (
+            <p className="p-8 text-center text-muted-foreground text-sm">暂无活动记录</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {items.map((a) => (
+                <li key={a.id} className="p-4 flex gap-4">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Activity className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-foreground">{a.title}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {typeLabels[a.type] ?? a.type}
+                      </Badge>
+                      {a.author_role === 'system' && (
+                        <Badge variant="secondary" className="text-xs">系统</Badge>
+                      )}
+                    </div>
+                    {a.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{a.description}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {a.author_name} · {formatDt(a.occurred_at)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export function SupplierOnboardingBatchesPanel({ supplierId }: { supplierId: string }) {
+  const {
+    data: batches = [],
+    isLoading,
+    isError,
+    error,
+  } = trpc.supplier.onboardingBatch.listBySupplier.useQuery(
+    { supplierId },
+    { enabled: Boolean(supplierId) },
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-medium text-foreground">接入批次</h2>
+          <p className="text-sm text-muted-foreground">上架、订单接入、设备主数据与设备变更批次</p>
+        </div>
+        <Link href="/supplier/online-tasks" className="text-sm text-primary hover:underline inline-flex items-center gap-1">
+          接入工作台
+          <ChevronRight className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="grid gap-3">
+        {isLoading ? (
+          <Card>
+            <CardContent className="flex items-center justify-center gap-2 p-8 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              加载中…
+            </CardContent>
+          </Card>
+        ) : isError ? (
+          <Card>
+            <CardContent className="p-8 text-center text-destructive text-sm">
+              {error.message || '加载接入批次失败'}
+            </CardContent>
+          </Card>
+        ) : batches.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground text-sm">暂无接入批次</CardContent>
+          </Card>
+        ) : (
+          batches.map((b) => (
+            <Card key={b.id}>
+              <CardHeader className="py-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{b.batchCode}</CardTitle>
+                  <Badge variant="outline">{b.batchStatus}</Badge>
+                </div>
+                <CardDescription>
+                  {BATCH_KIND_LABELS[b.batchKind as OnboardingBatchKind] ?? b.batchKind} · {b.idcCode} · 已入库 {b.committedDeviceCount} 台
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 pb-4">
+                <Link
+                  href={
+                    b.batchKind === 'online'
+                      ? `/supplier/online-tasks/${b.id}`
+                      : `/supplier/order-access/${b.id}`
+                  }
+                  className="text-sm text-primary hover:underline"
+                >
+                  查看批次详情
+                </Link>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}

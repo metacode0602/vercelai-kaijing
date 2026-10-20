@@ -1,0 +1,316 @@
+---
+title: "Create Sandbox"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Create Sandbox
+
+## Create Sandbox
+
+The simplest way to create a sandbox is to call `gpurun.sandbox.create()` without any arguments.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import 'dotenv/config'
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from dotenv import load_dotenv
+  from gpurun_sandbox import GPURun
+
+  load_dotenv()
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Create a sandbox from the base template and connect a terminal (alias: sandbox cr)
+  gpurun sandbox create base
+
+  # Create without connecting a terminal (detached), returns the sandbox ID
+  gpurun sandbox create base -d
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## From Template
+
+You can create a sandbox from a template by passing the template name or ID.
+
+```python Python icon="python" theme={"system"}
+from dotenv import load_dotenv
+from gpurun_sandbox import GPURun
+
+load_dotenv()
+
+gpurun = GPURun()
+
+# Create a sandbox from a template name or template ID.
+sandbox = gpurun.sandbox.create(
+    "my-python-app",   # template name or ID
+    timeout=300,        # seconds, optional
+    metadata={"env": "demo"},
+    envs={"KEY": "value"},
+)
+
+print("Sandbox ID:", sandbox.sandbox_id)
+
+# Use it.
+result = sandbox.commands.run("python3 --version")
+print(result.stdout)
+
+sandbox.kill()
+```
+
+
+Use a context manager for automatic cleanup:
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  with gpurun.sandbox.create("my-python-app") as sandbox:
+      print(sandbox.commands.run("echo hello").stdout)
+  # Automatically killed when exiting the with block.
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```js
+  import 'dotenv/config'
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Create a sandbox from a template name or template ID.
+  const sandbox = await gpurun.sandbox.create('my-python-app', {
+    timeoutMs: 300_000, // milliseconds, optional
+    metadata: { env: 'demo' },
+    envs: { KEY: 'value' },
+  })
+
+  console.log('Sandbox ID:', sandbox.sandboxId)
+
+  // Use it.
+  const result = await sandbox.commands.run('python3 --version')
+  console.log(result.stdout)
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Create a sandbox from a specific template (by name or template ID)
+  gpurun sandbox create <template>
+
+  # Detached (no terminal), prints the new sandbox ID
+  gpurun sandbox create <template> -d
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Environment Variables
+
+You can set environment variables when creating a sandbox, and override or append them on a single command.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```python
+  from dotenv import load_dotenv
+  from gpurun_sandbox import GPURun
+
+  load_dotenv()
+
+  gpurun = GPURun()
+
+  # Set environment variables when creating the sandbox.
+  sandbox = gpurun.sandbox.create(
+      "my-python-app",
+      envs={
+          "API_KEY": "secret-123",
+          "LOG_LEVEL": "debug",
+          "PORT": "8000",
+      },
+  )
+
+  # Verify.
+  result = sandbox.commands.run("echo $API_KEY")
+  print(result.stdout)   # secret-123
+
+  # You can also override/append envs on a single command.
+  result = sandbox.commands.run(
+      "echo $LOG_LEVEL",
+      envs={"LOG_LEVEL": "info"},
+  )
+  print(result.stdout)   # info
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```js
+  import 'dotenv/config'
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Set environment variables when creating the sandbox.
+  const sandbox = await gpurun.sandbox.create('my-python-app', {
+    envs: {
+      API_KEY: 'secret-123',
+      LOG_LEVEL: 'debug',
+      PORT: '8000',
+    },
+  })
+
+  // Verify.
+  let result = await sandbox.commands.run('echo $API_KEY')
+  console.log(result.stdout) // secret-123
+
+  // You can also override/append envs on a single command.
+  result = await sandbox.commands.run('echo $LOG_LEVEL', {
+    envs: { LOG_LEVEL: 'info' },
+  })
+  console.log(result.stdout) // info
+
+  await sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Metadata
+
+Sandbox metadata lets you attach custom key-value information to a sandbox.
+
+Common uses include:
+
+* Connecting a sandbox to a user session.
+* Saving custom user-related data for a sandbox, such as API keys.
+* Linking a sandbox to a user ID so it can be reconnected later.
+
+Metadata is provided when the sandbox is created. Later, it can be read when listing active sandboxes with `gpurun.sandbox.list()`. Sandboxes can also be filtered using metadata when listing.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun, SandboxState } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // Start a sandbox and attach custom metadata.
+  const sbx = await gpurun.sandbox.create({
+    metadata: {
+      userId: '123',
+    },
+  })
+
+  // Retrieve active sandboxes and inspect their metadata.
+  const page = await gpurun.sandbox.list()
+  const active = await page.nextItems()
+
+  console.log(active[0].metadata)
+  // Example output:
+  // { userId: '123' }
+
+  // Filter by metadata.
+  let sandboxes = await gpurun.sandbox.list({
+    query: { metadata: { env: 'demo' } },
+  })
+
+  // Combine metadata and state filters (multiple conditions are AND).
+  sandboxes = await gpurun.sandbox.list({
+    query: {
+      metadata: { env: 'demo' },
+      state: [SandboxState.RUNNING],
+    },
+  })
+
+  for (const sandbox of sandboxes) {
+    console.log(sandbox.sandboxId, sandbox.state, sandbox.metadata)
+  }
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxQuery, SandboxState
+
+  gpurun = GPURun()
+
+  # Start a sandbox and attach custom metadata.
+  sbx = gpurun.sandbox.create(
+      metadata={
+          "userId": "123",
+      },
+  )
+
+  # Retrieve active sandboxes and inspect their metadata.
+  page = gpurun.sandbox.list()
+  active = page.next_items()
+
+  print(active[0].metadata)
+  # Example output:
+  # {"userId": "123"}
+
+  # Filter by metadata.
+  sandboxes = gpurun.sandbox.list(
+      query=SandboxQuery(metadata={"env": "demo"})
+  )
+
+  # Combine metadata and state filters (multiple conditions are AND).
+  sandboxes = gpurun.sandbox.list(
+      query=SandboxQuery(
+          metadata={"env": "demo"},
+          state=[SandboxState.RUNNING],
+      )
+  )
+
+  for sandbox in sandboxes:
+      print(sandbox.sandbox_id, sandbox.state, sandbox.metadata)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

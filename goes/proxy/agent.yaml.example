@@ -1,0 +1,43 @@
+# /etc/openroute/agent.yaml
+
+agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+agent_token: "oat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+api_url: "https://api.openroute.cn"
+datacenter: "SH-ZJ-01"
+
+listen_addr: ":9090"
+state_dir: "/etc/openroute"
+
+log_level: "info"
+log_file: ""
+
+ssh:
+  concurrent_limit: 20
+  connect_timeout: 10
+  command_timeout: 60
+  preferred_auth: ["publickey", "password"]
+  bastion:
+    host: ""
+    port: "22"
+    user: "ops"
+    private_key_path: "/etc/openroute/bastion_key"
+
+k8s:
+  kubeconfig_path: "/etc/openroute/kubeconfig"
+  default_labels:
+    "openroute.io/managed-by": "edge-agent"
+    "openroute.io/datacenter": "sh-zj-01"
+
+polling:
+  task_interval: 15
+  heartbeat_interval: 30
+
+retry:
+  max_attempts: 3
+  backoff_base: 10
+  backoff_max: 300
+
+health:
+  ssh_probe_interval: 1800
+  ssh_consecutive_fail_max: 3
+  node_ready_timeout: 300

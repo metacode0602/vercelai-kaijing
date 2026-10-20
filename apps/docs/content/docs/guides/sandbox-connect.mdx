@@ -1,0 +1,87 @@
+---
+title: "Connect to sandbox"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Connect to sandbox
+
+You can use the `gpurun.sandbox.connect()` method to connect to a running or paused sandbox and continue controlling it with the SDK.
+
+This is useful for reusing the same sandbox instance across serverless function invocations, restoring a user's web app session, reconnecting to long-running work, or resuming a paused sandbox after a short period of inactivity.
+
+## Connect to the sandbox
+
+Before connecting, you need the sandbox ID. You can obtain it with `gpurun.sandbox.list()`, then pass it to `gpurun.sandbox.connect()`.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun, SandboxState } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+
+  // --- Get the sandbox ID ---
+  // Get all running sandboxes
+  const runningSandboxesPaginator = await gpurun.sandbox.list({
+    query: {
+      state: [SandboxState.RUNNING],
+    },
+  })
+
+  const runningSandboxes = await runningSandboxesPaginator.nextItems()
+  if (runningSandboxes.length === 0) {
+    throw new Error('No running sandboxes found')
+  }
+  const runningSandboxId = runningSandboxes[0].sandboxId
+
+  // --- Connect to the sandbox ---
+  const sandbox = await gpurun.sandbox.connect(runningSandboxId)
+  console.log('connected to sandbox: ', sandbox.sandboxId)
+
+  // Now you can use the sandbox as usual
+  // ...
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun, SandboxQuery, SandboxState
+
+  gpurun = GPURun()
+
+  # --- Get the sandbox ID ---
+  # Get all running sandboxes
+  running_sandboxes_paginator = gpurun.sandbox.list(query=SandboxQuery(state=[SandboxState.RUNNING]))
+
+  running_sandboxes = running_sandboxes_paginator.next_items()
+  if len(running_sandboxes) == 0:
+      raise Exception("No running sandboxes found")
+  running_sandbox_id = running_sandboxes[0].sandbox_id
+
+  # --- Connect to the sandbox ---
+  sandbox = gpurun.sandbox.connect(running_sandbox_id)
+  print("connected to sandbox: ", sandbox.sandbox_id)
+
+  # Now you can use the sandbox as usual
+  # ...
+
+  sandbox.kill()
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # Attach an interactive terminal to a running sandbox (alias: sandbox cn)
+  gpurun sandbox connect <sandboxID>
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>

@@ -1,0 +1,159 @@
+---
+title: "Harbor Integration"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Harbor Integration
+
+[Harbor](https://github.com/harbor-framework/harbor) is an open-source framework for evaluating and optimizing agents and language models in sandboxed environments. It can run benchmark tasks against different agents and execution backends, collect trajectories, verify task results, and summarize benchmark scores.
+
+GPURun Sandbox is integrated into Harbor as a cloud environment provider. After installing Harbor with the GPURun extra, users can run Harbor tasks on GPURun-hosted sandboxes by selecting `--env gpurun`. The Harbor CLI still runs on your local machine or server, while the task environment, agent process, command execution, and verification run inside the GPURun Sandbox.
+
+Install Harbor with the `gpurun` extra so the GPURun Sandbox SDK and related dependencies are available.
+
+```bash CLI icon="terminal" theme={"system"}
+uv tool install 'harbor[gpurun]'
+
+# Or, if you use pip:
+pip install 'harbor[gpurun]'
+```
+
+
+Harbor requires **Python 3.12** or later. The `[gpurun]` extra installs the optional dependencies needed by Harbor's GPURun environment provider; it does not change the Harbor command syntax.
+
+Set `GPURUN_API_KEY` so Harbor can create GPURun templates and sandboxes. If you also want the agent to call GPURun's OpenAI-compatible LLM API, pass the same key through the OpenAI-compatible environment variables.
+
+```bash CLI icon="terminal" theme={"system"}
+export GPURUN_API_KEY=<YOUR_GPURUN_API_KEY>
+export OPENAI_API_KEY="$GPURUN_API_KEY"
+export OPENAI_BASE_URL="https://api.gpurun.ai/openai"
+export OPENAI_API_BASE="https://api.gpurun.ai/openai"
+```
+
+
+`OPENAI_BASE_URL` is used by OpenAI-compatible clients. `OPENAI_API_BASE` is included because some agent runtimes and LiteLLM-based tools read that variable name instead.
+
+The following command runs Harbor's registry dataset `hello-world@1.0` on GPURun Sandbox using `mini-swe-agent` and the GPURun model `moonshotai/kimi-k3`. This example does not require cloning the Harbor source repository.
+
+```bash CLI icon="terminal" theme={"system"}
+harbor run \
+  --dataset hello-world@1.0 \
+  --n-tasks 1 \
+  --agent mini-swe-agent \
+  --model openai/moonshotai/kimi-k3 \
+  --n-concurrent 1 \
+  --env gpurun \
+  --ae OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --ae OPENAI_BASE_URL="$OPENAI_BASE_URL" \
+  --ae OPENAI_API_BASE="$OPENAI_API_BASE" \
+  --agent-timeout-multiplier 5
+```
+
+
+You can also use Harbor as a Python package instead of shelling out to the CLI. The key setting is `EnvironmentConfig(type=EnvironmentType.GPURUN)`, which is the code equivalent of `--env gpurun`. Harbor still manages the dataset, agent execution, verifier, job output, and GPURun Sandbox lifecycle.
+
+```bash CLI icon="terminal" theme={"system"}
+pip install "harbor[gpurun]"
+```
+
+
+The following Python script is equivalent to the CLI smoke test above:
+
+```python Python icon="python" theme={"system"}
+import asyncio
+import os
+
+from harbor.job import Job
+from harbor.models.environment_type import EnvironmentType
+from harbor.models.job.config import DatasetConfig, JobConfig
+from harbor.models.trial.config import AgentConfig, EnvironmentConfig
+
+
+async def main():
+    # Harbor uses GPURUN_API_KEY on the host process to create GPURun sandboxes.
+    if "GPURUN_API_KEY" not in os.environ:
+        raise RuntimeError("GPURUN_API_KEY is required")
+
+    # These environment variables are passed to the agent for model calls.
+    os.environ.setdefault("OPENAI_API_KEY", os.environ["GPURUN_API_KEY"])
+    os.environ.setdefault("OPENAI_BASE_URL", "https://api.gpurun.ai/openai")
+    os.environ.setdefault("OPENAI_API_BASE", "https://api.gpurun.ai/openai")
+
+    config = JobConfig(
+        datasets=[
+            DatasetConfig(
+                name="hello-world",
+                version="1.0",
+                n_tasks=1,
+            )
+        ],
+        agents=[
+            AgentConfig(
+                name="mini-swe-agent",
+                model_name="openai/moonshotai/kimi-k3",
+                env={
+                    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+                    "OPENAI_BASE_URL": "${OPENAI_BASE_URL}",
+                    "OPENAI_API_BASE": "${OPENAI_API_BASE}",
+                },
+            )
+        ],
+        environment=EnvironmentConfig(
+            type=EnvironmentType.GPURUN,
+        ),
+        n_concurrent_trials=1,
+        agent_timeout_multiplier=5,
+    )
+
+    job = await Job.create(config)
+    result = await job.run()
+    print(result.model_dump_json(indent=2))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+
+For a local task path, replace `datasets=[...]` with `tasks=[TaskConfig(path=Path("/path/to/task"))]` and import `TaskConfig` from `harbor.models.trial.config`. Keep the same GPURun environment config and agent model settings.
+
+Do not put the GPURun Sandbox key only inside `AgentConfig.env`. `GPURUN_API_KEY` must be available to the host Python process so Harbor can create the sandbox. The OpenAI-compatible model settings belong in `AgentConfig.env`, because those values are forwarded to the agent running inside the sandbox.
+
+The smoke test above uses Harbor's registry dataset, so it does not need local Harbor source code. If you use `--path`, Harbor treats the value as a local file-system path and the directory must exist on the machine running the Harbor CLI.
+
+```bash CLI icon="terminal" theme={"system"}
+harbor run \
+  --path /absolute/path/to/your/harbor-task \
+  --agent mini-swe-agent \
+  --model openai/moonshotai/kimi-k3 \
+  --n-concurrent 1 \
+  --env gpurun \
+  --ae OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --ae OPENAI_BASE_URL="$OPENAI_BASE_URL" \
+  --ae OPENAI_API_BASE="$OPENAI_API_BASE"
+```
+
+
+Use `--dataset hello-world@1.0` for the simplest installed-package smoke test. Use `--path` only when you already have a local Harbor task directory.
+
+When `--env gpurun` is selected, Harbor resolves the execution backend to its GPURun environment provider. For a standard single-container task, Harbor builds or reuses a GPURun template for the task environment, creates a GPURun Sandbox from that template, uploads task files, and runs the agent and verifier commands inside the sandbox.
+
+The agent is installed and executed inside the sandbox. On first use, agent setup may install runtime dependencies such as Python packages or Node.js tooling inside the sandbox. Harbor writes agent logs and task results back to the local `jobs/` directory after the run.
+
+| Setting                      | Description                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GPURUN_API_KEY`             | Required. API key used by Harbor to create GPURun templates and sandboxes.                                   |
+| `OPENAI_API_KEY`             | Required when the selected agent calls GPURun's OpenAI-compatible LLM API.                                   |
+| `OPENAI_BASE_URL`            | OpenAI-compatible base URL. Use `https://api.gpurun.ai/openai`.                                              |
+| `OPENAI_API_BASE`            | Compatibility alias for agent runtimes that read this variable instead of `OPENAI_BASE_URL`.                 |
+| `--env gpurun`               | Selects GPURun Sandbox as the Harbor execution environment.                                                  |
+| `--ae KEY=VALUE`             | Passes an environment variable to the agent process inside the sandbox.                                      |
+| `--agent-timeout-multiplier` | Optional multiplier for agent execution timeout. Increase it for slow models or slow first-time agent setup. |
+| `--override-cpus`            | Optional Harbor runtime override for sandbox CPU allocation.                                                 |
+| `--override-memory-mb`       | Optional Harbor runtime override for sandbox memory allocation in MB.                                        |
+| `--force-build`              | Forces Harbor to rebuild the environment template instead of reusing a cached template.                      |
+
+Use GPURun Sandbox when you want Harbor workloads to run in remote, isolated environments instead of relying on local Docker capacity. This is useful for CI, shared development servers, high-concurrency benchmark runs, and experiments that need reproducible sandbox lifecycle management across many trials.

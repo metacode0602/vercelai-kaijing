@@ -1,0 +1,45 @@
+{
+  "name": "@workspace/sms-captcha",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@workspace/redis": "workspace:*",
+    "@workspace/ui": "workspace:*",
+    "rc-slider-captcha": "^1.9.0",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^9.39.2",
+    "next": "16.3.6",
+    "react": "^19",
+    "react-dom": "^19",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "next": ">=14",
+    "next-intl": ">=3",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./client": {
+      "default": "./src/client/index.ts"
+    },
+    "./server": {
+      "default": "./src/server/index.ts"
+    }
+  }
+}

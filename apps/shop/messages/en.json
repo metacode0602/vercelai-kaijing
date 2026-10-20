@@ -1,0 +1,443 @@
+{
+  "Common": {
+    "language": "Switch language",
+    "help": "Help",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "billing": "Billing",
+    "logout": "Logout",
+    "theme": {
+      "toggle": "Toggle theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "balance": {
+      "remaining": "Remaining",
+      "accountBalance": "Account Balance",
+      "availableCredit": "Available Credit",
+      "coupons": "Coupons",
+      "recharge": "Top Up",
+      "goToBilling": "Go to Billing"
+    }
+  },
+  "AuthPage": {
+    "common": {
+      "byClickingContinue": "By continuing, you agree to our ",
+      "termsOfService": "Terms of Service",
+      "and": " and ",
+      "privacyPolicy": "Privacy Policy"
+    },
+    "error": {
+      "title": "Authentication Error"
+    },
+    "register": {
+      "title": "Create Account",
+      "description": "Sign up to start using GPU Cloud"
+    }
+  },
+  "Auth": {
+    "login": {
+      "emailRequired": "Please enter your email",
+      "passwordRequired": "Please enter your password",
+      "welcomeBack": "Welcome back",
+      "description": "Enter your credentials to continue",
+      "signUpHint": "Don't have an account? Sign up",
+      "switchToPhone": "Use phone number instead",
+      "signIn": "Sign In",
+      "email": "Email",
+      "password": "Password",
+      "forgotPassword": "Forgot password?"
+    },
+    "phoneLogin": {
+      "phoneRequired": "Please enter your phone number",
+      "invalidPhone": "Invalid phone number format",
+      "codeRequired": "Please enter the verification code",
+      "welcomeBack": "Welcome back",
+      "description": "Enter your phone number to continue",
+      "phoneNumber": "Phone Number",
+      "phonePlaceholder": "e.g. 13800138000",
+      "verificationCode": "Verification Code",
+      "codePlaceholder": "Enter code",
+      "sendCode": "Send Code",
+      "countdown": "Resend in {seconds}s",
+      "codeSent": "Verification code sent",
+      "signIn": "Sign In",
+      "switchToEmail": "Use email instead",
+      "verifyFailed": "Verification failed, please try again",
+      "verifySuccess": "Verification successful",
+      "sendCodeFailed": "Failed to send code",
+      "captchaTitle": "Security Verification",
+      "captchaHint": "Slide to complete the puzzle",
+      "captchaLoading": "Loading captcha...",
+      "captchaVerifying": "Verifying...",
+      "captchaChallengeFailed": "Failed to load captcha",
+      "captchaVerifyFailed": "Verification failed",
+      "captchaMismatch": "Slide position mismatch, please try again",
+      "captchaTooManyAttempts": "Too many attempts, please try again later"
+    },
+    "register": {
+      "nameRequired": "Please enter your name",
+      "emailRequired": "Please enter your email",
+      "passwordMinLength": "Password must be at least 8 characters",
+      "passwordUppercase": "Password must contain an uppercase letter",
+      "passwordLowercase": "Password must contain a lowercase letter",
+      "passwordNumber": "Password must contain a number",
+      "confirmPasswordRequired": "Please confirm your password",
+      "passwordMismatch": "Passwords do not match",
+      "title": "Create Account",
+      "description": "Fill in the details to create your account",
+      "signInHint": "Already have an account? Sign in",
+      "name": "Name",
+      "namePlaceholder": "Your name",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "signUp": "Create Account"
+    },
+    "forgotPassword": {
+      "title": "Forgot Password",
+      "description": "Enter your registered email and we'll send you a reset link",
+      "email": "Email",
+      "emailPlaceholder": "name@company.com",
+      "send": "Send reset link",
+      "backToLogin": "Back to login",
+      "checkEmail": "Check your inbox, a reset link has been sent",
+      "emailRequired": "Please enter your email",
+      "sendFailed": "Failed to send email, please try again later",
+      "networkError": "Network error, please try again later"
+    },
+    "resetPassword": {
+      "title": "Reset Password",
+      "description": "Set a new password",
+      "password": "New password",
+      "passwordPlaceholder": "******",
+      "confirmPassword": "Confirm new password",
+      "reset": "Reset password",
+      "backToLogin": "Back to login",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "minLength": "Password must be at least 8 characters",
+      "passwordMismatch": "Passwords do not match",
+      "invalidToken": "Reset link is invalid or has expired",
+      "success": "Password reset successfully, sign in with your new password",
+      "resetFailed": "Reset failed, the link may have expired"
+    }
+  },
+  "Console": {
+    "brand": "GPU Cloud",
+    "productSwitcher": "GPUs",
+    "docs": "Documentation",
+    "groups": {
+      "instances": "Container Cloud",
+      "serverless": "Serverless",
+      "metal": "Bare Metal",
+      "other": "Other"
+    },
+    "breadcrumbs": {
+      "deploy": "Deploy",
+      "instances": "My Instances",
+      "endpoints": "My Endpoints",
+      "deployEndpoint": "Deploy Endpoint",
+      "deployMetalInstance": "Deploy Metal",
+      "createInstance": "Create Instance",
+      "confirmRental": "Confirm Rental",
+      "details": "Details"
+    },
+    "nav": {
+      "usage": "Usage",
+      "apps": "Apps",
+      "templates": "Templates",
+      "deployInstance": "Container Cloud",
+      "myInstances": "My Containers",
+      "deployServerless": "Serverless",
+      "myEndpoints": "My Endpoints",
+      "deployMetal": "Bare Metal",
+      "myMetalInstances": "My Metal",
+      "preloaded": "Image Preload",
+      "storage": "Network Volumes",
+      "tasks": "Tasks",
+      "settings": "Settings",
+      "billing": "Billing",
+      "recharge": "Top Up"
+    },
+    "usage": {
+      "title": "Usage",
+      "description": "Track GPU usage, task volume, and cost across every product line.",
+      "demoBadge": "Sample data",
+      "balance": "Account balance",
+      "ranges": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "month": "This month"
+      },
+      "metrics": {
+        "cost": "Cost",
+        "hours": "GPU hours"
+      },
+      "exportCsv": "Export CSV",
+      "vsPrevious": "vs previous period",
+      "units": {
+        "gpuHours": "GPU-hours",
+        "gpuHour": "GPU-hour"
+      },
+      "productLines": {
+        "containerCloud": "Container Cloud",
+        "serverless": "Serverless",
+        "bareMetal": "Bare Metal GPU",
+        "tasks": "GPU Jobs"
+      },
+      "kpis": {
+        "spend": "Period spend",
+        "spendHint": "{amount} daily average",
+        "gpuHours": "GPU usage",
+        "gpuHoursHint": "{amount} daily average",
+        "tasks": "Task volume",
+        "tasksHint": "{rate}% success rate",
+        "unitCost": "Average GPU-hour cost",
+        "unitCostHint": "Cost divided by GPU usage"
+      },
+      "charts": {
+        "trend": {
+          "title": "Daily usage trend",
+          "description": "{start} to {end}, split by product line",
+          "total": "Usage in selected period",
+          "dailyAverage": "Daily average"
+        },
+        "share": {
+          "title": "Product line share",
+          "description": "Usage share by product line in the selected period",
+          "total": "Total usage"
+        },
+        "ranking": {
+          "title": "Product line ranking",
+          "description": "Product lines ranked by the selected metric"
+        }
+      },
+      "table": {
+        "title": "Product line details",
+        "description": "Usage details sorted by cost",
+        "date": "Date",
+        "productLine": "Product line",
+        "gpuHours": "GPU-hours",
+        "cost": "Cost",
+        "share": "Share",
+        "unitCost": "Unit cost",
+        "total": "Total",
+        "gpuHourUnit": "A GPU-hour is one GPU running for one hour",
+        "updatedAt": "Updated through {date}"
+      },
+      "empty": {
+        "title": "No usage in this period",
+        "description": "Choose another date range to view usage statistics."
+      }
+    },
+    "dashboard": {
+      "greeting": "Welcome back, {name}",
+      "greetingDefault": "Welcome back",
+      "subtitle": "Manage your GPU instances, Serverless endpoints, and account from one place.",
+      "stats": {
+        "balance": "Account Balance",
+        "runningInstances": "Running Instances",
+        "serverCount": "{count} Container",
+        "serverCount_plural": "{count} Containers",
+        "metalCount": "{count} Metal",
+        "metalCount_plural": "{count} Metal",
+        "viewInstances": "View all instances",
+        "volumes": "Network Volumes",
+        "volumesHint": "Attached S3 volumes",
+        "manageVolumes": "Manage volumes",
+        "quickActions": "Quick Actions"
+      },
+      "actions": {
+        "deployInstance": "Deploy Container Instance",
+        "deployServerless": "Deploy Serverless Endpoint"
+      },
+      "quickLinks": "Quick Access",
+      "links": {
+        "appsDesc": "One-click deploy popular AI applications",
+        "instanceDesc": "Full GPU instances with SSH access",
+        "serverlessDesc": "Auto-scaling inference endpoints",
+        "metalDesc": "Bare-metal GPU servers",
+        "billingDesc": "View usage details and manage payments",
+        "tasksDesc": "Batch training and inference jobs"
+      },
+      "appTemplates": "Deploy from Template",
+      "templates": {
+        "comfyuiDesc": "Run SD & FLUX pipelines",
+        "vllmDesc": "LLM inference serving",
+        "pytorchDesc": "Custom training & dev environment",
+        "jupyterDesc": "Interactive notebooks"
+      }
+    },
+    "pages": {
+      "templates": {
+        "title": "Templates",
+        "desc": "Choose a preset template and deploy to an instance or Serverless endpoint in one click.",
+        "featured": "Featured",
+        "deployInstance": "Deploy Instance"
+      },
+      "deployInstance": {
+        "title": "Container Cloud"
+      },
+      "myInstances": {
+        "title": "My Container Cloud",
+        "desc": "Manage your container cloud instances.",
+        "deploy": "Container Cloud"
+      },
+      "deployServerless": {
+        "title": "Deploy Serverless"
+      },
+      "myEndpoints": {
+        "title": "My Endpoints",
+        "desc": "Manage your Serverless inference endpoints.",
+        "deploy": "Deploy Serverless"
+      },
+      "storage": {
+        "title": "Network Volumes"
+      },
+      "preloaded": {
+        "title": "Image Preload",
+        "createTask": "Create Preload Task",
+        "banner": {
+          "prefix": "Preloaded images are free to store, but ",
+          "storageFee": "standard storage fees",
+          "middle": " apply when creating instances. ",
+          "helpDoc": "View help docs",
+          "suffix": "."
+        }
+      }
+    },
+    "comingSoon": {
+      "billing": {
+        "title": "Billing",
+        "desc": "Usage details, top-ups, and invoice management are coming soon."
+      },
+      "tasks": {
+        "title": "Tasks",
+        "desc": "Batch training and inference job scheduling and monitoring are coming soon."
+      },
+      "settings": {
+        "title": "Settings",
+        "desc": "API keys, SSH public keys, and team member management are coming soon."
+      },
+      "docs": {
+        "title": "Documentation",
+        "desc": "API reference, SDK, and quick start guides are coming soon."
+      }
+    }
+  },
+  "Product": {
+    "gpus": "GPUs",
+    "agentSandbox": "Agent Sandbox"
+  },
+  "Sandbox": {
+    "brand": "Agent Sandbox",
+    "nav": {
+      "quickStart": "Quick Start",
+      "billing": "Billing",
+      "recharge": "Top Up",
+      "settings": "Settings",
+      "quota": "Quota & Tiers",
+      "usage": "Usage Details",
+      "templates": "Templates"
+    },
+    "docs": "Documentation"
+  },
+  "SiteMessages": {
+    "title": "Messages",
+    "noMessages": "No messages yet",
+    "markAllRead": "Mark all as read",
+    "empty": "No new messages"
+  },
+  "Verify": {
+    "title": "Real-Name Verification",
+    "description": "Real-name verification is required before create/edit/delete operations",
+    "individual": "Individual",
+    "individualStatus": "Individual verification status",
+    "enterprise": "Enterprise",
+    "enterpriseStatus": "Enterprise verification status",
+    "alreadyVerified": "Verified",
+    "verifiedDesc": "Your account has been verified. You can perform all operations.",
+    "realName": "Full Name",
+    "realNamePlaceholder": "Enter your full name",
+    "idNumber": "ID Number",
+    "idNumberPlaceholder": "Enter 18-digit ID number",
+    "mobile": "Phone Number",
+    "mobilePlaceholder": "11-digit phone number",
+    "smsCode": "Verification Code",
+    "smsCodePlaceholder": "SMS verification code",
+    "getSmsCode": "Get Code",
+    "companyName": "Company Name",
+    "companyNamePlaceholder": "Enter full company name",
+    "uscc": "USCC",
+    "usccPlaceholder": "Enter 18-digit Unified Social Credit Code",
+    "legalPersonName": "Legal Person Name",
+    "legalPersonNamePlaceholder": "Enter legal person name",
+    "applicantRole": "Applicant Role",
+    "legalPerson": "Legal Person",
+    "authorizedPerson": "Authorized Person",
+    "authorizedPersonName": "Authorized Person Name",
+    "authorizedPersonNamePlaceholder": "Enter authorized person name",
+    "businessLicense": "Business License",
+    "idFront": "ID Card Front",
+    "idBack": "ID Card Back",
+    "authLetter": "Authorization Letter",
+    "uploadHint": "Supports JPG, PNG, PDF. Max 10MB per file",
+    "uploaded": "Uploaded",
+    "submit": "Submit",
+    "submittedTitle": "Submission Successful",
+    "submittedDesc": "Your verification has been submitted and is pending review",
+    "back": "Back",
+    "currentStatus": "Current Status",
+    "statusUnverified": "Unverified",
+    "statusPending": "Pending Review",
+    "statusIndividualVerified": "Individual Verified",
+    "statusEnterpriseVerified": "Enterprise Verified",
+    "statusRejected": "Rejected",
+    "reviewPending": "Application under review, please wait",
+    "reviewRejected": "Rejection reason",
+    "pendingNotice": "Cannot resubmit while under review",
+    "upgradeToEnterprise": "Upgrade to Enterprise",
+    "upgradeHint": "Upgrading from individual to enterprise verification",
+    "upgradeDesc": "Upgrade to access enterprise-level services and quotas",
+    "renameNotice": "Enterprise verified. Contact support to rename.",
+    "individualDesc": "Individual verification with ID card required",
+    "enterpriseDesc": "Enterprise verification with business license and company documents",
+    "guardTitle": "Verification Required",
+    "guardDescription": "This operation requires real-name verification (individual or enterprise). Please complete verification first.",
+    "goToVerify": "Go to Verify",
+    "cancel": "Cancel"
+  },
+  "Metadata": {
+    "title": "GPU Cloud Console | Serverless & Instance Deployment",
+    "description": "Deploy Serverless endpoints, GPU server instances, and S3-compatible network volumes.",
+    "name": "GPURun Cloud"
+  },
+  "Mail": {
+    "common": {
+      "team": "The {name} team",
+      "copyright": "© {year} All rights reserved."
+    },
+    "forgotPassword": {
+      "subject": "Reset your password",
+      "title": "Hello {name},",
+      "body": "We received a request to reset your password. Click the button below to continue.",
+      "resetPassword": "Reset password"
+    },
+    "emailOtp": {
+      "subject": "Email verification code",
+      "anonymous": "Hello",
+      "greeting": "Hello {name},",
+      "action": {
+        "sign-in": "You are signing in to your account. Use the verification code below to continue.",
+        "email-verification": "Use the verification code below to verify your email address.",
+        "forget-password": "You are resetting your password. Use the verification code below to continue.",
+        "change-email": "You are changing the email bound to your account. Use the verification code below to continue."
+      },
+      "code": "Verification code: {code}",
+      "expires": "The code expires in 5 minutes. Do not share it with anyone.",
+      "ignore": "If you did not perform this action, please ignore this email."
+    }
+  }
+}

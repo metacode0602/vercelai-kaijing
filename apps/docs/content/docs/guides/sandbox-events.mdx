@@ -1,0 +1,197 @@
+---
+title: "Sandbox Events"
+---
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.gpurun.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Sandbox Events
+
+Sandbox events provide a queryable timeline of key sandbox lifecycle operations. You can use events for troubleshooting, auditing, usage analysis, and billing reconciliation.
+
+## Query Sandbox Events
+
+Use the events API to list sandbox events for your account. You can filter events by sandbox, template, event type, status, and time range.
+
+### Query events using the SDKs
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-3">CLI</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const result = await gpurun.sandbox.getEvents({
+    sandboxID: 'iq721h44siv24wmyrh5oc',
+    events: ['create', 'pause', 'resume', 'connect', 'timeout', 'delete'],
+    limit: 10,
+    offset: 0,
+  })
+
+  console.log('Events:', result.items)
+
+  if (result.hasMore) {
+    const nextPage = await gpurun.sandbox.getEvents({
+      sandboxID: 'iq721h44siv24wmyrh5oc',
+      limit: 10,
+      offset: 10,
+    })
+
+    console.log('Next page:', nextPage.items)
+  }
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+
+  result = gpurun.sandbox.get_events(
+      sandbox_id="iq721h44siv24wmyrh5oc",
+      events=["create", "pause", "resume", "connect", "timeout", "delete"],
+      limit=10,
+      offset=0,
+  )
+
+  print("Events:", result.items)
+
+  if result.has_more:
+      next_page = gpurun.sandbox.get_events(
+          sandbox_id="iq721h44siv24wmyrh5oc",
+          limit=10,
+          offset=10,
+      )
+
+      print("Next page:", next_page.items)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-3">
+  ```bash
+  # List events for a sandbox
+  gpurun sandbox events <sandboxID>
+
+  # Filter by event names / state
+  gpurun sandbox events <sandboxID> --events create,pause,resume --state success
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+### Query events for a sandbox instance
+
+If you already have a sandbox instance, use the instance-level events method to query events for that sandbox.
+
+<CodeBlockTabs>
+  <CodeBlockTabsList>
+    <CodeBlockTabsTrigger value="tab-1">JavaScript &amp; TypeScript</CodeBlockTabsTrigger>
+    <CodeBlockTabsTrigger value="tab-2">Python</CodeBlockTabsTrigger>
+  </CodeBlockTabsList>
+  <CodeBlockTab value="tab-1">
+  ```js
+  import { GPURun } from 'gpurun-sandbox'
+
+  const gpurun = new GPURun()
+  const sandbox = await gpurun.sandbox.create()
+  const result = await sandbox.getEvents({
+    events: ['create', 'pause', 'resume', 'connect', 'timeout', 'delete'],
+    limit: 10,
+  })
+
+  console.log(result.items)
+  ```
+
+  </CodeBlockTab>
+  <CodeBlockTab value="tab-2">
+  ```python
+  from gpurun_sandbox import GPURun
+
+  gpurun = GPURun()
+  sandbox = gpurun.sandbox.create()
+  result = sandbox.get_events(
+      events=["create", "pause", "resume", "connect", "timeout", "delete"],
+      limit=10,
+  )
+
+  print(result.items)
+  ```
+
+  </CodeBlockTab>
+</CodeBlockTabs>
+
+## Filter Events
+
+Use query parameters to narrow the event timeline.
+
+| Option       | Type     | Required | Default / Limit                          | Description                                                                                                                |
+| ------------ | -------- | -------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `startTime`  | `int64`  | No       | Defaults to `endTime - 30 days`          | Query start time as a Unix timestamp in seconds. The range is inclusive.                                                   |
+| `endTime`    | `int64`  | No       | Defaults to the current time             | Query end time as a Unix timestamp in seconds. Must be greater than `startTime`.                                           |
+| `sandboxID`  | `string` | No       | -                                        | Filter by sandbox ID. Partial matching is supported.                                                                       |
+| `templateID` | `string` | No       | -                                        | Filter by template ID. Partial matching is supported.                                                                      |
+| `events`     | `string` | No       | Defaults to the key event set            | Comma-separated event types. The current key event set is `create`, `pause`, `resume`, `connect`, `timeout`, and `delete`. |
+| `state`      | `string` | No       | -                                        | Filter by event status, such as `success` or a failure status.                                                             |
+| `orderAsc`   | `bool`   | No       | `false`                                  | Sort events by `recordAt` in ascending order. By default, events are returned in descending order.                         |
+| `offset`     | `int32`  | No       | Default `0`, minimum `0`                 | Number of events to skip.                                                                                                  |
+| `limit`      | `int32`  | No       | Default `10`, minimum `1`, maximum `100` | Maximum number of events to return.                                                                                        |
+
+Time fields use Unix timestamps in seconds. Do not pass millisecond timestamps. The maximum query time range is 60 days. For longer timelines, split requests into multiple smaller time ranges.
+
+## Pagination
+
+Events use offset-based pagination. Start with `offset: 0`; if `hasMore` is `true`, request the next page with `offset + limit`. The maximum `limit` is 100.
+
+## Response Fields
+
+The events response includes an `items` array and pagination metadata.
+
+| Field     | Description                                                     |
+| --------- | --------------------------------------------------------------- |
+| `items`   | List of sandbox events that match the query.                    |
+| `total`   | Total number of events that match the query, before pagination. |
+| `hasMore` | Whether more events are available after the current page.       |
+
+Each item in `items` has the following fields.
+
+| Field          | Description                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| `eventID`      | Unique event ID.                                                                                       |
+| `recordAt`     | Event record time as a Unix timestamp in seconds.                                                      |
+| `templateID`   | Template ID used by the sandbox.                                                                       |
+| `templateName` | Template name used by the sandbox.                                                                     |
+| `sandboxID`    | Sandbox ID.                                                                                            |
+| `eventName`    | Event type, such as `create`, `pause`, `resume`, `connect`, `timeout`, or `delete`.                    |
+| `state`        | Event status.                                                                                          |
+| `errorMsg`     | Error message when the event failed or encountered an exception. Usually empty when there is no error. |
+| `statusCode`   | HTTP status code associated with the operation, when available.                                        |
+
+## Example Response
+
+```json JSON icon="code" theme={"system"}
+{
+  "items": [
+    {
+      "eventID": "evt_123",
+      "recordAt": 1766650000,
+      "templateID": "tmpl_abc",
+      "templateName": "ubuntu-base",
+      "sandboxID": "i3vrzzatkxojecvfuesnz",
+      "eventName": "create",
+      "state": "success",
+      "errorMsg": "",
+      "statusCode": 200
+    }
+  ],
+  "total": 1,
+  "hasMore": false
+}
+```
+
