@@ -1,10 +1,10 @@
-import { localeRedirect } from "@/lib/i18n/navigation"
+import { localeRedirect } from '@/lib/i18n/navigation'
 
-export default async function CrossborderIndexPage({
+export default async function CrossborderIndexRedirect({
   params,
 }: {
   params: Promise<{ locale: string }>
 }) {
   const { locale } = await params
-  localeRedirect({ href: "/crossborder/candidates", locale })
+  localeRedirect({ href: '/console/dashboard', locale })
 }

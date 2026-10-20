@@ -1,11 +1,6 @@
-import { CrossborderSidebar } from "@/components/crossborder/crossborder-sidebar"
-import type { ReactNode } from "react"
+import type { ReactNode } from 'react'
 
+/** Legacy /crossborder/* routes redirect into /console/*; no Demo chrome. */
 export default function CrossborderGroupLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex min-h-screen bg-background">
-      <CrossborderSidebar />
-      <main className="flex-1 p-6">{children}</main>
-    </div>
-  )
+  return children
 }

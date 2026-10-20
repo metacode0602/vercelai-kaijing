@@ -1,0 +1,82 @@
+'use client'
+
+import { Bell, Settings, UserRound } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { findBestMatchingNavItem } from '@/lib/console-nav'
+import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
+import { Button } from '@workspace/ui/components/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@workspace/ui/components/dropdown-menu'
+import { SidebarTrigger } from '@workspace/ui/components/sidebar'
+import { Separator } from '@workspace/ui/components/separator'
+
+function resolveTitle(
+  pathname: string,
+  t: ReturnType<typeof useTranslations<'Console'>>,
+): string {
+  if (pathname.startsWith('/console/settings')) return t('pages.settings')
+  if (pathname.startsWith('/console/profile')) return t('pages.profile')
+  const item = findBestMatchingNavItem(pathname)
+  if (!item) return t('pages.dashboard')
+  return t(item.titleKey)
+}
+
+export function ConsoleTopbar() {
+  const t = useTranslations('Console')
+  const tc = useTranslations('Common')
+  const pathname = useLocalePathname() ?? ''
+  const title = resolveTitle(pathname, t)
+
+  return (
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur md:px-4">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-1 h-4" />
+      <h1 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</h1>
+
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="sm" className="hidden text-muted-foreground sm:inline-flex" disabled>
+          {t('orgSwitcher')}
+        </Button>
+
+        <ThemeToggle />
+
+        <Button variant="ghost" size="icon" className="size-9" aria-label={tc('notifications')}>
+          <Bell className="size-4" />
+        </Button>
+
+        <Button variant="ghost" size="icon" className="size-9" asChild>
+          <LocaleLink href="/console/settings/shops" aria-label={tc('settings')}>
+            <Settings className="size-4" />
+          </LocaleLink>
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-9" aria-label={t('avatarMenu')}>
+              <UserRound className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>{t('avatarMenu')}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <LocaleLink href="/console/profile/account">{t('profile.account')}</LocaleLink>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <LocaleLink href="/console/profile/preferences">{t('profile.preferences')}</LocaleLink>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>{tc('logout')}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  )
+}

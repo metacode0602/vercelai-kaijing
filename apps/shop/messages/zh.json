@@ -143,7 +143,7 @@
     }
   },
   "Console": {
-    "brand": "GPU Cloud",
+    "brand": "Open Shop",
     "productSwitcher": "GPUs",
     "docs": "文档",
     "groups": {
@@ -163,21 +163,15 @@
       "details": "详情"
     },
     "nav": {
-      "usage": "用量",
-      "apps": "应用程序",
-      "templates": "模板",
-      "deployInstance": "容器云",
-      "myInstances": "我的容器",
-      "deployServerless": "Serverless",
-      "myEndpoints": "我的端点",
-      "deployMetal": "裸金属",
-      "myMetalInstances": "我的裸金属",
-      "preloaded": "镜像预加载",
-      "storage": "网络存储卷",
-      "tasks": "任务",
-      "settings": "设置",
-      "billing": "账单",
-      "recharge": "充值"
+      "dashboard": "运营仪表盘",
+      "candidates": "AI 选品",
+      "pending": "待审队列",
+      "products": "商品与刊登",
+      "orders": "订单",
+      "inventory": "库存预警",
+      "costs": "成本计算",
+      "finance": "财务中心",
+      "settings": "设置"
     },
     "usage": {
       "title": "用量",
@@ -289,52 +283,16 @@
       }
     },
     "pages": {
-      "instances": {
-        "title": "我的实例",
-        "empty": "暂无实例",
-        "emptyDesc": "部署您的第一个 GPU 实例开始使用"
-      },
-      "endpoints": {
-        "title": "我的端点",
-        "empty": "暂无端点",
-        "emptyDesc": "部署您的第一个 Serverless 端点"
-      },
-      "templates": {
-        "title": "模板",
-        "desc": "选择预设模板，一键部署到实例或 Serverless 端点。",
-        "featured": "推荐",
-        "deployInstance": "部署实例"
-      },
-      "deployInstance": {
-        "title": "容器云"
-      },
-      "myInstances": {
-        "title": "我的容器云",
-        "desc": "管理您的容器云实例。",
-        "deploy": "容器云"
-      },
-      "deployServerless": {
-        "title": "部署 Serverless"
-      },
-      "myEndpoints": {
-        "title": "我的端点",
-        "desc": "管理您的 Serverless 推理端点。",
-        "deploy": "部署 Serverless"
-      },
-      "storage": {
-        "title": "网络存储卷"
-      },
-      "preloaded": {
-        "title": "镜像预加载",
-        "createTask": "创建预加载任务",
-        "banner": {
-          "prefix": "预加载镜像免费存储，但创建实例时会产生",
-          "storageFee": "标准存储费用",
-          "middle": "。",
-          "helpDoc": "查看帮助文档",
-          "suffix": ""
-        }
-      }
+      "dashboard": "运营仪表盘",
+      "candidates": "AI 选品",
+      "pending": "待审队列",
+      "products": "商品与刊登",
+      "orders": "订单",
+      "inventory": "库存预警",
+      "costs": "成本计算",
+      "finance": "财务中心",
+      "settings": "设置",
+      "profile": "个人资料"
     },
     "comingSoon": {
       "billing": {
@@ -353,6 +311,31 @@
         "title": "文档",
         "desc": "API 参考、SDK 和快速入门指南即将上线。"
       }
+    },
+    "subtitle": "跨境运营工作台",
+    "mockBadge": "示例数据",
+    "orgSwitcher": "组织 · Demo",
+    "avatarMenu": "账号",
+    "backToWorkbench": "返回工作台",
+    "settings": {
+      "shops": "店铺连接",
+      "credentials": "平台凭证",
+      "notifications": "通知 / 钉钉",
+      "members": "组织成员",
+      "preferences": "偏好"
+    },
+    "profile": {
+      "account": "账号",
+      "preferences": "偏好"
+    },
+    "copilot": {
+      "open": "打开运营助手",
+      "title": "运营助手",
+      "subtitle": "AI-C · mock 回复",
+      "welcome": "你好，需要什么帮助？可点快捷指令：日报、库存、利润、选品。",
+      "placeholder": "输入问题…",
+      "send": "发送",
+      "goPending": "前往待审队列"
     }
   },
   "Product": {

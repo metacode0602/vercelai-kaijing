@@ -125,7 +125,7 @@
     }
   },
   "Console": {
-    "brand": "GPU Cloud",
+    "brand": "Open Shop",
     "productSwitcher": "GPUs",
     "docs": "Documentation",
     "groups": {
@@ -145,21 +145,15 @@
       "details": "Details"
     },
     "nav": {
-      "usage": "Usage",
-      "apps": "Apps",
-      "templates": "Templates",
-      "deployInstance": "Container Cloud",
-      "myInstances": "My Containers",
-      "deployServerless": "Serverless",
-      "myEndpoints": "My Endpoints",
-      "deployMetal": "Bare Metal",
-      "myMetalInstances": "My Metal",
-      "preloaded": "Image Preload",
-      "storage": "Network Volumes",
-      "tasks": "Tasks",
-      "settings": "Settings",
-      "billing": "Billing",
-      "recharge": "Top Up"
+      "dashboard": "Dashboard",
+      "candidates": "AI Candidates",
+      "pending": "Pending",
+      "products": "Products",
+      "orders": "Orders",
+      "inventory": "Inventory",
+      "costs": "Costs",
+      "finance": "Finance",
+      "settings": "Settings"
     },
     "usage": {
       "title": "Usage",
@@ -271,42 +265,16 @@
       }
     },
     "pages": {
-      "templates": {
-        "title": "Templates",
-        "desc": "Choose a preset template and deploy to an instance or Serverless endpoint in one click.",
-        "featured": "Featured",
-        "deployInstance": "Deploy Instance"
-      },
-      "deployInstance": {
-        "title": "Container Cloud"
-      },
-      "myInstances": {
-        "title": "My Container Cloud",
-        "desc": "Manage your container cloud instances.",
-        "deploy": "Container Cloud"
-      },
-      "deployServerless": {
-        "title": "Deploy Serverless"
-      },
-      "myEndpoints": {
-        "title": "My Endpoints",
-        "desc": "Manage your Serverless inference endpoints.",
-        "deploy": "Deploy Serverless"
-      },
-      "storage": {
-        "title": "Network Volumes"
-      },
-      "preloaded": {
-        "title": "Image Preload",
-        "createTask": "Create Preload Task",
-        "banner": {
-          "prefix": "Preloaded images are free to store, but ",
-          "storageFee": "standard storage fees",
-          "middle": " apply when creating instances. ",
-          "helpDoc": "View help docs",
-          "suffix": "."
-        }
-      }
+      "dashboard": "Dashboard",
+      "candidates": "AI Candidates",
+      "pending": "Pending",
+      "products": "Products",
+      "orders": "Orders",
+      "inventory": "Inventory",
+      "costs": "Costs",
+      "finance": "Finance",
+      "settings": "Settings",
+      "profile": "Profile"
     },
     "comingSoon": {
       "billing": {
@@ -325,6 +293,31 @@
         "title": "Documentation",
         "desc": "API reference, SDK, and quick start guides are coming soon."
       }
+    },
+    "subtitle": "Cross-border console",
+    "mockBadge": "Sample data",
+    "orgSwitcher": "Org · Demo",
+    "avatarMenu": "Account",
+    "backToWorkbench": "Back to workbench",
+    "settings": {
+      "shops": "Shops",
+      "credentials": "Credentials",
+      "notifications": "Notifications",
+      "members": "Members",
+      "preferences": "Preferences"
+    },
+    "profile": {
+      "account": "Account",
+      "preferences": "Preferences"
+    },
+    "copilot": {
+      "open": "Open assistant",
+      "title": "Ops assistant",
+      "subtitle": "AI-C · mock replies",
+      "welcome": "Hi! Try quick prompts: daily report, inventory, profit, candidates.",
+      "placeholder": "Ask something…",
+      "send": "Send",
+      "goPending": "Go to pending queue"
     }
   },
   "Product": {
