@@ -360,7 +360,53 @@
     "title": "站内信",
     "markAllRead": "全部已读",
     "noMessages": "暂无消息",
-    "empty": "没有新消息"
+    "empty": "没有新消息",
+    "unreadBadge": "{count} 条未读",
+    "markRead": "标记已读",
+    "openDetail": "查看详情",
+    "back": "返回列表",
+    "detailTitle": "消息详情",
+    "mockHint": "示例数据 · 跨境运营提醒",
+    "categories": {
+      "inventory": "库存",
+      "order": "订单",
+      "shop": "店铺",
+      "sourcing": "选品",
+      "finance": "财务",
+      "system": "系统"
+    },
+    "mock": {
+      "inv1": {
+        "title": "库存预警：TEE-001 低于安全库存",
+        "summary": "Daraz PK 店铺 SKU TEE-001 可售 12，低于阈值 30。建议尽快补货或下调广告。",
+        "content": "店铺：Daraz PK · Karachi Hub\nSKU：TEE-001（Oversized Cotton Tee）\n可售库存：12\n安全阈值：30\n近 7 日日均销量：8.4\n\n建议：\n1. 创建补货单（预计到仓 5–7 天）\n2. 或暂停该 SKU 的广告投放，避免超卖\n\n（示例站内信 · mock）"
+      },
+      "ord1": {
+        "title": "订单异常：履约超时待处理",
+        "summary": "订单 DZ-928471 超时未发货，买家已催促。平台可能开罚。",
+        "content": "订单号：DZ-928471\n平台：Daraz\n店铺：PK Fashion Hub\n状态：已付款 · 超时未发货（SLA 48h）\n超时：+6h\n\n请尽快在履约中心确认仓配，或联系买家协商改期。\n\n（示例站内信 · mock）"
+      },
+      "shop1": {
+        "title": "店铺凭证即将失效",
+        "summary": "Shopee MY 店铺 API Token 将于 3 天后过期，同步与刊登会中断。",
+        "content": "店铺：Shopee MY · Open Shop Demo\n凭证类型：API Access Token\n到期：约 3 天后\n影响：订单同步、库存回写、自动刊登\n\n请前往「设置 → 店铺连接」重新授权。\n\n（示例站内信 · mock）"
+      },
+      "src1": {
+        "title": "选品建议：高分候选待审",
+        "summary": "Oversized Cotton Tee 候选分 0.91，可一键进入待审刊登队列。",
+        "content": "候选：Oversized Cotton Tee\n综合分：0.91\n目标站：Daraz PK / Shopee MY\n预估毛利：28%\n\n接受后将进入待审队列，需人工确认价格与主图后再刊登。\n\n（示例站内信 · mock）"
+      },
+      "fin1": {
+        "title": "对账单已生成，请确认",
+        "summary": "2026-10 月 Daraz 对账单已就绪，差异 2 笔待核对。",
+        "content": "账期：2026-10\n平台：Daraz\n差异笔数：2\n待确认金额：约 USD 186.40\n\n请在财务中心核对后确认出账。\n\n（示例站内信 · mock）"
+      },
+      "sys1": {
+        "title": "系统维护完成",
+        "summary": "昨夜库存同步任务已恢复，积压队列已清空。",
+        "content": "维护窗口：昨日 02:00–03:20（UTC+8）\n影响：库存同步延迟约 80 分钟\n状态：已恢复，积压任务已追平\n\n如发现个别 SKU 仍不准，可手动触发店铺同步。\n\n（示例站内信 · mock）"
+      }
+    }
   },
   "Verify": {
     "title": "实名认证",

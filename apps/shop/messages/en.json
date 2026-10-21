@@ -339,10 +339,56 @@
     "docs": "Documentation"
   },
   "SiteMessages": {
-    "title": "Messages",
-    "noMessages": "No messages yet",
+    "title": "Inbox",
     "markAllRead": "Mark all as read",
-    "empty": "No new messages"
+    "noMessages": "No messages yet",
+    "empty": "No new messages",
+    "unreadBadge": "{count} unread",
+    "markRead": "Mark as read",
+    "openDetail": "View details",
+    "back": "Back to list",
+    "detailTitle": "Message details",
+    "mockHint": "Sample data · cross-border ops alerts",
+    "categories": {
+      "inventory": "Inventory",
+      "order": "Orders",
+      "shop": "Shop",
+      "sourcing": "Sourcing",
+      "finance": "Finance",
+      "system": "System"
+    },
+    "mock": {
+      "inv1": {
+        "title": "Low stock alert: TEE-001 below safety stock",
+        "summary": "Daraz PK SKU TEE-001 has 12 sellable units, below threshold 30. Restock or pause ads.",
+        "content": "Shop: Daraz PK · Karachi Hub\nSKU: TEE-001 (Oversized Cotton Tee)\nSellable: 12\nSafety threshold: 30\n7-day avg daily sales: 8.4\n\nSuggestions:\n1. Create a restock PO (ETA 5–7 days)\n2. Or pause ads for this SKU to avoid overselling\n\n(Sample inbox · mock)"
+      },
+      "ord1": {
+        "title": "Order exception: fulfillment SLA breach",
+        "summary": "Order DZ-928471 is past ship-by; buyer chased. Platform penalties may apply.",
+        "content": "Order: DZ-928471\nPlatform: Daraz\nShop: PK Fashion Hub\nStatus: Paid · past ship SLA (48h)\nOverdue: +6h\n\nConfirm warehouse shipping in fulfillment, or negotiate a delay with the buyer.\n\n(Sample inbox · mock)"
+      },
+      "shop1": {
+        "title": "Shop credential expiring soon",
+        "summary": "Shopee MY API token expires in ~3 days; sync and listing will stop.",
+        "content": "Shop: Shopee MY · Open Shop Demo\nCredential: API Access Token\nExpires: in about 3 days\nImpact: order sync, inventory write-back, auto-listing\n\nRe-authorize under Settings → Shop connections.\n\n(Sample inbox · mock)"
+      },
+      "src1": {
+        "title": "Sourcing tip: high-score candidate ready",
+        "summary": "Oversized Cotton Tee scores 0.91 — send to the pending listing queue.",
+        "content": "Candidate: Oversized Cotton Tee\nScore: 0.91\nTarget markets: Daraz PK / Shopee MY\nEst. margin: 28%\n\nAccepting sends it to the pending queue for price/image review before publish.\n\n(Sample inbox · mock)"
+      },
+      "fin1": {
+        "title": "Reconciliation statement ready",
+        "summary": "Oct 2026 Daraz statement is ready; 2 variance lines need review.",
+        "content": "Period: 2026-10\nPlatform: Daraz\nVariance lines: 2\nAmount pending: ~USD 186.40\n\nReview and confirm in Finance.\n\n(Sample inbox · mock)"
+      },
+      "sys1": {
+        "title": "Maintenance complete",
+        "summary": "Overnight inventory sync recovered; backlog cleared.",
+        "content": "Window: yesterday 02:00–03:20 (UTC+8)\nImpact: inventory sync delayed ~80 minutes\nStatus: recovered; backlog caught up\n\nIf a SKU still looks wrong, trigger a manual shop sync.\n\n(Sample inbox · mock)"
+      }
+    }
   },
   "Verify": {
     "title": "Real-Name Verification",

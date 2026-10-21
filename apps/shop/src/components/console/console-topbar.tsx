@@ -1,8 +1,9 @@
 'use client'
 
-import { Bell, Settings, Sparkles, UserRound } from 'lucide-react'
+import { Sparkles, UserRound } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { ConsoleInboxSheet } from '@/components/console/console-inbox-sheet'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
 import { findBestMatchingNavItem } from '@/lib/console-nav'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
@@ -61,15 +62,7 @@ export function ConsoleTopbar() {
           <Sparkles className="size-4" />
         </Button>
 
-        <Button variant="ghost" size="icon" className="size-9" aria-label={tc('notifications')}>
-          <Bell className="size-4" />
-        </Button>
-
-        <Button variant="ghost" size="icon" className="size-9" asChild>
-          <LocaleLink href="/console/settings/shops" aria-label={tc('settings')}>
-            <Settings className="size-4" />
-          </LocaleLink>
-        </Button>
+        <ConsoleInboxSheet />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
