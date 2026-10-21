@@ -1,10 +1,11 @@
 import { Inter } from 'next/font/google'
 import { NextIntlClientProvider } from 'next-intl'
 import { getMessages } from 'next-intl/server'
-import { ThemeProvider } from 'next-themes'
 import { cn } from '@workspace/ui/lib/utils'
 import { routing } from '@/lib/i18n/routing'
 import { notFound } from 'next/navigation'
+
+import { Providers } from './providers'
 
 import '@/app/globals.css'
 
@@ -27,14 +28,9 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body className={cn(inter.className, 'antialiased')}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <Providers>
           <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )
