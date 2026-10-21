@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 export async function requireAuth(
-  redirectHref: string = '/login'
+  redirectHref: string = '/signin'
 ): Promise<undefined> {
   const session = await auth.api.getSession({
     headers: await headers(),

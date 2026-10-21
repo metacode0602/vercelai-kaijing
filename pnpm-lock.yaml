@@ -225,6 +225,9 @@ importers:
       '@workspace/redis':
         specifier: workspace:*
         version: link:../../packages/redis
+      '@workspace/sms-captcha':
+        specifier: workspace:*
+        version: link:../../packages/sms-captcha
       '@workspace/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -267,12 +270,18 @@ importers:
       recharts:
         specifier: 3.8.0
         version: 3.8.0(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.8(@types/react@19.3.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.7.0
       zod:
         specifier: ^4.3.6
         version: 4.6.5
+      zustand:
+        specifier: ^5.0.13
+        version: 5.0.15(@types/react@19.3.0)(immer@11.1.18)(react@19.2.3)(use-sync-external-store@1.7.0(react@19.2.3))
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4

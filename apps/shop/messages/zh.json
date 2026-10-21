@@ -140,27 +140,6 @@
       "invalidToken": "重置链接无效或已过期",
       "success": "密码已重置，请使用新密码登录",
       "resetFailed": "重置失败，链接可能已失效"
-    },
-    "otp": {
-      "title": "登录 / 注册",
-      "description": "使用手机号或邮箱验证码，首次验证将自动创建账户",
-      "tabPhone": "手机号",
-      "tabEmail": "邮箱",
-      "email": "邮箱",
-      "emailPlaceholder": "name@company.com",
-      "invalidEmail": "邮箱格式不正确",
-      "getCode": "获取验证码",
-      "sending": "发送中…",
-      "codeSent": "验证码已发送",
-      "submit": "登录/注册",
-      "submitting": "登录中…",
-      "success": "登录成功！",
-      "sendCodeFailed": "发送验证码失败",
-      "verifyFailed": "验证失败，请重试",
-      "rateLimited": "发送过于频繁，请稍后再试",
-      "codeExpired": "验证码已过期，请重新获取",
-      "invalidCode": "验证码错误或已失效",
-      "devCodeHint": "开发模式验证码：{code}"
     }
   },
   "Console": {

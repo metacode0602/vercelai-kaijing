@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { sendEmailOtpStub, sendPhoneOtpStub } from '@/lib/auth/otp-adapters'
 import { sendEmail } from '@/lib/mail'
 import { routing } from '@/lib/i18n/routing'
+import { consumeAndValidateToken } from '@workspace/sms-captcha/server'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -73,7 +74,19 @@ export const auth = betterAuth({
       expiresIn: 300,
       allowedAttempts: 5,
       phoneNumberValidator: (phone) => isValidCnMobile(phone),
-      sendOTP: async ({ phoneNumber: phone, code }) => {
+      sendOTP: async ({ phoneNumber: phone, code }, request) => {
+        // 校验滑块验证码 token（缺失/无效则静默丢弃，与最早实现一致）
+        const captchaToken = request?.headers?.get('x-temp-captcha-token')
+        if (captchaToken) {
+          const valid = await consumeAndValidateToken(captchaToken)
+          if (!valid) {
+            console.warn(`[auth] Invalid captcha token for phone ${phone}`)
+            return
+          }
+        } else {
+          console.warn(`[auth] Missing captcha token for phone ${phone}`)
+          return
+        }
         await sendPhoneOtpStub({ phoneNumber: normalizeContactPhone(phone), code })
       },
       signUpOnVerification: {
@@ -89,7 +102,6 @@ export const auth = betterAuth({
       expiresIn: 300,
       allowedAttempts: 5,
       disableSignUp: false,
-      // Built-in BA window; shop also enforces stronger limits in the route wrapper
       rateLimit: {
         window: 60,
         max: 1,

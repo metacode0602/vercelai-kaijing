@@ -4,8 +4,6 @@
  * Set SMS_FORCE_REAL_SEND / mail credentials later and swap implementations.
  */
 
-import { rememberDevOtp } from './dev-otp'
-
 export async function sendPhoneOtpStub(params: {
   phoneNumber: string
   code: string
@@ -13,7 +11,6 @@ export async function sendPhoneOtpStub(params: {
   console.info(
     `[shop-otp][phone] to=${params.phoneNumber} code=${params.code} (stub — not sent via SMS)`,
   )
-  rememberDevOtp('phone', params.phoneNumber, params.code)
 }
 
 export async function sendEmailOtpStub(params: {
@@ -24,5 +21,4 @@ export async function sendEmailOtpStub(params: {
   console.info(
     `[shop-otp][email] to=${params.email} type=${params.type} code=${params.otp} (stub — not sent via email)`,
   )
-  rememberDevOtp('email', params.email, params.otp)
 }
