@@ -25,7 +25,7 @@ export function useConsoleCopilot() {
 /**
  * Console-level AI assistant state + optional CopilotKit runtime wrap.
  * Panel is a layout column sibling (not a FAB overlay); toggle lives in the topbar.
- * Also mounts the shared cost-calculator Sheet host for Copilot / page CTAs.
+ * Also mounts the shared cost-calculator Dialog host for the header「成本测算」CTA.
  */
 export function ConsoleCopilotProvider({ children }: PropsWithChildren) {
   const [open, setOpen] = React.useState(false)

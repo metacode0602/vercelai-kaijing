@@ -6,9 +6,14 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { cn } from '@workspace/ui/lib/utils'
-import { LocaleLink } from '@/lib/i18n/navigation'
+import { LocaleLink, useLocalePathname, useLocaleRouter } from '@/lib/i18n/navigation'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
-import { dispatchCostCalcAction } from '@/lib/crossborder/cost-calculator-bridge'
+import {
+  dispatchCostCalcAction,
+  matchCostRecalculatePath,
+  writePendingCostCalcActions,
+  type CostCalcBridgeAction,
+} from '@/lib/crossborder/cost-calculator-bridge'
 
 type ChatMessage = {
   id: string
@@ -18,42 +23,31 @@ type ChatMessage = {
 
 const QUICK_PROMPTS = ['日报', '库存分析', '利润分析', '选品建议'] as const
 
-const COST_SUGGESTIONS = [
-  {
-    label: '按当前 SKU 测算到仓成本',
-    user: '按当前 SKU 测算到仓成本',
-    reply:
-      '（示例 · mock）已打开成本计算器并套用 TEE-001 预设：FOB 4.2 USD、服装税率档、LCL。右侧瀑布会展示 Customs→PAL→CESS→VAT→SSCL 与到仓/件。数字为估算·需报关/法务复核。',
-    run: () => {
-      dispatchCostCalcAction({ type: 'open', sku: 'TEE-001' }, 'copilot')
-    },
-  },
-  {
-    label: '对比拼柜与整柜',
-    user: '对比拼柜与整柜',
-    reply:
-      '（示例 · mock）已切换海运模式以便对比。结果区「LCL vs FCL」表会标出当前批量更优方案，并提示约多少件后 FCL 20\' 可能更划算（示意）。',
-    run: () => {
-      dispatchCostCalcAction({ type: 'open', sku: 'TEE-001' }, 'copilot')
-      // Defer mode flip so SKU preset lands first
-      queueMicrotask(() =>
-        dispatchCostCalcAction({ type: 'compare_lcl_fcl' }, 'copilot'),
-      )
-    },
-  },
-  {
-    label: '按 20% 净利率给建议售价',
-    user: '按 20% 净利率给建议售价',
-    reply:
-      '（示例 · mock）已将目标净利率设为 20%，并按 P* = (landed + 尾程) / (1 − 佣金 − 支付 − m) 重算建议售价。详见工作台「计算规则与公式」。',
-    run: () => {
-      dispatchCostCalcAction({ type: 'open', sku: 'TEE-001' }, 'copilot')
-      queueMicrotask(() =>
-        dispatchCostCalcAction({ type: 'set_margin', pct: 20 }, 'copilot'),
-      )
-    },
-  },
-] as const
+/**
+ * Apply cost-calc actions on the recalculate page, or navigate there first.
+ * Never opens the right Sheet / entry Dialog.
+ */
+function runCostCalcOnPageOrNavigate(
+  actions: CostCalcBridgeAction[],
+  opts: { pathname: string | null; router: { push: (href: string) => void }; fallbackSku?: string },
+) {
+  const skuFromAction =
+    actions.find(
+      (a): a is Extract<CostCalcBridgeAction, { type: 'open' | 'apply_sku' }> =>
+        a.type === 'open' || a.type === 'apply_sku',
+    )?.sku ?? opts.fallbackSku ?? 'TEE-001'
+
+  const onRecalc = matchCostRecalculatePath(opts.pathname)
+  if (onRecalc) {
+    for (const action of actions) {
+      dispatchCostCalcAction(action, 'copilot')
+    }
+    return
+  }
+
+  writePendingCostCalcActions(actions)
+  opts.router.push(`/console/costs/${skuFromAction}/recalculate`)
+}
 
 const PANEL_WIDTH = 'w-[min(100%,380px)]'
 
@@ -65,13 +59,13 @@ function mockReply(input: string): string {
     lower.includes('成本计算') ||
     lower.includes('landed')
   ) {
-    return COST_SUGGESTIONS[0].reply
+    return COST_SUGGESTION_REPLIES[0]
   }
   if (lower.includes('拼柜') || lower.includes('整柜') || lower.includes('lcl') || lower.includes('fcl')) {
-    return COST_SUGGESTIONS[1].reply
+    return COST_SUGGESTION_REPLIES[1]
   }
   if (lower.includes('净利率') || lower.includes('建议售价') || lower.includes('售价')) {
-    return COST_SUGGESTIONS[2].reply
+    return COST_SUGGESTION_REPLIES[2]
   }
   if (lower.includes('库存') || lower.includes('inventory')) {
     return '（示例）TEE-001 与 MAT-02 低于阈值；可前往库存预警查看补货建议，敏感改价请走待审队列。'
@@ -88,26 +82,11 @@ function mockReply(input: string): string {
   return '（示例 · mock）我是运营助手（AI-C）。可问日报、库存、利润、选品，或点下方成本测算快捷指令。需执行的动作请到待审队列确认。'
 }
 
-function maybeRunCostAction(text: string) {
-  const lower = text.toLowerCase()
-  if (
-    lower.includes('到仓') ||
-    lower.includes('成本测算') ||
-    lower.includes('成本计算') ||
-    lower.includes('landed') ||
-    text.includes('按当前 SKU')
-  ) {
-    COST_SUGGESTIONS[0].run()
-    return
-  }
-  if (lower.includes('拼柜') || lower.includes('整柜') || lower.includes('lcl') || lower.includes('fcl')) {
-    COST_SUGGESTIONS[1].run()
-    return
-  }
-  if (lower.includes('净利率') || lower.includes('建议售价') || text.includes('20%')) {
-    COST_SUGGESTIONS[2].run()
-  }
-}
+const COST_SUGGESTION_REPLIES = [
+  '（示例 · mock）已打开成本计算器并套用 TEE-001 预设：FOB 4.2 USD、服装税率档、LCL。右侧瀑布会展示 Customs→PAL→CESS→VAT→SSCL 与到仓/件。数字为估算·需报关/法务复核。',
+  '（示例 · mock）已切换海运模式以便对比。结果区「LCL vs FCL」表会标出当前批量更优方案，并提示约多少件后 FCL 20\' 可能更划算（示意）。',
+  '（示例 · mock）已将目标净利率设为 20%，并按 P* = (landed + 尾程) / (1 − 佣金 − 支付 − m) 重算建议售价。详见工作台「计算规则与公式」。',
+] as const
 
 /**
  * Right-hand console layout column. Renders nothing when closed so main content
@@ -116,6 +95,8 @@ function maybeRunCostAction(text: string) {
 export function ConsoleCopilot() {
   const t = useTranslations('Console.copilot')
   const { open, setOpen } = useConsoleCopilot()
+  const pathname = useLocalePathname()
+  const router = useLocaleRouter()
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
@@ -126,12 +107,81 @@ export function ConsoleCopilot() {
   ])
   const listRef = React.useRef<HTMLDivElement>(null)
 
+  const navOpts = React.useMemo(
+    () => ({ pathname, router }),
+    [pathname, router],
+  )
+
+  const costSuggestions = React.useMemo(
+    () =>
+      [
+        {
+          label: '按当前 SKU 测算到仓成本',
+          user: '按当前 SKU 测算到仓成本',
+          reply: COST_SUGGESTION_REPLIES[0],
+          run: () =>
+            runCostCalcOnPageOrNavigate(
+              [{ type: 'open', sku: 'TEE-001' }, { type: 'compute' }],
+              { ...navOpts, fallbackSku: 'TEE-001' },
+            ),
+        },
+        {
+          label: '对比拼柜与整柜',
+          user: '对比拼柜与整柜',
+          reply: COST_SUGGESTION_REPLIES[1],
+          run: () =>
+            runCostCalcOnPageOrNavigate(
+              [
+                { type: 'open', sku: 'TEE-001' },
+                { type: 'compare_lcl_fcl' },
+              ],
+              { ...navOpts, fallbackSku: 'TEE-001' },
+            ),
+        },
+        {
+          label: '按 20% 净利率给建议售价',
+          user: '按 20% 净利率给建议售价',
+          reply: COST_SUGGESTION_REPLIES[2],
+          run: () =>
+            runCostCalcOnPageOrNavigate(
+              [
+                { type: 'open', sku: 'TEE-001' },
+                { type: 'set_margin', pct: 20 },
+              ],
+              { ...navOpts, fallbackSku: 'TEE-001' },
+            ),
+        },
+      ] as const,
+    [navOpts],
+  )
+
   React.useEffect(() => {
     if (!open) return
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, open])
 
-  function send(text: string, replyOverride?: string) {
+  function maybeRunCostAction(text: string) {
+    const lower = text.toLowerCase()
+    if (
+      lower.includes('到仓') ||
+      lower.includes('成本测算') ||
+      lower.includes('成本计算') ||
+      lower.includes('landed') ||
+      text.includes('按当前 SKU')
+    ) {
+      costSuggestions[0].run()
+      return
+    }
+    if (lower.includes('拼柜') || lower.includes('整柜') || lower.includes('lcl') || lower.includes('fcl')) {
+      costSuggestions[1].run()
+      return
+    }
+    if (lower.includes('净利率') || lower.includes('建议售价') || text.includes('20%')) {
+      costSuggestions[2].run()
+    }
+  }
+
+  function send(text: string, replyOverride?: string, opts?: { skipCostAction?: boolean }) {
     const trimmed = text.trim()
     if (!trimmed) return
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', content: trimmed }
@@ -142,7 +192,7 @@ export function ConsoleCopilot() {
     }
     setMessages((prev) => [...prev, userMsg, botMsg])
     setInput('')
-    maybeRunCostAction(trimmed)
+    if (!opts?.skipCostAction) maybeRunCostAction(trimmed)
   }
 
   if (!open) return null
@@ -213,7 +263,7 @@ export function ConsoleCopilot() {
         </div>
         <p className="text-[10px] font-medium text-muted-foreground">成本测算（示例）</p>
         <div className="flex flex-wrap gap-1.5">
-          {COST_SUGGESTIONS.map((s) => (
+          {costSuggestions.map((s) => (
             <Button
               key={s.label}
               type="button"
@@ -222,7 +272,7 @@ export function ConsoleCopilot() {
               className="h-auto max-w-full whitespace-normal px-2 py-1 text-left text-[11px] leading-snug"
               onClick={() => {
                 s.run()
-                send(s.user, s.reply)
+                send(s.user, s.reply, { skipCostAction: true })
               }}
             >
               {s.label}

@@ -16,14 +16,16 @@ export default async function CostRecalculatePage({ params }: CostRecalculatePag
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3">
-        <ConsoleBreadcrumbs
-          items={[
-            { label: '成本', href: '/console/costs' },
-            { label: cost.sku, href: `/console/costs/${cost.sku}` },
-            { label: '重新测算' },
-          ]}
-        />
+      {/* Breadcrumbs at the very top of the right content area */}
+      <ConsoleBreadcrumbs
+        items={[
+          { label: '成本', href: '/console/costs' },
+          { label: cost.sku, href: `/console/costs/${cost.sku}` },
+          { label: '重新测算' },
+        ]}
+      />
+
+      <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <Calculator className="size-5 text-primary" />
           <h2 className="text-xl font-semibold tracking-tight">

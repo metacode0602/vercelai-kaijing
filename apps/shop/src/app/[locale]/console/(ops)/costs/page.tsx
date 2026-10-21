@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { Calculator } from 'lucide-react'
 import { CostCalculatorEntry } from '@/components/console/cost-calculator-host'
 import {
   ConsoleFilterBar,
@@ -11,6 +12,7 @@ import {
 import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 import {
   Table,
   TableBody,
@@ -107,7 +109,12 @@ export default function CostsPage() {
                     <TableCell className="tabular-nums font-medium">{total}</TableCell>
                     <TableCell>{row.currency}</TableCell>
                     <TableCell className="text-right">
-                      <CostCalculatorEntry sku={row.sku} label="测算" variant="outline" />
+                      <Button size="sm" variant="outline" className="gap-1.5" asChild>
+                        <LocaleLink href={`/console/costs/${row.sku}/recalculate`}>
+                          <Calculator className="size-3.5" />
+                          测算
+                        </LocaleLink>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 )
