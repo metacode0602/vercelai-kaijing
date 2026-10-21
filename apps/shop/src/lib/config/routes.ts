@@ -23,7 +23,7 @@ export enum Routes {
 
   // auth routes
   Login = '/login',
-  Register = '/login',
+  Register = '/signup',
   Onboarding = '/console',
   AuthError = '/auth/error',
   ForgotPassword = '/auth/forgot-password',

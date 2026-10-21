@@ -24,10 +24,8 @@ export enum Routes {
   TermsOfService = '/terms',
 
   // auth routes
-  /** @deprecated 使用 /signin */
   Login = '/signin',
-  /** @deprecated 公开注册已关闭 */
-  Register = '/signin',
+  Register = '/register',
   AuthError = '/auth/error',
   ForgotPassword = '/auth/forgot-password',
   ResetPassword = '/auth/reset-password',

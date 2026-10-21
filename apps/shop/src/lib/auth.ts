@@ -4,9 +4,12 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import { emailOTP, phoneNumber } from 'better-auth/plugins'
+import type { Locale } from 'next-intl'
 import { websiteConfig } from '@/lib/config/website'
 import { db } from '@/lib/db'
 import { sendEmailOtpStub, sendPhoneOtpStub } from '@/lib/auth/otp-adapters'
+import { sendEmail } from '@/lib/mail'
+import { routing } from '@/lib/i18n/routing'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -21,6 +24,17 @@ function resolveBaseURL() {
 function isValidCnMobile(phone: string) {
   const normalized = normalizeContactPhone(phone)
   return /^1\d{10}$/.test(normalized)
+}
+
+/** 从 NEXT_LOCALE cookie 解析邮件语言，缺省回退默认语言。 */
+function resolveMailLocale(request?: Request): Locale {
+  const cookie = request?.headers?.get('cookie')
+  const locale = cookie
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('NEXT_LOCALE='))
+    ?.split('=')[1]
+  return locale === 'en' || locale === 'zh' ? (locale as Locale) : routing.defaultLocale
 }
 
 export const auth = betterAuth({
@@ -38,7 +52,20 @@ export const auth = betterAuth({
     ...(isProd ? { useSecureCookies: true } : {}),
   },
   emailAndPassword: {
-    enabled: false,
+    enabled: true,
+    // 找回密码邮件：/api/auth/realm-forgot-password 触发（防账号探测，未知邮箱不发信）
+    sendResetPassword: async ({ user, url }, request) => {
+      try {
+        await sendEmail({
+          to: user.email,
+          template: 'forgotPassword',
+          context: { url, name: user.name },
+          locale: resolveMailLocale(request),
+        })
+      } catch (error) {
+        console.error('[auth] 找回密码邮件发送失败:', error)
+      }
+    },
   },
   plugins: [
     phoneNumber({
