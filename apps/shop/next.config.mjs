@@ -9,7 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  transpilePackages: ['@workspace/ui', '@workspace/shared-next'],
+  transpilePackages: ['@workspace/ui', '@workspace/shared-next', '@workspace/db'],
 }
 
 const withNextIntl = createNextIntlPlugin('./src/lib/i18n/request.ts')

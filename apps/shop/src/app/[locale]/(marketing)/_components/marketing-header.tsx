@@ -161,6 +161,13 @@ export function MarketingHeader() {
               <Button
                 asChild
                 variant="ghost"
+                className="h-11 rounded-full px-5"
+              >
+                <LocaleLink href="/login">登录</LocaleLink>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
                 className="h-11 rounded-full px-5 text-primary"
               >
                 <LocaleLink href="/console" className="gap-2">
@@ -223,6 +230,9 @@ export function MarketingHeader() {
                   <Globe className="size-4 text-muted-foreground" />
                   <LocaleSwitcher />
                 </div>
+                <Button asChild variant="outline" className="mt-2">
+                  <LocaleLink href="/login">登录</LocaleLink>
+                </Button>
                 <Button asChild className="mt-2">
                   <LocaleLink href="/console">
                     <Monitor className="size-4" />

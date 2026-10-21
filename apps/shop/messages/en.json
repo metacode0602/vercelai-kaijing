@@ -122,6 +122,27 @@
       "invalidToken": "Reset link is invalid or has expired",
       "success": "Password reset successfully, sign in with your new password",
       "resetFailed": "Reset failed, the link may have expired"
+    },
+    "otp": {
+      "title": "Sign in / Sign up",
+      "description": "Use a phone or email one-time code. First success creates your account.",
+      "tabPhone": "Phone",
+      "tabEmail": "Email",
+      "email": "Email",
+      "emailPlaceholder": "name@company.com",
+      "invalidEmail": "Invalid email address",
+      "getCode": "Get code",
+      "sending": "Sending…",
+      "codeSent": "Verification code sent",
+      "submit": "Sign in / Sign up",
+      "submitting": "Signing in…",
+      "success": "Signed in!",
+      "sendCodeFailed": "Failed to send code",
+      "verifyFailed": "Verification failed, please try again",
+      "rateLimited": "Too many requests, please try again later",
+      "codeExpired": "Code expired, please request a new one",
+      "invalidCode": "Invalid or expired code",
+      "devCodeHint": "Dev OTP: {code}"
     }
   },
   "Console": {
@@ -296,7 +317,7 @@
     },
     "subtitle": "Cross-border console",
     "mockBadge": "Sample data",
-    "orgSwitcher": "Org · Demo",
+    "orgSwitcher": "Organization",
     "avatarMenu": "Account",
     "backToWorkbench": "Back to workbench",
     "settings": {

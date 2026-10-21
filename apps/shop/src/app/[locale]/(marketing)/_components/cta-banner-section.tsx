@@ -21,7 +21,7 @@ export function CtaBannerSection() {
             </p>
             <div>
               <Button asChild size="lg" className="w-fit rounded-full px-6">
-                <LocaleLink href="/console/sandbox">
+                <LocaleLink href="/login">
                   开始使用
                   <ChevronRight className="size-4" />
                 </LocaleLink>

@@ -20,14 +20,14 @@ export const websiteConfig = {
     },
   },
   routes: {
-    defaultLoginRedirect: '/dashboard',
+    defaultLoginRedirect: '/console/dashboard',
   },
   auth: {
     enableEmailVerification: false,
     requireEmailVerification: false,
     emailSuffix: 'gpurun.cn',
     cookieDomain: '',
-    cookiePrefix: 'gpus',
+    cookiePrefix: 'shop',
     trustedOrigins:
       process.env.NODE_ENV === 'production'
         ? ['https://www.gpurun.cn']

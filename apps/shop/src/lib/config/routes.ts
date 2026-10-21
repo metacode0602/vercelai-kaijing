@@ -22,8 +22,8 @@ export enum Routes {
   TermsOfService = '/terms',
 
   // auth routes
-  Login = '/signin',
-  Register = '/signup',
+  Login = '/login',
+  Register = '/login',
   Onboarding = '/console',
   AuthError = '/auth/error',
   ForgotPassword = '/auth/forgot-password',
@@ -32,7 +32,7 @@ export enum Routes {
   Verify = '/console/verify',
   UsageList = '/console/usage-list',
   // dashboard routes
-  Dashboard = '/console',
+  Dashboard = '/console/dashboard',
   Settings = '/console/settings',
   SettingsProfile = '/settings/profile',
   SettingsBilling = '/settings/billing',
