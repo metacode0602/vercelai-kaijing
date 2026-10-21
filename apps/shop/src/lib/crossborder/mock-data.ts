@@ -712,7 +712,15 @@ export const MOCK_FINANCE = [
 
 export type MockFinance = (typeof MOCK_FINANCE)[number]
 
+/** 近 14 天订单 / 营收示例（多店合计 USD） */
 export const MOCK_DASHBOARD_TREND = [
+  { day: "10-08", orders: 18, revenue: 1120 },
+  { day: "10-09", orders: 24, revenue: 1490 },
+  { day: "10-10", orders: 21, revenue: 1380 },
+  { day: "10-11", orders: 29, revenue: 1810 },
+  { day: "10-12", orders: 17, revenue: 1050 },
+  { day: "10-13", orders: 33, revenue: 2060 },
+  { day: "10-14", orders: 27, revenue: 1690 },
   { day: "10-15", orders: 22, revenue: 1480 },
   { day: "10-16", orders: 28, revenue: 1720 },
   { day: "10-17", orders: 19, revenue: 1310 },
@@ -723,9 +731,9 @@ export const MOCK_DASHBOARD_TREND = [
 ]
 
 export const MOCK_DASHBOARD_KPIS = [
-  { label: "GMV（近 7 天）", value: "12,840 USD", delta: "+8.2% 示例" },
-  { label: "订单数", value: "186", delta: "+12 示例" },
-  { label: "净利润", value: "4,720 USD", delta: "+5.1% 示例" },
+  { label: "GMV（近 14 天）", value: "22,440 USD", delta: "+11.4% 示例" },
+  { label: "订单数", value: "355", delta: "+28 示例" },
+  { label: "净利润", value: "8,160 USD", delta: "+6.8% 示例" },
   { label: "在售 SKU", value: "42", delta: "+3 示例" },
 ]
 

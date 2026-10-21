@@ -14,7 +14,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">运营仪表盘</h2>
-        <p className="text-sm text-muted-foreground">近 7 天经营概览（示例数据）</p>
+        <p className="text-sm text-muted-foreground">近 14 天经营概览（示例数据）</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -31,12 +31,12 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
-          <CardTitle className="text-base">近 7 天订单 / 营收趋势</CardTitle>
-          <CardDescription>示例 mock · 跨境多店合计（USD）</CardDescription>
+          <CardTitle className="text-base">近 14 天订单 / 营收趋势</CardTitle>
+          <CardDescription>跨境多店合计（USD · 示例）</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-visible">
           <DashboardTrendChart data={MOCK_DASHBOARD_TREND} />
         </CardContent>
       </Card>
