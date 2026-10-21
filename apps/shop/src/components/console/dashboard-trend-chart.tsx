@@ -5,16 +5,14 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import {
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
+  XAxis,
+  YAxis,
 } from '@workspace/ui/components/chart'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
 import {

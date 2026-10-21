@@ -371,3 +371,23 @@ export {
   ChartLegendContent,
   ChartStyle,
 }
+
+/*
+ * Re-export chart primitives from the SAME recharts instance used by
+ * ChartContainer (ResponsiveContainer/Tooltip/Legend contexts + stores).
+ * Apps must import these from here instead of `recharts` directly — a second
+ * recharts copy (different react peer snapshot) silently renders blank charts
+ * because the chart body reads a foreign ResponsiveContainer context.
+ */
+export {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from "recharts"
