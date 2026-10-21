@@ -4,11 +4,11 @@
 |----|------|
 | 文档范围 | `apps/shop` 租户端运营工作台（跨境电商数据中枢）的信息架构、布局规范与逐页产品/UED 设计 |
 | 受众 | 产品、UED、前端工程（Next.js + `@workspace/ui`） |
-| 版本 | **v1.4** |
+| 版本 | **v1.5** |
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop`（私有） |
-| 关联 | `crossborder-mvp-overview.md`、`crossborder-database-design.md`；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
-| **门禁** | 设计已更新（v1.4）。实现：控制台壳 + 详情页 mock enrichment + **UX polish**（`feat/shop-console-ux-polish`）；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。 |
+| 关联 | `crossborder-mvp-overview.md`、`crossborder-database-design.md`、**`cost-calculator-sl-landed-ued.md`（成本计算器专篇）**；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
+| **门禁** | 设计已更新（v1.5）。实现：控制台壳 + 详情页 mock enrichment + **UX polish**；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。**成本计算器专篇已出** → `cost-calculator-sl-landed-ued.md`。 |
 
 ### 修订记录
 
@@ -19,6 +19,7 @@
 | **v1.2** | **2026-10-20** | **A)** 清除 HTML Demo **视觉**内容（色值/hex、暗侧栏/Element 风表述、附录 A 视觉 token 对照表、Demo-as-visual-reference）；Demo **仅**功能/IA 参考；视觉一律跟随 `@workspace/ui` / shadcn theme。**B)** **禁止**独立 AppShell 布局组件；壳层改为 Next.js App Router 嵌套 `layout.tsx`：`(console)/layout.tsx`（Sidebar+Topbar+CopilotKit）、`(console)/settings/layout.tsx`、`(console)/profile/layout.tsx`；保留 lean 侧栏 / Settings SectionPage **模式**，经 route group layouts 实现而非 Mercato 式 AppShell 包装。门禁：设计已更新；实现进行中于 `feat/shop-console-ui-shell`。 |
 | **v1.3** | **2026-10-21** | **详情页 IA（Phase 2 enrichment · mock）**：列表 → 富详情路由落地：`/console/products/[sku]`、`/console/orders/[id]`、`/console/inventory/[sku]`、`/console/candidates/[id]`、`/console/costs/[sku]`、`/console/finance/[platform]`、`/console/settings/shops/[id]`。模式借鉴 Open Mercato catalog/products、sales/orders(documents)、wms/sku 详情（页头+字段组+Tabs/Sections+相关表+状态时间线+KPI），适配跨境多店字段；仍禁止 AppShell；mock-only，无业务 tRPC。 |
 | **v1.4** | **2026-10-21** | **UX polish**：① AI 助手从右下角 FAB/overlay 改为 `(console)/layout` **右侧布局列**（~380px），Topbar Sparkles 开关；关闭时主区恢复全宽。② 商品详情 `/console/products/[sku]` 去掉 Tabs，基础信息 / 多店刊登 / AI 信号改为纵向堆叠。③ 仪表盘增加近 7 天订单/营收趋势图（recharts + `@workspace/ui` Chart）。④ 移除「Demo · 未接 tRPC」横幅组件及全部引用。 |
+| **v1.5** | **2026-10-21** | **成本计算器方案已出**：新增专篇 `cost-calculator-sl-landed-ued.md`（LK 税叠 Customs/PAL/CESS/VAT/SSCL、LCL/FCL、建议售价与净利率、UED 工作台）；§5.7 增加深化指针。GPU `cost-compute-v3-*` 明确不在本范围。 |
 
 ---
 
@@ -432,6 +433,8 @@ apps/shop/app/.../（示意 · App Router）
 
 ### 5.7 成本计算工作台 `/console/costs`
 
+> **深化专篇（v1.5）**：公式、LK 税叠加顺序、LCL/FCL 临界、建议售价、计算器 UED 与分阶段见 **[`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)**。下表保留页级摘要；实现以专篇为准。
+
 | 项 | 内容 |
 |----|------|
 | 目标用户 | 选品 / 财务运营 |
@@ -526,7 +529,7 @@ apps/shop/app/.../（示意 · App Router）
 ### 7.2 后续（P1+）
 
 - 真 pending 执行器与幂等；
-- 成本税率配置化与 HS 表；
+- 成本税率配置化与 HS 表（详见 `cost-calculator-sl-landed-ued.md` P1）；
 - 财务结算导入与对账；
 - 通知 / 钉钉；
 - 导出与全局搜索；
@@ -588,4 +591,4 @@ apps/shop/app/.../（示意 · App Router）
 
 ---
 
-**文档结束（v1.2）。设计已更新；实现进行中于 `feat/shop-console-ui-shell`（按 §4 / §7.1 / §8：嵌套 `layout.tsx` 壳层 + CopilotKit mock；禁止独立 AppShell）。**
+**文档结束（v1.5）。设计已更新；成本计算器见 `cost-calculator-sl-landed-ued.md`。壳层按 §4 / §7.1 / §8：嵌套 `layout.tsx` + CopilotKit；禁止独立 AppShell；默认不接 tRPC。**
