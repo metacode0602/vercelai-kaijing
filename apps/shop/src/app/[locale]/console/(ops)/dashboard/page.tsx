@@ -1,17 +1,17 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
+import { DashboardTrendChart } from '@/components/console/dashboard-trend-chart'
 import {
   MOCK_DASHBOARD_ALERTS,
   MOCK_DASHBOARD_KPIS,
   MOCK_DASHBOARD_TODOS,
+  MOCK_DASHBOARD_TREND,
 } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Badge } from '@workspace/ui/components/badge'
 
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">运营仪表盘</h2>
         <p className="text-sm text-muted-foreground">近 7 天经营概览（示例数据）</p>
@@ -30,6 +30,16 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">近 7 天订单 / 营收趋势</CardTitle>
+          <CardDescription>示例 mock · 跨境多店合计（USD）</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DashboardTrendChart data={MOCK_DASHBOARD_TREND} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

@@ -312,6 +312,7 @@
     },
     "copilot": {
       "open": "Open assistant",
+      "close": "Close assistant",
       "title": "Ops assistant",
       "subtitle": "AI-C · mock replies",
       "welcome": "Hi! Try quick prompts: daily report, inventory, profit, candidates.",

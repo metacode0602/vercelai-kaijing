@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_CANDIDATES } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -14,7 +13,6 @@ import {
 export default function CandidatesPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">AI 选品</h2>
         <p className="text-sm text-muted-foreground">候选列表 · 点击进入 Go/No-Go 详情</p>

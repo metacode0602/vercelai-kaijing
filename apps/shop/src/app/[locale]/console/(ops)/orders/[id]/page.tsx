@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import {
   DetailFieldGrid,
   DetailKpiRow,
@@ -37,7 +36,6 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <DetailPageHeader
         backHref="/console/orders"
         title={order.externalOrderId}

@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { MessageSquare, Sparkles, X } from 'lucide-react'
+import { MessageSquare, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { cn } from '@workspace/ui/lib/utils'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
 
 type ChatMessage = {
   id: string
@@ -15,6 +16,7 @@ type ChatMessage = {
 }
 
 const QUICK_PROMPTS = ['日报', '库存分析', '利润分析', '选品建议'] as const
+const PANEL_WIDTH = 'w-[min(100%,380px)]'
 
 function mockReply(input: string): string {
   const lower = input.toLowerCase()
@@ -33,9 +35,13 @@ function mockReply(input: string): string {
   return '（示例 · mock）我是运营助手（AI-C）。可问日报、库存、利润或选品。需执行的动作请到待审队列确认。'
 }
 
+/**
+ * Right-hand console layout column. Renders nothing when closed so main content
+ * keeps full width. Open/close is controlled via ConsoleCopilotProvider + topbar.
+ */
 export function ConsoleCopilot() {
   const t = useTranslations('Console.copilot')
-  const [open, setOpen] = React.useState(false)
+  const { open, setOpen } = useConsoleCopilot()
   const [input, setInput] = React.useState('')
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
@@ -47,6 +53,7 @@ export function ConsoleCopilot() {
   const listRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
+    if (!open) return
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, open])
 
@@ -63,95 +70,90 @@ export function ConsoleCopilot() {
     setInput('')
   }
 
+  if (!open) return null
+
   return (
-    <>
-      {!open ? (
+    <aside
+      className={cn(
+        'sticky top-0 flex h-svh shrink-0 flex-col border-l bg-background',
+        PANEL_WIDTH,
+      )}
+      aria-label={t('title')}
+    >
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+        <MessageSquare className="size-4 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{t('title')}</p>
+          <p className="truncate text-xs text-muted-foreground">{t('subtitle')}</p>
+        </div>
         <Button
           type="button"
+          variant="ghost"
           size="icon"
-          className="fixed right-5 bottom-5 z-40 size-12 rounded-full shadow-lg"
-          onClick={() => setOpen(true)}
-          aria-label={t('open')}
+          className="size-8"
+          onClick={() => setOpen(false)}
+          aria-label={t('close')}
         >
-          <Sparkles className="size-5" />
+          <X className="size-4" />
         </Button>
-      ) : null}
+      </div>
 
-      <aside
-        className={cn(
-          'fixed inset-y-0 right-0 z-40 flex w-full max-w-[380px] flex-col border-l bg-background shadow-xl transition-transform duration-200',
-          open ? 'translate-x-0' : 'translate-x-full pointer-events-none',
-        )}
-        aria-hidden={!open}
-      >
-        <div className="flex h-14 items-center gap-2 border-b px-4">
-          <MessageSquare className="size-4 text-primary" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{t('title')}</p>
-            <p className="truncate text-xs text-muted-foreground">{t('subtitle')}</p>
+      <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            className={cn(
+              'max-w-[90%] rounded-lg px-3 py-2 text-sm',
+              m.role === 'user'
+                ? 'ml-auto bg-primary text-primary-foreground'
+                : 'bg-muted text-foreground',
+            )}
+          >
+            {m.content}
+            {m.role === 'assistant' && m.content.includes('待审') ? (
+              <div className="mt-2">
+                <LocaleLink href="/console/pending" className="text-xs underline underline-offset-2">
+                  {t('goPending')}
+                </LocaleLink>
+              </div>
+            ) : null}
           </div>
-          <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => setOpen(false)}>
-            <X className="size-4" />
-          </Button>
-        </div>
+        ))}
+      </div>
 
-        <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={cn(
-                'max-w-[90%] rounded-lg px-3 py-2 text-sm',
-                m.role === 'user'
-                  ? 'ml-auto bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground',
-              )}
+      <div className="shrink-0 space-y-2 border-t p-3">
+        <div className="flex flex-wrap gap-1.5">
+          {QUICK_PROMPTS.map((p) => (
+            <Button
+              key={p}
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-7 text-xs"
+              onClick={() => send(p)}
             >
-              {m.content}
-              {m.role === 'assistant' && m.content.includes('待审') ? (
-                <div className="mt-2">
-                  <LocaleLink href="/console/pending" className="text-xs underline underline-offset-2">
-                    {t('goPending')}
-                  </LocaleLink>
-                </div>
-              ) : null}
-            </div>
+              {p}
+            </Button>
           ))}
         </div>
-
-        <div className="space-y-2 border-t p-3">
-          <div className="flex flex-wrap gap-1.5">
-            {QUICK_PROMPTS.map((p) => (
-              <Button
-                key={p}
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
-                onClick={() => send(p)}
-              >
-                {p}
-              </Button>
-            ))}
-          </div>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              send(input)
-            }}
-          >
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={t('placeholder')}
-              className="flex-1"
-            />
-            <Button type="submit" size="sm">
-              {t('send')}
-            </Button>
-          </form>
-        </div>
-      </aside>
-    </>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            send(input)
+          }}
+        >
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={t('placeholder')}
+            className="flex-1"
+          />
+          <Button type="submit" size="sm">
+            {t('send')}
+          </Button>
+        </form>
+      </div>
+    </aside>
   )
 }

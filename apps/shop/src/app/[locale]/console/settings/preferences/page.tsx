@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Label } from '@workspace/ui/components/label'
 import { Input } from '@workspace/ui/components/input'
@@ -6,7 +5,6 @@ import { Input } from '@workspace/ui/components/input'
 export default function SettingsPreferencesPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">偏好</h2>
         <p className="text-sm text-muted-foreground">默认店铺 / 时区 / 币种（mock）</p>

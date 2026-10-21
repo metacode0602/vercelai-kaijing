@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
@@ -6,7 +5,6 @@ import { Label } from '@workspace/ui/components/label'
 export default function ProfileAccountPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">账号</h2>
         <p className="text-sm text-muted-foreground">姓名 / 邮箱 / 头像（mock）</p>

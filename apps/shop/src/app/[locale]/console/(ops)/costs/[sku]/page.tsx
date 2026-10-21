@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import {
   DetailFieldGrid,
   DetailKpiRow,
@@ -35,7 +34,6 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
 
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <DetailPageHeader
         backHref="/console/costs"
         title={`${cost.sku} · 到仓成本`}

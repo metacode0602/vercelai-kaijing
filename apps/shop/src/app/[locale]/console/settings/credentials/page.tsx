@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_SHOPS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
@@ -8,7 +7,6 @@ import { Button } from '@workspace/ui/components/button'
 export default function SettingsCredentialsPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">平台凭证</h2>
         <p className="text-sm text-muted-foreground">OAuth / API Key 状态（不明文展示密钥）· 多店概览</p>

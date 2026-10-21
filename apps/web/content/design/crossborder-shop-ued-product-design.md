@@ -4,11 +4,11 @@
 |----|------|
 | 文档范围 | `apps/shop` 租户端运营工作台（跨境电商数据中枢）的信息架构、布局规范与逐页产品/UED 设计 |
 | 受众 | 产品、UED、前端工程（Next.js + `@workspace/ui`） |
-| 版本 | **v1.3** |
+| 版本 | **v1.4** |
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop`（私有） |
 | 关联 | `crossborder-mvp-overview.md`、`crossborder-database-design.md`；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
-| **门禁** | 设计已更新（v1.3）。实现：控制台壳 + **详情页 mock enrichment**（`feat/shop-console-detail-pages`）；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。 |
+| **门禁** | 设计已更新（v1.4）。实现：控制台壳 + 详情页 mock enrichment + **UX polish**（`feat/shop-console-ux-polish`）；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。 |
 
 ### 修订记录
 
@@ -18,6 +18,7 @@
 | **v1.1** | **2026-10-20** | 锁定 §9 六项决议；选品路由改为 `/console/candidates`；移除独立 AI 助手页，改为全局 CopilotKit 右侧面板；视觉明确以现有 `@workspace/ui`/shadcn 为准；Open Mercato 立场改为分阶段「布局借壳 + 数据模型/i18n enrichment」 |
 | **v1.2** | **2026-10-20** | **A)** 清除 HTML Demo **视觉**内容（色值/hex、暗侧栏/Element 风表述、附录 A 视觉 token 对照表、Demo-as-visual-reference）；Demo **仅**功能/IA 参考；视觉一律跟随 `@workspace/ui` / shadcn theme。**B)** **禁止**独立 AppShell 布局组件；壳层改为 Next.js App Router 嵌套 `layout.tsx`：`(console)/layout.tsx`（Sidebar+Topbar+CopilotKit）、`(console)/settings/layout.tsx`、`(console)/profile/layout.tsx`；保留 lean 侧栏 / Settings SectionPage **模式**，经 route group layouts 实现而非 Mercato 式 AppShell 包装。门禁：设计已更新；实现进行中于 `feat/shop-console-ui-shell`。 |
 | **v1.3** | **2026-10-21** | **详情页 IA（Phase 2 enrichment · mock）**：列表 → 富详情路由落地：`/console/products/[sku]`、`/console/orders/[id]`、`/console/inventory/[sku]`、`/console/candidates/[id]`、`/console/costs/[sku]`、`/console/finance/[platform]`、`/console/settings/shops/[id]`。模式借鉴 Open Mercato catalog/products、sales/orders(documents)、wms/sku 详情（页头+字段组+Tabs/Sections+相关表+状态时间线+KPI），适配跨境多店字段；仍禁止 AppShell；mock-only，无业务 tRPC。 |
+| **v1.4** | **2026-10-21** | **UX polish**：① AI 助手从右下角 FAB/overlay 改为 `(console)/layout` **右侧布局列**（~380px），Topbar Sparkles 开关；关闭时主区恢复全宽。② 商品详情 `/console/products/[sku]` 去掉 Tabs，基础信息 / 多店刊登 / AI 信号改为纵向堆叠。③ 仪表盘增加近 7 天订单/营收趋势图（recharts + `@workspace/ui` Chart）。④ 移除「Demo · 未接 tRPC」横幅组件及全部引用。 |
 
 ---
 
@@ -144,7 +145,7 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 
 **不要**放进主侧栏：需求总览、实施路线图、Profile、独立 AI 助手页、GPU 部署类入口（过渡期隐藏导航、URL 暂留）。
 
-**AI 对话入口不在主侧栏**：由 `(console)/layout.tsx` 右下角 CopilotKit 图标触发（见 §4.2 / §5.9）。
+**AI 对话入口不在主侧栏**：由 Topbar Sparkles 开关触发，打开后在 `(console)/layout.tsx` 右侧插入布局列（见 §4.2 / §5.9）。
 
 ### 3.3 Settings 分区页（侧栏替换）
 
@@ -184,7 +185,7 @@ Settings 页头提供「← 返回工作台」回到上一业务路由（或 das
 7. 设置齿轮 → Settings
 8. 头像下拉 → Profile / 退出登录
 
-**不在 Topbar / 左栏放独立 Bot 导航项**；Copilot 由右下角 FAB/图标唤起。
+**不在左栏放独立 Bot 导航项**；Copilot 由 **Topbar Sparkles** 开关唤起（非 FAB overlay）。
 
 ### 3.6 IA 示意
 
@@ -239,7 +240,7 @@ apps/shop/app/.../（示意 · App Router）
 
 | 文件 | 职责 |
 |------|------|
-| `(console)/layout.tsx` | **主壳**：组合 Sidebar（lean 业务导航 + 底栏设置）+ Topbar；包裹全部 `/console/*` 业务页；可挂载 **CopilotKit Provider** 与右下角 FAB / 右侧面板 |
+| `(console)/layout.tsx` | **主壳**：组合 Sidebar（lean 业务导航 + 底栏设置）+ Topbar；包裹全部 `/console/*` 业务页；挂载 **CopilotKit Provider**；打开助手时在 flex 行末追加 **右侧布局列**（非浮动 overlay） |
 | `(console)/settings/layout.tsx` | **Settings 分区**：进入后**替换**主侧栏为垂直 Tab 内导航；右侧为当前 Tab 的 `page.tsx` |
 | `(console)/profile/layout.tsx` | **Profile 分区**：同上，垂直 Tab；仅从 Topbar 头像进入 |
 | 各业务 `…/page.tsx` | 只负责页面内容（KPI / FilterBar / DataTable 等），不各自再包一层壳 |
@@ -271,7 +272,7 @@ apps/shop/app/.../（示意 · App Router）
 │ ⚙ 设置       │                                      [✦]  │  ← 右下角   │
 └──────────────┴───────────────────────────────────────────┴─────────────┘
   ~220px desktop；collapsible="offcanvas" 窄屏抽屉
-  [✦] = CopilotKit 折叠图标（FAB）；Provider 可挂在 (console)/layout.tsx
+  [✦] = Topbar Sparkles 开关；打开后右侧布局列；Provider 挂在 (console)/layout.tsx
 ```
 
 **Copilot 展开态（右侧面板 · 推荐默认）：**
@@ -281,7 +282,7 @@ apps/shop/app/.../（示意 · App Router）
 │ Brand / Org  │  [☰]  页面标题   [Org▾][Theme]…  │  Copilot          [×]│
 │              ├──────────────────────────────────┤  你好，需要什么帮助？ │
 │ 运营仪表盘   │                                  │  ─ 快捷：日报 / 库存  │
-│ AI 选品      │   Content（可被面板遮挡或挤压）    │  [输入框…………] [发送] │
+│ AI 选品      │   Content（主区被挤压变窄）        │  [输入框…………] [发送] │
 │ 待审队列 (3) │                                  │                      │
 │ …            │                                  │  AI-C 决策辅助主落点  │
 │ ⚙ 设置       │                                  │                      │
@@ -289,7 +290,7 @@ apps/shop/app/.../（示意 · App Router）
   右栏约 360–400px；全局可用，非独立路由
 ```
 
-**推荐交互（已写入默认）：** 壳层级 **右下角小图标** → 展开 **右侧停靠 Copilot 侧栏**。不与左栏底部「设置」争夺位置；左栏不放 Bot 入口。
+**推荐交互（已写入默认）：** Topbar **Sparkles** → 展开 **右侧布局列 Copilot**（参与 flex，关闭后主区全宽）。不与左栏底部「设置」争夺位置；左栏不放 Bot 入口；**禁止** FAB / fixed overlay。
 
 **进入 Settings 后（`(console)/settings/layout.tsx` 替换主侧栏）：**
 
@@ -315,7 +316,7 @@ apps/shop/app/.../（示意 · App Router）
 | 角标 | 待审数、库存紧急数用 `Badge`；上限显示 `99+` |
 | Settings 进入 | 由 `settings/layout.tsx` 整侧栏切换为 Settings nav；Topbar 标题变为「设置」 |
 | Profile 进入 | 由 `profile/layout.tsx` 提供垂直 Tab；不经主业务侧栏 |
-| Copilot | Provider + 右下角图标挂在 `(console)/layout.tsx`；展开右侧面板；MVP mock 回复即可 |
+| Copilot | Provider 挂在 `(console)/layout.tsx`；Topbar 开关展开右侧布局列；MVP mock 回复即可 |
 | Demo 标记 | P0 可用 `DemoAlert`；**上线前移除**；Mock 数据页脚可注「示例数据」 |
 | 桌面优先 | 主要交互按 ≥1280px 设计；窄屏侧栏 offcanvas |
 
@@ -462,7 +463,7 @@ apps/shop/app/.../（示意 · App Router）
 | 项 | 内容 |
 |----|------|
 | 目标用户 | 全角色 |
-| 入口 | **`(console)/layout.tsx` 右下角小图标（FAB）** → 展开 **右侧停靠侧栏**；全 `/console/*` 可用；Provider 可同挂此 layout |
+| 入口 | **Topbar Sparkles** → 展开 **右侧布局列**（~360–420px）；关闭则无右列、主区全宽；全 `/console/*` 可用；Provider 挂在 `(console)/layout.tsx` |
 | 页面目标 | 自然语言经营问答与快捷指令（AI-C 主落点）；不替代页内选品分析抽屉 |
 | 主要区块 | 聊天区（历史 + 输入）；快捷指令 chips；可选能力说明 |
 | 快捷指令（示例） | 生成日报、库存分析、利润分析、选品建议 |
@@ -493,7 +494,7 @@ apps/shop/app/.../（示意 · App Router）
 
 | 能力 | 范围 | MVP |
 |------|------|-----|
-| **CopilotKit 全局助手** | 全 `/console/*`（右下角图标 → 右侧面板） | **P0 UI 壳 + mock**；不接 tRPC |
+| **CopilotKit 全局助手** | 全 `/console/*`（Topbar → 右侧布局列） | **P0 UI 壳 + mock**；不接 tRPC |
 | 店铺筛选器 | 订单、库存、商品、仪表盘、财务 | **P0 UI**；选项来自 mock / 后续 shops |
 | 时间范围 | 仪表盘、订单、财务 | 近 7 天 / 30 天 / 自定义（自定义可 P1） |
 | 平台筛选 | 预留 | MVP 默认 Daraz，控件可隐藏 |
@@ -513,7 +514,7 @@ apps/shop/app/.../（示意 · App Router）
 | 用跨境 IA 替换 `/console` 主侧栏；**(console)/layout.tsx** 组合 Sidebar + Topbar（**禁止 AppShell 组件**） | 业务 tRPC / dataaccess 接线（除非用户另说） |
 | 各业务页静态/mock `page.tsx`（可迁并现有 `/crossborder` mock） | Daraz 真连接器、Worker |
 | **settings/layout.tsx**、**profile/layout.tsx** 垂直 Tab + 店铺列表等 UI | 完整成员权限矩阵、账单 |
-| **CopilotKit Provider + mock**（挂在 `(console)/layout.tsx`；右下角图标 + 右侧面板） | 真 LLM 网关强绑定；独立 `/console/assistant` 路由 |
+| **CopilotKit Provider + mock**（挂在 `(console)/layout.tsx`；Topbar 开关 + 右侧布局列） | 真 LLM 网关强绑定；独立 `/console/assistant` 路由；FAB/overlay |
 | 路由迁移与 redirect（含 `/crossborder/candidates` → `/console/candidates`） | 删除营销站；四平台齐开；删除旧 GPU URL |
 
 数据阶段建议：
@@ -567,7 +568,7 @@ apps/shop/app/.../（示意 · App Router）
 | 4 | 选品路由名 | **`/console/candidates`**（不用 `/console/selection`）；旧 `/crossborder/candidates` redirect 至此 |
 | 5 | 首批代码范围 | **仅 UI 壳 + 导航 + mock，不接 tRPC**；设计 v1.2 已定稿；**实现进行中**于分支 `feat/shop-console-ui-shell` |
 | 6 | GPU 营销/旧 console | **隐藏导航，URL 暂留** |
-| 7 | AI 助手形态 | **移除独立 `/console/assistant`**；采用 **CopilotKit 全局右侧面板**，由**右下角图标**展开；Provider 可挂在 `(console)/layout.tsx` |
+| 7 | AI 助手形态 | **移除独立 `/console/assistant`**；采用 **CopilotKit 全局右侧布局列**，由 **Topbar Sparkles** 展开/收起；Provider 挂在 `(console)/layout.tsx`；**非** FAB overlay |
 | 8 | Open Mercato | **分阶段**：Phase 1 先落 Demo 功能；Phase 2 可借鉴其 ERP 数据模型概念与 i18n 做 enrichment；**布局模式**（lean 侧栏 / Settings SectionPage）持续参考，但用 **Next.js 嵌套 layouts** 实现；**不把 Mercato 模块名原样贴进侧栏**；**不引入 Mercato 式 AppShell 组件** |
 | 9 | 壳层实现机制 | **禁止独立 AppShell 布局组件**；壳层 = `(console)/layout.tsx`（Sidebar+Topbar+CopilotKit）+ `(console)/settings/layout.tsx` + `(console)/profile/layout.tsx`；业务页仅为各目录下 `page.tsx` |
 

@@ -1,8 +1,9 @@
 'use client'
 
-import { Bell, Settings, UserRound } from 'lucide-react'
+import { Bell, Settings, Sparkles, UserRound } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
 import { findBestMatchingNavItem } from '@/lib/console-nav'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
 import { Button } from '@workspace/ui/components/button'
@@ -33,6 +34,7 @@ export function ConsoleTopbar() {
   const tc = useTranslations('Common')
   const pathname = useLocalePathname() ?? ''
   const title = resolveTitle(pathname, t)
+  const { open: copilotOpen, toggle: toggleCopilot } = useConsoleCopilot()
 
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur md:px-4">
@@ -46,6 +48,18 @@ export function ConsoleTopbar() {
         </Button>
 
         <ThemeToggle />
+
+        <Button
+          type="button"
+          variant={copilotOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          className="size-9"
+          onClick={toggleCopilot}
+          aria-label={copilotOpen ? t('copilot.close') : t('copilot.open')}
+          aria-pressed={copilotOpen}
+        >
+          <Sparkles className="size-4" />
+        </Button>
 
         <Button variant="ghost" size="icon" className="size-9" aria-label={tc('notifications')}>
           <Bell className="size-4" />

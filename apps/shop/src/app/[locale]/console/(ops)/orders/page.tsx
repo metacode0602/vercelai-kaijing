@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_ORDER_LIST_ROWS, MOCK_SHOPS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -34,7 +33,6 @@ function statusVariant(status: string) {
 export default function OrdersPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">订单</h2>
         <p className="text-sm text-muted-foreground">多店订单统一查看 · 点击订单号进入详情</p>

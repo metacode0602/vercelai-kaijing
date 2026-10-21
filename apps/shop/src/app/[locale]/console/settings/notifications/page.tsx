@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Label } from '@workspace/ui/components/label'
 import { Switch } from '@workspace/ui/components/switch'
@@ -7,7 +6,6 @@ import { Input } from '@workspace/ui/components/input'
 export default function SettingsNotificationsPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">通知 / 钉钉</h2>
         <p className="text-sm text-muted-foreground">Webhook 与告警开关（mock）</p>

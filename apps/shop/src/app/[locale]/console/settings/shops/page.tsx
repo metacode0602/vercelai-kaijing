@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_SHOPS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -22,7 +21,6 @@ function statusVariant(status: string) {
 export default function SettingsShopsPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">店铺连接</h2>

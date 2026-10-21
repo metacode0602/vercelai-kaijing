@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -18,7 +17,6 @@ const MEMBERS = [
 export default function SettingsMembersPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">组织成员</h2>

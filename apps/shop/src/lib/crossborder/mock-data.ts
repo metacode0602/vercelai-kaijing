@@ -712,6 +712,16 @@ export const MOCK_FINANCE = [
 
 export type MockFinance = (typeof MOCK_FINANCE)[number]
 
+export const MOCK_DASHBOARD_TREND = [
+  { day: "10-15", orders: 22, revenue: 1480 },
+  { day: "10-16", orders: 28, revenue: 1720 },
+  { day: "10-17", orders: 19, revenue: 1310 },
+  { day: "10-18", orders: 31, revenue: 1980 },
+  { day: "10-19", orders: 26, revenue: 1650 },
+  { day: "10-20", orders: 34, revenue: 2140 },
+  { day: "10-21", orders: 26, revenue: 1560 },
+]
+
 export const MOCK_DASHBOARD_KPIS = [
   { label: "GMV（近 7 天）", value: "12,840 USD", delta: "+8.2% 示例" },
   { label: "订单数", value: "186", delta: "+12 示例" },

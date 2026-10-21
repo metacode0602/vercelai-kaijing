@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import {
@@ -13,7 +12,6 @@ import {
 export default function CostsPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">成本计算</h2>
         <p className="text-sm text-muted-foreground">到仓成本 · 斯里兰卡税项结构 · 点击 SKU 展开</p>

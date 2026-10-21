@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_FINANCE } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -17,7 +16,6 @@ const active = MOCK_FINANCE.find((r) => !r.disabled) ?? MOCK_FINANCE[0]
 export default function FinancePage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">财务中心</h2>
         <p className="text-sm text-muted-foreground">营收 / 成本 / 利润粗览 · 点击平台看结算明细</p>

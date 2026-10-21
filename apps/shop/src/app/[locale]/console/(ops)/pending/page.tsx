@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_PENDING } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -14,7 +13,6 @@ import {
 export default function PendingPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">待审队列</h2>
         <p className="text-sm text-muted-foreground">AI-B HITL · mock 确认/拒绝</p>

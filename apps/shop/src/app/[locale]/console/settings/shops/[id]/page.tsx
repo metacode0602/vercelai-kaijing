@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import {
   DetailFieldGrid,
   DetailKpiRow,
@@ -28,7 +27,6 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
 
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <DetailPageHeader
         backHref="/console/settings/shops"
         backLabel="返回店铺列表"

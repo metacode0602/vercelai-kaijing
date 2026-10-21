@@ -1,4 +1,3 @@
-import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_PRODUCT_LIST_ROWS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -14,7 +13,6 @@ import {
 export default function ProductsPage() {
   return (
     <div className="space-y-4">
-      <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">商品与刊登</h2>
         <p className="text-sm text-muted-foreground">本地商品 + listing 状态 · 点击行进入详情</p>
