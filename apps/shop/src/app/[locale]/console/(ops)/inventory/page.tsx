@@ -1,3 +1,12 @@
+'use client'
+
+import * as React from 'react'
+import {
+  ConsoleFilterBar,
+  ConsoleListSection,
+  ConsoleTableEmpty,
+  matchesKeyword,
+} from '@/components/console/list'
 import { MOCK_INVENTORY_LIST_ROWS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -11,9 +20,25 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 
+const ALERTS = [
+  { value: 'critical', label: 'critical' },
+  { value: 'open', label: 'open' },
+  { value: 'none', label: '无告警' },
+]
+
 export default function InventoryPage() {
   const urgent = MOCK_INVENTORY_LIST_ROWS.filter((i) => i.alert)
   const aged = MOCK_INVENTORY_LIST_ROWS.filter((i) => i.ageDays >= 60)
+
+  const [keyword, setKeyword] = React.useState('')
+  const [alert, setAlert] = React.useState('all')
+
+  const rows = MOCK_INVENTORY_LIST_ROWS.filter((row) => {
+    if (!matchesKeyword(keyword, row.sku, row.title, row.suggestion)) return false
+    if (alert === 'none' && row.alert) return false
+    if (alert !== 'all' && alert !== 'none' && row.alert !== alert) return false
+    return true
+  })
 
   return (
     <div className="space-y-4">
@@ -52,49 +77,75 @@ export default function InventoryPage() {
           </CardContent>
         </Card>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>SKU</TableHead>
-            <TableHead>店铺数</TableHead>
-            <TableHead>在库</TableHead>
-            <TableHead>预留</TableHead>
-            <TableHead>阈值</TableHead>
-            <TableHead>库龄</TableHead>
-            <TableHead>告警</TableHead>
-            <TableHead>建议</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {MOCK_INVENTORY_LIST_ROWS.map((row) => (
-            <TableRow key={row.sku}>
-              <TableCell className="font-mono text-xs">
-                <LocaleLink
-                  href={`/console/inventory/${row.sku}`}
-                  className="underline-offset-2 hover:underline"
-                >
-                  {row.sku}
-                </LocaleLink>
-              </TableCell>
-              <TableCell className="tabular-nums">{row.shopCount}</TableCell>
-              <TableCell>{row.onHand}</TableCell>
-              <TableCell>{row.reserved}</TableCell>
-              <TableCell>{row.threshold}</TableCell>
-              <TableCell className="tabular-nums">{row.ageDays}d</TableCell>
-              <TableCell>
-                {row.alert ? (
-                  <Badge variant={row.alert === 'critical' ? 'destructive' : 'secondary'}>
-                    {row.alert}
-                  </Badge>
-                ) : (
-                  '—'
-                )}
-              </TableCell>
-              <TableCell className="text-sm">{row.suggestion}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+
+      <ConsoleFilterBar
+        keyword={keyword}
+        onKeywordChange={setKeyword}
+        keywordPlaceholder="SKU / 标题 / 建议"
+        filters={[
+          {
+            id: 'alert',
+            label: '告警',
+            value: alert,
+            onChange: setAlert,
+            options: ALERTS,
+          },
+        ]}
+      />
+
+      <ConsoleListSection title="库存列表" description={`共 ${rows.length} 条`}>
+        {rows.length === 0 ? (
+          <ConsoleTableEmpty />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>SKU</TableHead>
+                <TableHead>标题</TableHead>
+                <TableHead>店铺数</TableHead>
+                <TableHead>在库</TableHead>
+                <TableHead>预留</TableHead>
+                <TableHead>阈值</TableHead>
+                <TableHead>库龄</TableHead>
+                <TableHead>告警</TableHead>
+                <TableHead>建议</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.sku}>
+                  <TableCell className="font-mono text-xs">
+                    <LocaleLink
+                      href={`/console/inventory/${row.sku}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {row.sku}
+                    </LocaleLink>
+                  </TableCell>
+                  <TableCell className="font-medium">{row.title}</TableCell>
+                  <TableCell className="tabular-nums">{row.shopCount}</TableCell>
+                  <TableCell className="tabular-nums">{row.onHand}</TableCell>
+                  <TableCell className="tabular-nums">{row.reserved}</TableCell>
+                  <TableCell className="tabular-nums">{row.threshold}</TableCell>
+                  <TableCell className="tabular-nums">{row.ageDays}d</TableCell>
+                  <TableCell>
+                    {row.alert ? (
+                      <Badge variant={row.alert === 'critical' ? 'destructive' : 'secondary'}>
+                        {row.alert}
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                    {row.suggestion}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ConsoleListSection>
     </div>
   )
 }

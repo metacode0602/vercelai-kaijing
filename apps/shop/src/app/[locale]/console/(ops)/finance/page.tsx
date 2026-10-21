@@ -1,3 +1,12 @@
+'use client'
+
+import * as React from 'react'
+import {
+  ConsoleFilterBar,
+  ConsoleListSection,
+  ConsoleTableEmpty,
+  matchesKeyword,
+} from '@/components/console/list'
 import { MOCK_FINANCE } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -14,6 +23,16 @@ import {
 const active = MOCK_FINANCE.find((r) => !r.disabled) ?? MOCK_FINANCE[0]
 
 export default function FinancePage() {
+  const [keyword, setKeyword] = React.useState('')
+  const [access, setAccess] = React.useState('all')
+
+  const rows = MOCK_FINANCE.filter((row) => {
+    if (!matchesKeyword(keyword, row.platform, row.platformKey)) return false
+    if (access === 'mvp' && row.disabled) return false
+    if (access === 'disabled' && !row.disabled) return false
+    return true
+  })
+
   return (
     <div className="space-y-4">
       <div>
@@ -37,43 +56,68 @@ export default function FinancePage() {
           </Card>
         ))}
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>平台</TableHead>
-            <TableHead>营收</TableHead>
-            <TableHead>成本</TableHead>
-            <TableHead>利润</TableHead>
-            <TableHead>利润率</TableHead>
-            <TableHead>状态</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {MOCK_FINANCE.map((row) => (
-            <TableRow key={row.platform} className={row.disabled ? 'opacity-60' : undefined}>
-              <TableCell className="font-medium">
-                <LocaleLink
-                  href={`/console/finance/${row.platformKey}`}
-                  className="underline-offset-2 hover:underline"
-                >
-                  {row.platform}
-                </LocaleLink>
-              </TableCell>
-              <TableCell className="tabular-nums">{row.revenue.toLocaleString()}</TableCell>
-              <TableCell className="tabular-nums">{row.cost.toLocaleString()}</TableCell>
-              <TableCell className="tabular-nums">{row.profit.toLocaleString()}</TableCell>
-              <TableCell>{row.margin}</TableCell>
-              <TableCell>
-                {row.disabled ? (
-                  <Badge variant="outline">未接入</Badge>
-                ) : (
-                  <Badge variant="default">MVP</Badge>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+
+      <ConsoleFilterBar
+        keyword={keyword}
+        onKeywordChange={setKeyword}
+        keywordPlaceholder="平台"
+        filters={[
+          {
+            id: 'access',
+            label: '接入状态',
+            value: access,
+            onChange: setAccess,
+            options: [
+              { value: 'mvp', label: '已接入 MVP' },
+              { value: 'disabled', label: '未接入' },
+            ],
+          },
+        ]}
+      />
+
+      <ConsoleListSection title="平台财务" description={`共 ${rows.length} 条`}>
+        {rows.length === 0 ? (
+          <ConsoleTableEmpty />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>平台</TableHead>
+                <TableHead>营收</TableHead>
+                <TableHead>成本</TableHead>
+                <TableHead>利润</TableHead>
+                <TableHead>利润率</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.platform} className={row.disabled ? 'opacity-60' : undefined}>
+                  <TableCell className="font-medium">
+                    <LocaleLink
+                      href={`/console/finance/${row.platformKey}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {row.platform}
+                    </LocaleLink>
+                  </TableCell>
+                  <TableCell className="tabular-nums">{row.revenue.toLocaleString()}</TableCell>
+                  <TableCell className="tabular-nums">{row.cost.toLocaleString()}</TableCell>
+                  <TableCell className="tabular-nums">{row.profit.toLocaleString()}</TableCell>
+                  <TableCell className="tabular-nums">{row.margin}</TableCell>
+                  <TableCell>
+                    {row.disabled ? (
+                      <Badge variant="outline">未接入</Badge>
+                    ) : (
+                      <Badge variant="default">MVP</Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ConsoleListSection>
     </div>
   )
 }

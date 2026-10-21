@@ -300,10 +300,15 @@ export const MOCK_PRODUCT_LIST_ROWS = MOCK_PRODUCTS.map((p) => {
     sku: p.sku,
     title: p.title,
     shop: primary.shopName,
+    shopId: primary.shopId,
+    platform: primary.platform,
     shopCount: p.listings.length,
     listing: primary.status,
+    priceAmount: primary.priceAmount,
+    priceCurrency: primary.priceCurrency,
     price: `${primary.priceAmount.toFixed(2)} ${primary.priceCurrency}`,
     updatedAt: p.updatedAt,
+    lastError: primary.lastError,
   }
 })
 
@@ -456,8 +461,11 @@ export const MOCK_ORDER_LIST_ROWS = MOCK_ORDERS.map((o) => ({
   id: o.id,
   externalOrderId: o.externalOrderId,
   shop: o.shopName,
+  shopId: o.shopId,
+  platform: o.platform,
   status: o.status,
   total: o.totalAmount.toFixed(2),
+  totalAmount: o.totalAmount,
   currency: o.currency,
   placedAt: o.placedAt,
   city: o.city,

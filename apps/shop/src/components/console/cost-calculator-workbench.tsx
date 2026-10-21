@@ -85,22 +85,29 @@ function formatUsd(n: number, digits = 2) {
 }
 
 type CostCalculatorWorkbenchProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  /** Prefill SKU when opening from detail / list */
+  /** sheet = console Sheet host; page = full-page route (no Sheet) */
+  variant?: 'sheet' | 'page'
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Prefill SKU when opening from detail / list / route */
   initialSku?: string
 }
 
 export function CostCalculatorWorkbench({
-  open,
+  variant = 'sheet',
+  open: openProp = false,
   onOpenChange,
   initialSku,
 }: CostCalculatorWorkbenchProps) {
+  const isPage = variant === 'page'
+  const open = isPage ? true : openProp
   const { setOpen: setCopilotOpen } = useConsoleCopilot()
   const [input, setInput] = React.useState<CostCalculatorInput>(() =>
     presetToInput(getCostCalcPreset(initialSku ?? 'TEE-001')),
   )
-  const [result, setResult] = React.useState<CostCalculatorResult | null>(null)
+  const [result, setResult] = React.useState<CostCalculatorResult | null>(() =>
+    isPage ? computeLandedCost(presetToInput(getCostCalcPreset(initialSku ?? 'TEE-001'))) : null,
+  )
   const [formulasOpen, setFormulasOpen] = React.useState(true)
   const [copilotHint, setCopilotHint] = React.useState<string | null>(null)
 
@@ -129,10 +136,11 @@ export function CostCalculatorWorkbench({
     if (!open) lastSkuRef.current = undefined
   }, [open])
 
-  // Copilot bridge — single setState path so open+sku and follow-ups do not race
+  // Copilot bridge — sheet host only (page keeps Sheet for Copilot)
   React.useEffect(() => {
+    if (isPage) return
     return subscribeCostCalcActions(({ action, source }) => {
-      onOpenChange(true)
+      onOpenChange?.(true)
       setInput((prev) => {
         let next = { ...prev }
         let hint =
@@ -173,7 +181,7 @@ export function CostCalculatorWorkbench({
         return next
       })
     })
-  }, [onOpenChange])
+  }, [onOpenChange, isPage])
 
   // Smooth auto-recalc when controls change (after first result)
   React.useEffect(() => {
@@ -186,29 +194,9 @@ export function CostCalculatorWorkbench({
   const formulas = result ? getFormulaDocs(result.tax.rates) : null
   const tariff = TARIFF_PROFILES[input.tariffProfileId]
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-4xl"
-      >
-        <SheetHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
-          <div className="flex flex-wrap items-center gap-2">
-            <Calculator className="size-4 text-primary" />
-            <SheetTitle className="text-base">
-              成本计算器 · {input.sku}
-            </SheetTitle>
-            <Badge variant="secondary">示例</Badge>
-            <Badge variant="outline">待复核</Badge>
-          </div>
-          <SheetDescription className="text-xs">
-            {input.title} · 税率表 {result?.meta.tariffTableVersion ?? 'v2026.10-mock'} · 汇率{' '}
-            {result?.meta.fxRateDate ?? '2026-10-21'} · 估算·需报关/法务复核
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="grid gap-4 p-4 lg:grid-cols-2">
+  const panel = (
+        <div className={cn(isPage ? 'w-full' : 'min-h-0 flex-1 overflow-y-auto')}>
+          <div className={cn('grid gap-4 lg:grid-cols-2', isPage ? 'p-0' : 'p-4')}>
             {/* Left: inputs */}
             <div className="space-y-4">
               <Card>
@@ -571,6 +559,46 @@ export function CostCalculatorWorkbench({
             </div>
           </div>
         </div>
+  )
+
+  if (isPage) {
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <Calculator className="size-4 text-primary" />
+          <span>
+            {input.title} · 税率表 {result?.meta.tariffTableVersion ?? 'v2026.10-mock'} · 汇率{' '}
+            {result?.meta.fxRateDate ?? '2026-10-21'} · 估算·需报关/法务复核
+          </span>
+          <Badge variant="secondary">示例</Badge>
+          <Badge variant="outline">待复核</Badge>
+        </div>
+        {panel}
+      </div>
+    )
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-4xl"
+      >
+        <SheetHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
+          <div className="flex flex-wrap items-center gap-2">
+            <Calculator className="size-4 text-primary" />
+            <SheetTitle className="text-base">
+              成本计算器 · {input.sku}
+            </SheetTitle>
+            <Badge variant="secondary">示例</Badge>
+            <Badge variant="outline">待复核</Badge>
+          </div>
+          <SheetDescription className="text-xs">
+            {input.title} · 税率表 {result?.meta.tariffTableVersion ?? 'v2026.10-mock'} · 汇率{' '}
+            {result?.meta.fxRateDate ?? '2026-10-21'} · 估算·需报关/法务复核
+          </SheetDescription>
+        </SheetHeader>
+        {panel}
       </SheetContent>
     </Sheet>
   )

@@ -1,14 +1,16 @@
 import { notFound } from 'next/navigation'
+import { Calculator } from 'lucide-react'
 import {
+  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
 } from '@/components/console/detail'
 import { costLandedTotal, getCostBySku } from '@/lib/crossborder/mock-data'
-import { CostCalculatorEntry } from '@/components/console/cost-calculator-host'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 import {
   Table,
   TableBody,
@@ -35,6 +37,12 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
 
   return (
     <div className="space-y-4">
+      <ConsoleBreadcrumbs
+        items={[
+          { label: '成本', href: '/console/costs' },
+          { label: cost.sku },
+        ]}
+      />
       <DetailPageHeader
         backHref="/console/costs"
         title={`${cost.sku} · 到仓成本`}
@@ -42,7 +50,12 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
         badges={<Badge variant="outline">{cost.currency}</Badge>}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <CostCalculatorEntry sku={cost.sku} label="重新测算" />
+            <Button size="sm" className="gap-1.5" asChild>
+              <LocaleLink href={`/console/costs/${cost.sku}/recalculate`}>
+                <Calculator className="size-3.5" />
+                重新测算
+              </LocaleLink>
+            </Button>
             <LocaleLink
               href={`/console/products/${cost.sku}`}
               className="text-sm text-muted-foreground underline-offset-2 hover:underline"
