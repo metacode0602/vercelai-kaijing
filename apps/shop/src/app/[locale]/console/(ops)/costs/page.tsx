@@ -1,5 +1,6 @@
 import { PageDemoBanner } from '@/components/console/page-demo-banner'
-import { MOCK_COSTS } from '@/lib/crossborder/mock-data'
+import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ export default function CostsPage() {
       <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">成本计算</h2>
-        <p className="text-sm text-muted-foreground">到仓成本 · 斯里兰卡税项结构（示例）</p>
+        <p className="text-sm text-muted-foreground">到仓成本 · 斯里兰卡税项结构 · 点击 SKU 展开</p>
       </div>
       <Table>
         <TableHeader>
@@ -34,18 +35,17 @@ export default function CostsPage() {
         </TableHeader>
         <TableBody>
           {MOCK_COSTS.map((row) => {
-            const total = (
-              row.purchase +
-              row.freight +
-              row.customs +
-              row.pal +
-              row.cess +
-              row.vat +
-              row.sscl
-            ).toFixed(2)
+            const total = costLandedTotal(row).toFixed(2)
             return (
               <TableRow key={row.sku}>
-                <TableCell className="font-mono text-xs">{row.sku}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <LocaleLink
+                    href={`/console/costs/${row.sku}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {row.sku}
+                  </LocaleLink>
+                </TableCell>
                 <TableCell className="tabular-nums">{row.purchase}</TableCell>
                 <TableCell className="tabular-nums">{row.freight}</TableCell>
                 <TableCell className="tabular-nums">{row.customs}</TableCell>

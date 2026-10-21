@@ -1,5 +1,6 @@
 import { PageDemoBanner } from '@/components/console/page-demo-banner'
-import { MOCK_ORDERS } from '@/lib/crossborder/mock-data'
+import { MOCK_ORDER_LIST_ROWS, MOCK_SHOPS } from '@/lib/crossborder/mock-data'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
@@ -11,15 +12,20 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 
+const activeShops = MOCK_SHOPS.filter((s) => s.status === 'active').length
+const pendingShip = MOCK_ORDER_LIST_ROWS.filter((o) =>
+  ['paid', 'ready_to_ship', 'created'].includes(o.status),
+).length
+
 const KPIS = [
-  { label: '已同步店铺', value: '1' },
-  { label: '近 7 天订单', value: String(MOCK_ORDERS.length) },
-  { label: '待发货', value: '1' },
+  { label: '已同步店铺', value: String(activeShops) },
+  { label: '近 7 天订单', value: String(MOCK_ORDER_LIST_ROWS.length) },
+  { label: '待发货', value: String(pendingShip) },
   { label: '异常', value: '0' },
 ]
 
 function statusVariant(status: string) {
-  if (status === 'paid') return 'secondary' as const
+  if (status === 'paid' || status === 'ready_to_ship') return 'secondary' as const
   if (status === 'shipped' || status === 'delivered') return 'default' as const
   if (status === 'cancelled') return 'destructive' as const
   return 'outline' as const
@@ -31,7 +37,7 @@ export default function OrdersPage() {
       <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">订单</h2>
-        <p className="text-sm text-muted-foreground">多店订单统一查看</p>
+        <p className="text-sm text-muted-foreground">多店订单统一查看 · 点击订单号进入详情</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {KPIS.map((k) => (
@@ -57,11 +63,20 @@ export default function OrdersPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {MOCK_ORDERS.map((row) => (
+          {MOCK_ORDER_LIST_ROWS.map((row) => (
             <TableRow key={row.id}>
-              <TableCell className="font-mono text-xs">{row.id}</TableCell>
+              <TableCell className="font-mono text-xs">
+                <LocaleLink
+                  href={`/console/orders/${row.id}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {row.externalOrderId}
+                </LocaleLink>
+              </TableCell>
               <TableCell>{row.shop}</TableCell>
-              <TableCell className="tabular-nums">{row.total}</TableCell>
+              <TableCell className="tabular-nums">
+                {row.total} {row.currency}
+              </TableCell>
               <TableCell>
                 <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
               </TableCell>

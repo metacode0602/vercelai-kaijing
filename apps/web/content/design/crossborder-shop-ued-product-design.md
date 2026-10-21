@@ -4,11 +4,11 @@
 |----|------|
 | 文档范围 | `apps/shop` 租户端运营工作台（跨境电商数据中枢）的信息架构、布局规范与逐页产品/UED 设计 |
 | 受众 | 产品、UED、前端工程（Next.js + `@workspace/ui`） |
-| 版本 | **v1.2** |
-| 日期 | 2026-10-20（Asia/Shanghai） |
+| 版本 | **v1.3** |
+| 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop`（私有） |
 | 关联 | `crossborder-mvp-overview.md`、`crossborder-database-design.md`；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
-| **门禁** | 设计已更新（v1.2）。实现进行中：分支 `feat/shop-console-ui-shell`（UI 壳 + 导航 + mock；默认不接 tRPC）。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。 |
+| **门禁** | 设计已更新（v1.3）。实现：控制台壳 + **详情页 mock enrichment**（`feat/shop-console-detail-pages`）；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。 |
 
 ### 修订记录
 
@@ -17,6 +17,7 @@
 | v1.0 | 2026-10-20 | 初稿：IA、AppShell、逐页规格、迁移表与待确认问题 |
 | **v1.1** | **2026-10-20** | 锁定 §9 六项决议；选品路由改为 `/console/candidates`；移除独立 AI 助手页，改为全局 CopilotKit 右侧面板；视觉明确以现有 `@workspace/ui`/shadcn 为准；Open Mercato 立场改为分阶段「布局借壳 + 数据模型/i18n enrichment」 |
 | **v1.2** | **2026-10-20** | **A)** 清除 HTML Demo **视觉**内容（色值/hex、暗侧栏/Element 风表述、附录 A 视觉 token 对照表、Demo-as-visual-reference）；Demo **仅**功能/IA 参考；视觉一律跟随 `@workspace/ui` / shadcn theme。**B)** **禁止**独立 AppShell 布局组件；壳层改为 Next.js App Router 嵌套 `layout.tsx`：`(console)/layout.tsx`（Sidebar+Topbar+CopilotKit）、`(console)/settings/layout.tsx`、`(console)/profile/layout.tsx`；保留 lean 侧栏 / Settings SectionPage **模式**，经 route group layouts 实现而非 Mercato 式 AppShell 包装。门禁：设计已更新；实现进行中于 `feat/shop-console-ui-shell`。 |
+| **v1.3** | **2026-10-21** | **详情页 IA（Phase 2 enrichment · mock）**：列表 → 富详情路由落地：`/console/products/[sku]`、`/console/orders/[id]`、`/console/inventory/[sku]`、`/console/candidates/[id]`、`/console/costs/[sku]`、`/console/finance/[platform]`、`/console/settings/shops/[id]`。模式借鉴 Open Mercato catalog/products、sales/orders(documents)、wms/sku 详情（页头+字段组+Tabs/Sections+相关表+状态时间线+KPI），适配跨境多店字段；仍禁止 AppShell；mock-only，无业务 tRPC。 |
 
 ---
 
@@ -196,16 +197,23 @@ apps/shop/app/.../（示意 · App Router）
     ├── page.tsx                     # /console → redirect → /console/dashboard
     ├── dashboard/page.tsx
     ├── candidates/page.tsx          # 勿用 /selection
+    │   └── [id]/page.tsx           # 选品 Go/No-Go 详情
     ├── pending/page.tsx
     ├── products/page.tsx
+    │   └── [sku]/page.tsx          # 商品/刊登详情（多店 listing）
     ├── orders/page.tsx
+    │   └── [id]/page.tsx           # 订单详情（行项目 + 状态时间线）
     ├── inventory/page.tsx
+    │   └── [sku]/page.tsx          # 库存/SKU 详情（多店余额 + 告警）
     ├── costs/page.tsx
+    │   └── [sku]/page.tsx          # 到仓成本详情
     ├── finance/page.tsx
+    │   └── [platform]/page.tsx     # 平台财务/结算详情
     ├── settings/
     │   ├── layout.tsx               # Settings 垂直 Tab；替换主侧栏
     │   ├── page.tsx                 # → redirect 默认 Tab（如 shops）
     │   ├── shops/page.tsx
+    │   │   └── [id]/page.tsx       # 店铺连接 + 凭证概览（脱敏）
     │   ├── credentials/page.tsx
     │   ├── notifications/page.tsx
     │   ├── members/page.tsx
@@ -332,7 +340,7 @@ apps/shop/app/.../（示意 · App Router）
 ### 4.6 列表 / 详情 / 表单约定
 
 - **列表**：服务端分页字段预留（`page`/`pageSize`/`total`）；P0 Demo 可用前端 mock 分页。
-- **详情**：`/console/orders/[id]` 等可后置；MVP 允许行点击打开 Sheet。
+- **详情**：Demo 已提供独立详情路由（见 §3.6 / v1.3）：页头（返回列表）+ KPI + 字段组 + Tabs/Sections + 相关表 +（订单）状态时间线；多店上下文必显。Sheet 抽屉仍可作为后续轻量替代，不互相排斥。
 - **创建/编辑**：店铺连接、凭证以 Settings 内表单/向导为主；选品「接受」走 pending_actions。
 
 ---

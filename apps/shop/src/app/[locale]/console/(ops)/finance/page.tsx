@@ -1,5 +1,6 @@
 import { PageDemoBanner } from '@/components/console/page-demo-banner'
 import { MOCK_FINANCE } from '@/lib/crossborder/mock-data'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
@@ -19,7 +20,7 @@ export default function FinancePage() {
       <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">财务中心</h2>
-        <p className="text-sm text-muted-foreground">营收 / 成本 / 利润粗览（示例）</p>
+        <p className="text-sm text-muted-foreground">营收 / 成本 / 利润粗览 · 点击平台看结算明细</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -52,7 +53,14 @@ export default function FinancePage() {
         <TableBody>
           {MOCK_FINANCE.map((row) => (
             <TableRow key={row.platform} className={row.disabled ? 'opacity-60' : undefined}>
-              <TableCell className="font-medium">{row.platform}</TableCell>
+              <TableCell className="font-medium">
+                <LocaleLink
+                  href={`/console/finance/${row.platformKey}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {row.platform}
+                </LocaleLink>
+              </TableCell>
               <TableCell className="tabular-nums">{row.revenue.toLocaleString()}</TableCell>
               <TableCell className="tabular-nums">{row.cost.toLocaleString()}</TableCell>
               <TableCell className="tabular-nums">{row.profit.toLocaleString()}</TableCell>

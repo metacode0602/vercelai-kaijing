@@ -1,5 +1,6 @@
 import { PageDemoBanner } from '@/components/console/page-demo-banner'
-import { MOCK_INVENTORY } from '@/lib/crossborder/mock-data'
+import { MOCK_INVENTORY_LIST_ROWS } from '@/lib/crossborder/mock-data'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
@@ -12,15 +13,15 @@ import {
 } from '@workspace/ui/components/table'
 
 export default function InventoryPage() {
-  const urgent = MOCK_INVENTORY.filter((i) => i.alert)
-  const aged = MOCK_INVENTORY.filter((i) => i.ageDays >= 60)
+  const urgent = MOCK_INVENTORY_LIST_ROWS.filter((i) => i.alert)
+  const aged = MOCK_INVENTORY_LIST_ROWS.filter((i) => i.ageDays >= 60)
 
   return (
     <div className="space-y-4">
       <PageDemoBanner />
       <div>
         <h2 className="text-xl font-semibold tracking-tight">库存预警</h2>
-        <p className="text-sm text-muted-foreground">紧急补货 / 库龄 / 建议（示例）</p>
+        <p className="text-sm text-muted-foreground">紧急补货 / 库龄 / 建议 · 点击 SKU 看多店库存</p>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <Card>
@@ -44,7 +45,12 @@ export default function InventoryPage() {
             <CardTitle className="text-sm">闪购建议</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">MAT-02 可考虑清仓闪购（示例）</p>
+            <p className="text-sm text-muted-foreground">
+              <LocaleLink href="/console/inventory/MAT-02" className="underline-offset-2 hover:underline">
+                MAT-02
+              </LocaleLink>{' '}
+              可考虑清仓闪购（示例）
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -52,6 +58,7 @@ export default function InventoryPage() {
         <TableHeader>
           <TableRow>
             <TableHead>SKU</TableHead>
+            <TableHead>店铺数</TableHead>
             <TableHead>在库</TableHead>
             <TableHead>预留</TableHead>
             <TableHead>阈值</TableHead>
@@ -61,9 +68,17 @@ export default function InventoryPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {MOCK_INVENTORY.map((row) => (
+          {MOCK_INVENTORY_LIST_ROWS.map((row) => (
             <TableRow key={row.sku}>
-              <TableCell className="font-mono text-xs">{row.sku}</TableCell>
+              <TableCell className="font-mono text-xs">
+                <LocaleLink
+                  href={`/console/inventory/${row.sku}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {row.sku}
+                </LocaleLink>
+              </TableCell>
+              <TableCell className="tabular-nums">{row.shopCount}</TableCell>
               <TableCell>{row.onHand}</TableCell>
               <TableCell>{row.reserved}</TableCell>
               <TableCell>{row.threshold}</TableCell>
