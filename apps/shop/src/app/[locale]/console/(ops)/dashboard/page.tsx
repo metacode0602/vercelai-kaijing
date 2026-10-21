@@ -3,7 +3,6 @@ import {
   MOCK_DASHBOARD_ALERTS,
   MOCK_DASHBOARD_KPIS,
   MOCK_DASHBOARD_TODOS,
-  MOCK_DASHBOARD_TREND,
 } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
@@ -14,7 +13,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">运营仪表盘</h2>
-        <p className="text-sm text-muted-foreground">近 14 天经营概览（示例数据）</p>
+        <p className="text-sm text-muted-foreground">经营概览（示例数据 · 默认近 7 天）</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -33,11 +32,11 @@ export default function DashboardPage() {
 
       <Card className="overflow-visible">
         <CardHeader>
-          <CardTitle className="text-base">近 14 天订单 / 营收趋势</CardTitle>
-          <CardDescription>跨境多店合计（USD · 示例）</CardDescription>
+          <CardTitle className="text-base">订单 / 营收趋势</CardTitle>
+          <CardDescription>跨境多店合计（USD · 示例）· 可切换 7 / 30 / 90 天</CardDescription>
         </CardHeader>
         <CardContent className="overflow-visible">
-          <DashboardTrendChart data={MOCK_DASHBOARD_TREND} />
+          <DashboardTrendChart defaultRange={7} />
         </CardContent>
       </Card>
 

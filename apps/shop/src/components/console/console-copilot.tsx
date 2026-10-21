@@ -8,6 +8,7 @@ import { Input } from '@workspace/ui/components/input'
 import { cn } from '@workspace/ui/lib/utils'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
+import { dispatchCostCalcAction } from '@/lib/crossborder/cost-calculator-bridge'
 
 type ChatMessage = {
   id: string
@@ -16,10 +17,62 @@ type ChatMessage = {
 }
 
 const QUICK_PROMPTS = ['日报', '库存分析', '利润分析', '选品建议'] as const
+
+const COST_SUGGESTIONS = [
+  {
+    label: '按当前 SKU 测算到仓成本',
+    user: '按当前 SKU 测算到仓成本',
+    reply:
+      '（示例 · mock）已打开成本计算器并套用 TEE-001 预设：FOB 4.2 USD、服装税率档、LCL。右侧瀑布会展示 Customs→PAL→CESS→VAT→SSCL 与到仓/件。数字为估算·需报关/法务复核。',
+    run: () => {
+      dispatchCostCalcAction({ type: 'open', sku: 'TEE-001' }, 'copilot')
+    },
+  },
+  {
+    label: '对比拼柜与整柜',
+    user: '对比拼柜与整柜',
+    reply:
+      '（示例 · mock）已切换海运模式以便对比。结果区「LCL vs FCL」表会标出当前批量更优方案，并提示约多少件后 FCL 20\' 可能更划算（示意）。',
+    run: () => {
+      dispatchCostCalcAction({ type: 'open', sku: 'TEE-001' }, 'copilot')
+      // Defer mode flip so SKU preset lands first
+      queueMicrotask(() =>
+        dispatchCostCalcAction({ type: 'compare_lcl_fcl' }, 'copilot'),
+      )
+    },
+  },
+  {
+    label: '按 20% 净利率给建议售价',
+    user: '按 20% 净利率给建议售价',
+    reply:
+      '（示例 · mock）已将目标净利率设为 20%，并按 P* = (landed + 尾程) / (1 − 佣金 − 支付 − m) 重算建议售价。详见工作台「计算规则与公式」。',
+    run: () => {
+      dispatchCostCalcAction({ type: 'open', sku: 'TEE-001' }, 'copilot')
+      queueMicrotask(() =>
+        dispatchCostCalcAction({ type: 'set_margin', pct: 20 }, 'copilot'),
+      )
+    },
+  },
+] as const
+
 const PANEL_WIDTH = 'w-[min(100%,380px)]'
 
 function mockReply(input: string): string {
   const lower = input.toLowerCase()
+  if (
+    lower.includes('到仓') ||
+    lower.includes('成本测算') ||
+    lower.includes('成本计算') ||
+    lower.includes('landed')
+  ) {
+    return COST_SUGGESTIONS[0].reply
+  }
+  if (lower.includes('拼柜') || lower.includes('整柜') || lower.includes('lcl') || lower.includes('fcl')) {
+    return COST_SUGGESTIONS[1].reply
+  }
+  if (lower.includes('净利率') || lower.includes('建议售价') || lower.includes('售价')) {
+    return COST_SUGGESTIONS[2].reply
+  }
   if (lower.includes('库存') || lower.includes('inventory')) {
     return '（示例）TEE-001 与 MAT-02 低于阈值；可前往库存预警查看补货建议，敏感改价请走待审队列。'
   }
@@ -32,7 +85,28 @@ function mockReply(input: string): string {
   if (lower.includes('日报') || lower.includes('报告')) {
     return '（示例）今日：订单 186、待审 2、库存告警 2。建议优先处理待审刊登。'
   }
-  return '（示例 · mock）我是运营助手（AI-C）。可问日报、库存、利润或选品。需执行的动作请到待审队列确认。'
+  return '（示例 · mock）我是运营助手（AI-C）。可问日报、库存、利润、选品，或点下方成本测算快捷指令。需执行的动作请到待审队列确认。'
+}
+
+function maybeRunCostAction(text: string) {
+  const lower = text.toLowerCase()
+  if (
+    lower.includes('到仓') ||
+    lower.includes('成本测算') ||
+    lower.includes('成本计算') ||
+    lower.includes('landed') ||
+    text.includes('按当前 SKU')
+  ) {
+    COST_SUGGESTIONS[0].run()
+    return
+  }
+  if (lower.includes('拼柜') || lower.includes('整柜') || lower.includes('lcl') || lower.includes('fcl')) {
+    COST_SUGGESTIONS[1].run()
+    return
+  }
+  if (lower.includes('净利率') || lower.includes('建议售价') || text.includes('20%')) {
+    COST_SUGGESTIONS[2].run()
+  }
 }
 
 /**
@@ -57,17 +131,18 @@ export function ConsoleCopilot() {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, open])
 
-  function send(text: string) {
+  function send(text: string, replyOverride?: string) {
     const trimmed = text.trim()
     if (!trimmed) return
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', content: trimmed }
     const botMsg: ChatMessage = {
       id: `a-${Date.now()}`,
       role: 'assistant',
-      content: mockReply(trimmed),
+      content: replyOverride ?? mockReply(trimmed),
     }
     setMessages((prev) => [...prev, userMsg, botMsg])
     setInput('')
+    maybeRunCostAction(trimmed)
   }
 
   if (!open) return null
@@ -133,6 +208,24 @@ export function ConsoleCopilot() {
               onClick={() => send(p)}
             >
               {p}
+            </Button>
+          ))}
+        </div>
+        <p className="text-[10px] font-medium text-muted-foreground">成本测算（示例）</p>
+        <div className="flex flex-wrap gap-1.5">
+          {COST_SUGGESTIONS.map((s) => (
+            <Button
+              key={s.label}
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-auto max-w-full whitespace-normal px-2 py-1 text-left text-[11px] leading-snug"
+              onClick={() => {
+                s.run()
+                send(s.user, s.reply)
+              }}
+            >
+              {s.label}
             </Button>
           ))}
         </div>

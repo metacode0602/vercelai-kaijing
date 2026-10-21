@@ -4,6 +4,7 @@ import * as React from 'react'
 import type { PropsWithChildren } from 'react'
 import { CopilotKit } from '@copilotkit/react-core'
 import { ConsoleCopilot } from '@/components/console/console-copilot'
+import { CostCalculatorHost } from '@/components/console/cost-calculator-host'
 
 type ConsoleCopilotContextValue = {
   open: boolean
@@ -24,6 +25,7 @@ export function useConsoleCopilot() {
 /**
  * Console-level AI assistant state + optional CopilotKit runtime wrap.
  * Panel is a layout column sibling (not a FAB overlay); toggle lives in the topbar.
+ * Also mounts the shared cost-calculator Sheet host for Copilot / page CTAs.
  */
 export function ConsoleCopilotProvider({ children }: PropsWithChildren) {
   const [open, setOpen] = React.useState(false)
@@ -43,6 +45,7 @@ export function ConsoleCopilotProvider({ children }: PropsWithChildren) {
     <ConsoleCopilotContext.Provider value={value}>
       {children}
       <ConsoleCopilot />
+      <CostCalculatorHost />
     </ConsoleCopilotContext.Provider>
   )
 

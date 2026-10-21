@@ -6,6 +6,7 @@ import {
   DetailSection,
 } from '@/components/console/detail'
 import { costLandedTotal, getCostBySku } from '@/lib/crossborder/mock-data'
+import { CostCalculatorEntry } from '@/components/console/cost-calculator-host'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import {
@@ -40,12 +41,15 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
         description={cost.title}
         badges={<Badge variant="outline">{cost.currency}</Badge>}
         actions={
-          <LocaleLink
-            href={`/console/products/${cost.sku}`}
-            className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-          >
-            查看商品
-          </LocaleLink>
+          <div className="flex flex-wrap items-center gap-3">
+            <CostCalculatorEntry sku={cost.sku} label="重新测算" />
+            <LocaleLink
+              href={`/console/products/${cost.sku}`}
+              className="text-sm text-muted-foreground underline-offset-2 hover:underline"
+            >
+              查看商品
+            </LocaleLink>
+          </div>
         }
       />
 
@@ -56,7 +60,7 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
             label: '建议售价',
             value: `${cost.suggestPrice.toFixed(2)} ${cost.currency}`,
           },
-          { label: '测算毛利率', value: `${margin}%`, hint: '示例' },
+          { label: '测算毛利率', value: `${margin}%`, hint: '示例 · 未扣平台费' },
           { label: '目标毛利率', value: `${cost.targetMarginPct}%` },
         ]}
       />

@@ -712,28 +712,117 @@ export const MOCK_FINANCE = [
 
 export type MockFinance = (typeof MOCK_FINANCE)[number]
 
-/** 近 14 天订单 / 营收示例（多店合计 USD） */
-export const MOCK_DASHBOARD_TREND = [
-  { day: "10-08", orders: 18, revenue: 1120 },
-  { day: "10-09", orders: 24, revenue: 1490 },
-  { day: "10-10", orders: 21, revenue: 1380 },
-  { day: "10-11", orders: 29, revenue: 1810 },
-  { day: "10-12", orders: 17, revenue: 1050 },
-  { day: "10-13", orders: 33, revenue: 2060 },
-  { day: "10-14", orders: 27, revenue: 1690 },
-  { day: "10-15", orders: 22, revenue: 1480 },
-  { day: "10-16", orders: 28, revenue: 1720 },
-  { day: "10-17", orders: 19, revenue: 1310 },
-  { day: "10-18", orders: 31, revenue: 1980 },
-  { day: "10-19", orders: 26, revenue: 1650 },
-  { day: "10-20", orders: 34, revenue: 2140 },
-  { day: "10-21", orders: 26, revenue: 1560 },
-]
+export type DashboardTrendRange = 7 | 30 | 90
+
+export type DashboardTrendPoint = {
+  day: string
+  orders: number
+  revenue: number
+}
+
+/** Deterministic mock series ending 2026-10-21 (box-local demo date). */
+function buildDashboardTrend(days: number): DashboardTrendPoint[] {
+  const end = Date.UTC(2026, 9, 21) // Oct is month 9
+  const points: DashboardTrendPoint[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const t = new Date(end - i * 86_400_000)
+    const mm = String(t.getUTCMonth() + 1).padStart(2, "0")
+    const dd = String(t.getUTCDate()).padStart(2, "0")
+    // Stable pseudo-random from day index
+    const n = days - i
+    const wave = Math.sin(n / 3.2) * 6 + Math.cos(n / 5.1) * 4
+    const weekend = t.getUTCDay() === 0 || t.getUTCDay() === 6 ? -4 : 2
+    const orders = Math.max(8, Math.round(22 + wave + weekend + (n % 7) - 2))
+    const revenue = Math.round(orders * (58 + (n % 5) * 3 + Math.abs(wave) * 2))
+    points.push({ day: `${mm}-${dd}`, orders, revenue })
+  }
+  return points
+}
+
+export const MOCK_DASHBOARD_TREND_BY_RANGE: Record<DashboardTrendRange, DashboardTrendPoint[]> = {
+  7: buildDashboardTrend(7),
+  30: buildDashboardTrend(30),
+  90: buildDashboardTrend(90),
+}
+
+/** @deprecated Prefer MOCK_DASHBOARD_TREND_BY_RANGE[7]; kept for callers expecting 近 N 天 default. */
+export const MOCK_DASHBOARD_TREND = MOCK_DASHBOARD_TREND_BY_RANGE[7]
+
+export function getDashboardTrend(range: DashboardTrendRange = 7): DashboardTrendPoint[] {
+  return MOCK_DASHBOARD_TREND_BY_RANGE[range]
+}
+
+/** SKU presets for landed-cost calculator Demo（箱规 / HS / 默认批量） */
+export const MOCK_COST_CALC_PRESETS = [
+  {
+    sku: "TEE-001",
+    title: "Oversized Cotton Tee",
+    fobUnit: 4.2,
+    units: 500,
+    unitsPerCarton: 50,
+    cartonLcm: 60,
+    cartonWcm: 40,
+    cartonHcm: 35,
+    kgPerCarton: 12,
+    firstMileTotal: 80,
+    clearanceMiscTotal: 45,
+    tariffProfileId: "apparel" as const,
+    hsHint: "6109.10",
+    lastMileUnit: 0.6,
+    platformCommissionPct: 8,
+    paymentFeePct: 2.5,
+    defaultMarginPct: 20,
+  },
+  {
+    sku: "HUB-01",
+    title: "USB-C Hub 7-in-1",
+    fobUnit: 9.5,
+    units: 400,
+    unitsPerCarton: 40,
+    cartonLcm: 50,
+    cartonWcm: 35,
+    cartonHcm: 30,
+    kgPerCarton: 10,
+    firstMileTotal: 95,
+    clearanceMiscTotal: 55,
+    tariffProfileId: "electronics" as const,
+    hsHint: "8471.80",
+    lastMileUnit: 0.8,
+    platformCommissionPct: 6,
+    paymentFeePct: 2.5,
+    defaultMarginPct: 20,
+  },
+  {
+    sku: "MAT-02",
+    title: "Yoga Mat Pro",
+    fobUnit: 5.8,
+    units: 300,
+    unitsPerCarton: 20,
+    cartonLcm: 70,
+    cartonWcm: 25,
+    cartonHcm: 25,
+    kgPerCarton: 14,
+    firstMileTotal: 70,
+    clearanceMiscTotal: 40,
+    tariffProfileId: "home_sports" as const,
+    hsHint: "9506.91",
+    lastMileUnit: 1.2,
+    platformCommissionPct: 8,
+    paymentFeePct: 2.5,
+    defaultMarginPct: 20,
+  },
+] as const
+
+export type MockCostCalcPreset = (typeof MOCK_COST_CALC_PRESETS)[number]
+
+export function getCostCalcPreset(sku: string) {
+  return MOCK_COST_CALC_PRESETS.find((p) => p.sku === sku) ?? MOCK_COST_CALC_PRESETS[0]!
+}
 
 export const MOCK_DASHBOARD_KPIS = [
-  { label: "GMV（近 14 天）", value: "22,440 USD", delta: "+11.4% 示例" },
-  { label: "订单数", value: "355", delta: "+28 示例" },
-  { label: "净利润", value: "8,160 USD", delta: "+6.8% 示例" },
+  { label: "GMV（近 7 天）", value: "11,280 USD", delta: "+8.2% 示例" },
+  { label: "订单数", value: "186", delta: "+14 示例" },
+  { label: "净利润", value: "4,720 USD", delta: "+5.1% 示例" },
   { label: "在售 SKU", value: "42", delta: "+3 示例" },
 ]
 
