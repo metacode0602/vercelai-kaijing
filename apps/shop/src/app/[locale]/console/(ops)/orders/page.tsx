@@ -61,7 +61,7 @@ export default function OrdersPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">订单</h2>
-        <p className="text-sm text-muted-foreground">多店订单统一查看 · 点击订单号进入详情</p>
+        <p className="text-sm text-muted-foreground">lean：externalOrderId / status / totalAmount / currency · buyer/shipping 在 raw · 点击详情</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {KPIS.map((k) => (
@@ -117,7 +117,7 @@ export default function OrdersPage() {
                 <TableHead>平台</TableHead>
                 <TableHead>金额</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>城市</TableHead>
+                <TableHead>raw.city</TableHead>
                 <TableHead>下单时间</TableHead>
               </TableRow>
             </TableHeader>

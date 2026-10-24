@@ -27,6 +27,8 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+const OAUTH_PLATFORMS = new Set(['daraz', 'lazada', 'tiktok_shop'])
+
 const STATUSES = [...new Set(MOCK_SHOPS.map((s) => s.status))]
 const PLATFORMS = [...new Set(MOCK_SHOPS.map((s) => s.platform))]
 
@@ -47,7 +49,9 @@ export default function SettingsShopsPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">店铺连接</h2>
-          <p className="text-sm text-muted-foreground">连接健康与同步状态 · 点击店铺看凭证概览</p>
+          <p className="text-sm text-muted-foreground">
+            精简字段：platform / region / status / externalShopId · OAuth 走 /api/marketplace/oauth
+          </p>
         </div>
         <Button disabled>添加店铺</Button>
       </div>
@@ -74,7 +78,7 @@ export default function SettingsShopsPage() {
         ]}
       />
 
-      <ConsoleListSection title="店铺列表" description={`共 ${rows.length} 条`}>
+      <ConsoleListSection title="店铺列表" description={`共 ${rows.length} 条 · lean shops 列`}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -85,38 +89,54 @@ export default function SettingsShopsPage() {
                 <TableHead>平台</TableHead>
                 <TableHead>区域</TableHead>
                 <TableHead>币种</TableHead>
+                <TableHead>externalShopId</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>同步</TableHead>
+                <TableHead>健康</TableHead>
                 <TableHead>最近同步</TableHead>
-                <TableHead>错误</TableHead>
+                <TableHead>连接</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((shop) => (
-                <TableRow key={shop.id}>
-                  <TableCell className="font-medium">
-                    <LocaleLink
-                      href={`/console/settings/shops/${shop.id}`}
-                      className="underline-offset-2 hover:underline"
-                    >
-                      {shop.name}
-                    </LocaleLink>
-                  </TableCell>
-                  <TableCell>{shop.platform}</TableCell>
-                  <TableCell className="font-mono text-xs">{shop.region}</TableCell>
-                  <TableCell>{shop.currency}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(shop.status)}>{shop.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{shop.syncStatus}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{shop.lastSyncAt}</TableCell>
-                  <TableCell className="max-w-[180px] truncate text-sm text-destructive">
-                    {shop.lastError ?? '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map((shop) => {
+                const canOauth = OAUTH_PLATFORMS.has(shop.platform)
+                const href = canOauth
+                  ? `/api/marketplace/oauth/authorize?platform=${shop.platform}&shopId=${shop.id}&locale=zh&region=${shop.region.toLowerCase()}`
+                  : undefined
+                return (
+                  <TableRow key={shop.id}>
+                    <TableCell className="font-medium">
+                      <LocaleLink
+                        href={`/console/settings/shops/${shop.id}`}
+                        className="underline-offset-2 hover:underline"
+                      >
+                        {shop.name}
+                      </LocaleLink>
+                    </TableCell>
+                    <TableCell>{shop.platform}</TableCell>
+                    <TableCell className="font-mono text-xs">{shop.region}</TableCell>
+                    <TableCell>{shop.currency}</TableCell>
+                    <TableCell className="font-mono text-xs">{shop.externalShopId}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(shop.status)}>{shop.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{shop.health}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{shop.lastSyncAt}</TableCell>
+                    <TableCell>
+                      {href ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={href}>OAuth</a>
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" disabled>
+                          未接入
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}

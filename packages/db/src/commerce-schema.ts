@@ -115,6 +115,18 @@ export const shops = pgTable(
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     region: varchar("region", { length: 16 }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    /** IANA timezone for schedule / display (e.g. Asia/Colombo). */
+    timezone: varchar("timezone", { length: 64 }),
+    /** Seller display name on the marketplace (may differ from local name). */
+    sellerName: text("seller_name"),
+    /** Marketplace country / site code (lk, my, sg, …). */
+    marketplaceCountry: varchar("marketplace_country", { length: 16 }),
+    /** Access-token expiry mirrored from credentials for list UI. */
+    authExpiresAt: timestamp("auth_expires_at", { withTimezone: true }),
+    /** Last successful multi-resource sync (any of products/orders/…). */
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    /** Platform-specific extras (seller flags, cipher hints, etc.). */
+    meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
@@ -166,8 +178,12 @@ export const integrationStates = pgTable(
       .references(() => shops.id),
     ordersCursor: text("orders_cursor"),
     inventoryCursor: text("inventory_cursor"),
+    productsCursor: text("products_cursor"),
+    listingsCursor: text("listings_cursor"),
     lastOrdersSyncAt: timestamp("last_orders_sync_at", { withTimezone: true }),
     lastInventorySyncAt: timestamp("last_inventory_sync_at", { withTimezone: true }),
+    lastProductsSyncAt: timestamp("last_products_sync_at", { withTimezone: true }),
+    lastListingsSyncAt: timestamp("last_listings_sync_at", { withTimezone: true }),
     health: varchar("health", { length: 32 }).notNull().default("idle"),
     lastError: text("last_error"),
   },
@@ -208,9 +224,18 @@ export const products = pgTable(
       .notNull()
       .references(() => organization.id),
     title: text("title").notNull(),
-    description: text("description"),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     source: varchar("source", { length: 32 }).notNull().default("manual"),
+    brand: text("brand"),
+    categoryHint: text("category_hint"),
+    /** Image URLs for list/detail thumbs [{url, sort?}]. */
+    images: jsonb("images").$type<Array<Record<string, unknown>>>().default([]),
+    weightGrams: integer("weight_grams"),
+    lengthMm: integer("length_mm"),
+    widthMm: integer("width_mm"),
+    heightMm: integer("height_mm"),
+    /** Description + import extras (volatile copy in jsonb). */
+    payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
@@ -262,13 +287,26 @@ export const listings = pgTable(
       .references(() => products.id),
     variantId: text("variant_id").references(() => productVariants.id),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
+    /** List-display title; long copy lives in payload. */
     title: text("title"),
-    description: text("description"),
+    /** Platform item / product id (Daraz item_id, Lazada item_id, TikTok product_id). */
+    externalItemId: text("external_item_id"),
+    brandExternalId: text("brand_external_id"),
+    brandName: text("brand_name"),
     categoryExternalId: text("category_external_id"),
+    /** Human-readable category breadcrumb for list UI. */
+    categoryPath: text("category_path"),
     attributes: jsonb("attributes").$type<Record<string, unknown>>().default({}),
     priceAmount: numeric("price_amount", { precision: 18, scale: 4 }),
     priceCurrency: varchar("price_currency", { length: 3 }),
+    stockOnHand: integer("stock_on_hand"),
+    warehouseCode: varchar("warehouse_code", { length: 64 }),
+    logisticsChannel: varchar("logistics_channel", { length: 64 }),
+    /** Platform publish / sale state (ACTIVE, INACTIVE, PENDING, …). */
+    publishState: varchar("publish_state", { length: 32 }),
     lastError: text("last_error"),
+    /** Platform create/update payload + description + images. */
+    payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     liveAt: timestamp("live_at", { withTimezone: true }),
     ...timestamps,
@@ -277,6 +315,7 @@ export const listings = pgTable(
     index("listings_org_idx").on(t.organizationId),
     index("listings_shop_idx").on(t.shopId),
     index("listings_product_idx").on(t.productId),
+    uniqueIndex("listings_shop_ext_item_uidx").on(t.shopId, t.externalItemId),
   ],
 )
 
@@ -336,12 +375,19 @@ export const orders = pgTable(
       .references(() => shops.id),
     externalOrderId: text("external_order_id").notNull(),
     status: varchar("status", { length: 32 }).notNull().default("unknown"),
-    buyerNameMask: text("buyer_name_mask"),
+    /** Raw platform status string before mapping (e.g. pending, READY_TO_SHIP). */
+    platformStatus: varchar("platform_status", { length: 64 }),
+    fulfillmentStatus: varchar("fulfillment_status", { length: 32 }),
     placedAt: timestamp("placed_at", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
     totalAmount: numeric("total_amount", { precision: 18, scale: 4 }),
-    shippingAmount: numeric("shipping_amount", { precision: 18, scale: 4 }),
+    buyerRegion: varchar("buyer_region", { length: 64 }),
+    paymentMethod: varchar("payment_method", { length: 64 }),
+    shippingProvider: varchar("shipping_provider", { length: 128 }),
+    trackingNumber: varchar("tracking_number", { length: 128 }),
+    packageId: varchar("package_id", { length: 128 }),
+    /** Buyer mask, shipping amount, city, timeline extras. */
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     ...timestamps,
   },
@@ -370,6 +416,10 @@ export const orderLines = pgTable(
     qty: integer("qty").notNull().default(1),
     unitPrice: numeric("unit_price", { precision: 18, scale: 4 }),
     variantId: text("variant_id").references(() => productVariants.id),
+    fulfillmentStatus: varchar("fulfillment_status", { length: 32 }),
+    packageId: varchar("package_id", { length: 128 }),
+    trackingNumber: varchar("tracking_number", { length: 128 }),
+    shippingProvider: varchar("shipping_provider", { length: 128 }),
   },
   (t) => [
     index("order_lines_order_idx").on(t.orderId),
@@ -582,10 +632,67 @@ export const productCandidates = pgTable(
   ],
 )
 
+
+// ---------------------------------------------------------------------------
+// platform_brands / platform_categories (per-shop cache for console filters)
+// ---------------------------------------------------------------------------
+
+export const platformBrands = pgTable(
+  "platform_brands",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    index("platform_brands_org_idx").on(t.organizationId),
+    uniqueIndex("platform_brands_shop_ext_uidx").on(t.shopId, t.externalId),
+  ],
+)
+
+export const platformCategories = pgTable(
+  "platform_categories",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    parentExternalId: text("parent_external_id"),
+    path: text("path"),
+    leaf: varchar("leaf", { length: 8 }),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    index("platform_categories_org_idx").on(t.organizationId),
+    uniqueIndex("platform_categories_shop_ext_uidx").on(t.shopId, t.externalId),
+  ],
+)
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
 export type Listing = typeof listings.$inferSelect
 export type Order = typeof orders.$inferSelect
+export type OrderLine = typeof orderLines.$inferSelect
+export type PlatformBrand = typeof platformBrands.$inferSelect
+export type PlatformCategory = typeof platformCategories.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect

@@ -15,7 +15,7 @@ packages/db/src/
   schema.ts               # 聚合导出
 ```
 
-迁移：`packages/db/drizzle/0005_crossborder_commerce.sql`（编号以 journal 实际为准）。
+迁移：`0005_crossborder_commerce.sql` → `0006_commerce_lean_payload.sql` → `0007_commerce_platform_enrichment.sql`（编号以 journal 实际为准）。
 
 ---
 
@@ -50,6 +50,12 @@ MVP 运行时只启用 `daraz`。
 | status | varchar | shop_status |
 | region | varchar | 如 `pk` / `bd` |
 | currency | varchar(3) | 默认店铺币种 |
+| timezone | varchar(64) | IANA，如 Asia/Colombo |
+| seller_name | text | 平台侧卖家名 |
+| marketplace_country | varchar(16) | 站点/国家码 lk/my/… |
+| auth_expires_at | timestamptz | token 过期（列表用） |
+| last_sync_at | timestamptz | 最近成功同步 |
+| meta | jsonb | 平台扩展（cipher 提示等） |
 | created_at / updated_at | timestamptz | |
 | deleted_at | timestamptz | 软删 |
 
@@ -88,7 +94,7 @@ MVP 运行时只启用 `daraz`。
 
 本地主数据（非平台交易源）。
 
-**products：** id, organization_id, title, description, status, source(`manual`|`sourcing`|`import`), created_at, updated_at, deleted_at  
+**products：** id, organization_id, title, status, source(`manual`|`sourcing`|`import`), brand, category_hint, images jsonb, weight_grams, length_mm / width_mm / height_mm, payload jsonb（description 等）, created_at, updated_at, deleted_at  
 
 **product_variants：** id, organization_id, product_id, sku, barcode, attrs jsonb, created_at, updated_at  
 
@@ -101,12 +107,21 @@ MVP 运行时只启用 `daraz`。
 | shop_id | |
 | product_id / variant_id | |
 | status | listing_status |
-| title / description | 刊登文案 |
-| category_external_id | 平台类目 |
-| attributes | jsonb |
-| price_amount / price_currency | |
+| title | 列表展示标题（长文案进 payload） |
+| external_item_id | 平台 item / product id |
+| brand_external_id / brand_name | 平台品牌 |
+| category_external_id | 平台类目 id |
+| category_path | 类目面包屑（列表） |
+| attributes | jsonb 结构化属性 |
+| price_amount / price_currency | 列表金额 |
+| stock_on_hand | 可售库存 |
+| warehouse_code | 仓编码 |
+| logistics_channel | 物流渠道 |
+| publish_state | 平台上架态 ACTIVE/… |
 | last_error | |
+| payload | jsonb 平台原稿 / description / 图片 |
 | submitted_at / live_at | |
+| 唯一 | (shop_id, external_item_id) |
 
 ### 3.7 external_id_mappings
 
@@ -128,9 +143,9 @@ MVP 运行时只启用 `daraz`。
 
 平台订单镜像。
 
-**orders：** id, organization_id, shop_id, external_order_id, status, buyer_name_mask, placed_at, paid_at, currency, total_amount, shipping_amount, raw jsonb, created_at, updated_at  
+**orders：** id, organization_id, shop_id, external_order_id, status, platform_status, fulfillment_status, placed_at, paid_at, currency, total_amount, buyer_region, payment_method, shipping_provider, tracking_number, package_id, raw jsonb（buyerNameMask / shippingAmount / city 等）, created_at, updated_at  
 
-**order_lines：** id, order_id, organization_id, external_line_id, sku, title, qty, unit_price, variant_id null  
+**order_lines：** id, order_id, organization_id, external_line_id, sku, title, qty, unit_price, variant_id null, fulfillment_status, package_id, tracking_number, shipping_provider  
 
 唯一：`(shop_id, external_order_id)`。
 
@@ -171,6 +186,39 @@ SKU 落地成本组件：organization_id, variant_id, component(`purchase`|`frei
 
 OpenWork 写入的候选：organization_id, title, url, category_hint, score, rationale jsonb, status(`new`|`accepted`|`rejected`), pending_action_id null, created_at。
 
+
+---
+
+### 3.14 platform_brands / platform_categories（平台缓存）
+
+按 shop 缓存品牌/类目，供控制台筛选与刊登表单：
+
+- **platform_brands：** organization_id, shop_id, external_id, name, raw jsonb；唯一 `(shop_id, external_id)`
+- **platform_categories：** organization_id, shop_id, external_id, name, parent_external_id, path, leaf, raw jsonb；唯一 `(shop_id, external_id)`
+
+---
+
+## 3.x 列策略（marketplace connectors）
+
+原则：列表/过滤所需字段用结构化列；平台易变 / 原文进 jsonb。
+
+| 表 | 列（摘要） | jsonb |
+|----|----|-------|
+| shops | … + timezone, seller_name, marketplace_country, auth_expires_at, last_sync_at | meta |
+| products | … + brand, category_hint, images, weight/dims | payload |
+| listings | … + external_item_id, brand_*, category_path, stock_on_hand, warehouse_code, logistics_channel, publish_state | attributes, payload |
+| orders | … + platform_status, fulfillment_status, buyer_region, payment_method, shipping_provider, tracking_number, package_id | raw |
+| order_lines | … + fulfillment_status, package_id, tracking_number, shipping_provider | — |
+| platform_brands / platform_categories | shop + external_id + name (+ path) | raw |
+| integration_credentials | kind, expires_at | payload_encrypted（密文） |
+| integration_states | orders/inventory/products/listings cursors + last_*_sync_at, health | — |
+
+迁移：
+- `0006_commerce_lean_payload.sql` — 初版 lean jsonb
+- `0007_commerce_platform_enrichment.sql` — 多平台 enriched 列 + brand/category 缓存表
+
+Seed：`packages/db/seeds/commerce-daraz-lk-shop.sql`（canonical cuid shop ids，与 console mock 对齐）。
+
 ---
 
 ## 4. 查询约定
@@ -199,6 +247,7 @@ export const shops = pgTable(
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     region: varchar("region", { length: 16 }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -219,7 +268,10 @@ export const shops = pgTable(
 ## 6. Seed（Demo）
 
 - 1 个 platform org + 1 个 tenant org  
-- 1 个 Daraz shop（status=active）  
-- 若干 product_candidates、pending_actions、orders、inventory、alerts  
+- Canonical shops（cuid，与 `apps/shop` mock 一致）见 `packages/db/seeds/commerce-daraz-lk-shop.sql`：
+  - Daraz LK `b5ofcwj2mzauov29y08m0q99`
+  - Lazada MY `s8v7xkqw0asyz4zhswxwzdd3`
+  - TikTok `kqw7alhkgefjmffogbib1z79`
+- 若干 product_candidates、pending_actions、orders、inventory、alerts、listings  
 
-供 Demo 页 mock 同源或直接读库（P0 Demo 页先用前端 mock，与 seed 字段对齐）。
+供 Demo 页 mock 同源；OAuth authorize 的 `shopId` 必须等于 `shops.id`。

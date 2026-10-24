@@ -20,10 +20,17 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+const OAUTH_PLATFORMS = new Set(['daraz', 'lazada', 'tiktok_shop'])
+
 export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
   const { id } = await params
   const shop = getShopById(id)
   if (!shop) notFound()
+
+  const canOauth = OAUTH_PLATFORMS.has(shop.platform)
+  const oauthHref = canOauth
+    ? `/api/marketplace/oauth/authorize?platform=${shop.platform}&shopId=${shop.id}&locale=zh&region=${shop.region.toLowerCase()}`
+    : undefined
 
   return (
     <div className="space-y-4">
@@ -31,7 +38,7 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
         backHref="/console/settings/shops"
         backLabel="返回店铺列表"
         title={shop.name}
-        description="多店上下文 · 连接健康与凭证概览（不明文密钥）"
+        description="shops enriched · OAuth Connect 使用本页 shop.id（cuid）· credentials 脱敏"
         badges={
           <>
             <Badge variant={statusVariant(shop.status)}>{shop.status}</Badge>
@@ -39,32 +46,43 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
           </>
         }
         actions={
-          <Button variant="outline" size="sm" disabled>
-            重连
-          </Button>
+          oauthHref ? (
+            <Button variant="outline" size="sm" asChild>
+              <a href={oauthHref}>重连 OAuth</a>
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              重连
+            </Button>
+          )
         }
       />
 
       <DetailKpiRow
         items={[
-          { label: '同步', value: shop.syncStatus },
           { label: '健康', value: shop.health },
-          { label: '最近同步', value: shop.lastSyncAt },
+          { label: '最近订单同步', value: shop.lastOrdersSyncAt ?? '—' },
+          { label: '最近库存同步', value: shop.lastInventorySyncAt ?? '—' },
           { label: '区域 / 币种', value: `${shop.region} / ${shop.currency}` },
         ]}
       />
 
       <DetailFieldGrid
-        title="shops"
+        title="shops（enriched）"
         fields={[
           { label: 'id', value: shop.id, mono: true },
+          { label: 'slug', value: shop.slug, mono: true },
           { label: 'externalShopId', value: shop.externalShopId, mono: true },
           { label: 'platform', value: shop.platform },
           { label: 'region', value: shop.region },
+          { label: 'marketplaceCountry', value: shop.marketplaceCountry },
+          { label: 'timezone', value: shop.timezone },
+          { label: 'sellerName', value: shop.sellerName },
           { label: 'currency', value: shop.currency },
           { label: 'status', value: shop.status },
-          { label: 'lastOrdersSyncAt', value: shop.lastOrdersSyncAt ?? '—' },
-          { label: 'lastInventorySyncAt', value: shop.lastInventorySyncAt ?? '—' },
+          { label: 'authExpiresAt', value: shop.authExpiresAt ?? '—' },
+          { label: 'lastSyncAt', value: shop.lastSyncAt },
+          { label: 'meta', value: JSON.stringify(shop.meta) },
         ]}
       />
 
@@ -86,7 +104,7 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
       </DetailSection>
 
       {shop.lastError ? (
-        <DetailSection title="last_error">
+        <DetailSection title="integration_states.last_error">
           <p className="text-sm text-destructive">{shop.lastError}</p>
         </DetailSection>
       ) : null}

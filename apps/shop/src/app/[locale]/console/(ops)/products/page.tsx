@@ -48,7 +48,7 @@ export default function ProductsPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">商品与刊登</h2>
-        <p className="text-sm text-muted-foreground">本地商品 + listing 状态 · 点击行进入详情</p>
+        <p className="text-sm text-muted-foreground">lean：SKU / title / status / price · description 在 payload · 点击行进入详情</p>
       </div>
 
       <ConsoleFilterBar
@@ -82,7 +82,7 @@ export default function ProductsPage() {
 
       <ConsoleListSection
         title="商品列表"
-        description={`共 ${rows.length} 条 · 对齐 commerce.listings 展示口径`}
+        description={`共 ${rows.length} 条 · lean listings（title/status/price/lastError）`}
       >
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
@@ -98,7 +98,7 @@ export default function ProductsPage() {
                 <TableHead>刊登状态</TableHead>
                 <TableHead>价格</TableHead>
                 <TableHead>更新</TableHead>
-                <TableHead>错误</TableHead>
+                <TableHead>lastError</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
