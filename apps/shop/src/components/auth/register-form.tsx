@@ -48,18 +48,18 @@ export function RegisterForm({ className }: RegisterFormProps) {
     () =>
       z
         .object({
-          name: z.string().min(2, { message: t('nameRequired') }),
-          email: z.string().email({ message: t('emailRequired') }),
+          name: z.string().min(2, { error: t('nameRequired') }),
+          email: z.email({ error: t('emailRequired') }),
           password: z
             .string()
-            .min(8, { message: t('passwordMinLength') })
-            .regex(/[A-Z]/, { message: t('passwordUppercase') })
-            .regex(/[a-z]/, { message: t('passwordLowercase') })
-            .regex(/[0-9]/, { message: t('passwordNumber') }),
-          confirmPassword: z.string().min(1, { message: t('confirmPasswordRequired') }),
+            .min(8, { error: t('passwordMinLength') })
+            .regex(/[A-Z]/, { error: t('passwordUppercase') })
+            .regex(/[a-z]/, { error: t('passwordLowercase') })
+            .regex(/[0-9]/, { error: t('passwordNumber') }),
+          confirmPassword: z.string().min(1, { error: t('confirmPasswordRequired') }),
         })
         .refine((data) => data.password === data.confirmPassword, {
-          message: t('passwordMismatch'),
+          error: t('passwordMismatch'),
           path: ['confirmPassword'],
         }),
     [t]

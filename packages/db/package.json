@@ -24,7 +24,7 @@
     "pg": "^8.20.0"
   },
   "devDependencies": {
-    "@types/node": "^25.1.0",
+    "@types/node": "^22.10.10",
     "@types/pg": "^8.20.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
@@ -33,7 +33,7 @@
     "eslint": "^9.39.2",
     "prettier": "^3.8.1",
     "tsdown": "^0.21.6",
-    "tsx": "^4.19.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "exports": {

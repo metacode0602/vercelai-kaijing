@@ -13,7 +13,7 @@
     "tencentcloud-sdk-nodejs": "^4.1.224"
   },
   "devDependencies": {
-    "@types/node": "^25.1.0",
+    "@types/node": "^22.10.10",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",

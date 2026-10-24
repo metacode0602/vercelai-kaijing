@@ -11,18 +11,18 @@
     "@workspace/redis": "workspace:*",
     "@workspace/ui": "workspace:*",
     "rc-slider-captcha": "^1.9.0",
-    "sharp": "^0.34.2"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
-    "@types/node": "^25.1.0",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/node": "^22.10.10",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
     "next": "16.3.6",
-    "react": "^19",
-    "react-dom": "^19",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
