@@ -171,7 +171,8 @@
       "inventory": "库存预警",
       "costs": "成本计算",
       "finance": "财务中心",
-      "settings": "设置"
+      "settings": "设置",
+      "listings": "刊登"
     },
     "usage": {
       "title": "用量",
@@ -292,7 +293,8 @@
       "costs": "成本计算",
       "finance": "财务中心",
       "settings": "设置",
-      "profile": "个人资料"
+      "profile": "个人资料",
+      "listings": "刊登"
     },
     "comingSoon": {
       "billing": {

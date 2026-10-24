@@ -222,6 +222,9 @@ importers:
       '@workspace/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@workspace/marketplace':
+        specifier: workspace:*
+        version: link:../../packages/marketplace
       '@workspace/redis':
         specifier: workspace:*
         version: link:../../packages/redis
@@ -246,6 +249,9 @@ importers:
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.3(patch_hash=d9d7278de470b6fb204860e192db13bdc9ea668f6907967a40525dc1466552a8)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(@upstash/redis@1.39.0)(kysely@0.29.6)(pg@8.23.0)
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@19.2.3)
@@ -719,6 +725,40 @@ importers:
       typescript-eslint:
         specifier: ^8.57.2
         version: 8.70.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+
+  packages/marketplace:
+    dependencies:
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../db
+      zod:
+        specifier: ^4.3.6
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^25.1.0
+        version: 25.9.8
+      '@workspace/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@workspace/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      eslint:
+        specifier: ^9.39.2
+        version: 9.39.5(jiti@2.7.0)
+      prettier:
+        specifier: ^3.8.1
+        version: 3.9.9
+      tsdown:
+        specifier: ^0.21.6
+        version: 0.21.10(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/redis:
     dependencies:
@@ -9398,8 +9438,8 @@ snapshots:
 
   '@babel/generator@8.0.0-rc.3':
     dependencies:
-      '@babel/parser': 8.0.0-rc.3
-      '@babel/types': 8.0.0-rc.3
+      '@babel/parser': 8.0.6
+      '@babel/types': 8.0.6
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
       '@types/jsesc': 2.5.1
@@ -9504,7 +9544,7 @@ snapshots:
 
   '@babel/parser@8.0.0-rc.3':
     dependencies:
-      '@babel/types': 8.0.0-rc.3
+      '@babel/types': 8.0.6
 
   '@babel/parser@8.0.6':
     dependencies:
@@ -9590,7 +9630,7 @@ snapshots:
   '@babel/types@8.0.0-rc.3':
     dependencies:
       '@babel/helper-string-parser': 8.0.6
-      '@babel/helper-validator-identifier': 8.0.0-rc.3
+      '@babel/helper-validator-identifier': 8.0.6
 
   '@babel/types@8.0.6':
     dependencies:

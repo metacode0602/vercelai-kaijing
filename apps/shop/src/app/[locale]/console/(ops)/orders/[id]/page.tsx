@@ -39,38 +39,40 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
       <DetailPageHeader
         backHref="/console/orders"
         title={order.externalOrderId}
-        description={`店铺归属 · ${order.shopName}`}
+        description={`店铺归属 · ${order.shopName} · lean orders 列 + raw jsonb`}
         badges={<Badge variant={statusVariant(order.status)}>{order.status}</Badge>}
       />
 
       <DetailKpiRow
         items={[
           {
-            label: '订单总额',
+            label: 'totalAmount',
             value: `${order.totalAmount.toFixed(2)} ${order.currency}`,
           },
           {
-            label: '运费',
+            label: 'raw.shippingAmount',
             value: `${order.shippingAmount.toFixed(2)} ${order.currency}`,
           },
           { label: '行项目', value: String(order.lines.length) },
-          { label: '城市', value: order.city },
+          { label: 'raw.city', value: order.city },
         ]}
       />
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <div className="space-y-4">
           <DetailFieldGrid
-            title="订单头（orders）"
+            title="orders（lean 列）"
             fields={[
               { label: 'id', value: order.id, mono: true },
               { label: 'externalOrderId', value: order.externalOrderId, mono: true },
               { label: 'shopId', value: order.shopId, mono: true },
               { label: 'platform', value: order.platform },
-              { label: 'buyerNameMask', value: order.buyerNameMask },
+              { label: 'status', value: order.status },
               { label: 'placedAt', value: order.placedAt },
               { label: 'paidAt', value: order.paidAt ?? '—' },
-              { label: 'shipping', value: order.shippingSummary },
+              { label: 'currency / totalAmount', value: `${order.totalAmount.toFixed(2)} ${order.currency}` },
+              { label: 'raw.buyerNameMask', value: order.buyerNameMask },
+              { label: 'raw.shipping', value: order.shippingSummary },
             ]}
           />
 

@@ -74,3 +74,11 @@ docker run --rm -p 3000:3000 <镜像名>    # 端口按部署环境调整
 
 - 模块协作关系：[根 README](../../README.md#模块协作关系)
 - 仓库约定：[AGENTS.md](../../AGENTS.md)
+
+## Marketplace sync (skeleton)
+
+```bash
+pnpm --filter shop sync:marketplace -- --shopId=b5ofcwj2mzauov29y08m0q99 --platform=daraz
+```
+
+See `packages/marketplace/ENV_CHECKLIST.md` and `src/workers/marketplace-sync.ts`.

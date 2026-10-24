@@ -40,7 +40,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       <DetailPageHeader
         backHref="/console/products"
         title={product.title}
-        description={`SKU ${product.sku} · source=${product.source}`}
+        description={`SKU ${product.sku} · source=${product.source} · lean products/listings`}
         badges={
           <>
             <Badge variant="outline">{product.status}</Badge>
@@ -59,7 +59,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       />
 
       <DetailFieldGrid
-        title="基础信息 · 商品 / 变体"
+        title="products / product_variants（lean）"
         fields={[
           { label: 'product.id', value: product.id, mono: true },
           { label: 'variant.sku', value: product.sku, mono: true },
@@ -74,27 +74,25 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
               .map(([k, v]) => `${k}=${v}`)
               .join(', '),
           },
+          { label: 'payload.description', value: product.description },
         ]}
       />
 
-      <DetailSection title="描述">
-        <p className="text-sm text-muted-foreground">{product.description}</p>
-      </DetailSection>
-
       <DetailSection
-        title="多店刊登"
-        description="对齐 commerce.listings：status / price / platform SKU / liveAt"
+        title="listings（lean 列）"
+        description="status / title / price / categoryExternalId / lastError · 长文案在 payload"
       >
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>店铺</TableHead>
               <TableHead>平台</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>价格</TableHead>
-              <TableHead>平台 SKU</TableHead>
+              <TableHead>status</TableHead>
+              <TableHead>price</TableHead>
+              <TableHead>categoryExternalId</TableHead>
+              <TableHead>platformSku</TableHead>
               <TableHead>liveAt</TableHead>
-              <TableHead>错误</TableHead>
+              <TableHead>lastError</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -108,6 +106,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
                 <TableCell className="tabular-nums">
                   {listing.priceAmount.toFixed(2)} {listing.priceCurrency}
                 </TableCell>
+                <TableCell className="font-mono text-xs">{listing.categoryExternalId}</TableCell>
                 <TableCell className="font-mono text-xs">{listing.platformSku}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {listing.liveAt ?? '—'}

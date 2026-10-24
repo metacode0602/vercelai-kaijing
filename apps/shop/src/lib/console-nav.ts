@@ -8,6 +8,7 @@ export type ConsoleNavTitleKey =
   | 'nav.candidates'
   | 'nav.pending'
   | 'nav.products'
+  | 'nav.listings'
   | 'nav.orders'
   | 'nav.inventory'
   | 'nav.costs'
@@ -32,6 +33,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/candidates', titleKey: 'nav.candidates' },
       { url: '/console/pending', titleKey: 'nav.pending', badgeKey: 'pendingCount' },
       { url: '/console/products', titleKey: 'nav.products' },
+      { url: '/console/listings', titleKey: 'nav.listings' },
       { url: '/console/orders', titleKey: 'nav.orders' },
       { url: '/console/inventory', titleKey: 'nav.inventory', badgeKey: 'inventoryAlerts' },
       { url: '/console/costs', titleKey: 'nav.costs' },
