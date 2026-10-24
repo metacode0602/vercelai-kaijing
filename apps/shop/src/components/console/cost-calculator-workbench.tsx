@@ -313,12 +313,12 @@ function CostCalculatorFormPanel({
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">输入（少打字 · 预设优先）</CardTitle>
         <CardDescription className="text-xs">
-          从 MOCK SKU 选择即可预填 FOB / 箱规 / HS 档
+          从示例 SKU 选择即可预填 FOB / 箱规 / HS 档
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
-          <Label>SKU</Label>
+          <Label>货号 SKU</Label>
           <Select
             value={input.sku}
             onValueChange={(sku) => {
@@ -392,7 +392,7 @@ function CostCalculatorFormPanel({
             ))}
           </ToggleGroup>
           <p className="text-[11px] text-muted-foreground">
-            HS 示意 {tariff.hsHint} · Customs {(tariff.customs * 100).toFixed(0)}% / CESS{' '}
+            HS 示意 {tariff.hsHint} · 关税 {(tariff.customs * 100).toFixed(0)}% / CESS{' '}
             {(tariff.cess * 100).toFixed(0)}% / PAL {(tariff.pal * 100).toFixed(0)}% / VAT{' '}
             {(tariff.vat * 100).toFixed(0)}% / SSCL {(tariff.sscl * 100).toFixed(1)}%
           </p>
@@ -429,7 +429,7 @@ function CostCalculatorFormPanel({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="fob">FOB / 件 (USD)</Label>
+            <Label htmlFor="fob">FOB 单价（USD / 件）</Label>
             <Input
               id="fob"
               type="number"

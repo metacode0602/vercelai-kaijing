@@ -3,6 +3,7 @@ import { LocaleLink } from '@/lib/i18n/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { labelStatus } from '@/lib/console/labels'
 
 const OAUTH_PLATFORMS = new Set(['daraz', 'lazada', 'tiktok_shop'])
 
@@ -12,7 +13,7 @@ export default function SettingsCredentialsPage() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight">平台凭证</h2>
         <p className="text-sm text-muted-foreground">
-          integration_credentials：kind / expiresAt / mask · payload_encrypted 不明文 · OAuth 重连
+          凭证类型 / 到期时间 / 脱敏密钥 · 密文不明文展示 · 可重新授权
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -39,7 +40,7 @@ export default function SettingsCredentialsPage() {
               <CardContent className="flex items-center justify-between gap-3">
                 <div className="space-y-1 text-sm">
                   <p>
-                    状态 <Badge variant="secondary">{shop.status}</Badge>
+                    状态 <Badge variant="secondary">{labelStatus(shop.status)}</Badge>
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">key {shop.credentialMask}</p>
                   <p className="text-xs text-muted-foreground">

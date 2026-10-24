@@ -1,3 +1,4 @@
+import { labelStatus } from '@/lib/console/labels'
 import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { cn } from '@workspace/ui/lib/utils'
@@ -32,7 +33,7 @@ export function StatusTimeline({
                 )}
               />
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={step.current ? 'default' : 'outline'}>{step.status}</Badge>
+                <Badge variant={step.current ? 'default' : 'outline'}>{labelStatus(step.status)}</Badge>
                 <span className="text-xs text-muted-foreground">{step.at}</span>
               </div>
               {step.note ? <p className="mt-1 text-sm text-muted-foreground">{step.note}</p> : null}

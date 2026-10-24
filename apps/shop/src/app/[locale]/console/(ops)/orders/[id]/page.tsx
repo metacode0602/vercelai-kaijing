@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelField, labelStatus } from '@/lib/console/labels'
 
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>
@@ -39,44 +40,44 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
       <DetailPageHeader
         backHref="/console/orders"
         title={order.externalOrderId}
-        description={`店铺归属 · ${order.shopName} · lean orders 列 + raw jsonb`}
-        badges={<Badge variant={statusVariant(order.status)}>{order.status}</Badge>}
+        description={`店铺 · ${order.shopName}`}
+        badges={<Badge variant={statusVariant(order.status)}>{labelStatus(order.status)}</Badge>}
       />
 
       <DetailKpiRow
         items={[
           {
-            label: 'totalAmount',
+            label: labelField('totalAmount'),
             value: `${order.totalAmount.toFixed(2)} ${order.currency}`,
           },
           {
-            label: 'raw.shippingAmount',
+            label: labelField('raw.shippingAmount'),
             value: `${order.shippingAmount.toFixed(2)} ${order.currency}`,
           },
           { label: '行项目', value: String(order.lines.length) },
-          { label: 'raw.city', value: order.city },
+          { label: labelField('raw.city'), value: order.city },
         ]}
       />
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <div className="space-y-4">
           <DetailFieldGrid
-            title="orders（lean 列）"
+            title="订单信息"
             fields={[
-              { label: 'id', value: order.id, mono: true },
-              { label: 'externalOrderId', value: order.externalOrderId, mono: true },
-              { label: 'shopId', value: order.shopId, mono: true },
-              { label: 'platform', value: order.platform },
-              { label: 'status', value: order.status },
-              { label: 'placedAt', value: order.placedAt },
-              { label: 'paidAt', value: order.paidAt ?? '—' },
-              { label: 'currency / totalAmount', value: `${order.totalAmount.toFixed(2)} ${order.currency}` },
-              { label: 'raw.buyerNameMask', value: order.buyerNameMask },
-              { label: 'raw.shipping', value: order.shippingSummary },
+              { label: labelField('id'), value: order.id, mono: true },
+              { label: labelField('externalOrderId'), value: order.externalOrderId, mono: true },
+              { label: labelField('shopId'), value: order.shopId, mono: true },
+              { label: labelField('platform'), value: order.platform },
+              { label: labelField('status'), value: labelStatus(order.status) },
+              { label: labelField('placedAt'), value: order.placedAt },
+              { label: labelField('paidAt'), value: order.paidAt ?? '—' },
+              { label: labelField('currency / totalAmount'), value: `${order.totalAmount.toFixed(2)} ${order.currency}` },
+              { label: labelField('raw.buyerNameMask'), value: order.buyerNameMask },
+              { label: labelField('raw.shipping'), value: order.shippingSummary },
             ]}
           />
 
-          <DetailSection title="order_lines" description="SKU / 数量 / 单价 / 平台 SKU">
+          <DetailSection title="订单行" description="SKU / 数量 / 单价 / 平台 SKU">
             <Table>
               <TableHeader>
                 <TableRow>

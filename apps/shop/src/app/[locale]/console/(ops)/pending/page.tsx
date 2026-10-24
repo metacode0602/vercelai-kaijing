@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus, labeledOptions } from '@/lib/console/labels'
 
 const KINDS = [...new Set(MOCK_PENDING.map((r) => r.kind))]
 const STATUSES = [...new Set(MOCK_PENDING.map((r) => r.status))]
@@ -41,7 +42,7 @@ export default function PendingPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">待审队列</h2>
-        <p className="text-sm text-muted-foreground">AI-B HITL · mock 确认/拒绝</p>
+        <p className="text-sm text-muted-foreground">人工确认 · 示例确认/拒绝</p>
       </div>
 
       <ConsoleFilterBar
@@ -54,14 +55,14 @@ export default function PendingPage() {
             label: '类型',
             value: kind,
             onChange: setKind,
-            options: KINDS.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(KINDS),
           },
           {
             id: 'status',
             label: '状态',
             value: status,
             onChange: setStatus,
-            options: STATUSES.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(STATUSES),
           },
           {
             id: 'shop',
@@ -92,13 +93,13 @@ export default function PendingPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell className="font-mono text-xs">{row.kind}</TableCell>
+                  <TableCell className="text-xs">{labelStatus(row.kind)}</TableCell>
                   <TableCell className="font-medium">{row.title}</TableCell>
                   <TableCell>{row.shop}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{row.createdBy}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{row.expiresAt}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{row.status}</Badge>
+                    <Badge variant="secondary">{labelStatus(row.status)}</Badge>
                   </TableCell>
                   <TableCell className="space-x-2 text-right">
                     <Button size="sm" variant="default" disabled>

@@ -8,6 +8,7 @@ import {
 import { getCandidateById, getShopById } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { labelField, labelStatus } from '@/lib/console/labels'
 
 interface CandidateDetailPageProps {
   params: Promise<{ id: string }>
@@ -37,9 +38,9 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
         badges={
           <>
             <Badge variant={candidate.status === 'new' ? 'secondary' : 'default'}>
-              {candidate.status}
+              {labelStatus(candidate.status)}
             </Badge>
-            <Badge variant={goBadge(candidate.goNoGo)}>Go/No-Go · {candidate.goNoGo}</Badge>
+            <Badge variant={goBadge(candidate.goNoGo)}>决策 · {labelStatus(candidate.goNoGo)}</Badge>
           </>
         }
         actions={
@@ -71,34 +72,34 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
 
       <div className="grid gap-4 xl:grid-cols-2">
         <DetailFieldGrid
-          title="product_candidates 字段"
+          title="候选字段"
           columns={2}
           fields={[
-            { label: 'id', value: candidate.id, mono: true },
-            { label: 'categoryHint', value: candidate.categoryHint },
-            { label: 'competition', value: candidate.competition },
-            { label: 'risk', value: candidate.risk },
-            { label: 'url', value: candidate.url, mono: true },
+            { label: labelField('id'), value: candidate.id, mono: true },
+            { label: labelField('categoryHint'), value: candidate.categoryHint },
+            { label: labelField('competition'), value: candidate.competition },
+            { label: labelField('risk'), value: candidate.risk },
+            { label: labelField('url'), value: candidate.url, mono: true },
             { label: '推荐店铺', value: shops },
           ]}
         />
 
-        <DetailSection title="市场 / 决策说明（rationale）">
+        <DetailSection title="市场 / 决策说明">
           <dl className="space-y-3 text-sm">
             <div>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">市场潜力</dt>
               <dd className="mt-1 font-medium">{candidate.marketPotential}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">demand</dt>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">需求</dt>
               <dd className="mt-1 text-muted-foreground">{candidate.rationale.demand}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">margin</dt>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">毛利</dt>
               <dd className="mt-1 text-muted-foreground">{candidate.rationale.margin}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">risk</dt>
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">风险</dt>
               <dd className="mt-1 text-muted-foreground">{candidate.rationale.risk}</dd>
             </div>
           </dl>

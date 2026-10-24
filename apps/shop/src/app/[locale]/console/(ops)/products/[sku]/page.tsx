@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelField, labelStatus } from '@/lib/console/labels'
 
 interface ProductDetailPageProps {
   params: Promise<{ sku: string }>
@@ -40,10 +41,10 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       <DetailPageHeader
         backHref="/console/products"
         title={product.title}
-        description={`SKU ${product.sku} · source=${product.source} · lean products/listings`}
+        description={`SKU ${product.sku} · 来源 ${labelStatus(product.source)}`}
         badges={
           <>
-            <Badge variant="outline">{product.status}</Badge>
+            <Badge variant="outline">{labelStatus(product.status)}</Badge>
             <Badge variant="secondary">{product.categoryHint}</Badge>
           </>
         }
@@ -52,47 +53,47 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       <DetailKpiRow
         items={[
           { label: '刊登店铺数', value: String(product.listings.length) },
-          { label: '在售 listing', value: String(liveCount) },
-          { label: '失败 listing', value: String(failedCount), hint: failedCount ? '需处理' : undefined },
+          { label: '在售刊登', value: String(liveCount) },
+          { label: '失败刊登', value: String(failedCount), hint: failedCount ? '需处理' : undefined },
           { label: '主价（首店）', value: `${product.listings[0]?.priceAmount.toFixed(2)} ${product.listings[0]?.priceCurrency}` },
         ]}
       />
 
       <DetailFieldGrid
-        title="products / product_variants（lean）"
+        title="商品与变体"
         fields={[
-          { label: 'product.id', value: product.id, mono: true },
-          { label: 'variant.sku', value: product.sku, mono: true },
-          { label: 'variantId', value: product.variantId, mono: true },
-          { label: 'barcode', value: product.barcode ?? '—', mono: true },
-          { label: 'status', value: product.status },
-          { label: 'source', value: product.source },
-          { label: 'updatedAt', value: product.updatedAt },
+          { label: labelField('product.id'), value: product.id, mono: true },
+          { label: labelField('variant.sku'), value: product.sku, mono: true },
+          { label: labelField('variantId'), value: product.variantId, mono: true },
+          { label: labelField('barcode'), value: product.barcode ?? '—', mono: true },
+          { label: labelField('status'), value: labelStatus(product.status) },
+          { label: labelField('source'), value: labelStatus(product.source) },
+          { label: labelField('updatedAt'), value: product.updatedAt },
           {
-            label: 'attrs',
+            label: labelField('attrs'),
             value: Object.entries(product.attrs)
               .map(([k, v]) => `${k}=${v}`)
               .join(', '),
           },
-          { label: 'payload.description', value: product.description },
+          { label: labelField('payload.description'), value: product.description },
         ]}
       />
 
       <DetailSection
-        title="listings（lean 列）"
-        description="status / title / price / categoryExternalId / lastError · 长文案在 payload"
+        title="刊登列表"
+        description="状态 / 价格 / 类目 / 最近错误"
       >
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>店铺</TableHead>
               <TableHead>平台</TableHead>
-              <TableHead>status</TableHead>
-              <TableHead>price</TableHead>
-              <TableHead>categoryExternalId</TableHead>
-              <TableHead>platformSku</TableHead>
-              <TableHead>liveAt</TableHead>
-              <TableHead>lastError</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>价格</TableHead>
+              <TableHead>类目外部 ID</TableHead>
+              <TableHead>平台 SKU</TableHead>
+              <TableHead>上架时间</TableHead>
+              <TableHead>最近错误</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -101,7 +102,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
                 <TableCell className="font-medium">{listing.shopName}</TableCell>
                 <TableCell>{listing.platform}</TableCell>
                 <TableCell>
-                  <Badge variant={listingVariant(listing.status)}>{listing.status}</Badge>
+                  <Badge variant={listingVariant(listing.status)}>{labelStatus(listing.status)}</Badge>
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {listing.priceAmount.toFixed(2)} {listing.priceCurrency}

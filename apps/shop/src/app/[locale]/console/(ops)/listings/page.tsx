@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus, labeledOptions } from '@/lib/console/labels'
 
 function listingVariant(status: string) {
   if (status === 'live') return 'default' as const
@@ -62,9 +63,9 @@ export default function ListingsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">刊登 Listings</h2>
+        <h2 className="text-xl font-semibold tracking-tight">刊登</h2>
         <p className="text-sm text-muted-foreground">
-          平台商品刊登 · brand / category / stock / logistics / publishState · 对齐 commerce listings 列
+          平台商品刊登 · 品牌 / 类目 / 库存 / 物流 / 发布状态
         </p>
       </div>
 
@@ -78,14 +79,14 @@ export default function ListingsPage() {
             label: '状态',
             value: status,
             onChange: setStatus,
-            options: STATUSES.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(STATUSES),
           },
           {
             id: 'publish',
-            label: 'publishState',
+            label: '发布状态',
             value: publishState,
             onChange: setPublishState,
-            options: PUBLISH.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(PUBLISH),
           },
           {
             id: 'shop',
@@ -123,9 +124,9 @@ export default function ListingsPage() {
                 <TableHead>库存</TableHead>
                 <TableHead>仓 / 物流</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>publish</TableHead>
+                <TableHead>发布</TableHead>
                 <TableHead>价格</TableHead>
-                <TableHead>externalItemId</TableHead>
+                <TableHead>平台商品 ID</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -153,10 +154,10 @@ export default function ListingsPage() {
                     {row.logisticsChannel}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={listingVariant(row.status)}>{row.status}</Badge>
+                    <Badge variant={listingVariant(row.status)}>{labelStatus(row.status)}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{row.publishState}</Badge>
+                    <Badge variant="outline">{labelStatus(row.publishState)}</Badge>
                   </TableCell>
                   <TableCell className="tabular-nums">
                     {row.priceAmount.toFixed(2)} {row.priceCurrency}

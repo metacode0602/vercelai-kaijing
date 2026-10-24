@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus, labeledOptions } from '@/lib/console/labels'
 
 function statusVariant(status: string) {
   if (status === 'active') return 'default' as const
@@ -50,7 +51,7 @@ export default function SettingsShopsPage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">店铺连接</h2>
           <p className="text-sm text-muted-foreground">
-            精简字段：platform / region / status / externalShopId · OAuth 走 /api/marketplace/oauth
+            平台 / 区域 / 状态 / 平台店铺 ID · 授权连接走 OAuth
           </p>
         </div>
         <Button disabled>添加店铺</Button>
@@ -66,7 +67,7 @@ export default function SettingsShopsPage() {
             label: '状态',
             value: status,
             onChange: setStatus,
-            options: STATUSES.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(STATUSES),
           },
           {
             id: 'platform',
@@ -78,7 +79,7 @@ export default function SettingsShopsPage() {
         ]}
       />
 
-      <ConsoleListSection title="店铺列表" description={`共 ${rows.length} 条 · lean shops 列`}>
+      <ConsoleListSection title="店铺列表" description={`共 ${rows.length} 条`}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -89,7 +90,7 @@ export default function SettingsShopsPage() {
                 <TableHead>平台</TableHead>
                 <TableHead>区域</TableHead>
                 <TableHead>币种</TableHead>
-                <TableHead>externalShopId</TableHead>
+                <TableHead>平台店铺 ID</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>健康</TableHead>
                 <TableHead>最近同步</TableHead>
@@ -117,16 +118,16 @@ export default function SettingsShopsPage() {
                     <TableCell>{shop.currency}</TableCell>
                     <TableCell className="font-mono text-xs">{shop.externalShopId}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(shop.status)}>{shop.status}</Badge>
+                      <Badge variant={statusVariant(shop.status)}>{labelStatus(shop.status)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{shop.health}</Badge>
+                      <Badge variant="secondary">{labelStatus(shop.health)}</Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{shop.lastSyncAt}</TableCell>
                     <TableCell>
                       {href ? (
                         <Button variant="outline" size="sm" asChild>
-                          <a href={href}>OAuth</a>
+                          <a href={href}>授权登录</a>
                         </Button>
                       ) : (
                         <Button variant="outline" size="sm" disabled>

@@ -68,7 +68,7 @@ export default function FinancePage() {
             value: access,
             onChange: setAccess,
             options: [
-              { value: 'mvp', label: '已接入 MVP' },
+              { value: 'mvp', label: '已接入' },
               { value: 'disabled', label: '未接入' },
             ],
           },
@@ -109,7 +109,7 @@ export default function FinancePage() {
                     {row.disabled ? (
                       <Badge variant="outline">未接入</Badge>
                     ) : (
-                      <Badge variant="default">MVP</Badge>
+                      <Badge variant="default">已接入</Badge>
                     )}
                   </TableCell>
                 </TableRow>

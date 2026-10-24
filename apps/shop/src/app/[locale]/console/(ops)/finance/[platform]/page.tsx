@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelField } from '@/lib/console/labels'
 
 interface FinanceDetailPageProps {
   params: Promise<{ platform: string }>
@@ -35,7 +36,7 @@ export default async function FinanceDetailPage({ params }: FinanceDetailPagePro
           row.disabled ? (
             <Badge variant="outline">未接入</Badge>
           ) : (
-            <Badge variant="default">MVP</Badge>
+            <Badge variant="default">已接入</Badge>
           )
         }
       />
@@ -52,24 +53,24 @@ export default async function FinanceDetailPage({ params }: FinanceDetailPagePro
       {row.settlement ? (
         <>
           <DetailFieldGrid
-            title="settlements"
+            title="结算单"
             fields={[
-              { label: 'id', value: row.settlement.id, mono: true },
+              { label: labelField('id'), value: row.settlement.id, mono: true },
               {
-                label: 'externalSettlementId',
+                label: labelField('externalSettlementId'),
                 value: row.settlement.externalSettlementId,
                 mono: true,
               },
-              { label: 'shop', value: row.settlement.shopName },
+              { label: labelField('shop'), value: row.settlement.shopName },
               {
-                label: 'period',
+                label: labelField('period'),
                 value: `${row.settlement.periodStart} → ${row.settlement.periodEnd}`,
               },
-              { label: 'currency', value: row.settlement.currency },
+              { label: labelField('currency'), value: row.settlement.currency },
               { label: '平台费用（粗）', value: row.fees.toLocaleString() },
             ]}
           />
-          <DetailSection title="settlement_lines" description="订单净额与费用拆分（示例）">
+          <DetailSection title="结算明细" description="订单净额与费用拆分（示例）">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -94,7 +95,7 @@ export default async function FinanceDetailPage({ params }: FinanceDetailPagePro
         </>
       ) : (
         <DetailSection title="结算" description="依赖平台结算同步">
-          <p className="text-sm text-muted-foreground">该平台尚未接入，无 settlements 数据。</p>
+          <p className="text-sm text-muted-foreground">该平台尚未接入，暂无结算数据。</p>
         </DetailSection>
       )}
     </div>
