@@ -63,9 +63,9 @@ export function PhoneLoginForm({ className, callbackUrl: propCallbackUrl }: Phon
       z.object({
         phoneNumber: z
           .string()
-          .min(1, { message: t('phoneRequired') })
-          .regex(phoneRegex, { message: t('invalidPhone') }),
-        verificationCode: z.string().min(1, { message: t('codeRequired') }),
+          .min(1, { error: t('phoneRequired') })
+          .regex(phoneRegex, { error: t('invalidPhone') }),
+        verificationCode: z.string().min(1, { error: t('codeRequired') }),
       }),
     [t]
   )

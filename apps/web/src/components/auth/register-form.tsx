@@ -47,15 +47,9 @@ export const RegisterForm = ({ callbackUrl: propCallbackUrl }: RegisterFormProps
   const registerSchema = useMemo(
     () =>
       z.object({
-        email: z.string().email({
-          message: t('emailRequired'),
-        }),
-        password: z.string().min(1, {
-          message: t('passwordRequired'),
-        }),
-        name: z.string().min(1, {
-          message: t('nameRequired'),
-        }),
+        email: z.email({ error: t('emailRequired') }),
+        password: z.string().min(1, { error: t('passwordRequired') }),
+        name: z.string().min(1, { error: t('nameRequired') }),
         invitationCode: z.string().optional(),
       }),
     [t]

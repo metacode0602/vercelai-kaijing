@@ -45,8 +45,8 @@ export function LoginForm({ className, callbackUrl: propCallbackUrl }: LoginForm
   const loginSchema = useMemo(
     () =>
       z.object({
-        email: z.string().email({ message: t('emailRequired') }),
-        password: z.string().min(1, { message: t('passwordRequired') }),
+        email: z.email({ error: t('emailRequired') }),
+        password: z.string().min(1, { error: t('passwordRequired') }),
       }),
     [t]
   )

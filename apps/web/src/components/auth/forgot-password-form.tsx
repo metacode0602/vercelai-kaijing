@@ -35,7 +35,7 @@ export const ForgotPasswordForm = ({ className }: ForgotPasswordFormProps) => {
   const forgotSchema = useMemo(
     () =>
       z.object({
-        email: z.string().email({ message: t('emailRequired') }),
+        email: z.email({ error: t('emailRequired') }),
       }),
     [t]
   )

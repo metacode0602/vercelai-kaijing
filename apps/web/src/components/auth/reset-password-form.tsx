@@ -41,8 +41,8 @@ export const ResetPasswordForm = ({ className }: ResetPasswordFormProps) => {
   const resetSchema = useMemo(
     () =>
       z.object({
-        password: z.string().min(8, { message: t('minLength') }),
-        confirmPassword: z.string().min(8, { message: t('minLength') }),
+        password: z.string().min(8, { error: t('minLength') }),
+        confirmPassword: z.string().min(8, { error: t('minLength') }),
       }),
     [t]
   )

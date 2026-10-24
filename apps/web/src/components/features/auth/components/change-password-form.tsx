@@ -31,7 +31,7 @@ const schema = z
     confirmPassword: z.string().min(1, '请确认新密码'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
-    message: '两次输入的新密码不一致',
+    error: '两次输入的新密码不一致',
     path: ['confirmPassword'],
   })
 
