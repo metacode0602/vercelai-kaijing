@@ -19,10 +19,11 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus } from '@/lib/console/labels'
 
 const ALERTS = [
-  { value: 'critical', label: 'critical' },
-  { value: 'open', label: 'open' },
+  { value: 'critical', label: '紧急' },
+  { value: 'open', label: '开放' },
   { value: 'none', label: '无告警' },
 ]
 
@@ -131,7 +132,7 @@ export default function InventoryPage() {
                   <TableCell>
                     {row.alert ? (
                       <Badge variant={row.alert === 'critical' ? 'destructive' : 'secondary'}>
-                        {row.alert}
+                        {labelStatus(row.alert)}
                       </Badge>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>

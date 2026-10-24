@@ -8,6 +8,7 @@ import {
 import { getListingById } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
+import { labelField, labelStatus } from '@/lib/console/labels'
 
 interface ListingDetailPageProps {
   params: Promise<{ id: string }>
@@ -30,11 +31,11 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
       <DetailPageHeader
         backHref="/console/listings"
         title={listing.title}
-        description={`listings · ${listing.platform} · shopId=${listing.shopId}`}
+        description={`${listing.platform} · 店铺 ${listing.shopName}`}
         badges={
           <>
-            <Badge variant={listingVariant(listing.status)}>{listing.status}</Badge>
-            <Badge variant="outline">{listing.publishState}</Badge>
+            <Badge variant={listingVariant(listing.status)}>{labelStatus(listing.status)}</Badge>
+            <Badge variant="outline">{labelStatus(listing.publishState)}</Badge>
             <Badge variant="secondary">{listing.platform}</Badge>
           </>
         }
@@ -46,35 +47,35 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
             label: '价格',
             value: `${listing.priceAmount.toFixed(2)} ${listing.priceCurrency}`,
           },
-          { label: '库存 stockOnHand', value: String(listing.stockOnHand ?? 0) },
+          { label: '在库库存', value: String(listing.stockOnHand ?? 0) },
           { label: '仓', value: listing.warehouseCode ?? '—' },
           { label: '物流渠道', value: listing.logisticsChannel ?? '—' },
         ]}
       />
 
       <DetailFieldGrid
-        title="listings（enriched）"
+        title="刊登详情"
         fields={[
-          { label: 'id', value: listing.id, mono: true },
-          { label: 'shopId', value: listing.shopId, mono: true },
-          { label: 'shopName', value: listing.shopName },
-          { label: 'platform', value: listing.platform },
-          { label: 'externalItemId', value: listing.externalItemId ?? '—', mono: true },
-          { label: 'platformSku', value: listing.platformSku, mono: true },
-          { label: 'brandExternalId', value: listing.brandExternalId ?? '—', mono: true },
-          { label: 'brandName', value: listing.brandName ?? '—' },
-          { label: 'categoryExternalId', value: listing.categoryExternalId, mono: true },
-          { label: 'categoryPath', value: listing.categoryPath ?? '—' },
-          { label: 'publishState', value: listing.publishState },
-          { label: 'status', value: listing.status },
-          { label: 'submittedAt', value: listing.submittedAt ?? '—' },
-          { label: 'liveAt', value: listing.liveAt ?? '—' },
-          { label: 'updatedAt', value: listing.updatedAt },
-          { label: 'lastError', value: listing.lastError ?? '—' },
+          { label: labelField('id'), value: listing.id, mono: true },
+          { label: labelField('shopId'), value: listing.shopId, mono: true },
+          { label: labelField('shopName'), value: listing.shopName },
+          { label: labelField('platform'), value: listing.platform },
+          { label: labelField('externalItemId'), value: listing.externalItemId ?? '—', mono: true },
+          { label: labelField('platformSku'), value: listing.platformSku, mono: true },
+          { label: labelField('brandExternalId'), value: listing.brandExternalId ?? '—', mono: true },
+          { label: labelField('brandName'), value: listing.brandName ?? '—' },
+          { label: labelField('categoryExternalId'), value: listing.categoryExternalId, mono: true },
+          { label: labelField('categoryPath'), value: listing.categoryPath ?? '—' },
+          { label: labelField('publishState'), value: labelStatus(listing.publishState) },
+          { label: labelField('status'), value: labelStatus(listing.status) },
+          { label: labelField('submittedAt'), value: listing.submittedAt ?? '—' },
+          { label: labelField('liveAt'), value: listing.liveAt ?? '—' },
+          { label: labelField('updatedAt'), value: listing.updatedAt },
+          { label: labelField('lastError'), value: listing.lastError ?? '—' },
         ]}
       />
 
-      <DetailSection title="关联本地商品" description="products / product_variants">
+      <DetailSection title="关联本地商品" description="商品与变体">
         <p className="text-sm">
           SKU{' '}
           <LocaleLink
@@ -85,12 +86,12 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
           </LocaleLink>
           {' · '}
           {listing.productTitle}
-          {' · brand '}
+          {' · 品牌 '}
           {listing.brand}
         </p>
       </DetailSection>
 
-      <DetailSection title="payload jsonb" description="平台原稿 / 图片 / 描述">
+      <DetailSection title="平台原稿" description="图片 / 描述等原始字段">
         <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
           {JSON.stringify(listing.payload, null, 2)}
         </pre>

@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus, labeledOptions } from '@/lib/console/labels'
 
 const STATUSES = [...new Set(MOCK_CANDIDATES.map((r) => r.status))]
 const GO = [...new Set(MOCK_CANDIDATES.map((r) => r.goNoGo))]
@@ -41,7 +42,7 @@ export default function CandidatesPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">AI 选品</h2>
-        <p className="text-sm text-muted-foreground">候选列表 · 点击进入 Go/No-Go 详情</p>
+        <p className="text-sm text-muted-foreground">候选列表 · 点击进入通过/搁置详情</p>
       </div>
 
       <ConsoleFilterBar
@@ -54,14 +55,14 @@ export default function CandidatesPage() {
             label: '状态',
             value: status,
             onChange: setStatus,
-            options: STATUSES.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(STATUSES),
           },
           {
             id: 'go',
-            label: 'Go/No-Go',
+            label: '决策',
             value: goNoGo,
             onChange: setGoNoGo,
-            options: GO.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(GO),
           },
           {
             id: 'category',
@@ -86,7 +87,7 @@ export default function CandidatesPage() {
                 <TableHead>建议售价</TableHead>
                 <TableHead>净利率</TableHead>
                 <TableHead>潜力</TableHead>
-                <TableHead>Go/No-Go</TableHead>
+                <TableHead>决策</TableHead>
                 <TableHead>状态</TableHead>
               </TableRow>
             </TableHeader>
@@ -113,10 +114,10 @@ export default function CandidatesPage() {
                   <TableCell className="tabular-nums">{row.marginPct}%</TableCell>
                   <TableCell className="tabular-nums">{row.score}</TableCell>
                   <TableCell>
-                    <Badge variant={row.goNoGo === 'GO' ? 'default' : 'secondary'}>{row.goNoGo}</Badge>
+                    <Badge variant={row.goNoGo === 'GO' ? 'default' : 'secondary'}>{labelStatus(row.goNoGo)}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={row.status === 'new' ? 'secondary' : 'default'}>{row.status}</Badge>
+                    <Badge variant={row.status === 'new' ? 'secondary' : 'default'}>{labelStatus(row.status)}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

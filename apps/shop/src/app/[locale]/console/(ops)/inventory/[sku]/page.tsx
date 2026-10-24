@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelField, labelStatus } from '@/lib/console/labels'
 
 interface InventoryDetailPageProps {
   params: Promise<{ sku: string }>
@@ -47,7 +48,7 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
                     : 'outline'
               }
             >
-              {item.reorderSignal}
+              {labelStatus(item.reorderSignal)}
             </Badge>
             <Badge variant="outline">库龄 {item.ageDays}d</Badge>
           </>
@@ -74,16 +75,16 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
       <DetailFieldGrid
         title="变体引用"
         fields={[
-          { label: 'sku', value: item.sku, mono: true },
-          { label: 'variantId', value: item.variantId, mono: true },
-          { label: 'ageDays', value: `${item.ageDays} 天` },
-          { label: 'reorderSignal', value: item.reorderSignal },
+          { label: labelField('sku'), value: item.sku, mono: true },
+          { label: labelField('variantId'), value: item.variantId, mono: true },
+          { label: labelField('ageDays'), value: `${item.ageDays} 天` },
+          { label: labelField('reorderSignal'), value: labelStatus(item.reorderSignal) },
         ]}
       />
 
       <DetailSection
-        title="inventory_balances / stock_alerts（多店）"
-        description="on_hand · reserved · threshold · alert status"
+        title="多店库存与告警"
+        description="在库 · 预留 · 阈值 · 告警状态"
       >
         <Table>
           <TableHeader>
@@ -107,7 +108,7 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
                 <TableCell className="tabular-nums">{bal.threshold}</TableCell>
                 <TableCell>
                   {bal.alertStatus ? (
-                    <Badge variant="secondary">{bal.alertStatus}</Badge>
+                    <Badge variant="secondary">{labelStatus(bal.alertStatus)}</Badge>
                   ) : (
                     '—'
                   )}

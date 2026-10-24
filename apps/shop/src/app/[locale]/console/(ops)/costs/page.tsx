@@ -72,7 +72,7 @@ export default function CostsPage() {
                 <TableHead>标题</TableHead>
                 <TableHead>采购</TableHead>
                 <TableHead>头程</TableHead>
-                <TableHead>Customs</TableHead>
+                <TableHead>关税</TableHead>
                 <TableHead>PAL</TableHead>
                 <TableHead>CESS</TableHead>
                 <TableHead>VAT</TableHead>

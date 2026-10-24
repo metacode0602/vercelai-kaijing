@@ -7,7 +7,7 @@ export default function SettingsPreferencesPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">偏好</h2>
-        <p className="text-sm text-muted-foreground">默认店铺 / 时区 / 币种（mock）</p>
+        <p className="text-sm text-muted-foreground">默认店铺 / 时区 / 币种（示例）</p>
       </div>
       <Card>
         <CardHeader>
@@ -28,7 +28,7 @@ export default function SettingsPreferencesPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="density">表格密度</Label>
-            <Input id="density" defaultValue="comfortable" disabled />
+            <Input id="density" defaultValue="舒适" disabled />
           </div>
         </CardContent>
       </Card>

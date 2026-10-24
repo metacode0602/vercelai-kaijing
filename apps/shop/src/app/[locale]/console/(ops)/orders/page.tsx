@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus, labeledOptions } from '@/lib/console/labels'
 
 const activeShops = MOCK_SHOPS.filter((s) => s.status === 'active').length
 const pendingShip = MOCK_ORDER_LIST_ROWS.filter((o) =>
@@ -61,7 +62,7 @@ export default function OrdersPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">订单</h2>
-        <p className="text-sm text-muted-foreground">lean：externalOrderId / status / totalAmount / currency · buyer/shipping 在 raw · 点击详情</p>
+        <p className="text-sm text-muted-foreground">平台订单号 / 状态 / 金额 · 点击详情</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {KPIS.map((k) => (
@@ -86,7 +87,7 @@ export default function OrdersPage() {
             label: '状态',
             value: status,
             onChange: setStatus,
-            options: STATUSES.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(STATUSES),
           },
           {
             id: 'shop',
@@ -117,7 +118,7 @@ export default function OrdersPage() {
                 <TableHead>平台</TableHead>
                 <TableHead>金额</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>raw.city</TableHead>
+                <TableHead>城市</TableHead>
                 <TableHead>下单时间</TableHead>
               </TableRow>
             </TableHeader>
@@ -138,7 +139,7 @@ export default function OrdersPage() {
                     {row.totalAmount.toFixed(2)} {row.currency}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                    <Badge variant={statusVariant(row.status)}>{labelStatus(row.status)}</Badge>
                   </TableCell>
                   <TableCell>{row.city}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{row.placedAt}</TableCell>

@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelField, labelStatus } from '@/lib/console/labels'
 
 interface CostDetailPageProps {
   params: Promise<{ sku: string }>
@@ -82,34 +83,34 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
         title="斯里兰卡税项结构（展示层）"
         columns={4}
         fields={[
-          { label: 'purchase', value: cost.purchase.toFixed(2) },
-          { label: 'freight', value: cost.freight.toFixed(2) },
-          { label: 'customs', value: cost.customs.toFixed(2) },
-          { label: 'PAL', value: cost.pal.toFixed(2) },
-          { label: 'CESS', value: cost.cess.toFixed(2) },
-          { label: 'VAT', value: cost.vat.toFixed(2) },
-          { label: 'SSCL', value: cost.sscl.toFixed(2) },
-          { label: 'landed', value: landed.toFixed(2) },
+          { label: labelField('purchase'), value: cost.purchase.toFixed(2) },
+          { label: labelField('freight'), value: cost.freight.toFixed(2) },
+          { label: labelField('customs'), value: cost.customs.toFixed(2) },
+          { label: labelField('PAL'), value: cost.pal.toFixed(2) },
+          { label: labelField('CESS'), value: cost.cess.toFixed(2) },
+          { label: labelField('VAT'), value: cost.vat.toFixed(2) },
+          { label: labelField('SSCL'), value: cost.sscl.toFixed(2) },
+          { label: labelField('landed'), value: landed.toFixed(2) },
         ]}
       />
 
       <DetailSection
-        title="cost_components（schema 对齐）"
-        description="component ∈ purchase / freight / duty / other"
+        title="成本明细"
+        description="采购 / 运费 / 关税 / 其他"
       >
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>component</TableHead>
-              <TableHead>amount</TableHead>
-              <TableHead>note</TableHead>
+              <TableHead>费用项</TableHead>
+              <TableHead>金额</TableHead>
+              <TableHead>备注</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {cost.components.map((c, idx) => (
               <TableRow key={`${c.component}-${c.note}-${idx}`}>
                 <TableCell>
-                  <Badge variant="outline">{c.component}</Badge>
+                  <Badge variant="outline">{labelStatus(c.component)}</Badge>
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {c.amount.toFixed(2)} {cost.currency}

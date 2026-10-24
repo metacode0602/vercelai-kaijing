@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { labelStatus, labeledOptions } from '@/lib/console/labels'
 
 function listingVariant(status: string) {
   if (status === 'live') return 'default' as const
@@ -48,7 +49,7 @@ export default function ProductsPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">商品与刊登</h2>
-        <p className="text-sm text-muted-foreground">lean：SKU / title / status / price · description 在 payload · 点击行进入详情</p>
+        <p className="text-sm text-muted-foreground">SKU / 标题 / 状态 / 价格 · 点击行进入详情</p>
       </div>
 
       <ConsoleFilterBar
@@ -61,7 +62,7 @@ export default function ProductsPage() {
             label: '刊登状态',
             value: listing,
             onChange: setListing,
-            options: LISTINGS.map((v) => ({ value: v, label: v })),
+            options: labeledOptions(LISTINGS),
           },
           {
             id: 'shop',
@@ -82,7 +83,7 @@ export default function ProductsPage() {
 
       <ConsoleListSection
         title="商品列表"
-        description={`共 ${rows.length} 条 · lean listings（title/status/price/lastError）`}
+        description={`共 ${rows.length} 条`}
       >
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
@@ -98,7 +99,7 @@ export default function ProductsPage() {
                 <TableHead>刊登状态</TableHead>
                 <TableHead>价格</TableHead>
                 <TableHead>更新</TableHead>
-                <TableHead>lastError</TableHead>
+                <TableHead>最近错误</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -124,7 +125,7 @@ export default function ProductsPage() {
                   <TableCell>{row.platform}</TableCell>
                   <TableCell className="tabular-nums">{row.shopCount}</TableCell>
                   <TableCell>
-                    <Badge variant={listingVariant(row.listing)}>{row.listing}</Badge>
+                    <Badge variant={listingVariant(row.listing)}>{labelStatus(row.listing)}</Badge>
                   </TableCell>
                   <TableCell className="tabular-nums">
                     {row.priceAmount.toFixed(2)} {row.priceCurrency}
