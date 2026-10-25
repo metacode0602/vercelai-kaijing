@@ -1,6 +1,6 @@
 /**
  * 跨境运营域表结构
- * @see apps/web/content/design/crossborder-database-design.md
+ * @see docs/design/crossborder-database-design.md
  */
 
 import { createId } from "@paralleldrive/cuid2"

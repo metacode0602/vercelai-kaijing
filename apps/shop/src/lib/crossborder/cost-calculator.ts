@@ -6,7 +6,7 @@
  *
  * Tax stack (MVP, Excise/Surcharge/SCL off):
  *   Customs → CESS → PAL on CIF (v); then VAT & SSCL on (v + 10%v + d + c + p).
- * See apps/web/content/design/cost-calculator-sl-landed-ued.md §5–§7.
+ * See apps/shop/content/design/cost-calculator-sl-landed-ued.md §5–§7.
  */
 
 export const TARIFF_TABLE_VERSION = 'v2026.10-mock'

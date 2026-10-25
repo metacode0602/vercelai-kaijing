@@ -7,7 +7,7 @@
 | 版本 | **v1.5** |
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop`（私有） |
-| 关联 | `crossborder-mvp-overview.md`、`crossborder-database-design.md`、**`cost-calculator-sl-landed-ued.md`（成本计算器专篇）**；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
+| 关联 | [`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md)、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)、**`cost-calculator-sl-landed-ued.md`（成本计算器专篇）**；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
 | **门禁** | 设计已更新（v1.5）。实现：控制台壳 + 详情页 mock enrichment + **UX polish**；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。**成本计算器专篇已出** → `cost-calculator-sl-landed-ued.md`。 |
 
 ### 修订记录
@@ -19,13 +19,14 @@
 | **v1.2** | **2026-10-20** | **A)** 清除 HTML Demo **视觉**内容（色值/hex、暗侧栏/Element 风表述、附录 A 视觉 token 对照表、Demo-as-visual-reference）；Demo **仅**功能/IA 参考；视觉一律跟随 `@workspace/ui` / shadcn theme。**B)** **禁止**独立 AppShell 布局组件；壳层改为 Next.js App Router 嵌套 `layout.tsx`：`(console)/layout.tsx`（Sidebar+Topbar+CopilotKit）、`(console)/settings/layout.tsx`、`(console)/profile/layout.tsx`；保留 lean 侧栏 / Settings SectionPage **模式**，经 route group layouts 实现而非 Mercato 式 AppShell 包装。门禁：设计已更新；实现进行中于 `feat/shop-console-ui-shell`。 |
 | **v1.3** | **2026-10-21** | **详情页 IA（Phase 2 enrichment · mock）**：列表 → 富详情路由落地：`/console/products/[sku]`、`/console/orders/[id]`、`/console/inventory/[sku]`、`/console/candidates/[id]`、`/console/costs/[sku]`、`/console/finance/[platform]`、`/console/settings/shops/[id]`。模式借鉴 Open Mercato catalog/products、sales/orders(documents)、wms/sku 详情（页头+字段组+Tabs/Sections+相关表+状态时间线+KPI），适配跨境多店字段；仍禁止 AppShell；mock-only，无业务 tRPC。 |
 | **v1.4** | **2026-10-21** | **UX polish**：① AI 助手从右下角 FAB/overlay 改为 `(console)/layout` **右侧布局列**（~380px），Topbar Sparkles 开关；关闭时主区恢复全宽。② 商品详情 `/console/products/[sku]` 去掉 Tabs，基础信息 / 多店刊登 / AI 信号改为纵向堆叠。③ 仪表盘增加近 7 天订单/营收趋势图（recharts + `@workspace/ui` Chart）。④ 移除「Demo · 未接 tRPC」横幅组件及全部引用。 |
-| **v1.5** | **2026-10-21** | **成本计算器方案已出**：新增专篇 `cost-calculator-sl-landed-ued.md`（LK 税叠 Customs/PAL/CESS/VAT/SSCL、LCL/FCL、建议售价与净利率、UED 工作台）；§5.7 增加深化指针。GPU `cost-compute-v3-*` 明确不在本范围。 |
+| **v1.5** | **2026-10-21** | **成本计算器方案已出**：新增专篇 `cost-calculator-sl-landed-ued.md`（LK 税叠 Customs/PAL/CESS/VAT/SSCL、LCL/FCL、建议售价与净利率、UED 工作台）；§5.7 增加深化指针。 |
+| **v1.6** | **2026-10-25** | 文档随 Open Shop 定位收敛：移除历史业务表述；关联文档迁至 `docs/design/` 与 `apps/shop/content/design/`；营销页暂保持现状。 |
 
 ---
 
 ## 1. 文档信息与使用方式
 
-本文档是 `apps/shop` 从「GPURun Cloud 壳 + `/crossborder` P0 Demo」演进为「跨境租户运营工作台」的**可执行设计基线**。工程师实现时应：
+本文档是 `apps/shop` 从「历史控制台壳 + `/crossborder` P0 Demo」演进为「跨境租户运营工作台」的**可执行设计基线**。工程师实现时应：
 
 1. 以第 3 节 IA 与路由推荐为准搭壳；
 2. 以第 4 节 **嵌套 `layout.tsx` 壳层** / 组件模式对齐 `@workspace/ui` Sidebar + 顶栏（**视觉以现有主题为准**；**禁止**独立 AppShell）；
@@ -111,7 +112,7 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 - MVP 同期上线四平台（Lazada / Shopee / TikTok）齐开；导航与筛选可预留 platform 维度，数据通道仅 Daraz。
 - 通用进销存（采购单、仓库 WMS、多仓调拨全流程）。
 - 首批实现（进行中于 `feat/shop-console-ui-shell`）仅 UI 壳 + 导航 + mock；仍不接业务 tRPC / 真连接器（除非另行说明）。**禁止**引入独立 AppShell 布局组件。
-- **GPU console 并存策略（已确认）**：跨境主壳**替换**现有 `/console` 下 GPU 业务导航组；营销站 `(marketing)` 与旧 GPU console URL **过渡期隐藏导航、URL 暂留**。默认登录后进入跨境工作台。
+- **历史业务导航替换（已确认）**：跨境主壳**替换**现有 `/console` 下的历史业务导航组；营销站 `(marketing)` 暂保持现状，旧 console URL **过渡期隐藏导航、URL 暂留**。默认登录后进入跨境工作台。
 
 ---
 
@@ -119,7 +120,7 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 
 ### 3.1 路由前缀（已确认）
 
-**已确认：统一挂在 `/console/...`，用跨境 IA 替换现有 GPU `CONSOLE_NAV_GROUPS`。**
+**已确认：统一挂在 `/console/...`，用跨境 IA 替换历史 `CONSOLE_NAV_GROUPS`。**
 
 理由：
 
@@ -144,7 +145,7 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 | — | ─── divider ─── | | | |
 | 底 | 设置 | `/console/settings`（及子路径） | `Settings` | **pinned footer**；同时 Topbar 齿轮进入 |
 
-**不要**放进主侧栏：需求总览、实施路线图、Profile、独立 AI 助手页、GPU 部署类入口（过渡期隐藏导航、URL 暂留）。
+**不要**放进主侧栏：需求总览、实施路线图、Profile、独立 AI 助手页、历史部署类入口（过渡期隐藏导航、URL 暂留）。
 
 **AI 对话入口不在主侧栏**：由 Topbar Sparkles 开关触发，打开后在 `(console)/layout.tsx` 右侧插入布局列（见 §4.2 / §5.9）。
 
@@ -518,7 +519,7 @@ apps/shop/app/.../（示意 · App Router）
 | 各业务页静态/mock `page.tsx`（可迁并现有 `/crossborder` mock） | Daraz 真连接器、Worker |
 | **settings/layout.tsx**、**profile/layout.tsx** 垂直 Tab + 店铺列表等 UI | 完整成员权限矩阵、账单 |
 | **CopilotKit Provider + mock**（挂在 `(console)/layout.tsx`；Topbar 开关 + 右侧布局列） | 真 LLM 网关强绑定；独立 `/console/assistant` 路由；FAB/overlay |
-| 路由迁移与 redirect（含 `/crossborder/candidates` → `/console/candidates`） | 删除营销站；四平台齐开；删除旧 GPU URL |
+| 路由迁移与 redirect（含 `/crossborder/candidates` → `/console/candidates`） | 删除营销站；四平台齐开；删除历史业务 URL |
 
 数据阶段建议：
 
@@ -553,7 +554,7 @@ apps/shop/app/.../（示意 · App Router）
 | （无独立助手页） | 全局 CopilotKit（无路由） | **新建壳层能力**；不建 `/console/assistant` |
 | （无） | `/console/settings/*` | **新建** `settings/layout.tsx` + 各 Tab `page.tsx`（垂直 Tab 模式） |
 | （无） | `/console/profile` | **新建** `profile/layout.tsx` + Tab `page.tsx` |
-| `/console/server/*` 等 GPU 导航 | 移出默认侧栏 | **已确认**：隐藏导航、URL 暂留 |
+| `/console/server/*` 等历史业务导航 | 移出默认侧栏 | **已确认**：隐藏导航、URL 暂留 |
 
 实现顺序建议：先落地 `(console)/layout.tsx`（Sidebar + Topbar + CopilotKit）与 nav/redirect，再补 `settings/layout.tsx` / `profile/layout.tsx`，逐页迁并 `(crossborder)` mock 为 `page.tsx`，最后删除 `CrossborderSidebar` 专用壳。**禁止**引入独立 AppShell。实现进行中：分支 `feat/shop-console-ui-shell`。
 
@@ -565,12 +566,12 @@ apps/shop/app/.../（示意 · App Router）
 
 | # | 议题 | 决议 |
 |---|------|------|
-| 1 | 路由前缀 | **`/console/*` 替换 GPU 导航** |
+| 1 | 路由前缀 | **`/console/*` 替换历史导航** |
 | 2 | 视觉主题 | **仅用现有 `@workspace/ui` / shadcn theme**；HTML Demo 仅功能/IA 参考；**禁止引用 Demo 视觉** |
 | 3 | 仪表盘路径 | **`/console/dashboard` + `/console` redirect** |
 | 4 | 选品路由名 | **`/console/candidates`**（不用 `/console/selection`）；旧 `/crossborder/candidates` redirect 至此 |
 | 5 | 首批代码范围 | **仅 UI 壳 + 导航 + mock，不接 tRPC**；设计 v1.2 已定稿；**实现进行中**于分支 `feat/shop-console-ui-shell` |
-| 6 | GPU 营销/旧 console | **隐藏导航，URL 暂留** |
+| 6 | 历史营销/旧 console | **隐藏导航，URL 暂留；营销页暂不动** |
 | 7 | AI 助手形态 | **移除独立 `/console/assistant`**；采用 **CopilotKit 全局右侧布局列**，由 **Topbar Sparkles** 展开/收起；Provider 挂在 `(console)/layout.tsx`；**非** FAB overlay |
 | 8 | Open Mercato | **分阶段**：Phase 1 先落 Demo 功能；Phase 2 可借鉴其 ERP 数据模型概念与 i18n 做 enrichment；**布局模式**（lean 侧栏 / Settings SectionPage）持续参考，但用 **Next.js 嵌套 layouts** 实现；**不把 Mercato 模块名原样贴进侧栏**；**不引入 Mercato 式 AppShell 组件** |
 | 9 | 壳层实现机制 | **禁止独立 AppShell 布局组件**；壳层 = `(console)/layout.tsx`（Sidebar+Topbar+CopilotKit）+ `(console)/settings/layout.tsx` + `(console)/profile/layout.tsx`；业务页仅为各目录下 `page.tsx` |

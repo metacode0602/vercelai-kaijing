@@ -62,7 +62,7 @@ apiV1.doc("/open-api", {
   openapi: "3.0.0",
   info: {
     version: "1.0.0",
-    title: "GPURun Cloud API",
+    title: "Open Shop API",
   },
 })
 

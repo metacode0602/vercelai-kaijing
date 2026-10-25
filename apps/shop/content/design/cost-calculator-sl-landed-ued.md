@@ -7,8 +7,7 @@
 | 版本 | **v1.0** |
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop` |
-| 关联 | `crossborder-shop-ued-product-design.md`（§5.7 成本页总览；本文为深化专篇）、`crossborder-database-design.md`（`cost_components`）、`crossborder-mvp-overview.md` |
-| **非本文** | `cost-compute-v3-redesign-with-examples.md`（GPU / 裸金属账期成本，与跨境到仓无关） |
+| 关联 | `crossborder-shop-ued-product-design.md`（§5.7 成本页总览；本文为深化专篇）、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)（`cost_components`）、[`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md) |
 | 实现现状 | 控制台 mock：`/console/costs`、`/console/costs/[sku]`（`MOCK_COSTS`）；**暂不接 tRPC** |
 | 门禁 | 设计稿；P0 仅 mock UI，不改表、不接业务 API |
 
@@ -17,6 +16,7 @@
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
 | v1.0 | 2026-10-21 | 初稿：LK 税叠加工式、LCL/FCL、建议售价、UED 工作台、分阶段与验收 |
+| v1.1 | 2026-10-25 | 关联文档迁至 `docs/design/`；移除历史业务成本口径的交叉引用 |
 
 ---
 
@@ -24,7 +24,7 @@
 
 ### 1.1 背景
 
-Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shopee / TikTok；**MVP 仅 Daraz → 斯里兰卡**）。选品与刊登前必须能快速估算「FOB → 到仓」全成本，并在目标净利率下给出建议售价。现有 `/console/costs` 已有列表与 SKU 详情 mock（采购 / 头程 / Customs / PAL / CESS / VAT / SSCL 列 + 海运方案表），但**缺少可交互计算器、分摊规则、税基说明与版本化配置模型**。主 UED 文档 §5.7 仅给区块级规格；GPU 侧的 `cost-compute-v3-*` 与跨境无关，故本文作为**独立专篇**深化成本计算。
+Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shopee / TikTok；**MVP 仅 Daraz → 斯里兰卡**）。选品与刊登前必须能快速估算「FOB → 到仓」全成本，并在目标净利率下给出建议售价。现有 `/console/costs` 已有列表与 SKU 详情 mock（采购 / 头程 / Customs / PAL / CESS / VAT / SSCL 列 + 海运方案表），但**缺少可交互计算器、分摊规则、税基说明与版本化配置模型**。主 UED 文档 §5.7 仅给区块级规格，故本文作为**独立专篇**深化成本计算。
 
 ### 1.2 目标
 
@@ -56,7 +56,7 @@ Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shope
 - 不接 tRPC / dataaccess / OpenAPI / MCP（与 MVP 门禁一致）。
 - 不实现官方 Customs 实时查税 API、不爬取 `customs.gov.lk` 作为生产依赖。
 - 不自动报关、不生成正式报关单、不做合规担保。
-- 不覆盖 GPU / 裸金属月度成本（见 `cost-compute-v3-redesign-with-examples.md`）。
+- 不覆盖历史业务月度成本。
 - 不强制引入 Open Mercato AppShell / Sales Tax 模块；Mercato 仅作可选展示层灵感（见 §12）。
 - 不在本文改 `cost_components` 表结构（扩展用 `note` / 后续 jsonb 另案）。
 
@@ -482,11 +482,7 @@ FOB/件
 
 ---
 
-## 附录 A · 与 GPU `cost-compute-v3` 的关系
-
-`apps/web/content/design/cost-compute-v3-redesign-with-examples.md` 描述的是 **GPU / 裸金属账期**（`billing_period_*`、`monthly_cost_*`、供应商机时成本），与跨境 SKU 到仓成本**无关**。工程上两套 pipeline 并存、文档分离；本文**不扩展、不修改** v3。
-
-## 附录 B · 参考链接（外部 · 非正式集成）
+## 附录 A · 参考链接（外部 · 非正式集成）
 
 - Sri Lanka Customs · Import Tariff / Tariff Guide（含 Computation of Import Levies）  
 - 实施时以现行 Gazette 与报关行意见为准；链接仅便于人工查阅。
