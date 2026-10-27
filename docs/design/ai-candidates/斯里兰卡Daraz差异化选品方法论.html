@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="dMyKoviZ4cM0Szjeq2AHfp">
+<head data-page-node-id="avKjU0fMuLfSIjOYzzg0ua">
+<meta charset="UTF-8" data-page-node-id="TpjF0QSawFxogQxieLcFnt">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="umDmtjlz0eN7msSiF1zbCY">
+<title>斯里兰卡Daraz差异化选品方法论 V1.0</title>
+<style>
+  :root {
+    --primary: #1a56db;
+    --primary-light: #dbeafe;
+    --accent: #dc2626;
+    --accent-light: #fee2e2;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+    --text-light: #64748b;
+    --border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #1a56db 0%, #7c3aed 100%);
+    color: white;
+    padding: 48px 0 40px;
+    text-align: center;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .header .subtitle { font-size: 16px; opacity: 0.9; }
+  .header .meta { margin-top: 16px; font-size: 13px; opacity: 0.8; }
+
+  /* Section */
+  section { padding: 36px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2 { font-size: 22px; font-weight: 700; margin-bottom: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  h2 .icon { font-size: 24px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 20px 0 10px; color: var(--primary); }
+  h4 { font-size: 15px; font-weight: 600; margin: 16px 0 8px; }
+  p { margin-bottom: 10px; }
+  ul, ol { margin: 8px 0 12px 20px; }
+  li { margin-bottom: 6px; }
+
+  /* Cards */
+  .card {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+    margin: 16px 0;
+  }
+  .card.highlight { border-left: 4px solid var(--primary); }
+  .card.warning { border-left: 4px solid var(--warning); background: var(--warning-light); }
+  .card.danger { border-left: 4px solid var(--accent); background: var(--accent-light); }
+  .card.success { border-left: 4px solid var(--success); background: var(--success-light); }
+
+  /* Philosophy banner */
+  .philosophy {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin: 20px 0;
+    text-align: center;
+  }
+  .philosophy .big { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+  .philosophy .sub { font-size: 14px; opacity: 0.85; }
+
+  /* Step flow */
+  .step-flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0;
+    justify-content: center;
+  }
+  .step-badge {
+    background: var(--primary);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .step-badge.core { background: var(--accent); }
+  .step-arrow { color: var(--text-light); font-size: 18px; align-self: center; }
+
+  /* Step card */
+  .step-card {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin: 16px 0;
+    border-top: 3px solid var(--primary);
+  }
+  .step-card.core { border-top-color: var(--accent); }
+  .step-card .step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .step-card .step-num {
+    background: var(--primary);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .step-card.core .step-num { background: var(--accent); }
+  .step-card .step-title { font-size: 18px; font-weight: 700; }
+  .step-card .step-goal {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+  .step-card .output-tag {
+    display: inline-block;
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  th {
+    background: #1e293b;
+    color: white;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+  tr:last-child td { border-bottom: none; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .tag-green { background: #dcfce7; color: #166534; }
+  .tag-red { background: #fee2e2; color: #991b1b; }
+  .tag-yellow { background: #fef3c7; color: #92400e; }
+  .tag-blue { background: #dbeafe; color: #1e40af; }
+
+  /* Pain point matrix */
+  .pain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .pain-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    border-left: 3px solid var(--accent);
+  }
+  .pain-item .pain-cat { font-weight: 700; font-size: 14px; color: var(--accent); margin-bottom: 4px; }
+  .pain-item .pain-desc { font-size: 13px; color: var(--text-light); }
+
+  /* Logistics comparison */
+  .logistics-compare {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .logi-card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    border-top: 3px solid var(--text-light);
+  }
+  .logi-card.recommend { border-top-color: var(--success); }
+  .logi-card .logi-name { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+  .logi-card .logi-cost { font-size: 20px; font-weight: 700; color: var(--primary); margin: 8px 0; }
+  .logi-card .logi-detail { font-size: 13px; color: var(--text-light); }
+  .logi-card .logi-best { background: var(--success-light); color: var(--success); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-top: 8px; display: inline-block; }
+
+  /* Formula box */
+  .formula {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-family: "Courier New", monospace;
+    font-size: 14px;
+    overflow-x: auto;
+  }
+  .formula .label { color: #94a3b8; font-size: 12px; margin-bottom: 4px; }
+
+  /* Case study */
+  .case-study {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+    border: 1px solid #bae6fd;
+  }
+
+  /* Decision tree */
+  .decision-tree {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin: 16px 0;
+  }
+  .decision-node {
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 4px 0;
+    font-size: 14px;
+  }
+  .decision-node.q { background: var(--primary-light); font-weight: 600; color: var(--primary); }
+  .decision-node.yes { background: var(--success-light); color: var(--success); margin-left: 20px; }
+  .decision-node.no { background: var(--accent-light); color: var(--accent); margin-left: 20px; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 32px 0;
+    color: var(--text-light);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .logistics-compare { grid-template-columns: 1fr; }
+    .pain-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Highlight text */
+  .hl { background: #fef08a; padding: 1px 4px; border-radius: 3px; font-weight: 600; }
+  .hl-red { color: var(--accent); font-weight: 700; }
+  .hl-green { color: var(--success); font-weight: 700; }
+  .hl-blue { color: var(--primary); font-weight: 700; }
+
+  /* Number circle */
+  .num-circle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    margin-right: 4px;
+  }
+</style>
+</head>
+<body data-page-node-id="7bHeFC8TgTth3EQckUhTxc">
+
+<!-- ===== HEADER ===== -->
+<div class="header" data-page-node-id="0dMmf9pQD9HyT5YOQB4ELL">
+  <div class="container" data-page-node-id="iIXwQulLlH1g1xMX0RfANg">
+    <h1 data-page-node-id="WCLhEEkv57WrQaBdSuGcLI">斯里兰卡 Daraz 差异化选品方法论</h1>
+    <div class="subtitle" data-page-node-id="CFCiG5188sIUCHeDKUT3UE">竞品痛点挖掘 &rarr; 升级款匹配 &rarr; 物流成本优化 &rarr; 全成本利润测算</div>
+    <div class="meta" data-page-node-id="rbGOFhDypgFmdko7WZHu5P">版本 V1.0 | 2026-07-18 | 适用平台: Daraz Sri Lanka</div>
+  </div>
+</div>
+
+<div class="container" data-page-node-id="39JOCoMhssnK2VHlAF7QH7">
+
+<!-- ===== 核心理念 ===== -->
+<section data-page-node-id="8fJMoS6gcBa5CkXuEjQ8aX">
+  <h2 data-page-node-id="6DwlvWn6u0vShSiimOjRYV"><span class="icon" data-page-node-id="mxcq2myW7iAcFrw2DF612c">[1]</span> 核心理念：不卷价格，卷痛点</h2>
+
+  <div class="philosophy" data-page-node-id="M6vl89Mzy106qC4ov2xK7P">
+    <div class="big" data-page-node-id="WE8C2aPJRNzJaTkpfENyqU">用户买的不是便宜，是"解决了我的问题"</div>
+    <div class="sub" data-page-node-id="oSBfQz9wJ0ZKFJHh1MSeRv">斯里兰卡 2200 万人口的小市场，价格战只会两败俱伤。真正的机会在于：找到竞品没解决的痛点，用升级款获取溢价。</div>
+  </div>
+
+  <div class="card highlight" data-page-node-id="mIs0aLHnOGnywDvjBgzFxW">
+    <h4 data-page-node-id="jvTid76ON2jGaf52RC8OAb">为什么这个打法适合斯里兰卡？</h4>
+    <ul data-page-node-id="oQ2wsqr0x2FppZbGUKv79K">
+      <li data-page-node-id="MqlCZL1bNria1ukql5E8YR"><strong data-page-node-id="wIryDDfFwF8OQFooD9a2Pg">市场小，价格战无规模效应</strong>：2200 万人口，一个品类月销可能就几百到几千单，降价换不来足够的增量</li>
+      <li data-page-node-id="wODykGYBrxc3UCKiBUgPGC"><strong data-page-node-id="L2l3x8Q556WHXpAwyIhf7v">消费者愿为"品质感"买单</strong>：当地消费者价格敏感，但只要能感知到明显升级（更好材质、更多功能），愿意支付 10-30% 溢价</li>
+      <li data-page-node-id="Uh99thZyusQByRMI2CbX70"><strong data-page-node-id="kawW4JTBNKmzgHvVkE6EMX">竞品同质化严重</strong>：Daraz SL 大量卖家从 1688 同款铺货，评论中痛点高度集中，升级空间巨大</li>
+      <li data-page-node-id="tCm9g86YHs5Evw8lYALlJF"><strong data-page-node-id="ZquMHDMSjxeIxh8xMvJrxE">评论数据公开且丰富</strong>：Daraz 评论公开可查，英文为主，便于系统化分析</li>
+    </ul>
+  </div>
+
+  <div class="card warning" data-page-node-id="yqH4bs14DZ0TB5cxqhWExy">
+    <h4 data-page-node-id="9u3DIKnbsG4FsIyMMp1dZJ">传统选品 vs 差异化选品</h4>
+    <table data-page-node-id="6jgWdJWs8PmbH2SlTgpcI7">
+      <tr data-page-node-id="BqzBNkAqDhKh3WWSR9jTaC">
+        <th style="width:30%" data-page-node-id="DzxcMwcL5fQYQZW1VoV5FD">维度</th>
+        <th data-page-node-id="1juEAeW3biAG0cdmirjIXg">传统选品（卷价格）</th>
+        <th data-page-node-id="kqyXB4MhVZwMsBZ1dmtHrF">差异化选品（卷痛点）</th>
+      </tr>
+      <tr data-page-node-id="DtQfJgLM7I9Pm9e2KksR6B">
+        <td data-page-node-id="kpOXJwbEYxthQOwHkYHWnU"><strong data-page-node-id="DdBTmFF0wPW0Wz6RXHO1ps">选品逻辑</strong></td>
+        <td data-page-node-id="f5LPi9CovG1lLcrkE0YH9X">找热卖款 &rarr; 找同款更便宜 &rarr; 压价</td>
+        <td data-page-node-id="iyHGLD3D9wh5teQVNZg6LY">找热卖款 &rarr; 分析差评痛点 &rarr; 找升级款</td>
+      </tr>
+      <tr data-page-node-id="kp8JhGYvFqhWyqBDhgUc3P">
+        <td data-page-node-id="XkNlSVzYLfiYs7RDfa7LGn"><strong data-page-node-id="Gi0MD6ohS3rnbYEevRu33I">定价策略</strong></td>
+        <td data-page-node-id="gutQ3QMu9GiSww6YWU6ZrH">比竞品低 5-10%</td>
+        <td data-page-node-id="fCfxQky6EAGONyDOL9wfOC">与竞品持平或高 10-30%，靠卖点支撑</td>
+      </tr>
+      <tr data-page-node-id="7aUjU0UOBjnVgbAUA1ermp">
+        <td data-page-node-id="Xb6L8BrRVVCA9v5OTWSvS3"><strong data-page-node-id="kJw9cWBeaz9RhdewdMa7la">竞争壁垒</strong></td>
+        <td data-page-node-id="z6JIKBfOGMqc9cBCm9vL9y">无（随时被更低价抄）</td>
+        <td data-page-node-id="BX76nkHuvyARe7Q0VoMLBD">升级款有差异化，不易被直接对标</td>
+      </tr>
+      <tr data-page-node-id="ciEzeSRZuTDe2gKdRBJCBI">
+        <td data-page-node-id="FPs9xVId7ePO56d8240RpB"><strong data-page-node-id="Z9YKETYKDpvLZPSZpIIRKW">利润率</strong></td>
+        <td data-page-node-id="TYqQ8DVjsGVKQFPsj2Gox1">5-15%（被价格战压缩）</td>
+        <td data-page-node-id="5AKwCeNTXp9PIAFPcFd4Ua">20-40%（溢价 + 差异化）</td>
+      </tr>
+      <tr data-page-node-id="yoKsHfEUCDCFqbmMip5GV9">
+        <td data-page-node-id="LiGcpZyV5c3usbEdElR5xf"><strong data-page-node-id="pfuaTwXxHxOxgeZ2RgtRih">评论策略</strong></td>
+        <td data-page-node-id="biGXVQnlNAVCyBZEgdkA92">被动等好评</td>
+        <td data-page-node-id="pXCg2q2F1mgIk7xcT0grfY">主动引导买家评论"升级体验"</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== 方法论概览 ===== -->
+<section data-page-node-id="5xLoJB0OqYRilNfffqcpaf">
+  <h2 data-page-node-id="64w8swMiTpaZv4dDihCAhI"><span class="icon" data-page-node-id="7Zjw6MqdXvMFCsIlPfOq8X">[2]</span> 七步选品法总览</h2>
+
+  <p data-page-node-id="HVZOfkniAXxZEpStXRRbEf">以下七步构成一个完整的选品决策闭环，从品类筛选到上架策略，每一步都有明确的输入、操作和输出。</p>
+
+  <div class="step-flow" data-page-node-id="1rgzdqwBbJqR31CL1wmwDV">
+    <span class="step-badge" data-page-node-id="gNHZi8StgFizWCAdiMLYCf"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="DdCkcHtuppGckCKgbI4Iyx">1</span> 品类预筛</span>
+    <span class="step-arrow" data-page-node-id="QslyIQUGCySRFCCfz0bjnc">&rarr;</span>
+    <span class="step-badge" data-page-node-id="8TrZHjrJdkBFTOcUwtFlma"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="vqHMboasANkMuvTayaSTF2">2</span> 竞品全景</span>
+    <span class="step-arrow" data-page-node-id="3eZ2umexjDlom08msKitsJ">&rarr;</span>
+    <span class="step-badge core" data-page-node-id="5vaXIXrHYAXzk55Jc0Mfw2"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="o41kKxt3kDXHWlCZbD7MCl">3</span> 痛点挖掘</span>
+    <span class="step-arrow" data-page-node-id="9lWw5w4WE4ixtad3cg5BH9">&rarr;</span>
+    <span class="step-badge" data-page-node-id="wjhq7Xp1XQHxPpuseUimRl"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="9zZoypMAkbQ6ioZ1tnlJaG">4</span> 升级匹配</span>
+    <span class="step-arrow" data-page-node-id="xHdYNJvKm8XoMn5ErJtDEK">&rarr;</span>
+    <span class="step-badge" data-page-node-id="HSA0gDR26630MdccxcWmCt"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="e2aE9H0KJtClZ5Q3nLKtnh">5</span> 物流决策</span>
+    <span class="step-arrow" data-page-node-id="5xSMMtu097CeXTrgBXOrRf">&rarr;</span>
+    <span class="step-badge" data-page-node-id="k3D5xkdNEi16XcSWALV0Kp"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="Za0oSkekpYCcrIEKm7LIrS">6</span> 利润测算</span>
+    <span class="step-arrow" data-page-node-id="yA82qwGj6YDQ98pFhJEPRx">&rarr;</span>
+    <span class="step-badge" data-page-node-id="R3w1zUncuDwIL1YtydYJQX"><span class="num-circle" style="background:rgba(255,255,255,0.3)" data-page-node-id="NiZVfouKA4vFDbmQQAv7rq">7</span> 风险合规</span>
+  </div>
+
+  <div class="card" data-page-node-id="PPd2IuqqiE6SNaEA1f3Poj">
+    <table data-page-node-id="EUOfovgECscQLgZRkY3jKW">
+      <tr data-page-node-id="MnmCWuPiq2oIf6LYLr2KHR">
+        <th style="width:8%" data-page-node-id="z3cUzMIPbYk0uDeh1b8pFu">步骤</th>
+        <th style="width:20%" data-page-node-id="QjAbCLpr1p9JFTkqDUCHXV">名称</th>
+        <th style="width:40%" data-page-node-id="RRREMo4mSwQ4LrpxG17t68">核心目标</th>
+        <th style="width:32%" data-page-node-id="fvDriH2xDgaAFNovjrTKI1">关键输出</th>
+      </tr>
+      <tr data-page-node-id="JdWYWjxkdk119M4fGJmCCg">
+        <td data-page-node-id="lYNuOz8KRaGrvAugXM13Tn">1</td><td data-page-node-id="XpAqKZcDHX6XaIQ8NfziaY">品类预筛</td><td data-page-node-id="kHg5wHfrlTbw70FySSi5ws">用 HS 关税 + 供需比快速过滤，锁定 3-5 个候选赛道</td><td data-page-node-id="AeRQ3xzmq1bT45sRvS3KcJ">品类候选清单 + 关税速查表</td>
+      </tr>
+      <tr data-page-node-id="s2lMAnfWmSXYkxjpsgI8xD">
+        <td data-page-node-id="b82JJzWCxF2BfGVoXa73RH">2</td><td data-page-node-id="yjUMJZLyekFoCtOpozeuGw">竞品全景扫描</td><td data-page-node-id="3B7Igqgt0tWn02W1sxiR5x">收集 Daraz 前 20 名竞品数据，找价格带和功能空隙</td><td data-page-node-id="XatL6j2PgOVUNhWCYfhDIH">竞品全景表</td>
+      </tr>
+      <tr data-page-node-id="lF2yTSVcwltkr7gz5pa4aE">
+        <td data-page-node-id="ha5SpYY3M6MAhjdByjUp0g">3</td><td data-page-node-id="Xr5kl0TAADarbJE4QgVBJl"><span class="hl-red" data-page-node-id="LyHss5xr6yFnYZQKDNXu6P">评论痛点挖掘</span></td><td data-page-node-id="OueDBr4pVHCpgaKNrrbZiE">逐条分析竞品差评，找到"最痛但最没被满足"的需求</td><td data-page-node-id="Brn35ZWh9X9Ne9vMuw6GZo">痛点优先级排序表</td>
+      </tr>
+      <tr data-page-node-id="NXTYuSaVFnbwz3kCES1z3P">
+        <td data-page-node-id="7uJlaXQYSrOXTvstBWLy9z">4</td><td data-page-node-id="2DkBaijaB8SRnSrzKetEVn">升级款匹配</td><td data-page-node-id="c0hRgFk6O1QLbhcShbq4QY">将痛点映射到产品特征，在 1688 找升级款并验证</td><td data-page-node-id="9YBfeCKuhVqorEeObSFwED">升级款候选 + 成本对比</td>
+      </tr>
+      <tr data-page-node-id="SupA0zGQIc6AvA25pkDjZu">
+        <td data-page-node-id="Y2kgf7xsz7KqGGBcVcAMx0">5</td><td data-page-node-id="36cEtiEeZI5ouVlcDj2USb">物流策略决策</td><td data-page-node-id="s1ZjTl1GG9DQxkOx7H9EDM">FCL vs LCL vs 空运，算盈亏平衡点，选最优方案</td><td data-page-node-id="fpEwMCJ5GybekOt6ctEU4w">物流方案推荐 + 单件成本</td>
+      </tr>
+      <tr data-page-node-id="gb6lrHJhCWjzEBAw1lVQoZ">
+        <td data-page-node-id="5C7cJF2Vuk77FF1IABwrVo">6</td><td data-page-node-id="hUQ0LxkjNLGrmue46sVshM">全成本利润测算</td><td data-page-node-id="nVi7IPNkVwkev9C6GCIpDK">采购+物流+关税+佣金+仓储+营销，算净利润率</td><td data-page-node-id="ipCoNQlFkKqwmWzJm7rP0d">利润测算表 + 定价建议</td>
+      </tr>
+      <tr data-page-node-id="CLa5JQLk9riuirBSdyeFaG">
+        <td data-page-node-id="77VIQPpJpNtGWgxjvRHNw5">7</td><td data-page-node-id="gACUjb0TFqDBHiQZ7i1i82">风险与合规</td><td data-page-node-id="sMjJjhpZuiYQjIdOhnjC63">排查 SLSI/TRCSL 认证、IP 侵权、禁运品</td><td data-page-node-id="7TuvqiRinH1U1Zv9ddM0V3">合规结论 + 整改建议</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== STEP 1 ===== -->
+<section data-page-node-id="MbXXuIqm4aaD0agUxdkKei">
+  <h2 data-page-node-id="0nKd9jYiVWCA0NYa24vZk2"><span class="icon" data-page-node-id="Db2KYfmEhG1xIznTWRBQkU">[3]</span> 第一步：品类预筛</h2>
+
+  <div class="step-card" data-page-node-id="AbfK49oeMEYj2UD78sGTeY">
+    <div class="step-header" data-page-node-id="sCmQuG1lgCHpXraCFEu3hB">
+      <div class="step-num" data-page-node-id="ChoNxo4u5dH4XFzRy1DeaE">1</div>
+      <div class="step-title" data-page-node-id="fcyHaDCQXusEopI979utpB">品类预筛 (Category Pre-Screen)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="4aSwz6RJeYMG4TPNk0Gytm">目标：用 4 个维度快速过滤，避免在高关税/高合规门槛品类上浪费时间</div>
+
+    <h3 data-page-node-id="dK8lAmVRNriOTHNeZAP1CA">筛选维度一：HS 关税税率（一票否决）</h3>
+    <p data-page-node-id="Q1Dh4iPnl55qIuyOmEOyWt">斯里兰卡进口关税采用 <strong data-page-node-id="GVCCeQKFYfWwxWgvLwidqv">CIF 到岸价</strong> 作为计税基数，综合税率 = CID + PAL + CESS + SSCL + VAT 逐层叠加。先查 HS 编码，算综合税率，再决定是否继续。</p>
+
+    <table data-page-node-id="vaND9peMATFTXrFk0cMa1q">
+      <tr data-page-node-id="3haooRsYaX01qNZzORxgpe">
+        <th data-page-node-id="CJDgjwoqpHxfGZWdnWuQrU">综合税率</th>
+        <th data-page-node-id="JgjoBTODcCuP6sIdEBNGI7">可行性判断</th>
+        <th data-page-node-id="KcWAmilHF4c0RkvlvvnGMP">策略</th>
+        <th data-page-node-id="P7GaXjYTHiO5BLM1epXqQ8">代表品类</th>
+      </tr>
+      <tr data-page-node-id="K4t4WzYm5W1osJ8URnhyjA">
+        <td data-page-node-id="F9Anxneu2EsIKEsRyBooJy"><span class="tag tag-green" data-page-node-id="S0E2gWa6fOwE5cJYHegIEE">0%</span></td>
+        <td class="hl-green" data-page-node-id="YRPRWDnlZxgWWD7rv8ucNH">极佳</td>
+        <td data-page-node-id="A0nirY9mBnusCT4z2Xnil1">首选，FCL 整柜成本碾压</td>
+        <td data-page-node-id="OHwcv73ZuJdrmJVhFnZJ6u">路由器/4G CPE (8517.62)、搅拌机 (8509.40)、宝石检测仪 (9031/9027)</td>
+      </tr>
+      <tr data-page-node-id="iMPZC5igAhVrAjNORRL0PG">
+        <td data-page-node-id="rMVIDbBFEdctdhoL5PrF4Q"><span class="tag tag-green" data-page-node-id="trcvAffMAexO3hrr111PrT">~21-28%</span></td>
+        <td class="hl-green" data-page-node-id="aBmSikDIyztpkRCkuoyV8k">可行</td>
+        <td data-page-node-id="pkkiVPGVVtB99sDUwRdB23">DDP 物流规避关税，或 FCL + 适当溢价</td>
+        <td data-page-node-id="Du26grcwYWKdazLpGpdVuw">夜视摄像头 (8525.83)、灭蚊器 (8543.70)、即拍即打相机 (9006.40)</td>
+      </tr>
+      <tr data-page-node-id="OSkiA7AJQKeYXkTSrb7frE">
+        <td data-page-node-id="cU6fsY9KPAHLyDXi45GwSD"><span class="tag tag-yellow" data-page-node-id="r7IpnwRneO2KiOb9wbCNUb">~30-50%</span></td>
+        <td data-page-node-id="kpofahmopSGaElq83WFzOq">需评估</td>
+        <td data-page-node-id="FeBAFR1PAVZ9X96xFXJjyq">必须用 DDP 物流（拼柜/空运小包）规避关税</td>
+        <td data-page-node-id="AKPyuzxDVGVNqHRv5anHiq">电动牙刷 (8509.80)、运动鞋 (6404.11)</td>
+      </tr>
+      <tr data-page-node-id="KD285V2XN77yStKY4HZH4X">
+        <td data-page-node-id="jnFj5EJimAaNNKJNNLEN0F"><span class="tag tag-red" data-page-node-id="tLNtgdkJyXBAwDvE5io6NG">>50%</span></td>
+        <td class="hl-red" data-page-node-id="qbArYDJXZpIp1JImBXAVWf">避雷</td>
+        <td data-page-node-id="4TbTrletv8HAUCGDUUNOSg">除非 DDP 且客单价极高，否则放弃</td>
+        <td data-page-node-id="q0L4yh401o4ZMTEzQGSVGU">电水壶 (8516.79, ~59%)、空气炸锅 (8516.60, ~65%)、塑料碗 (3924.90, ~87%)</td>
+      </tr>
+    </table>
+
+    <h3 data-page-node-id="1KchZiHKvT9kkM2lbo0p7m">筛选维度二：供需比（搜索量 / SKU 数）</h3>
+    <p data-page-node-id="O932FuZ5lfvMqssPurSpO3">在 Daraz SL 搜索目标品类关键词，记录：</p>
+    <ul data-page-node-id="irlEkuwCkIII1kVgjgVHR2">
+      <li data-page-node-id="WYZpv9gYVFC5GZDnSKKfLA"><strong data-page-node-id="eff6xydWyH5uPIHyL4LfQy">搜索结果数</strong>：代表在售 SKU 供给量</li>
+      <li data-page-node-id="n3mcm7lH7MDnZVfKiL40xD"><strong data-page-node-id="uaVBk6HwXNjGSCRIzKZFNO">前 3 名评论数</strong>：代表市场需求热度</li>
+      <li data-page-node-id="506NJSVVcUWabzhrCGm0kH"><strong data-page-node-id="nHnDGYnuq8YnRQy9ZKW3FF">供需比</strong> = 前 3 名平均评论数 / 搜索结果数</li>
+    </ul>
+    <div class="card highlight" data-page-node-id="Ro87ghj0OdyOiD9aWxlYV5">
+      <table data-page-node-id="LGbCakPkzDMa7nGTA6aash">
+        <tr data-page-node-id="9utkUnuPDYQ5CgSW6miDWE"><th data-page-node-id="M8MDHCxmbnE8MICXLKtkZC">供需比</th><th data-page-node-id="3s7xhYEf02Lz4EGGdVveRC">判断</th><th data-page-node-id="SGk54WbdW3WEnMPnEBljVV">含义</th></tr>
+        <tr data-page-node-id="UEA4caIQtXlQDOkzFi5C4k"><td data-page-node-id="CjCGUChBJWCT2A8m9UmR3P">> 2.0</td><td class="hl-green" data-page-node-id="KA7buE4xyUWtZVEzCpwA5t">蓝海</td><td data-page-node-id="Slo1CMNCWBo7d7YneDkVSs">需求大、供给少，优先进入</td></tr>
+        <tr data-page-node-id="opMLHia13HlyfnjHfciyVd"><td data-page-node-id="CTdhIlL67JfcCmePR7EEYq">0.5 - 2.0</td><td class="hl-blue" data-page-node-id="IjpmrlW8zcUrVHoc963BFj">可做</td><td data-page-node-id="cw97gfju0QY8US9Gg8QDHY">有竞争但还有空间，靠差异化切入</td></tr>
+        <tr data-page-node-id="yM5yLJqePEYyN5VH8hy5EE"><td data-page-node-id="y4JiQaE9Uqf7cJy2F03Hf9">< 0.5</td><td class="hl-red" data-page-node-id="8GKIeHXaLccgepgVkvZ4O8">红海</td><td data-page-node-id="bHFmeVqC3ryik5sGG7Q0rq">供给过剩，除非有碾压性升级，否则放弃</td></tr>
+      </table>
+    </div>
+
+    <h3 data-page-node-id="B7TfjAfkBHYxEBBYL5WKCc">筛选维度三：季节性时机</h3>
+    <table data-page-node-id="q1SgbAd8ZalZ9GG1ji5aNT">
+      <tr data-page-node-id="wHpzhrzRKOmuU7NfXMN7nV"><th data-page-node-id="qzdJ5DGbG9Yaazlrkv6sYE">月份</th><th data-page-node-id="83pEIIY1PMhLAgV0iV5Pwe">节日/事件</th><th data-page-node-id="mTV28EP6FG4wzXjdLnBS2e">热销品类</th><th data-page-node-id="ZSzH3BckDhGqdPvtHYSkFF">上架提前量</th></tr>
+      <tr data-page-node-id="aIdGZo3ACdM7dlKSCDyl2M"><td data-page-node-id="AQuKBPwyVnzPpJsyhAJiOB">4月</td><td data-page-node-id="MJxLFnfEAJv3uYhT4wJ9Pe">僧伽罗新年</td><td data-page-node-id="SEDUvTDxPDvUQW9ClakfZn">礼品、服饰、厨房用品</td><td data-page-node-id="X1bjaFq8Ut3MAWBHRfFPdL">2月备货</td></tr>
+      <tr data-page-node-id="hMot3nOioBM1qch0a3Notj"><td data-page-node-id="QpwEqZ11luLVQxXSS7GVsP">10-11月</td><td data-page-node-id="o3UwMiH7MozKAQcC5gwf0s">迪瓦利节</td><td data-page-node-id="TWif2pxDU6Yt6QqgLOsV1Q">灯具、装饰、服饰、电子礼品</td><td data-page-node-id="W1jWqRPNvlUuasUdUo5T4u">8月备货</td></tr>
+      <tr data-page-node-id="78dJIdPjqZENaIwSfZYr4x"><td data-page-node-id="MUF5PyebQHBXDD8ytfoSRk">12月</td><td data-page-node-id="FsK9NM26jvzsdKSx5sO9ni">圣诞节</td><td data-page-node-id="QFCogDCvZjHneoPZzuoncw">礼品、装饰、玩具、电子产品</td><td data-page-node-id="TZzA4DM4UWIFGYSqJWCjN8">10月备货</td></tr>
+      <tr data-page-node-id="0rtYiUHiL91JzojclKIqh8"><td data-page-node-id="9o0BQo9mWDXtRGVwEJE8uA">浮动</td><td data-page-node-id="ShgpQliEeowlAYgPnprs4f">斋月/开斋节</td><td data-page-node-id="fUYUe9YlRf0RfwjD02YiYX">Islamic 服饰、食品器具、礼品</td><td data-page-node-id="r9bKdyeEksxuNYTDNKa8cr">提前1.5月</td></tr>
+    </table>
+
+    <h3 data-page-node-id="rdgX5CuuxHXRvs9crF3A8u">筛选维度四：物流可行性</h3>
+    <ul data-page-node-id="H96mbBXsDSzkRDL0pugWC5">
+      <li data-page-node-id="3lnd506LW6zQmtcB3dWQcb"><strong data-page-node-id="hMRDAaeyE1OVHXNZZhgz91">单件重量 &lt; 200g</strong>：航空小包 DDP 最优（107 CNY/kg），试错成本极低</li>
+      <li data-page-node-id="CXSDgmjKDOAEgFQP3l8M0K"><strong data-page-node-id="4oEoqVUZtNpYsWUZUKMBy8">单件重量 200g-2kg</strong>：拼柜 LCL 或航空小包均可，看客单价</li>
+      <li data-page-node-id="cb7RprHQwOGWmovwaYTfMD"><strong data-page-node-id="z5eucdZlH4v4ekQXHOa5CJ">单件重量 > 2kg</strong>：必须走海运（FCL 或 LCL），空运不经济</li>
+      <li data-page-node-id="b3XnyRiWzarPlFDtwNwZj1"><strong data-page-node-id="F545aLvCA3C9hCoJkHkUzs">超大件/超重</strong>：放弃（斯里兰卡末端配送成本高）</li>
+    </ul>
+
+    <div class="output-tag" data-page-node-id="m8UMh9E7JTgtZmXJLsneMA">输出：品类候选清单（3-5 个）+ 每个 HS 关税 + 供需比 + 物流方案初判</div>
+  </div>
+</section>
+
+<!-- ===== STEP 2 ===== -->
+<section data-page-node-id="IlGZX29LHFPGVYKj4JkeW1">
+  <h2 data-page-node-id="HOdGfMWJpr0NFzwtR6tX4e"><span class="icon" data-page-node-id="WSyPOR7XA8xeCjID7sRAjS">[4]</span> 第二步：竞品全景扫描</h2>
+
+  <div class="step-card" data-page-node-id="btfFQb1WC6JkPOqlR6iOyF">
+    <div class="step-header" data-page-node-id="gtli8ttjqSqac7sq8cry64">
+      <div class="step-num" data-page-node-id="4nN9I6Esdp8Wg4PwB2cAOe">2</div>
+      <div class="step-title" data-page-node-id="eMsBDSIfd2PtgccPh5fYQ9">竞品全景扫描 (Competitor Landscape)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="jtY5516TdJIsXKroO5haJv">目标：了解市场格局，找到价格带空隙和功能空隙，为痛点挖掘做准备</div>
+
+    <h3 data-page-node-id="MxK9NcyjVCTFbgnt8RBCyH">操作步骤</h3>
+    <ol data-page-node-id="1hVbAxBTzhKk0vGU1rKN2s">
+      <li data-page-node-id="HKuECFHPyVzysTNajgJcJw">在 Daraz SL 搜索目标品类核心关键词（英文 + 当地拼写变体）</li>
+      <li data-page-node-id="R0m8F8Aw9ocIXnOUw0EgPW">按销量排序，收集前 <strong data-page-node-id="Z0ikayEGGG0NqBIcgt61PE">20 名</strong> 竞品</li>
+      <li data-page-node-id="hQVcBZDFCoPRM8paerlgtH">逐个记录以下数据到「竞品全景表」：</li>
+    </ol>
+
+    <table data-page-node-id="A71Cuzr93gCwMGEeGLhEti">
+      <tr data-page-node-id="0nfIoML3L4t340uhwfWrqt">
+        <th data-page-node-id="6J0iqZ84RvlyCzIj94ZolH">字段</th><th data-page-node-id="TvR8jJDZzyvck4uobA2LyD">说明</th><th data-page-node-id="ME88L7tUuhIrDMzMrAdvMu">用途</th>
+      </tr>
+      <tr data-page-node-id="EeqJar5XTaG7DifQgJrfz6"><td data-page-node-id="wIKt9Fg4goSrW1lHRd3tIk">排名</td><td data-page-node-id="Dq1nog4C8Q2M9taq9BnaqH">Daraz 搜索结果排名</td><td data-page-node-id="Eg9CcMpth22swr4bA48M4S">竞争位置参考</td></tr>
+      <tr data-page-node-id="prQyffLAcbrwVj1YDNBsXX"><td data-page-node-id="Fmkej6TiIzOotCxspbtABu">产品标题</td><td data-page-node-id="hXcF6z9l15dJBVKEtKcXe7">完整标题</td><td data-page-node-id="lOWBeawQiaIQUlhtDltLhW">关键词分析</td></tr>
+      <tr data-page-node-id="xALd8jDz7R1AgyfVZAGYRk"><td data-page-node-id="GL99eDkJ6oBeGMAVhVprpR">售价 (LKR)</td><td data-page-node-id="i52qBhCSCngRVoRHk9y939">打折后实际售价</td><td data-page-node-id="dhJiHEFdFvxPA7TQCbVdKD">价格带分析</td></tr>
+      <tr data-page-node-id="NnrCZaVdrwYcw5LIMlPj4H"><td data-page-node-id="ipx1HFfAU5HFgvDeIR25cA">原价 (LKR)</td><td data-page-node-id="gcp8aCbWNJwkQbW4Qwuktb">划线价</td><td data-page-node-id="DREPymcT6LwOsrZzeMHsTP">折扣力度参考</td></tr>
+      <tr data-page-node-id="Rw75tViUIvl5VDG1ZJ41OG"><td data-page-node-id="CgINrw3t1EjfHGDuXs6dXK">评分</td><td data-page-node-id="Mn8wFcguNZvhjW4kTxcXRq">1-5 星</td><td data-page-node-id="S8CTST7UmELvWZVaSyD5Zj">满意度参考</td></tr>
+      <tr data-page-node-id="otbJVomb5OF3M4hZ55G0g0"><td data-page-node-id="6MqIz1fKkkxFtLNtC9CaDU">评论数</td><td data-page-node-id="bbADrLTmoOLanVjvjaoSJd">总评论数</td><td data-page-node-id="3eKLlbGZy9VGVDRIDFQqq9">销量估算参考</td></tr>
+      <tr data-page-node-id="2HsEEEj49IkXm0XnZFSoFB"><td data-page-node-id="75d41baQ8qsfNu436ng9BJ">卖家类型</td><td data-page-node-id="oasVmhFAFfKITydLO6S5QH">海外卖家/本地卖家</td><td data-page-node-id="TspfcgkGNn8BynNztkkH4Z">竞争策略参考</td></tr>
+      <tr data-page-node-id="AvAtAs5clkdWcHQuO9fdlH"><td data-page-node-id="BbAIlE2AFGV0wsKXIgjojo">主图风格</td><td data-page-node-id="1wx6zg9CvNaD82qlJcUkuM">实拍/渲染/白底/场景</td><td data-page-node-id="Qgg1WdVN2Zl0cczprITzMf">图片优化参考</td></tr>
+      <tr data-page-node-id="YKYRNKIoYsX7abgwacl5Xf"><td data-page-node-id="s6kfEQmTavoDQ9L4GJLdCY">核心卖点</td><td data-page-node-id="OOpjaZEyAPMxNSg58b281D">从标题和详情页提炼</td><td data-page-node-id="0QGuHntco6YswX94JRcOwu">功能空隙分析</td></tr>
+      <tr data-page-node-id="FmIEYeAOGbpWIJ6AjjHKEg"><td data-page-node-id="XJ7sI5n4ClGfeWVk19drSr">发货地</td><td data-page-node-id="9n5UsqUZA5yTGzzDRSD4PB">中国/本地</td><td data-page-node-id="OOzJWzv4DfTqt9qGwpZVZK">物流时效参考</td></tr>
+    </table>
+
+    <h3 data-page-node-id="Cn6XFQ0dIwwIMcN2noypob">分析维度</h3>
+    <div class="pain-grid" data-page-node-id="HYttUTAzROHCvTkcMq61Hb">
+      <div class="pain-item" style="border-left-color: var(--primary)" data-page-node-id="PuynrcjP40zaMsUd2wqoo6">
+        <div class="pain-cat" style="color: var(--primary)" data-page-node-id="IWLgVEPjYTKalyFUQRz7Tz">价格带分析</div>
+        <div class="pain-desc" data-page-node-id="QCBSrM4xlcTrIjmSMeCmWS">将 20 个竞品按价格排序，看价格分布。如果集中在某个区间，说明上下区间可能有市场空隙。重点看：是否有"无人占领的中间价格带"？</div>
+      </div>
+      <div class="pain-item" style="border-left-color: var(--success)" data-page-node-id="YUy3chH5dQfYW2i9ADZyqI">
+        <div class="pain-cat" style="color: var(--success)" data-page-node-id="Vk2CmrOEYglk30r7Cm2KbA">功能分布分析</div>
+        <div class="pain-desc" data-page-node-id="CGHIG4XqI28IJDEHLwSndd">列出所有竞品的核心功能卖点，看哪些功能是"标配"（都有），哪些是"差异"（少数有），哪些是"空白"（都没有但有评论提到需求）。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: var(--warning)" data-page-node-id="d09mnoQHLxjBUQLmMQpgmH">
+        <div class="pain-cat" style="color: var(--warning)" data-page-node-id="tH6kbUSmgoaE2GBs3m7si7">评分分布分析</div>
+        <div class="pain-desc" data-page-node-id="xh9QkhGZxZcpT8d0abSmrG">如果大量竞品评分在 3.5-4.0，说明用户普遍不满意，升级空间大。如果都在 4.5+，说明产品已经成熟，差异化难度大。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: var(--accent)" data-page-node-id="ONrMkgMCtjQAg0WpUhPL4w">
+        <div class="pain-cat" style="color: var(--accent)" data-page-node-id="mHaONwRg7XrfOLoiAixWKE">卖家结构分析</div>
+        <div class="pain-desc" data-page-node-id="iFfiJNA0CrdpbE7HRCOToq">如果 90% 是海外中国卖家，说明同质化严重，升级款有差异化空间。如果本地卖家多，注意他们有物流时效优势。</div>
+      </div>
+    </div>
+
+    <div class="output-tag" data-page-node-id="cWNMkTwvxd9gFWDD2DbmPp">输出：竞品全景表（Excel）+ 价格带/功能/评分分布图 + 市场空隙判断</div>
+  </div>
+</section>
+
+<!-- ===== STEP 3: CORE ===== -->
+<section data-page-node-id="tRfwy2ZLBLR9So2D5ulNyQ">
+  <h2 data-page-node-id="egweGhTTQVEGr6FaeQdiO5"><span class="icon" data-page-node-id="G5ypurMKaX8dIeFNRd3zRs">[5]</span> 第三步：评论痛点挖掘 <span class="tag tag-red" data-page-node-id="BD5cyNqN79gs31dldegBsA">核心</span></h2>
+
+  <div class="step-card core" data-page-node-id="AgeKyvLCAiXwTRanOFXn0g">
+    <div class="step-header" data-page-node-id="eSyQGl1rFvtWQhNcf0BGpG">
+      <div class="step-num" data-page-node-id="hrkkBqKJ7DliERiFVYjkWq">3</div>
+      <div class="step-title" data-page-node-id="U5IU4oSeR3FOCaQ7bavfHk">评论痛点挖掘 (Review Pain Point Mining)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="jDPUUEr9LXVQtmP8vaUFAp">目标：找到用户最在意但竞品最没满足的需求——这就是升级款的切入点</div>
+
+    <div class="card danger" data-page-node-id="UpAjFNv7ZZdrsPyOtPGqto">
+      <strong data-page-node-id="HVIoJX9yLnzM1zLliaa9yN">这是整套方法论的核心。</strong> 如果你只做一步，就做这一步。所有后续步骤（升级匹配、定价、文案）都基于这里的痛点分析结果。
+    </div>
+
+    <h3 data-page-node-id="mNKFVWE7MGhrYYM3GZRPJh">3.1 评论采集</h3>
+    <ol data-page-node-id="atMtlKBfKGnOz3dyQdsUVc">
+      <li data-page-node-id="FOROEYvy3IewuCJNUQyDUC">打开前 20 名竞品中评论数 Top 10 的产品页面</li>
+      <li data-page-node-id="4qpuG80tCnqFfGJ9Kr0m7B">收集<strong data-page-node-id="rKIiHO5E8xFGxqvAwhI9kC">全部评论</strong>（包括好评、中评、差评）</li>
+      <li data-page-node-id="3RxVybYlbBRIm3gfepl5td">重点关注 <strong data-page-node-id="12PGYAAKLarAqGnGhVlUYD">1-3 星差评</strong>（痛点最集中）和 <strong data-page-node-id="WCdIGdSbH9s1hu8oAVZm2F">4 星中评</strong>（有改进建议）</li>
+      <li data-page-node-id="NQ3zCrDAemfakEjMiGN4oE">记录：评论内容、评分、日期、是否有图片/视频</li>
+      <li data-page-node-id="HIxhZqKCFrdxGRVfUs68a0">如果竞品评论数少（<10 条），参考 Amazon/Flipkart 同类产品评论补充</li>
+    </ol>
+
+    <div class="card warning" data-page-node-id="zTer8iV4fx9QrMAkrYynbp">
+      <h4 data-page-node-id="ZlKpeDFTlnyp97bKhdpmJi">评论数量参考</h4>
+      <ul data-page-node-id="RFnKKFfGZ6WGeWEyGpEEqA">
+        <li data-page-node-id="XmKyHufpTa1GcgytSEVTuo">单个竞品 &gt; 50 条评论：直接分析该竞品</li>
+        <li data-page-node-id="uuYSjvDHXEs4MYfEjutuC3">单个竞品 &lt; 20 条评论：收集 5-10 个竞品合并分析</li>
+        <li data-page-node-id="I5qmqGxsSZn4XTSderDIVO">Daraz 评论太少：去 Amazon India / Flipkart 搜同款，用印度市场评论补充（消费习惯接近）</li>
+      </ul>
+    </div>
+
+    <h3 data-page-node-id="ti5CuZc63VXC50fzvzE3LL">3.2 痛点分类体系</h3>
+    <p data-page-node-id="Gut4Mek7WHWRu5SN7rhvNJ">将每条评论标注痛点类别。以下是标准化分类体系：</p>
+
+    <div class="pain-grid" data-page-node-id="Cz32gh8sQWOYesLtos8WkH">
+      <div class="pain-item" data-page-node-id="DE9m5wtTanxJPXubj2egIp">
+        <div class="pain-cat" data-page-node-id="2p8nFgHQt8miduzWqr7MgR">质量耐久类</div>
+        <div class="pain-desc" data-page-node-id="YYpB01ykFqVzkGddiaUOBo">用了一周就坏了 / 材质很薄 / 接触不良 / 充电口松动 / 外壳开裂</div>
+      </div>
+      <div class="pain-item" data-page-node-id="qBll0C40GGQeXvH3FydnYv">
+        <div class="pain-cat" data-page-node-id="1t106hYXAPjSNQx3TsAJs3">功能缺失类</div>
+        <div class="pain-desc" data-page-node-id="YSPBZk7Zou7SDgovD8uz3Z">没有定时功能 / 不支持快充 / 没有 LED 指示灯 / 没有语音提示 / 不防水</div>
+      </div>
+      <div class="pain-item" data-page-node-id="VqzDOw9Vd4dkphZyDGm8Sj">
+        <div class="pain-cat" data-page-node-id="2lUBGgiBCoV1h29GeGAm44">性能不足类</div>
+        <div class="pain-desc" data-page-node-id="H2elVyDUggpnxj8XZe4kHc">充电太慢 / 声音太小 / 续航太短 / 信号弱 / 降温效果差 / 转速不够</div>
+      </div>
+      <div class="pain-item" data-page-node-id="U10lgN8x2Aqkae0kJoqbD0">
+        <div class="pain-cat" data-page-node-id="3DwEhHGonaJZ1G9PMEDzDG">设计体验类</div>
+        <div class="pain-desc" data-page-node-id="SmBXMeFrxQQNJ96bgnlxqo">按钮太小看不清 / 握着不舒服 / 太重 / 线太短 / 接口位置不合理</div>
+      </div>
+      <div class="pain-item" data-page-node-id="9zWPFZGjGUTMLxSqCjweDE">
+        <div class="pain-cat" data-page-node-id="i1gqQLRBgHSGUuEVR2nnXl">尺寸适配类</div>
+        <div class="pain-desc" data-page-node-id="63Vqc7y0uZFQREWtdpH5c0">太大放不进 / 太小不够用 / 不兼容本地插头 / 尺码偏大偏小</div>
+      </div>
+      <div class="pain-item" data-page-node-id="CwIHdRKMqo8ciizU923c6p">
+        <div class="pain-cat" data-page-node-id="ef0qDdKaqonifR16MlChrN">外观审美类</div>
+        <div class="pain-desc" data-page-node-id="NjfDhFDYJFKk8oHjuSLKqU">颜色和图片不一样 / 质感廉价 / 设计老气 / 没有颜色可选</div>
+      </div>
+      <div class="pain-item" data-page-node-id="bkezdhe5lmKxaYq8t55dxs">
+        <div class="pain-cat" data-page-node-id="nYhjxUYSx610FyOd5oBQaB">包装售后类</div>
+        <div class="pain-desc" data-page-node-id="m4FRt5erZWwr5pV1lmrOJ7">收到就坏了 / 没有说明书 / 配件缺失 / 找不到客服 / 不给退换</div>
+      </div>
+      <div class="pain-item" data-page-node-id="8vHPHkx8DDYNHfR232UHPu">
+        <div class="pain-cat" data-page-node-id="yxGv5RNWE084i9Y8NHxP1d">物流时效类</div>
+        <div class="pain-desc" data-page-node-id="DE1QRg92oogtnp50VzEqx2">等了一个月 / 物流信息不更新 / 配送态度差 / 送到别的地方了</div>
+      </div>
+      <div class="pain-item" data-page-node-id="AFpkk5VZpPpwScUXQgF10d">
+        <div class="pain-cat" data-page-node-id="TIQc6PqVZJd7Jyw3FEHKgb">兼容性问题</div>
+        <div class="pain-desc" data-page-node-id="yzJcAndNKjXSKhqrf5GKYQ">不支持我的手机 / SIM 卡插不进 / 不兼容本地网络频段 / 蓝牙连不上</div>
+      </div>
+    </div>
+
+    <h3 data-page-node-id="rQNVXzLL8QfI4quccB5pHm">3.3 痛点评分模型</h3>
+    <p data-page-node-id="1BGYpuplp4Fw91eIk3tMfa">对每个识别出的痛点，计算 <strong data-page-node-id="RqZjfFJ04pjgkowOfKF6eF">痛点优先级分数 (Pain Priority Score, PPS)</strong>：</p>
+
+    <div class="formula" data-page-node-id="qvvg2pbze0hcbKB7nmnGBi">
+      <div class="label" data-page-node-id="9xZR8fFqg72sEGUbbbJLDC">痛点优先级分数公式</div>
+      PPS = 频率得分 (1-5) x 严重度得分 (1-5) x 可解决度 (0.5-1.5)
+    </div>
+
+    <table data-page-node-id="2XFsvBFQnEbARB1xSpCBfn">
+      <tr data-page-node-id="ZUE2wNhRz81qKgXjVOqTaw">
+        <th data-page-node-id="JB3fUtpuf7R5fAYmNjaBCD">维度</th><th data-page-node-id="cpG2Vmknz9OvViTIvvVkG1">定义</th><th data-page-node-id="7jFC5a4cvoFQZHtHlwGdPL">1分</th><th data-page-node-id="T6Bbb2pr8EDjd51gGkixgA">3分</th><th data-page-node-id="aeTd4XXI1w5ISmiZHtTchN">5分</th>
+      </tr>
+      <tr data-page-node-id="U3WqHyGA86vaEqDR0i0Uz8">
+        <td data-page-node-id="BFnxfHx3wDpVWzWAXxFjPx"><strong data-page-node-id="F4UjKQ8cf1kTGn4Io4uisg">频率</strong></td><td data-page-node-id="9CKsmure7KEsyGSleEL62B">该痛点在所有评论中出现的频率</td><td data-page-node-id="AU6yVqJffIIViieKZuvKYy">出现1-2次</td><td data-page-node-id="JZKmNODI91npCgZ6yKpDHi">出现5-10次</td><td data-page-node-id="uFqBrihUsKIIrZ86PIgkdE">出现>15次</td>
+      </tr>
+      <tr data-page-node-id="ecgPNc6fRp1gn5Mz6z6u7z">
+        <td data-page-node-id="FFUv0AwtXmcKuLykilx7cz"><strong data-page-node-id="2DOEzfj4ty3SFR2RaxIyVC">严重度</strong></td><td data-page-node-id="m1H7KGkLAhYaCfteWlsPcW">该痛点对用户体验的破坏程度</td><td data-page-node-id="9WBKBUijRyQb7aWVj7S2Mt">轻微不便</td><td data-page-node-id="VY71xzBfc9ZvSckZ4A0qcJ">明显影响使用</td><td data-page-node-id="exSoGcEVTGVm2XDN09AtGx">完全无法使用/安全问题</td>
+      </tr>
+      <tr data-page-node-id="lAkyOmRjeCyqpyNsyYUDSq">
+        <td data-page-node-id="ZWdeVXbe7MgwCxzr4P0GMS"><strong data-page-node-id="JkBA5kVcauAYW2ug3YLFEp">可解决度</strong></td><td data-page-node-id="kcB7p4Au85nFDrra3IA0CE">通过升级款解决的成本和难度</td><td data-page-node-id="Uayw89mSHx12BY2MPGz9zi">0.5: 成本高/难度大</td><td data-page-node-id="SYupDk1tzZ3ymrfqfDIBCH">1.0: 中等</td><td data-page-node-id="JCGuaoEFMI349RHwCJtdQZ">1.5: 成本低/易实现</td>
+      </tr>
+    </table>
+
+    <div class="card success" data-page-node-id="AH3dA68Ye8GYLcmnjDpVVC">
+      <h4 data-page-node-id="ZYhTk2zcaceAnC0Ei12NSP">PPS 分级与行动建议</h4>
+      <table data-page-node-id="r6w1OBvei4Y3JxEjww6AJW">
+        <tr data-page-node-id="oH9Oel8qHXvtaU2xHysXxS"><th data-page-node-id="e5hkoJ33gsQ1zFIxNh0bEI">PPS 范围</th><th data-page-node-id="wzGiikgPKudfXq2bBGUR85">等级</th><th data-page-node-id="rPDYoFujEJu5tfNu2xho8r">行动</th></tr>
+        <tr data-page-node-id="P0THbXqpDgIQMLg4Ayr8Co"><td data-page-node-id="FucHF1m0b0J7wX4I5t93e5">> 20</td><td class="hl-red" data-page-node-id="3jPaAlQmFkLgw84NrCBAZV">S 级（必须解决）</td><td data-page-node-id="O7NspL5pXfo4RvDLcHvMTV">升级款必须解决这个痛点，作为核心卖点</td></tr>
+        <tr data-page-node-id="IhPvRxGUG5QrWe9MxL1Yfy"><td data-page-node-id="YcRy8QM9ZlAioSAu3i6Kmo">10-20</td><td class="hl-blue" data-page-node-id="7GVDmtENqdAukES6YsF9bx">A 级（优先解决）</td><td data-page-node-id="iEskKC0Rz0FlLtXQMMGu9L">升级款尽量解决，作为次要卖点</td></tr>
+        <tr data-page-node-id="wiODpblYV02WAxl8q0OZst"><td data-page-node-id="08tStfRlWz8JlUZ5c5P6Do">5-10</td><td data-page-node-id="iVxHtGaHaWBxMDVyXj1iVz">B 级（锦上添花）</td><td data-page-node-id="zEarBXfdmydYf6A5egaIhs">成本允许就解决，不加也可以</td></tr>
+        <tr data-page-node-id="N4YniZLBKKoQWtStfj3nYC"><td data-page-node-id="6Ip3nBHrZB6WrhiOBkcSl9">< 5</td><td data-page-node-id="POWm3s7HSkYEjNENFLAC88">C 级（忽略）</td><td data-page-node-id="x5I5ETswCsFvawC4TCcpGU">不值得为它增加成本</td></tr>
+      </table>
+    </div>
+
+    <h3 data-page-node-id="O9QnsTMyLC5aZ5U1zTXBBm">3.4 痛点分析实操流程</h3>
+    <ol data-page-node-id="WSnbpBFWBuPimB43XcG33y">
+      <li data-page-node-id="UYUWLzlsepRbV43OJByplG">将所有评论复制到 Excel「评论痛点分析表」</li>
+      <li data-page-node-id="8zhFHo4PwQ1Gdom59gIV89">逐条标注：情感（正/负/中）、痛点类别、痛点描述</li>
+      <li data-page-node-id="eEO4pOVojITVHfoh3SY8WU">汇总每个痛点的出现次数 = 频率得分</li>
+      <li data-page-node-id="5gnbvjr9nJ7UnncuZiO5ZS">根据痛点描述判断严重度</li>
+      <li data-page-node-id="rCXiWjtE4IR5ncZ9pgZr2K">根据 1688 搜索初步判断可解决度</li>
+      <li data-page-node-id="LNq1LUnYyxwf6AM3M3q62g">计算 PPS，排序，取 Top 5-10 痛点</li>
+    </ol>
+
+    <div class="output-tag" data-page-node-id="GRTeXRBL4LtkS2W4lgyC1F">输出：痛点优先级排序表（Top 5-10）+ 每个痛点的频率/严重度/可解决度评分</div>
+  </div>
+</section>
+
+<!-- ===== STEP 4 ===== -->
+<section data-page-node-id="qtLr9tOxNqAecgzExYPfkB">
+  <h2 data-page-node-id="rU2auhmCrUs1UA57gdaEoD"><span class="icon" data-page-node-id="WRIhnrabOE0Lcw3oScqeKR">[6]</span> 第四步：升级款匹配</h2>
+
+  <div class="step-card" data-page-node-id="OiNxMg0LEpk0rws8vdzLmv">
+    <div class="step-header" data-page-node-id="rOQ31hSJAzTr0Toih1Q05z">
+      <div class="step-num" data-page-node-id="k4K7qLGIqzx1ALxfm0tkS1">4</div>
+      <div class="step-title" data-page-node-id="5Jp1LxfKhtOnPCFe3lzVtx">升级款匹配 (Upgrade Matching)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="U8BqNLvLm9vCc9XY21YTJs">目标：将 Top 痛点映射到产品特征，在 1688 找到能解决这些痛点的升级款</div>
+
+    <h3 data-page-node-id="BpgKws6XbXzDmwtLX4WTNP">4.1 痛点 &rarr; 产品特征映射</h3>
+    <p data-page-node-id="A1nihV8D5K1kFzcPAJSZaT">将每个 S/A 级痛点转化为具体的产品特征要求：</p>
+
+    <table data-page-node-id="ieFeAULKCOswYRVHBK4XFz">
+      <tr data-page-node-id="Vz7sISQe1FEqmFhttOSnBQ">
+        <th data-page-node-id="V3qzazwnSFBCXY3jUPYXcl">痛点</th><th data-page-node-id="n6g0Gc4O1ctCeQyc0bFpe0">痛点类别</th><th data-page-node-id="w4rQxzPAAFHVikNgOP7uS7">映射产品特征</th><th data-page-node-id="gQ6b6ehtCIDug9FIJWT41g">1688 搜索关键词</th>
+      </tr>
+      <tr data-page-node-id="rowj1AUtZFkHvB2azrXqsJ"><td data-page-node-id="R07k5sFbPD2zOkUCxWUReA">"充电口松动，用两周就接触不良"</td><td data-page-node-id="IDWsD39ceIppD9784Q8gWS">质量耐久</td><td data-page-node-id="k6C9URwLv85ECjk8I4BVC3">Type-C 接口（比 Micro-USB 耐用 3 倍）</td><td data-page-node-id="NpBEFGLYJ5zRsALLH14U17">"Type-C 充电 [品类名]"</td></tr>
+      <tr data-page-node-id="xBlV0mU1I2KHfmZziE2Lqy"><td data-page-node-id="rCgoedoHIBd9A9OcImgpui">"续航太短，用半天就没电"</td><td data-page-node-id="ahP38pUiuqbUoIp7vXKCMp">性能不足</td><td data-page-node-id="F5MDmvavD2DmcS5oEqBij7">电池容量从 1000mAh 升级到 3000mAh</td><td data-page-node-id="rjFmzw6fgoe48Tyz30e8jl">"大容量电池 3000mAh [品类名]"</td></tr>
+      <tr data-page-node-id="rGyCI0HmZIGok4rnR5houF"><td data-page-node-id="7apo0H2nW0p4aCKN5C3OFh">"没有防水功能，下雨天不敢用"</td><td data-page-node-id="QwnDppsBaeek8P0D9msoVD">功能缺失</td><td data-page-node-id="T39KIPHV5cuROlmEoERRpc">IPX4 防水等级</td><td data-page-node-id="co4lFZiburn0WWYs6l496E">"防水 IPX4 [品类名]"</td></tr>
+      <tr data-page-node-id="0eqD2xWyCEpAIlAheVtbgx"><td data-page-node-id="1Y7LFfDDEUYhe9Pkx7nQFq">"太重了，拿着手酸"</td><td data-page-node-id="8LAsTVPWPHaE96yFD0QdrK">设计体验</td><td data-page-node-id="udp59fvnF1nEHArOh6UITm">重量从 500g 降到 200g 以下</td><td data-page-node-id="XT8hBDYqFFJGvU3bR5mGL4">"轻量化 超轻 [品类名]"</td></tr>
+      <tr data-page-node-id="oOVq1iHNBHONBc8GifxCpO"><td data-page-node-id="rcNL19H69DZ3cou9iQuQC5">"声音太小，听不见"</td><td data-page-node-id="gJB4B7F2odD6RbV7ygsBhm">性能不足</td><td data-page-node-id="5wwJLpmJt2wY5AzWUoFBGp">喇叭从 3W 升级到 5W+</td><td data-page-node-id="mvL8vgpR9QiYT5zqv0q62x">"大功率 5W 喇叭 [品类名]"</td></tr>
+      <tr data-page-node-id="X6XIu3PkhFEfqBBZf9NWgS"><td data-page-node-id="qZ71AjO0RTVnK0Ony2lKNH">"没有定时功能，总是忘记关"</td><td data-page-node-id="lhoECfXscJG5twqEzn1Pab">功能缺失</td><td data-page-node-id="rfBdK6UziTOJtwbtYsw5Z1">增加 LED 定时显示 + 自动关机</td><td data-page-node-id="buu25nCejQsWedn07RE66L">"定时 自动关机 [品类名]"</td></tr>
+      <tr data-page-node-id="DFqby1FMbufDybFJjESJrJ"><td data-page-node-id="X3cc65aoGqTDcgMynwWYis">"颜色和图片差太多了"</td><td data-page-node-id="xC4OH1eZhcSj4m3N5zy4j2">外观审美</td><td data-page-node-id="0hcpBwGcR25XNHM61MqBhN">实拍图 + 多色可选</td><td data-page-node-id="nElEf5uVOuB4UZZND17QtS">"多色 [品类名] 实拍"</td></tr>
+    </table>
+
+    <h3 data-page-node-id="q3l2d1GMnyEJtb4LJhFNuE">4.2 六大升级策略</h3>
+    <div class="pain-grid" data-page-node-id="uJTXEuMbJOWWMBJUFGAOiD">
+      <div class="pain-item" style="border-left-color: var(--primary)" data-page-node-id="z60RiisNMODRxMKJl39EtZ">
+        <div class="pain-cat" style="color: var(--primary)" data-page-node-id="eL18ZDwkhymXvBOqEURxDe">1. 材质升级</div>
+        <div class="pain-desc" data-page-node-id="EAgUQNFACcoGnpYjkzcM3M">塑料 &rarr; 金属 / ABS &rarr; PC+ABS / 普通不锈钢 &rarr; 304不锈钢。成本增加 5-15%，但质感提升明显，适合主图展示。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: var(--success)" data-page-node-id="ZjRgi9Ko7mRWukQWiTaoj4">
+        <div class="pain-cat" style="color: var(--success)" data-page-node-id="GHjKum7Skq8fCuKgJXUw31">2. 功能增加</div>
+        <div class="pain-desc" data-page-node-id="jVIgoEjMrlVH9PKjdV0NUR">加 USB-C 接口 / 加 LED 显示 / 加定时功能 / 加防水等级。成本增加 3-20%，但直接解决功能缺失痛点。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: var(--warning)" data-page-node-id="TtOEzNUzy42wGoI8D9W0zW">
+        <div class="pain-cat" style="color: var(--warning)" data-page-node-id="P6zhEGkjlR3QcMHacQOLsQ">3. 性能提升</div>
+        <div class="pain-desc" data-page-node-id="HofscNJzcoVxlBwd713tTK">加大电池容量 / 加大功率 / 升级芯片 / 提升转速。成本增加 10-30%，但解决"不够用"的核心痛点。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: var(--accent)" data-page-node-id="yCYnIGkfCDtJJIqovxrBTs">
+        <div class="pain-cat" style="color: var(--accent)" data-page-node-id="OzjO32JzBb1x6wn70LMexn">4. 设计优化</div>
+        <div class="pain-desc" data-page-node-id="ApyCWC0pDLsiEAftTcrhuB">人体工学设计 / 折叠便携 / 模块化结构 / 更薄更轻。成本增加 5-15%，但改善使用体验。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: #7c3aed" data-page-node-id="8WoV9kdnIxxApR6Dupnk4i">
+        <div class="pain-cat" style="color: #7c3aed" data-page-node-id="J6wIj6BrCql21Byn0WEgqb">5. 套餐策略</div>
+        <div class="pain-desc" data-page-node-id="cUxoMb6YSfK2xcrde8fKMI">附带配件（收纳袋/备用刷头/转接头）+ 耗材复购。成本增加 3-10%，但提升客单价和复购率。</div>
+      </div>
+      <div class="pain-item" style="border-left-color: #0891b2" data-page-node-id="ZeuAlf9TvqtiAjPmrd4sMD">
+        <div class="pain-cat" style="color: #0891b2" data-page-node-id="OOXqrI1Z8DeX7eV9BgjE3C">6. 品控升级</div>
+        <div class="pain-desc" data-page-node-id="IjWccy4xhfpORyePNnyyxC">更严格 QC 标准 / 延长质保 / 加强包装（珍珠棉+气泡袋）。成本增加 2-8%，但减少差评率。</div>
+      </div>
+    </div>
+
+    <h3 data-page-node-id="xUlv45QhlWnENCPRqAGUIx">4.3 升级款筛选三原则</h3>
+    <div class="card highlight" data-page-node-id="jH4aFjWTY6CFuApt3TxNVy">
+      <ol data-page-node-id="a7gVt2TrrclDExEzA9wMEs">
+        <li data-page-node-id="4HsICdvmqIh4VogQTKIFmD"><strong data-page-node-id="TXnPOLMqM0WcdK43UwwvkK">可见性原则</strong>：升级必须能在<strong data-page-node-id="yuxYBXCcDsy7LfAULcNLap">主图或详情页</strong>中直观展示。如果升级是内部零件（如更好的电容），买家看不到，就不值得做。</li>
+        <li data-page-node-id="syQRL4Hmy2fT9t6ulwYOJZ"><strong data-page-node-id="VoRu7Cyj5KSXgBWPvhc4r6">成本可控原则</strong>：升级带来的成本增加不应超过售价的 <strong data-page-node-id="CQrjGnDCOkuWRkmVynsq6W">15-20%</strong>，否则溢价难以覆盖。</li>
+        <li data-page-node-id="fm78UPt5bcOGwTW9FuTO3I"><strong data-page-node-id="FHyXjuvy0vyckOhx0B8aRq">一击致命原则</strong>：优先解决 PPS 最高的 1-2 个 S 级痛点，而不是解决所有痛点。集中资源打造 1 个核心卖点，比 5 个平庸卖点更有力。</li>
+      </ol>
+    </div>
+
+    <h3 data-page-node-id="u6j42hFbliISoJK3uPO73J">4.4 验证流程</h3>
+    <ol data-page-node-id="5LBq1pEKEsVJEKnb0AAr46">
+      <li data-page-node-id="zBuXSzwNFLhbWdpVStXz9r">在 1688/阿里国际站搜索升级特征关键词</li>
+      <li data-page-node-id="p8kM61mEkKBOPFMzYqrJaY">筛选 3-5 家供应商，询价 + 索样</li>
+      <li data-page-node-id="bSUXqodIXYcJDhaeCWrKDR">对比升级前后的采购成本差额</li>
+      <li data-page-node-id="W5HjgCqDfDMpfbxDXJdaRn">确认供应商能稳定供货（月产能 > 你的需求 3 倍）</li>
+      <li data-page-node-id="bjIJziid6s9BjoGIWR9cXt">下单样品，实测升级效果是否真实有效</li>
+    </ol>
+
+    <div class="output-tag" data-page-node-id="doeZQW2e5d56TbZNHCJhdN">输出：升级款候选清单 + 采购成本对比 + 样品验证结论</div>
+  </div>
+</section>
+
+<!-- ===== STEP 5: LOGISTICS ===== -->
+<section data-page-node-id="7vxGk8iji49G3GlFR2nC0i">
+  <h2 data-page-node-id="i0jCiWDk8uB25ehZOoJp9W"><span class="icon" data-page-node-id="y8jNK3bAprCVOxO9zX3dEc">[7]</span> 第五步：物流策略决策</h2>
+
+  <div class="step-card" data-page-node-id="hVnGLVXlb5IBWDHHW0UAq0">
+    <div class="step-header" data-page-node-id="yNMfachhmy5PftebQ2jWCR">
+      <div class="step-num" data-page-node-id="9fKsa1dpFUBqbFJcyQICc0">5</div>
+      <div class="step-title" data-page-node-id="rKb1wlyf8fh7ZPZO1OIWUE">物流策略决策 (Logistics Strategy)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="hn1ZKDCPn31tSXfjx8o5t4">目标：在航空小包 / 拼柜 LCL / 整柜 FCL 三种方案中选最优，平衡成本、时效和风险</div>
+
+    <h3 data-page-node-id="i2Bvjha813nDSfDZ6b1dA7">5.1 三种物流方案总览</h3>
+
+    <div class="logistics-compare" data-page-node-id="jZaKqnf9YjWFYx6BRWTPHb">
+      <div class="logi-card" data-page-node-id="QcXmboMuklk6ge66OlK7Xx">
+        <div class="logi-name" data-page-node-id="CsWWUaNODml2BWdCONl5cE">航空小包 DDP</div>
+        <div class="logi-cost" data-page-node-id="bT40VrRvNLYT5cCxMua7lb">107 CNY/kg</div>
+        <div class="logi-detail" data-page-node-id="V3FJozJukvi4B0KABBJzga">
+          时效：5-7 天<br data-page-node-id="nG8LBbjsHng36oTjfYAIhx">
+          关税：DDP 全包<br data-page-node-id="2IAZ1yovsqeX5MOsLuV74g">
+          起订量：1 件即可<br data-page-node-id="jkzA0GlWHDcyHDOtvhMVRJ">
+          最小计费重：通常 10g 起
+        </div>
+        <div class="logi-best" data-page-node-id="B31W35ivxsieFwEkZHqyzx">适合：测款、轻小件、紧急补货</div>
+      </div>
+      <div class="logi-card" data-page-node-id="s9ZA2ATgRIry7VMQj4Jna8">
+        <div class="logi-name" data-page-node-id="ETr8tjLCPOA17xjXRvKuRE">拼柜 LCL DDP</div>
+        <div class="logi-cost" data-page-node-id="EEyA9o1HSHfkvTJd9RtdzL">按 CBM 或件计</div>
+        <div class="logi-detail" data-page-node-id="wKnFFgtdXcSgFrClYQpiQ6">
+          时效：20-30 天<br data-page-node-id="4WWaqj2cnczbOnmNUVjP43">
+          关税：DDP 全包<br data-page-node-id="UCJn3MnIrwSlgT4uRNE8tl">
+          起订量：0.1 CBM 起<br data-page-node-id="cxZJfBpWT8WS2TGs9XHK6Z">
+          鞋类参考：1,800 LKR/双
+        </div>
+        <div class="logi-best" data-page-node-id="hs4qwozjmYdkPTzciTBVMt">适合：中量补货、中重件</div>
+      </div>
+      <div class="logi-card recommend" data-page-node-id="93ukhbcDpBY1DxyHfeUeNE">
+        <div class="logi-name" data-page-node-id="z1avp8gILVRuJitPZrii7b">整柜 FCL 40尺HC</div>
+        <div class="logi-cost" data-page-node-id="bp8BsQwNjhS1VHR5UZ4Xu9">~1,197,000 LKR</div>
+        <div class="logi-detail" data-page-node-id="DQtlMmtNQYp5nAz3sPZLSy">
+          时效：15-25 天 + 清关 3-5 天<br data-page-node-id="Vne7qzh6nwszHnEGGwyt4O">
+          关税：<span class="hl-red" data-page-node-id="o6UctHCodJqx3eCGT42vmg">非 DDP，需自行清关缴税</span><br data-page-node-id="JzCEDY2pKjIEH6slrPzihw">
+          容量：~67.5 CBM<br data-page-node-id="pTS6ixlL2UZvQeINHr8nTa">
+          鞋类参考：~28,000 双
+        </div>
+        <div class="logi-best" data-page-node-id="H1BWHyFqgGNneCVg4kxinC">适合：大量备货、零关税品</div>
+      </div>
+    </div>
+
+    <h3 data-page-node-id="PSqgmU3oBigxgTDeVun2RJ">5.2 关键洞察：关税决定物流方案</h3>
+
+    <div class="card danger" data-page-node-id="ydV5GzvlNN2D72xojRDXpg">
+      <strong data-page-node-id="hEBn1wAeVGXhLc3a0J38nH">这是物流决策中最重要的一个认知：</strong>
+      <br data-page-node-id="txOvJyCtxEhNTEHgHYAMQm"><br data-page-node-id="sEdbrFoN2pM79RfBDugHle">
+      <strong data-page-node-id="9KuyXnfRSjJDmM11YXHEOS">DDP 服务（航空小包/拼柜）</strong>的报价中，物流公司通常会使用<strong data-page-node-id="75LeyWs8cvuPLMNfhgrBmJ">优化的申报价值</strong>进行清关，有效降低关税负担。也就是说，DDP 报价虽然包含了关税，但实际缴纳的关税可能远低于你自己按真实价值申报的金额。
+      <br data-page-node-id="zaktcteTi8ooH2ik44ejhr"><br data-page-node-id="YzLMIoiS7zJLBAIStwXejC">
+      <strong data-page-node-id="bXZ6z963RlayQCiAXBnJ8G">FCL 整柜（非 DDP）</strong>需要你自行清关，按实际采购价值申报并缴纳全额关税。对于高关税品类，这部分成本可能吃掉海运省下的运费。
+    </div>
+
+    <h3 data-page-node-id="2wfE2dt6mb5sxWvrPXHZ2d">5.3 物流决策矩阵</h3>
+
+    <div class="decision-tree" data-page-node-id="eAhl3oVR60NPDgTHPeFYs9">
+      <div class="decision-node q" data-page-node-id="jDFsrZt5dCDTPY3AufPwEU">Q1: 综合关税税率是否为 0%？</div>
+      <div class="decision-node yes" data-page-node-id="mQNvRzBVyCcaAMuv6tFkyZ">&rarr; 是：FCL 整柜是碾压性最优（无关税，运费极低）。但需确保备货量足够填满集装箱。</div>
+      <div class="decision-node no" data-page-node-id="keKrm49abJtsEBpKeIRL5f">&rarr; 否：进入 Q2</div>
+
+      <div class="decision-node q" style="margin-top:12px" data-page-node-id="yHGg7MrPsUi2tdCdpAqGc7">Q2: 综合关税税率是否 > 30%？</div>
+      <div class="decision-node yes" data-page-node-id="uivDw7NQEvCAW3kGk36zMw">&rarr; 是：优先 DDP（航空小包/拼柜），利用关税优化降低成本。FCL 除非客单价极高，否则关税会吃掉利润。</div>
+      <div class="decision-node no" data-page-node-id="wnpNdMFFV26lAGhCW0jTik">&rarr; 否（15-30%）：进入 Q3</div>
+
+      <div class="decision-node q" style="margin-top:12px" data-page-node-id="F6GK2WdpX6p3zBINeGDabD">Q3: 月备货量是否 > 5,000 件？</div>
+      <div class="decision-node yes" data-page-node-id="AHdSjCsttX03hOABaXPG0c">&rarr; 是：计算 FCL vs DDP 盈亏平衡点（见下方公式），选择更优方案</div>
+      <div class="decision-node no" data-page-node-id="VPW1FiOAQnrkCdOcBmRlhD">&rarr; 否：DDP（航空小包/拼柜），灵活且无需承担大库存风险</div>
+    </div>
+
+    <h3 data-page-node-id="EHmVSO4vYX65pyBlu0f4vH">5.4 FCL vs DDP 盈亏平衡计算</h3>
+
+    <div class="formula" data-page-node-id="QT9iJn5aUPE3Hg3Co5EwQb">
+      <div class="label" data-page-node-id="LTWwPB2uIPd7cXyQkH2bhF">盈亏平衡点公式</div>
+      FCL 单件总成本 = (整柜固定成本 + 单件关税及杂费 x N) / N<br data-page-node-id="4bd94kZ6P4RoIDJfD8I6N0">
+      <br data-page-node-id="BnKmwsohFAujKSks2Ylv9w">
+      其中：<br data-page-node-id="OV5PYskAsvGch6EmvfoH3t">
+      &nbsp;&nbsp;整柜固定成本 = ~1,197,000 LKR（40尺HC海运费）<br data-page-node-id="GtEUCHC6bfiuBBCvvx7Tnv">
+      &nbsp;&nbsp;单件关税及杂费 = CIF x 综合关税率 + 清关杂费/N<br data-page-node-id="XIYdujUdticTmvnSTNwP76">
+      &nbsp;&nbsp;N = 集装箱内可装件数<br data-page-node-id="kPXNNRzftMsz5Glya4UpVx">
+      <br data-page-node-id="gEgT8GAqp1JrG1sp5CKoCN">
+      当 FCL 单件总成本 < DDP 单件成本时，FCL 更优。<br data-page-node-id="vG8V8pov4Kzf0cEc0zH2Zb">
+      盈亏平衡件数 N* = 整柜固定成本 / (DDP单件成本 - 单件关税及杂费)
+    </div>
+
+    <h3 data-page-node-id="f5QBC1Y7TWnqyekW2JcFTk">5.5 实战案例：三种品类对比</h3>
+
+    <div class="case-study" data-page-node-id="nwmP3pwObOGXHmmDGwlE0j">
+      <h4 data-page-node-id="ePKZy1x2O2WFCIEccV84eo">案例 A：4G CPE 路由器（HS 8517.62, 综合税率 0%）</h4>
+      <table data-page-node-id="s7zcblxFLSJ3MiDquxLXHk">
+        <tr data-page-node-id="HJYHT3BBhW1INesZtUliZb"><th data-page-node-id="LRLYHgpHBEY833aG7B1SHA">方案</th><th data-page-node-id="Zn2ILmlQXG4FtXc6lRQb0y">单件物流成本</th><th data-page-node-id="mYpKEtrymb8YO1kHPDQU9Z">500件总成本</th><th data-page-node-id="eBc7sMaSMWBTUwAf1hmCH6">5000件总成本</th><th data-page-node-id="g8VwAyRRgYUxAO6JAu95VS">推荐</th></tr>
+        <tr data-page-node-id="bX4EA35GRXGI3uMnyIB2j7">
+          <td data-page-node-id="a7dN2YlR8AEZSZ7VFgTeN2">航空小包 DDP</td>
+          <td data-page-node-id="n3FmhwmDqouBAAzOxoCjOq">~1,592 LKR (0.3kg)</td>
+          <td data-page-node-id="iDnb1nS69K555MktiQCOoe">796,000 LKR</td>
+          <td data-page-node-id="5tD6oCD5x97lCjktysN65A">7,960,000 LKR</td>
+          <td data-page-node-id="oTWuzcRvgXrCMgYHHuLwWY"><span class="tag tag-yellow" data-page-node-id="zHnbQCUr9n3m4aEidGFKhK">小批量</span></td>
+        </tr>
+        <tr data-page-node-id="2Z07e41v2CU3Bgz8oUkvva">
+          <td data-page-node-id="c27dfNUHz0u70Cn1eL85WJ">拼柜 LCL DDP</td>
+          <td data-page-node-id="4H58g5RRGGmzmGkU5H3bX2">~200-400 LKR (估)</td>
+          <td data-page-node-id="66KFuUTz0chZOWFyRgqjF4">~150,000 LKR</td>
+          <td data-page-node-id="gDT8kFInSTRIDuuaEQoBc5">~1,500,000 LKR</td>
+          <td data-page-node-id="SP5IHdz4cksdho8N12RmC1"><span class="tag tag-yellow" data-page-node-id="BX5lLaBytGy9B8XWvpHMtD">中批量</span></td>
+        </tr>
+        <tr data-page-node-id="7OPYCVwNR6yFGzSuMbDy7o">
+          <td data-page-node-id="JuXRKnHM79EEtLe0sE6jOr">整柜 FCL (非DDP)</td>
+          <td data-page-node-id="LJOtf6mweV5SGSeScpRSNF">~60 LKR (无关税!)</td>
+          <td data-page-node-id="eGItCTgE9MXi0REYkrI5Pu">1,197,000 LKR (固定)</td>
+          <td data-page-node-id="rhB1DsZXNQtvEMLGKjh4Hf">1,197,000 LKR + 杂费</td>
+          <td data-page-node-id="hsmU8y5ftwcgD1uHwc4oTG"><span class="tag tag-green" data-page-node-id="1qrsI1U3CA8sBv8f21QXKw">大批量首选</span></td>
+        </tr>
+      </table>
+      <p style="margin-top:8px" data-page-node-id="P9CGktFN8ol66Vrg8XyOS9"><strong data-page-node-id="m8fzQmu3k8rpzq6d3D2MKV">结论</strong>：零关税品类，FCL 在大批量时成本仅为空运的 <strong data-page-node-id="9vSSoGpWXjz0M507eHZK1m">1/25</strong>。但需要 ~20,000 件才能填满一柜。建议：空运测款 200 件 &rarr; 拼柜放量 2,000 件 &rarr; 整柜放量 20,000 件。</p>
+    </div>
+
+    <div class="case-study" data-page-node-id="WwqCgiTuKTLmZfF8hWIqW4">
+      <h4 data-page-node-id="DYeQ2w5DuQhyGa3NKlDYEO">案例 B：运动鞋（HS 6404.11, 综合税率 ~25%）</h4>
+      <table data-page-node-id="1ehOA7gYTcuKPabcV1VF00">
+        <tr data-page-node-id="14hREKeuVr1tQ5e65UNLqi"><th data-page-node-id="sxcYfbJB0GWNLvE67yUrr8">方案</th><th data-page-node-id="r4wZAp92tGmiLyS5aL25oW">单件物流成本</th><th data-page-node-id="Pk05wnUflS4pSc1wOtMTlr">5000件总成本</th><th data-page-node-id="hCgvGbLfJPHQcCdLjaFEBO">28000件总成本</th><th data-page-node-id="CJ6zqIWgTzmhvIB8ELasgi">推荐</th></tr>
+        <tr data-page-node-id="XpcxWqI9z1Ls4WG1u6lkWG">
+          <td data-page-node-id="htJ4Q5aAHJk4HcGHl55SFZ">拼柜 LCL DDP</td>
+          <td data-page-node-id="To7fRM2HmHeCe8f5YKkAOe">1,800 LKR (含关税优化)</td>
+          <td data-page-node-id="zDnRrLTbPgcBeJ0gYMb6Y5">9,000,000 LKR</td>
+          <td data-page-node-id="JS8FobHpzgJ4Je8FWTkMrk">50,400,000 LKR</td>
+          <td data-page-node-id="0HghpxYerBBFAIaoV89nle"><span class="tag tag-green" data-page-node-id="JbhTkvwADD0wJcMaOYOVsK">首选</span></td>
+        </tr>
+        <tr data-page-node-id="qFx2J3AEPThNoZ5Ou2ljAd">
+          <td data-page-node-id="2OAO0QmRD5GSUoCG1JgH4u">整柜 FCL (非DDP)</td>
+          <td data-page-node-id="YOfrMxR5fW15qjAaavSy9H">~42.75 + ~1,400 LKR 关税 = ~1,443 LKR</td>
+          <td data-page-node-id="zwX6VC5Vjf2nqkZZnrDPCp">7,215,000 LKR (固定分摊)</td>
+          <td data-page-node-id="3RwzidzVHSERhavAvWJg3P">1,197,000 + 39,200,000 = 40,397,000 LKR</td>
+          <td data-page-node-id="OZZbjVTpCmVULtUlQsEDTW"><span class="tag tag-yellow" data-page-node-id="Dbt6RYCqCVqtHgHubtuc0T">超大量可选</span></td>
+        </tr>
+      </table>
+      <p style="margin-top:8px" data-page-node-id="64EAIcIoZvsHCBx1frKAr0"><strong data-page-node-id="GVrlInLWwJf7rOPvwnNlJ4">结论</strong>：中关税品类，FCL 在超大量（>15,000 件）时开始有优势，但 DDP 的关税优化使差距缩小。盈亏平衡点约 <strong data-page-node-id="zCuVFDk4G1oy8XMKljgfY6">12,000-15,000 件</strong>。</p>
+    </div>
+
+    <div class="case-study" data-page-node-id="RSC73HDz979XDnFIqjP1W8">
+      <h4 data-page-node-id="uVRS0B8SXqOxfZU8rc6CrC">案例 C：电水壶（HS 8516.79, 综合税率 ~59%）</h4>
+      <table data-page-node-id="YAUPWPXoibAuEnKnSnvgb2">
+        <tr data-page-node-id="FFSli1CCFP3FnRjaoyMcJk"><th data-page-node-id="meknUHD9WnQGAk8d9IEI88">方案</th><th data-page-node-id="KAsGDG1zCffOywCNkyvihN">单件物流成本</th><th data-page-node-id="YdQNsUlqTrEP8EHCEc9kWL">推荐</th></tr>
+        <tr data-page-node-id="aFFzs0FxwAXBcNIpbEnjiD">
+          <td data-page-node-id="cePigb9v69UxzxykXi2bIo">航空小包 DDP</td>
+          <td data-page-node-id="doBZAG5f3YA0GApKnz4eNR">~1,500-2,000 LKR (0.7kg, 含关税优化)</td>
+          <td data-page-node-id="UoBCZqvIPVVap1pKGOik74"><span class="tag tag-yellow" data-page-node-id="1iXWxNmWGBnzRJu9qH8fOF">仅测款</span></td>
+        </tr>
+        <tr data-page-node-id="J0Jl8M7TAfT9XCBAeU1SA1">
+          <td data-page-node-id="OVlEU2GQfBbMK9HAJOVro8">拼柜 LCL DDP</td>
+          <td data-page-node-id="SKtcLozXRPAMNCGqHT0kSx">~800-1,200 LKR (含关税优化)</td>
+          <td data-page-node-id="Ypw4Wi5DShz8YHrkNdQB4a"><span class="tag tag-green" data-page-node-id="KjTrbwDjRQV3n65OuItxly">首选</span></td>
+        </tr>
+        <tr data-page-node-id="Sh91AtdEpx5gwMKRGowWCy">
+          <td data-page-node-id="dRvaj8xzjpL03aQgzhwLbm">整柜 FCL (非DDP)</td>
+          <td data-page-node-id="ilg1wWbHSctWOs93WLkfSk">~50 + CIF x 59% = <span class="hl-red" data-page-node-id="qEhwz6EAyO5P796Aa5LPxU">极高</span></td>
+          <td data-page-node-id="wKBu18hpVcQaaLeKtiJkAP"><span class="tag tag-red" data-page-node-id="plXzP4OExEv07RCQszwTr2">不推荐</span></td>
+        </tr>
+      </table>
+      <p style="margin-top:8px" data-page-node-id="RNYJfGaUOwx7j52MPGCpcq"><strong data-page-node-id="j1Gbb56wPrjjUeyzeGHfuY">结论</strong>：高关税品类，FCL 需要全额缴纳 59% 关税，完全不经济。必须用 DDP 方案，依赖物流公司的关税优化。</p>
+    </div>
+
+    <h3 data-page-node-id="EhqeqPzvA7v8ASENBhgVYP">5.6 物流策略总结表</h3>
+    <table data-page-node-id="zUl0x9rjvY09GE39Napz98">
+      <tr data-page-node-id="L4BM1ocb6GKY8DkKseHkgO">
+        <th data-page-node-id="4B3qHmbUebQlTSKRL6p3pt">综合税率</th><th data-page-node-id="3b5DDLtG7RGmorG4QJl2ZQ">备货量</th><th data-page-node-id="4zNPGvWeuLLD8hjQYr62MJ">推荐方案</th><th data-page-node-id="eeSHHf9yCCjICm0d5wYFNY">理由</th>
+      </tr>
+      <tr data-page-node-id="FcVzd436pQiavbV3KHMWFl"><td data-page-node-id="H30SGwdYYaj4oPg3wRYfmC">0%</td><td data-page-node-id="85G0Jy9gOW6fe2h17XP9kE">任何</td><td data-page-node-id="UMeTgUGHMZAtTT8NPsC3Ni">FCL > LCL > 空运</td><td data-page-node-id="mDoKtTnBCPMpxNTl54fhgU">无关税，海运成本碾压</td></tr>
+      <tr data-page-node-id="VQE0tEaYSsuSmHwqJKkcgu"><td data-page-node-id="BAoWouzkAbiE2FH4AdOwk3">0%</td><td data-page-node-id="VFOxMosqsw8UEeras2BM41">< 2000件</td><td data-page-node-id="dwQhG5PKIVz4DHpM56Dk2p">空运DDP测款 &rarr; FCL放量</td><td data-page-node-id="5jr1RmPV5dwQHuGseIcfg2">测款用空运快，放量用FCL省</td></tr>
+      <tr data-page-node-id="0WWxzHVPyLU2nCdMqWn6S1"><td data-page-node-id="Pbxd92McdPAZDEGZnwDEXb">15-30%</td><td data-page-node-id="A7p7n9aRTXR88wsTv5Sfy9">< 5000件</td><td data-page-node-id="Ekx6gf8LFdAEV7UAsQYb1r">LCL DDP</td><td data-page-node-id="AWshxH6g4B4eUNY8RcsKmW">关税优化 + 运费合理</td></tr>
+      <tr data-page-node-id="u4qoshQCX97k3tRaIFRDEG"><td data-page-node-id="ouZqrU0oqBAqqYQDogsbL6">15-30%</td><td data-page-node-id="v9kdBLat9QcWsqKNeFaSIv">> 15000件</td><td data-page-node-id="zNiqcwOXcNOaa1zL8JTuW4">计算盈亏平衡点</td><td data-page-node-id="r1fI0UXZS0xIWfsgkjvEkx">量大时FCL可能反超</td></tr>
+      <tr data-page-node-id="4saGfhvCmsW462M1R7tTpt"><td data-page-node-id="3t6n0qw2U14v5Xt5Pz6Zdw">> 30%</td><td data-page-node-id="fMX53MqZizM0B8iNqbmukH">任何</td><td data-page-node-id="hMS31iAwJOXh3AcAIdi6AT">DDP (LCL/空运)</td><td data-page-node-id="COWGPSNEHdNYgPJUmYYGa6">FCL关税太高，DDP关税优化是关键</td></tr>
+      <tr data-page-node-id="cePuXPCnbXPlPH0xvlGlqb"><td data-page-node-id="QQ0RzGTipeCx9h0TFxYTj1">> 50%</td><td data-page-node-id="P4SADjaygx8ODb1yCa7S92">任何</td><td data-page-node-id="ndGOCLOfGkO6OFrKlQ2UoJ">放弃或DDP小批量</td><td data-page-node-id="zwG99EA6iGI2m6PSqzDDO6">除非客单价极高，否则不经济</td></tr>
+    </table>
+
+    <div class="output-tag" data-page-node-id="zU7C1PwOeuvVgQBfJeB315">输出：物流方案推荐 + 单件物流成本 + 盈亏平衡点计算</div>
+  </div>
+</section>
+
+<!-- ===== STEP 6 ===== -->
+<section data-page-node-id="6d3kHEme6i0uRifpoJ80rw">
+  <h2 data-page-node-id="xcWFJuNoVnanEu4Igm1AaX"><span class="icon" data-page-node-id="nlzO6JFiuco345BB5uutJT">[8]</span> 第六步：全成本利润测算</h2>
+
+  <div class="step-card" data-page-node-id="9fVDk9R8hHF2HNXmqjKRUT">
+    <div class="step-header" data-page-node-id="2XbcWf6OKCGtBVfR0Hxdcm">
+      <div class="step-num" data-page-node-id="6f7Z2f6uPUsRAQSUcvLz7i">6</div>
+      <div class="step-title" data-page-node-id="9SnoRM0r1FDmvSOl2rKO1Z">全成本利润测算 (Full Cost Profit Model)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="dqvd6fSnFGzbg9R5gdSFLS">目标：精确计算每个成本项，得出真实净利润率，确定定价区间</div>
+
+    <h3 data-page-node-id="ybOn4xwHW4WeEwpMRvv0Rv">6.1 成本构成全表</h3>
+    <table data-page-node-id="sEHRmnd5I53hEHGEVeETkw">
+      <tr data-page-node-id="DwHfUFI8lVGDYHmwkEUY3e">
+        <th style="width:5%" data-page-node-id="DVU5YW8KyV8akYHzRPhIcT">#</th>
+        <th style="width:20%" data-page-node-id="gvIC1dbkKrsNYfxALoAj0c">成本项</th>
+        <th style="width:20%" data-page-node-id="7WDFYADNgtaeycD3uvtDsG">计算方式</th>
+        <th style="width:15%" data-page-node-id="38PhNxZUdSgYEhkaLyubYy">参考费率</th>
+        <th data-page-node-id="GQrfDhC3eECN943mB9aW22">备注</th>
+      </tr>
+      <tr data-page-node-id="U1MnmQtt1PKomr7GzAL1jx"><td data-page-node-id="oR1INhZa6uD2Dd9zRhVxBx">1</td><td data-page-node-id="sTqHUb9N53ceGahf4cShf2">采购成本</td><td data-page-node-id="uWPScBhpiAGBridkokWgU8">1688 含税价 x 件数</td><td data-page-node-id="HuGCNL8v0aVlO9iCuG3Xac">-</td><td data-page-node-id="GXNFRLlC4WxS4FSqBx6H89">含样品费分摊</td></tr>
+      <tr data-page-node-id="gAD0mHYTvCA8mthic9pg4e"><td data-page-node-id="qTnV8DhlbTsAEUCjwCTXHf">2</td><td data-page-node-id="NMF0BagK3cd6Nz2Riioj78">国内物流</td><td data-page-node-id="CQSxBoZwVjscrF19o6R9YG">工厂到货代仓库</td><td data-page-node-id="E8coKJGKDIhFxckZo0eMH3">2-5 CNY/件</td><td data-page-node-id="NBqQR8a9AB29LJsnwRAQFM">大宗可谈免</td></tr>
+      <tr data-page-node-id="mci82kjydfO2BPETvNb40z"><td data-page-node-id="gBD5WSUmhmwRjfb8YnapL6">3</td><td data-page-node-id="qPPfvQZrykAQaLlmAh74Jd">国际运费</td><td data-page-node-id="fhRtfoohZQjVhhTVlel1ka">按选定物流方案</td><td data-page-node-id="YJTIpqJLt8TuLMMUlyejd4">见第五步</td><td data-page-node-id="Xe6B6yEZnUArgaWNc9yfId">DDP含关税优化</td></tr>
+      <tr data-page-node-id="knkJNqze4bTAPkgeFwR8GF"><td data-page-node-id="bDeHL7Sea68GdRRUoPHah4">4</td><td data-page-node-id="ZPXDGMnu57IUmRE8171Lru">进口关税</td><td data-page-node-id="PEt00CpzGUblTKk2RwnZQQ">如非DDP需另算</td><td data-page-node-id="L54pMEBX3olL9iTTJKVuyH">见HS速查表</td><td data-page-node-id="MrmpE1w6F3FQzVKKr0ZDH8">DDP则已含</td></tr>
+      <tr data-page-node-id="KfmV9PgVtNJ4tRXHBIueoC"><td data-page-node-id="QjLTqK3SawbTTCbBWilKfk">5</td><td data-page-node-id="FaxJhgGWVxnTJwGxdbrxWs">Daraz 佣金</td><td data-page-node-id="I94x1FPaDuUj5NR5jKha9u">售价 x 11%</td><td data-page-node-id="gCAmkOQB81IIWGsFtM3i90">11%</td><td data-page-node-id="7cE5Jq0Cfy2yy363u1cAnD">大部分品类</td></tr>
+      <tr data-page-node-id="BKCvCKFrgnNp33Sc2RLvC7"><td data-page-node-id="n8ROFyGfoqwGouoKysAyTw">6</td><td data-page-node-id="bdKQBnnxS9ft4UUjtBMdjj">包邮佣金</td><td data-page-node-id="5z3DIrTaB7bGy4802ScQcD">售价 x 5%</td><td data-page-node-id="iyWL21VeTUUvmvOmOhXWZJ">5%（上限450 LKR）</td><td data-page-node-id="YGnJIpL46tDYOpTZ0DR95Z">参与包邮计划</td></tr>
+      <tr data-page-node-id="dGNwMMhHucsfQt4HWCwR3d"><td data-page-node-id="e8qHA6yewZ9ju6EpLQevF2">7</td><td data-page-node-id="JULlTGd70JDAZunXmn7RDA">回款手续费</td><td data-page-node-id="VuMz10fiDMMMRrxuz35xye">到账金额 x 3.5%</td><td data-page-node-id="JrcBBaIXN5EGwQlYN4DJSu">3.5%</td><td data-page-node-id="bvzShM52mCYRDZLsKsl6lF">支付通道费</td></tr>
+      <tr data-page-node-id="oJQmc2qsNMdkB8mMHT6H74"><td data-page-node-id="MISoI1TGsCSSr5DWowQCI3">8</td><td data-page-node-id="3sawYAb2SBoEL5U2g1Hh1E">仓储费</td><td data-page-node-id="brL5CAW7FgUeybhbnFZU1l">如用FBL</td><td data-page-node-id="aRHD7zW3Wcue6eYwPkTlCu">~3%</td><td data-page-node-id="WOKrjOhf7Pj66zQD5jeHEu">自发货可免</td></tr>
+      <tr data-page-node-id="B0QnQ5VDOYcDc5L9NQZn2s"><td data-page-node-id="m9ox7k6UGn8eEzT7tC2wjr">9</td><td data-page-node-id="es9SbodxF0Vp04AyEvsToy">营销预留</td><td data-page-node-id="fTYWG0qyg0A9jwD3xCESnI">售价 x 5-10%</td><td data-page-node-id="q6dOo1O9L933SxtiPth4GO">5-10%</td><td data-page-node-id="tr8ts3BrhiHaqE5DWpn2pV">测款期取高值</td></tr>
+      <tr data-page-node-id="e1m0yCfLmmP3sVTqQQYqXa"><td data-page-node-id="OdudxxfUbkGiqBnGKfX4w0">10</td><td data-page-node-id="ejQqlTQhofoJ5swyLJE57f">退货损耗</td><td data-page-node-id="RASaYW6TeBGsH3pB35uKmr">售价 x 2-5%</td><td data-page-node-id="6i5dB0xT17FXhgF3P5riA5">2-5%</td><td data-page-node-id="kGhdmYseWzhqaa0J3FeaOk">COD退货率高</td></tr>
+      <tr data-page-node-id="ToIse2xtTJoh43ojAnhpfB"><td data-page-node-id="u1R11H4tC1ahzsYeiHwzwg">11</td><td data-page-node-id="iWzlKwuAX0OktVgIy1TV2g">汇率预留</td><td data-page-node-id="KjuuW8D2xi5TDAN5xsFd6D">成本 x 3-5%</td><td data-page-node-id="YYCjEHSlxggBSSs90AsuYY">3-5%</td><td data-page-node-id="0SHCH5RyEeDyrGNhBLoxpl">卢比波动大</td></tr>
+    </table>
+
+    <h3 data-page-node-id="PXHNyngFnwtkeernnLtTzR">6.2 定价策略</h3>
+    <div class="card highlight" data-page-node-id="EKGJKpyIrMdgbAoarE29Re">
+      <h4 data-page-node-id="ELql5EjoOu9IF8GZOWourZ">差异化定价三原则</h4>
+      <ol data-page-node-id="S3UKylDm69a1nJkbqTfkJD">
+        <li data-page-node-id="4ewG3d8qayEMjyXZE6wkKn"><strong data-page-node-id="0BymW6lNek02GARMPCZOCI">不做最低价</strong>：定价在竞品价格带的 <strong data-page-node-id="3Wgim0PGacrMeSnSdVxXAy">Top 30%</strong>，但低于 Top 10% 的最高价</li>
+        <li data-page-node-id="UVuWKnCVC9XbEuupRX12Vs"><strong data-page-node-id="DFVqECFjk6CPhH4n61vi4e">溢价锚定</strong>：升级带来的溢价应控制在 <strong data-page-node-id="wQzGr0aQQXLD29LpC4tIu9">10-30%</strong>，太高买家不买账，太低覆盖不了成本</li>
+        <li data-page-node-id="zpExHDLekzLeB6ubZiNAie"><strong data-page-node-id="RZCgGylFEkhbSceYazzZdB">锚点效应</strong>：在详情页对比展示"普通款 vs 升级款"的差异，让买家感知溢价是值得的</li>
+      </ol>
+    </div>
+
+    <div class="formula" data-page-node-id="Jg8ZOXHRHZ6NBGeaQFZp6C">
+      <div class="label" data-page-node-id="ajDW7GXiYcVX6HTZN1yHD2">净利润率公式</div>
+      净利润 = 售价 - (1+2+3+4) - 售价 x (11%+5%+3.5%+3%+10%+5%+5%)<br data-page-node-id="bXi9NTc3wur4LRV3kRFbBZ">
+      净利润率 = 净利润 / 售价 x 100%<br data-page-node-id="XWhXZdy4Awh7ONRAgUxWCg">
+      <br data-page-node-id="OKdypqVdqUUxzp2AN7RaPr">
+      目标净利润率：&gt; 20%（差异化选品）<br data-page-node-id="e3ZUHOFCYXGtXbqewUIdG7">
+      最低可接受：15%（低于此放弃）
+    </div>
+
+    <h3 data-page-node-id="UwskRurL2ohwiwrGs21Ax2">6.3 利润测算示例</h3>
+    <div class="case-study" data-page-node-id="bsDUqfTq7AObD6Mz0HCwax">
+      <h4 data-page-node-id="ogC41etvrl9S9oWsRGWR4u">示例：4G CPE 路由器升级款（WiFi 6 + 大电池）</h4>
+      <table data-page-node-id="8tRSNy1x9EOJm1APodkqFA">
+        <tr data-page-node-id="nvuEjUZ83bn7nIDOjJPpuF"><th data-page-node-id="yuEUsJI7UDmEYPy0whohTv">项目</th><th data-page-node-id="g8zSewkKtCaaCsZojDg2y9">金额 (LKR)</th><th data-page-node-id="11CvlztBs99rqBs2E75sEo">说明</th></tr>
+        <tr data-page-node-id="d3sHUvmBlXewMR8dAwKfDQ"><td data-page-node-id="9eQT7R4dJAfmMIUQj1o02p">采购成本 (1688)</td><td data-page-node-id="s2qywEM6WGnQNpjAFcAyLh">4,960 (¥100)</td><td data-page-node-id="W1RtLFKiSW5BdeHQESX8TD">升级WiFi6芯片+4000mAh电池</td></tr>
+        <tr data-page-node-id="I2K91SRbuAUk3qdeYCFGTr"><td data-page-node-id="EzkjX4m4UlFVs8QfPpF3I5">国内物流</td><td data-page-node-id="GLfiRktzY1z7DZJ5Az831J">100</td><td data-page-node-id="TXFzxfMhDS7MFDq45QYju4">2 CNY/件</td></tr>
+        <tr data-page-node-id="K7qAMI4jAvgwDgxza3SGDV"><td data-page-node-id="RxGTy7K64v18f6IodzOfuS">国际运费 (空运DDP测款)</td><td data-page-node-id="S7J9dTJv2NQ2JHJlNOoffb">1,755</td><td data-page-node-id="HUuxhilqZQSMTpwkVa9CsY">0.35kg x 107 CNY/kg (升级后变重)</td></tr>
+        <tr data-page-node-id="ELlNCCGoj71PKrLXpT4Dtj"><td data-page-node-id="IDSXRdcCiUTfk2p06bjFIG">关税</td><td data-page-node-id="8U4X4vyEEHoIv5KKsjGxJJ">0</td><td data-page-node-id="m9BUYuO8wILTjRVMfrDbv6">HS 8517.62 零关税 (DDP)</td></tr>
+        <tr data-page-node-id="j74DfK0c0izl24DxJDSfc7"><td data-page-node-id="BgBx0IjOjUEr9ZILM6aPeM"><strong data-page-node-id="dn0fIIHTlOY5arDz9u8QqN">到岸成本合计</strong></td><td data-page-node-id="ysCTfAU66BJAA1ZHFPEFGG"><strong data-page-node-id="lMFFLmQdWgQXphq44yv8gX">6,815</strong></td><td data-page-node-id="nXoFrOrCqW3ST5XM6zeXlF"></td></tr>
+        <tr data-page-node-id="hZTf61OGKTc7bH17CFDnex"><td data-page-node-id="Hguvm0bnITH6GBXm4dkYTN">Daraz佣金 (11%)</td><td data-page-node-id="1lylRdpTNoEOfkcmA2bicY">1,100</td><td data-page-node-id="ERJhdwoek7hpAA4u3x55N4">售价 10,000</td></tr>
+        <tr data-page-node-id="ORoJQcxkmxNCOE3HYZv0yO"><td data-page-node-id="7JHd6aa5Bekqveyh488TrC">包邮佣金 (5%)</td><td data-page-node-id="wHivqMnJRbthbOHjdF2GQD">450</td><td data-page-node-id="FHgSQ218yVAJpW6gi85L55">上限450</td></tr>
+        <tr data-page-node-id="ySMUKGzxyE67aAOkd7S0L6"><td data-page-node-id="ByYpmJ0HXkaNjfgzZg96Ck">回款 (3.5%)</td><td data-page-node-id="cb018AAABh1BFqa3rGHvRM">350</td><td data-page-node-id="O1PIxyEhkc4LT2pfRJnsf9"></td></tr>
+        <tr data-page-node-id="q8Ssus3J5eQSHKJdOOlvZ5"><td data-page-node-id="j85ERjQNGzL1MO1DJVSjqn">营销 (8%)</td><td data-page-node-id="z6YY2cmMNMfsXt6MomBQ54">800</td><td data-page-node-id="OVaGAJiQllxB8mIK0kTIGn">测款期高值</td></tr>
+        <tr data-page-node-id="oT0Fipf6fHKzFpXTbNZPuw"><td data-page-node-id="NEY4H5A4o7yEHogbY9JkCr">退货 (3%)</td><td data-page-node-id="jtAk3qr6GfREUE2eMpML3g">300</td><td data-page-node-id="7AUwpHnXgxif8E6GOgwp9w"></td></tr>
+        <tr data-page-node-id="FvVY5OJM5bIMCF4659yV3D"><td data-page-node-id="9y1UmpMUuLj1QCqQlWYwzc">汇率预留 (3%)</td><td data-page-node-id="ES4D6DQK9KHC00uvNgZ5dH">300</td><td data-page-node-id="gVwYqrdzvEPF8A880fomsf"></td></tr>
+        <tr data-page-node-id="knMOuLhplE1zXgB1347Lf6"><td data-page-node-id="0apRWRHA3Ij63ZOi34895K"><strong data-page-node-id="JVeSoHiJxatbcg8EAIochJ">总成本</strong></td><td data-page-node-id="1VeksDoIwGwp5AGLDHRZAx"><strong data-page-node-id="XEWb8mPkhotOcAsagDmrc3">10,115</strong></td><td data-page-node-id="mDDvm23j3zYx535z9Iu6jh"></td></tr>
+        <tr data-page-node-id="2GEVQhLVQB9OHCfogiWeBY"><td data-page-node-id="AEyEm5KT6TkwEbFkW0RaqY"><strong data-page-node-id="SefmspFZ1MyxNfKDZXhqfy">售价</strong></td><td data-page-node-id="PnUCAsJmQvu0fsyv819QOu"><strong data-page-node-id="TAa6AK2WZysUh1tzYskKN2">10,000</strong></td><td data-page-node-id="v9OWrAx3c6wRAERXtf5wSd">竞品均价 8,000-9,000</td></tr>
+        <tr data-page-node-id="hRAwPfsXOv2Kt3b9Vjoi3T"><td data-page-node-id="6igJ5cpmMEgiS0BaCvY5HF"><strong data-page-node-id="C14pCthYBhEdeRZoc8daec">净利润</strong></td><td class="hl-red" data-page-node-id="6cim0MbKEYrD69Jj1YWrGu"><strong data-page-node-id="tr8teOw7PZueHfSMhfCCOw">-115</strong></td><td data-page-node-id="VBTf9v4Dge8ZCMrS3J6oII">亏了!</td></tr>
+      </table>
+      <p style="margin-top:8px" data-page-node-id="c60nJ69S8raCdG1nV0TSyW"><strong data-page-node-id="lSYmtarcnrxkIpAjrky1sb">修正</strong>：售价应提高到 <strong data-page-node-id="oziwi6Qqxp8F141sD44lfr">12,000 LKR</strong>（比竞品高 33%，但WiFi6+大电池是核心卖点）<br data-page-node-id="1UkfWY307aPJnCOeceWhNk">
+      修正后净利润 = 12,000 - 6,815 - 12,000 x (11%+4.5%+3.5%+8%+3%+3%) = 12,000 - 6,815 - 3,960 = <strong data-page-node-id="fuFXL55j3CMUi9Rv6VESEA">1,225 LKR</strong><br data-page-node-id="f1DFfGvVib7pSKZUn0xXS6">
+      净利润率 = 1,225 / 12,000 = <strong class="hl-green" data-page-node-id="Y2KGnLTuaH7ZlCpWWTDyJn">10.2%</strong></p>
+      <p style="margin-top:4px" data-page-node-id="XJqzDQ4aQi68j9HmavzHV5"><strong data-page-node-id="OZVCO6RCzoT3sTCVrWuqf1">进一步优化</strong>：放量后转拼柜/FCL，运费从1,755降到~500，净利润率提升至 <strong class="hl-green" data-page-node-id="6vlmXDbPFrPKuFttCJ3FmJ">18.5%</strong></p>
+    </div>
+
+    <div class="output-tag" data-page-node-id="jjF1PSMqXZSQfY808LT6hN">输出：利润测算表 + 定价建议 + 放量后利润预测</div>
+  </div>
+</section>
+
+<!-- ===== STEP 7 ===== -->
+<section data-page-node-id="bkoKizGMh2wk5cGlT6S386">
+  <h2 data-page-node-id="WcSXSQcFlkAkNuPe5tKJCi"><span class="icon" data-page-node-id="3C2cKWQVxBsF9QzFgDk8rz">[9]</span> 第七步：风险与合规</h2>
+
+  <div class="step-card" data-page-node-id="opsogxTAYOwNXwMnSdMrRk">
+    <div class="step-header" data-page-node-id="L56sIobL8G3OeGGcXUYAhm">
+      <div class="step-num" data-page-node-id="Md0IlGRJmlTu8AhPLzSbxx">7</div>
+      <div class="step-title" data-page-node-id="DTUBKOYiPoeOaOLAFlpGqX">风险与合规 (Risk & Compliance)</div>
+    </div>
+    <div class="step-goal" data-page-node-id="VeHkgoSERAallSLcDH5Ldq">目标：确保选品不踩合规红线，不侵权，不被海关扣货</div>
+
+    <h3 data-page-node-id="pWoBWF23bsBV3iUks9Fqjj">7.1 合规检查清单</h3>
+    <table data-page-node-id="mbWM2IOo8vnpzPsCn2nZ6M">
+      <tr data-page-node-id="aKoRbiTI7F4LhPjWC6tCLv"><th data-page-node-id="X0BCX3BA7kEhdw6m2bb9wH">检查项</th><th data-page-node-id="iSmlKtxwHFmj2mthis4GWg">适用品类</th><th data-page-node-id="poNwDbHMjLHiffP3TqvBoj">认证/要求</th><th data-page-node-id="tHg0NS4PZ83EMxtlRIBW1e">规避策略</th></tr>
+      <tr data-page-node-id="WB9r83FrZImMjxMYTlsCcX"><td data-page-node-id="FKeSDDEiswqgYJ45xcE2Vr">SLSI 认证</td><td data-page-node-id="nrl6YnGvn2odgG3d9BTv3O">电气产品（空气炸锅/电水壶/电动牙刷）</td><td data-page-node-id="Zauw9Uli2UmDMbXct3eeAH">SLS 1495（空气炸锅）/ SLS 60335（通用电气）</td><td data-page-node-id="87HaKAnwJJ6OrXbd0AMWrG">初期用DDP小批量规避，放量前办认证</td></tr>
+      <tr data-page-node-id="8RgU2VwKobzyxwxXXCiwND"><td data-page-node-id="tytFs54Fry8qZdMnyagkml">TRCSL 型号批准</td><td data-page-node-id="YSVPzXHdxWEKGRpfDX3Upf">无线产品（路由器/4G CPE/蓝牙设备/GPS追踪器）</td><td data-page-node-id="DAsQ0wlUQl4IyNiVgTVjAs">$300-800/型号, 4-8周</td><td data-page-node-id="5eRSDxC2n5Lbxri0QdsRUX">初期空运小包DDP规避，放量前申请</td></tr>
+      <tr data-page-node-id="uLTC2LKgyspwKw3HDFQTC4"><td data-page-node-id="5Tk0hBT5lHBZj1IMCEG8Vk">禁止进口清单</td><td data-page-node-id="0tG0oWPOEskk1dpBtTp3Gh">所有品类</td><td data-page-node-id="f9uQQtAR99iwVEPIfgy0eS">武器/毒品/部分化学品/濒危物种制品</td><td data-page-node-id="8jtvheGs9PTjVfSi5IeYCG">选品前核对斯里兰卡海关禁运清单</td></tr>
+      <tr data-page-node-id="ZD8RHCfFuOaUoOzJKXAYYT"><td data-page-node-id="NKy2ck2Q7gZKapeuCAXVx9">检疫要求</td><td data-page-node-id="JZfQsEz0xwHCqKU8kCtvSj">食品/宠物食品/植物/木材</td><td data-page-node-id="MKnxRX25VtHqFfQEQ5epEh">需卫生检疫证书</td><td data-page-node-id="eRr8si46MIbDY6F90sJ8Uq">避开食品类，选品聚焦工业品</td></tr>
+    </table>
+
+    <h3 data-page-node-id="bkdwCNl9H92ZTkpEXl0TaF">7.2 知识产权排查</h3>
+    <ul data-page-node-id="DCvDdEqyx5NOZylOar4VxP">
+      <li data-page-node-id="USqEBWRlURUlZoKBkkRcG3"><strong data-page-node-id="x9zlRB7sAF1qlW4wKMElqh">商标侵权</strong>：检查产品标题、Logo、包装是否含有已注册商标（尤其注意 Apple/Samsung/Xiaomi 等品牌名）</li>
+      <li data-page-node-id="pECQiCrpBdrHDxQj2HRNLz"><strong data-page-node-id="zF9rlHmGFfaAmJQkYGGDTl">外观专利</strong>：检查产品外观是否与已知专利产品高度相似（尤其注意欧美品牌的设计专利）</li>
+      <li data-page-node-id="JL9U4aCcWQSVWeBFTQ2coq"><strong data-page-node-id="6d3XYuSSLTPttHI6zj917v">实用新型专利</strong>：检查核心功能结构是否涉及专利（如特定折叠机构、磁吸结构）</li>
+      <li data-page-node-id="tCKaO7zY7O9F5k8JGXSFB2"><strong data-page-node-id="GLYOmFgV8UG6yIc29H5HZZ">版权</strong>：检查产品图片、包装设计是否涉及版权（如卡通形象、电影元素）</li>
+    </ul>
+
+    <h3 data-page-node-id="4jV3U7lW8UC69MZMuBS4In">7.3 合规结论分级</h3>
+    <div class="card success" data-page-node-id="6vGvxA273RpLtduOXACH4e">
+      <table data-page-node-id="4eF0bBQI1ZaOf40kSQontF">
+        <tr data-page-node-id="WFUfh9qrUs4j1BJwnAcoQk"><th data-page-node-id="B0PwdGl8vN7s3RqNhbdU51">结论</th><th data-page-node-id="aBgDYeZdD3v25VcpB2WOc0">含义</th><th data-page-node-id="uEfmxvwAbykrSAhH2pZpmI">行动</th></tr>
+        <tr data-page-node-id="9RpTm0WM1Pss08wrhMklrL"><td class="hl-green" data-page-node-id="GZitoMzXxaoIDrpIG3Jku6">通过</td><td data-page-node-id="WOB8FUlCKJHvQuvmhQyR2y">无合规门槛（如 HS 90 章 仪器类）</td><td data-page-node-id="oPOezXLNHKEaoGzzJKP9Dr">直接进入上架</td></tr>
+        <tr data-page-node-id="G0OTdmJ8SZolcSnYd7ih2C"><td class="hl-blue" data-page-node-id="EjP0anXOoQpW26Jb3vcHkO">有条件通过</td><td data-page-node-id="aRBfr5nhMcUcfOqv3EPnle">需认证但可初期规避（如路由器需 TRCSL）</td><td data-page-node-id="N4ewB6F6Yviu889HT1OtVq">DDP小批量测款 &rarr; 放量前办认证</td></tr>
+        <tr data-page-node-id="Y3McPyy6pZ3k2Hm7vMDacL"><td class="hl-red" data-page-node-id="KQKOHGjkOu8zMKKfdCB0CH">不通过</td><td data-page-node-id="4JIhwmdrFyppcAJrboFu4W">禁运品或认证门槛极高/成本极高</td><td data-page-node-id="SDCy3nyFGekH0BGzscO7NA">放弃该选品</td></tr>
+      </table>
+    </div>
+
+    <div class="output-tag" data-page-node-id="nhAieaXtYhSQjLPgDPgZzM">输出：合规结论 + 整改建议 + 认证时间线</div>
+  </div>
+</section>
+
+<!-- ===== 上架策略 ===== -->
+<section data-page-node-id="cBH2Qo5RO9MEK1uECctRLD">
+  <h2 data-page-node-id="IA4saUBxRgPdkgH071caUu"><span class="icon" data-page-node-id="TxyGvVYjrDxmmWO8XXsIOf">[10]</span> 上架策略：把痛点解决方案变成转化率</h2>
+
+  <div class="card highlight" data-page-node-id="R2Zc1AmayZzAxXQiakIt4b">
+    <h3 data-page-node-id="FPLmnZOowasEWSzGc0ZjFH">主图策略</h3>
+    <ul data-page-node-id="01c9lvhwpHaXpPYkTGvWKi">
+      <li data-page-node-id="pqeEDUj7kn02rntHxVXZAi">主图必须展示<strong data-page-node-id="hA82qZF6dOPfngoCwCqoxC">升级特征</strong>（如 USB-C 接口特写、防水演示、大电池容量标注）</li>
+      <li data-page-node-id="cnzGDI035mOljTGtYztbhO">主图加文字标注核心卖点（如 "WiFi 6"、"4000mAh Big Battery"、"IPX4 Waterproof"）</li>
+      <li data-page-node-id="InfKGXJkfnbUp2fec756Cl">第二张图做"对比图"：普通款 vs 升级款，直观展示差异</li>
+    </ul>
+  </div>
+
+  <div class="card highlight" data-page-node-id="16RLJvCyCZzuon6jiMrWKn">
+    <h3 data-page-node-id="UO07ubQRkTB4w2A6j60g33">标题策略</h3>
+    <ul data-page-node-id="SxCIhUg6F3alHTa754qUHg">
+      <li data-page-node-id="GqjjCeczvgsi01yiNkeICB">包含<strong data-page-node-id="Rdemcw7rzIKlVDFfB96Xvg">痛点解决关键词</strong>（如 "Fast Charging"、"Long Battery Life"、"Anti-Fall"）</li>
+      <li data-page-node-id="EleslGgFV80SPb4Bf6PeQ8">包含<strong data-page-node-id="2VRA2BMmyu3ja7Sbywf5Gk">升级特征关键词</strong>（如 "WiFi 6"、"Type-C"、"3000mAh"）</li>
+      <li data-page-node-id="dcu8o1sjuVzkpwYLNt92xf">包含<strong data-page-node-id="cDEtZaYcUTWYyZOT3VfG8h">兼容性关键词</strong>（如 "Support B28 700MHz"——斯里兰卡 4G 频段）</li>
+    </ul>
+  </div>
+
+  <div class="card highlight" data-page-node-id="LAPP8p5FLHLYUQFNxkvOMH">
+    <h3 data-page-node-id="hLBldsCACGEJrzS1aAoWYn">详情页策略</h3>
+    <ul data-page-node-id="vE1TFi4gt5I9UcH6wAwTl3">
+      <li data-page-node-id="HvGfL4kKDg3LUu6mSTeJs3">第一屏：核心痛点 + 升级方案（"Tired of slow charging? Our Type-C fast charging..."）</li>
+      <li data-page-node-id="aacjCpFCAJYURlfcXDxgkj">第二屏：对比表格（Our Product vs Others）</li>
+      <li data-page-node-id="E1FwzzeFHxjgSghcuzLNXC">第三屏：使用场景图（让买家代入）</li>
+      <li data-page-node-id="xAOEkxhPsxSC6a2S2q0ElG">第四屏：包装清单（附赠配件展示价值感）</li>
+      <li data-page-node-id="P5ilrB3kQJDJEc2taQyBMC">第五屏：售后承诺（质保/退换政策，降低购买顾虑）</li>
+    </ul>
+  </div>
+
+  <div class="card highlight" data-page-node-id="Z1JzhPCNvaIAUq0fMQtGOz">
+    <h3 data-page-node-id="r6phHJfAW88pniuJFAyLbe">首批备货节奏</h3>
+    <table data-page-node-id="6UnK3wn9bxUbctAE5RrfLJ">
+      <tr data-page-node-id="sSUZwi6HsDBgCT8fPJRAGq"><th data-page-node-id="ACPcIEAmOYIkoEs2c2etx2">阶段</th><th data-page-node-id="kTgqW9kL6MHKOz59ikcbfx">数量</th><th data-page-node-id="KPWH5YTALnqCEfq82TBeSP">物流</th><th data-page-node-id="iFm8mEXV0two2i239Yc4GY">目标</th></tr>
+      <tr data-page-node-id="Rf7jfiUczmiBHG1pEQ7pAs"><td data-page-node-id="itFaGybK6IixZZczyHtSxR">测款期（1-2周）</td><td data-page-node-id="MEetZTDVDK9A7r4HROjPwB">100-200件</td><td data-page-node-id="aSUE6XYOsLSlHILGaj20gp">航空小包 DDP</td><td data-page-node-id="oWoh96tBBUTIBVlFzlNwMZ">验证转化率、收集首批评论</td></tr>
+      <tr data-page-node-id="vkgGKGLiPNswmvDI5Hmxg0"><td data-page-node-id="b6YUnzqCPMqnWy9sjMJCUa">放量期（3-6周）</td><td data-page-node-id="j6yn5Do9V0RCRRW7mjtzKF">1,000-3,000件</td><td data-page-node-id="VIdP6MhAiGKSNJyHkJCsZj">拼柜 LCL DDP</td><td data-page-node-id="EIqTq6ASP2LNIuTKl9ErhV">稳定排名，优化广告</td></tr>
+      <tr data-page-node-id="vaU2gfVOCyKcQ94pyZpGrS"><td data-page-node-id="viZGPqT0D6seKodn6Hnck7">放量期（7-12周）</td><td data-page-node-id="ughY9eQpOcsFcjPjUFnBfB">5,000-20,000件</td><td data-page-node-id="d3Uo84vhN01dnGvj012jmM">FCL 40尺HC（零关税品）/ LCL</td><td data-page-node-id="dw5STj6M4mCMIR2GKbqObp">降低物流成本，最大化利润</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== 方法论总结 ===== -->
+<section data-page-node-id="lvIFPHvQxFyKQP2pAzG1Uu">
+  <h2 data-page-node-id="dSMrwlJDVsodkzAhvJxzfY"><span class="icon" data-page-node-id="tnNBkQsMy9tDCsct6ThXqG">[11]</span> 方法论总结与核心要点</h2>
+
+  <div class="card success" data-page-node-id="9EihorJ3OVDDKHm5elkyCk">
+    <h3 data-page-node-id="FV8XmL9AQ2lDlkEKAUodLu">五个必须记住的核心要点</h3>
+    <ol data-page-node-id="NIWEfW00FBnwZGRTLHu4Ev">
+      <li data-page-node-id="Bhx3G6lzM0nDLtIXn45WK1"><strong data-page-node-id="jFVOQQBFJGqOtSyWY2DUvf">痛点是选品的起点，不是价格。</strong>所有分析从竞品差评开始，找到 PPS 最高的痛点作为升级方向。</li>
+      <li data-page-node-id="ljpDOgfase9TOEUwaqKAjn"><strong data-page-node-id="1oZior3BM1XlCvOY5OwMmS">关税决定物流方案。</strong>0% 税率走 FCL 碾压，>30% 税率走 DDP 优化关税，15-30% 算盈亏平衡点。</li>
+      <li data-page-node-id="k3xFulYCYqnMRPrUZMZTkU"><strong data-page-node-id="mJGnGZxACRoO8D5f342tWk">DDP 的隐性价值是关税优化。</strong>不要只看 DDP 报价比 FCL 高，DDP 物流公司的申报价值优化可能帮你省下大量关税。</li>
+      <li data-page-node-id="XsE4oLEOvb5Xph1KMpSnKX"><strong data-page-node-id="2g0PzDfsSOEcmQO1SgSKad">升级必须可见。</strong>如果升级特征不能在主图上展示，买家感知不到，就不值得做。</li>
+      <li data-page-node-id="h0MSX5b4xf45bn8kQnmC42"><strong data-page-node-id="fBiKtg29r3oZBhpcPGXx0p">测款用空运，放量转海运。</strong>不要一上来就整柜备货，先小批量验证市场反应。</li>
+    </ol>
+  </div>
+
+  <div class="card warning" data-page-node-id="KTI5AaixxHXgUUGFL3Cy4J">
+    <h3 data-page-node-id="957Z6NPoAIJWjSMzGJzRoR">常见误区</h3>
+    <ul data-page-node-id="MUkbdV6loTDUu0hM4Ma8CC">
+      <li data-page-node-id="P78qQ25KdTBZ0up71qOWlA"><strong data-page-node-id="1KgHK5f0Uiow5NIqnlYRxh">误区1</strong>："找到痛点就一定能找到升级款" —— 有些痛点受限于成本/技术，无法低成本解决。可解决度评分就是为了过滤这些。</li>
+      <li data-page-node-id="NV7O52N4kSg8GrXhLoay4r"><strong data-page-node-id="RyqQnhyAsEXNocPKMkOWxf">误区2</strong>："FCL 一定比 LCL 便宜" —— 对于高关税品类，FCL 的全额关税可能远超 DDP 的关税优化。</li>
+      <li data-page-node-id="pbieOD08Qm513K1DpH3uio"><strong data-page-node-id="mijBfOYksWtTQWTXE8QvVA">误区3</strong>："升级越多越好" —— 贪多嚼不烂，集中资源解决 1-2 个 S 级痛点比解决 5 个 B 级痛点更有效。</li>
+      <li data-page-node-id="t5BTYcDam77XjoDMFFgukI"><strong data-page-node-id="7FIfrAkhuV0MhHyzuKvEHP">误区4</strong>："Daraz 评论少就不用分析" —— 评论少去 Amazon India/Flipkart 补充，消费习惯接近。</li>
+      <li data-page-node-id="bFabacuZ9krGFXap1afeJs"><strong data-page-node-id="dZhAPTaoL7cSCWMjwBUVxO">误区5</strong>："零关税就一定走 FCL" —— 还要考虑备货量和库存周转，不要为了省运费压一堆卖不掉的库存。</li>
+    </ul>
+  </div>
+</section>
+
+<div class="footer" data-page-node-id="bJ4GATX7o9COcOKWFlD7Jg">
+  <p data-page-node-id="ORwtTfPB4l1ASxINA6p1ft">斯里兰卡 Daraz 差异化选品方法论 V1.0 | 2026-07-18</p>
+  <p data-page-node-id="XIq7x5ZAvwDFKPqib6vALt">配套工具：Excel 实操分析模板（竞品全景表 / 评论痛点分析表 / 痛点升级映射表 / FCL vs LCL 计算器 / 利润测算表）</p>
+</div>
+
+</div>
+</body>
+</html>

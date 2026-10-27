@@ -1,0 +1,850 @@
+# AI选品实现方案
+
+> 本文档基于方法论文档和现有代码库架构，给出 Open Shop 项目中 AI 选品（差异化选品）功能的落地实现方案。
+> 
+> @see docs/design/ai-candidates/斯里兰卡Daraz差异化选品方法论.html §七步选品法  
+> @see docs/design/ai-candidates/高速吹风机Daraz选品分析.html §实测案例  
+> @see AGENTS.md
+
+## 1. 概述
+
+### 1.1 目标和价值
+
+基于《斯里兰卡Daraz差异化选品方法论》，AI选品的核心思路是 **"不卷价格，卷痛点"**。通过系统化地挖掘竞品差评、识别未满足痛点、匹配升级款产品、并结合关税、物流、全成本等因素进行量化评估，最终产出具有差异化竞争力且有合理利润的选品候选清单。
+
+**核心价值：**
+- **系统化选品**：将专家经验固化为可执行的"七步选品法"，减少主观决策
+- **差异化导向**：从竞品差评中发现痛点，优先寻找"升级款"而不是"同款更便宜"
+- **全链路量化**：整合关税、物流、平台费用、汇率等全成本，防止盲目选品
+- **可落地验证**：借助现有的 `product_candidates` 表和 `/console/candidates` 页面，渐进式完善
+
+### 1.2 现状分析
+
+当前代码库已有雏形：
+- **前端**: `apps/shop/src/app/[locale]/console/(ops)/candidates/` 已有候选列表页和详情页，使用 mock 数据（`@/lib/crossborder/mock-data`）
+- **数据模型**: `packages/db/src/commerce-schema.ts` 中已存在 `productCandidates` 表（字段较简：`title`、`url`、`categoryHint`、`score`、`rationale`、`status`、`pendingActionId`）
+- **市场数据**: `packages/marketplace` 已具备 Daraz（基于 LazOP）连接器能力
+
+但距离文档中描述的完整"AI选品"流程（七步法、PPS评分、升级匹配、全成本测算等）还有较大差距，需要按架构规范扩展。
+
+## 2. 方法论提炼
+
+将两个文档的核心逻辑映射到系统实现：
+
+| 方法论步骤 | 文档要点 | 系统化需求 | 对应实体 |
+|-----------|---------|-----------|---------|
+| **1. 品类预筛** | HS编码→关税计算（CID/PAL/VAT/SSCL）→SLSI合规→物流可行性 | HS码库、关税规则、合规清单、品类可行性评分 | `aiSelectionTasks`、`aiSelectionReports` |
+| **2. 竞品全景** | Daraz SL前N名竞品、价格带、品牌格局、发货地、标题卖点 | 竞品采集（可基于marketplace API或爬取）、竞品快照、价格带分析 | `aiCandidateCompetitors` |
+| **3. 痛点挖掘** | 差评收集→痛点分类→PPS = 频率×严重度×可解决度 | 差评采集、痛点提取（AI/规则）、PPS量化、优先级排序 | `aiCandidatePainPoints` |
+| **4. 升级匹配** | 痛点→特征→1688搜索验证→可见性/成本可控/一击致命 | 升级款候选库、特征映射、采购价预估、可行性验证 | `aiCandidateUpgrades` |
+| **5. 物流决策** | 空运DDP vs 海运LCL vs 海运FCL、带电产品限制、时效权衡 | 物流方案库、运费估算（重量/体积）、盈亏平衡点计算 | 纳入成本测算 |
+| **6. 全成本利润测算** | 采购+运费+关税+平台费+营销+退货+汇率，模拟多情景 | 成本模板、费用规则、汇率、利润测算引擎、多情景对比 | `aiCandidateCosts` |
+| **7. 风险合规** | SLSI、TRCSL、IP侵权（外观）、插头、电压、带电物流 | 合规检查清单、风险评级、整改建议 | 纳入报告 |
+
+### 核心量化指标
+
+| 指标 | 计算方式 | 用途 |
+|------|---------|------|
+| **PPS（痛点优先级）** | `频率(1-5) × 严重度(1-5) × 可解决度(1-3)` | 排序待解决痛点，优先匹配高PPS项 |
+| **有效税率** | `CID + PAL + VAT + SSCL + CESS`（按Daraz SL规则） | 品类门槛判断（文档案例：8516.31→29.8%） |
+| **综合毛利率** | `(建议售价 - 到岸成本 - 平台费用 - 其他费用) / 建议售价 × 100%` | 决策GO/NO-GO（目标≥15%为主推线） |
+| **差异化强度** | 基于痛点覆盖率、零竞品程度、可见性评分 | 溢价合理性判断 |
+
+## 3. 架构设计
+
+### 3.1 模块边界（遵循 AGENTS.md）
+
+| 模块 | 职责 | 说明 |
+|------|------|------|
+| **`apps/shop`** | 租户端UI + 业务入口 | 主要落地地。现有 `/console/candidates` 扩展为完整AI选品工作台（任务创建、进度、结果、分析报告）。按规范使用 `'use client'` 最小化，仅通过tRPC调用。 |
+| **`apps/web`** | 平台运营后台 | 平台侧可增加跨租户选品任务监控（只读）、AI选品规则配置（HS库、费用模板）等，默认受限。MVP可先不实现。 |
+| **`apps/api`** | OpenAPI/MCP接入 | 若后续需对外暴露选品能力，共用domain服务，避免双套写路径。MVP可延后。 |
+| **`packages/db`** | 数据模型 | 新增AI选品相关表，严格遵循规范（`organization_id`、`numeric`金额、`timestamp withTimezone`、`varchar+union`枚举、`jsonb`扩展）。 |
+| **`packages/marketplace`** | 平台数据接入 | 扩展Daraz适配器，增加竞品列表、商品详情、差评等数据获取能力（可复用现有LazOP基类）。 |
+| **`packages/auth`** | 权限 | 租户隔离沿用现有organization机制。 |
+| **`packages/ui`** | 组件库 | 使用shadcn/ui组件构建选品页面。 |
+
+### 3.2 依赖方向
+
+符合AGENTS.md既定方向：
+- `apps/shop` → `@workspace/{db,auth,marketplace,ui,shared-next,...}`
+- `packages/marketplace` → `@workspace/db`
+- `packages/db` → 不引用任何workspace包
+
+### 3.3 服务层链路（标准）
+
+```
+UI (apps/shop/src/app/[locale]/console/(ops)/ai-selection/*)
+  ↓ tRPC（apps/shop/src/server/routers/aiSelection.ts，或 apps/web 按需）
+  mappers（可选，src/lib/server/mappers/aiSelection.ts）
+  dataaccess（src/lib/server/dataaccess/aiSelection.ts）— 事务用 db.transaction
+    ↓ Drizzle ORM
+  @workspace/db（packages/db/src/schema/ai-selection.ts 或合并到 commerce-schema.ts）
+    ↓ PostgreSQL
+```
+
+> 注意：AGENTS.md 指出 `apps/shop` 当前以 mock 展示，尚未接入业务 tRPC。AI选品是自然的首批接入场景，需按此链路补全。
+
+## 4. 数据模型设计
+
+需新增表结构，全部遵循项目规范。
+
+### 4.1 枚举定义
+
+```typescript
+// packages/db/src/ai-selection-schema.ts（或在 commerce-schema.ts 扩展）
+export const aiSelectionTaskStatuses = ["pending", "running", "succeeded", "failed", "cancelled"] as const
+export type AiSelectionTaskStatus = (typeof aiSelectionTaskStatuses)[number]
+
+export const aiSelectionTaskTypes = ["full", "competitor_scan", "painpoint_mine"] as const
+export type AiSelectionTaskType = (typeof aiSelectionTaskTypes)[number]
+
+export const aiCandidateDecision = ["go", "hold", "no_go"] as const
+export type AiCandidateDecision = (typeof aiCandidateDecision)[number]
+
+export const aiCandidateSource = ["ai_recommend", "manual_import"] as const
+export type AiCandidateSource = (typeof aiCandidateSource)[number]
+
+export const logisticsModes = ["air_ddp", "sea_lcl", "sea_fcl"] as const
+export type LogisticsMode = (typeof logisticsModes)[number]
+```
+
+### 4.2 核心表结构
+
+#### `ai_selection_tasks` - 选品任务
+记录用户发起的AI选品任务（"七步法"全流程或子任务）。
+
+```typescript
+export const aiSelectionTasks = pgTable(
+  "ai_selection_tasks",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    organizationId: text("organization_id").notNull().references(() => organization.id),
+    createdBy: text("created_by").notNull().references(() => user.id),
+    type: varchar("type", { length: 32 }).notNull().$type<AiSelectionTaskType>(),
+    status: varchar("status", { length: 32 }).notNull().default("pending").$type<AiSelectionTaskStatus>(),
+    title: text("title").notNull(),
+    // 输入参数
+    platform: varchar("platform", { length: 32 }).notNull(), // daraz/lazada/...
+    marketplaceCountry: varchar("marketplace_country", { length: 16 }).notNull(), // lk/my/...
+    categoryKeyword: text("category_keyword"),
+    hsCode: varchar("hs_code", { length: 20 }),
+    priceRangeMin: numeric("price_range_min", { precision: 15, scale: 4 }),
+    priceRangeMax: numeric("price_range_max", { precision: 15, scale: 4 }),
+    targetMarginPct: numeric("target_margin_pct", { precision: 6, scale: 2 }),
+    params: jsonb("params").$type<Record<string, unknown>>().default({}),
+    // 进度与结果概览
+    progress: integer("progress").default(0), // 0-100
+    currentStep: varchar("current_step", { length: 32 }), // step1..step7
+    resultSummary: jsonb("result_summary").$type<Record<string, unknown>>().default({}),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("ai_selection_tasks_org_idx").on(t.organizationId),
+    index("ai_selection_tasks_status_idx").on(t.organizationId, t.status),
+    index("ai_selection_tasks_created_idx").on(t.organizationId, t.createdAt),
+  ],
+)
+```
+
+#### `ai_selection_candidates` - 选品候选结果（扩展现有productCandidates）
+扩展现有 `product_candidates` 表或新建更完整的表。鉴于现有表已存在且被前端使用，建议**扩展字段**而非替换，保持向后兼容。
+
+**扩展字段建议（迁移）：**
+```typescript
+// 扩展 product_candidates
+{
+  taskId: text("task_id").references(() => aiSelectionTasks.id), // 关联任务
+  source: varchar("source", { length: 16 }).default("ai_recommend").$type<AiCandidateSource>(),
+  platform: varchar("platform", { length: 32 }),
+  marketplaceCountry: varchar("marketplace_country", { length: 16 }),
+  hsCode: varchar("hs_code", { length: 20 }),
+  decision: varchar("decision", { length: 16 }).$type<AiCandidateDecision>(), // go/hold/no_go
+  decisionReason: text("decision_reason"),
+  landingPageUrl: text("landing_page_url"),
+  imageUrl: text("image_url"),
+  // 量化指标
+  marketOpportunityScore: numeric("market_opportunity_score", { precision: 6, scale: 2 }),
+  competitionIntensityScore: numeric("competition_intensity_score", { precision: 6, scale: 2 }),
+  profitScore: numeric("profit_score", { precision: 6, scale: 2 }),
+  complianceScore: numeric("compliance_score", { precision: 6, scale: 2 }),
+  overallScore: numeric("overall_score", { precision: 6, scale: 2 }), // 综合评分 0-10
+  // 快速摘要
+  keySellingPoints: jsonb("key_selling_points").$type<string[]>().default([]),
+  risks: jsonb("risks").$type<Array<{level: string, desc: string, mitigation: string}>>().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
+}
+```
+
+#### `ai_candidate_competitors` - 竞品快照
+```typescript
+export const aiCandidateCompetitors = pgTable(
+  "ai_candidate_competitors",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    candidateId: text("candidate_id").notNull().references(() => productCandidates.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    externalProductId: text("external_product_id").notNull(),
+    title: text("title").notNull(),
+    price: numeric("price", { precision: 15, scale: 4 }),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    rating: numeric("rating", { precision: 3, scale: 2 }),
+    reviewCount: integer("review_count").default(0),
+    salesEstimate: integer("sales_estimate"),
+    imageUrl: text("image_url"),
+    productUrl: text("product_url"),
+    shopName: text("shop_name"),
+    shippingInfo: jsonb("shipping_info").$type<Record<string, unknown>>().default({}),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("ai_cand_comp_cand_idx").on(t.candidateId),
+    index("ai_cand_comp_ext_idx").on(t.platform, t.externalProductId),
+  ],
+)
+```
+
+#### `ai_candidate_pain_points` - 差评痛点（PPS评分）
+```typescript
+export const aiCandidatePainPoints = pgTable(
+  "ai_candidate_pain_points",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    candidateId: text("candidate_id").notNull().references(() => productCandidates.id, { onDelete: "cascade" }),
+    category: varchar("category", { length: 64 }).notNull(), // performance/durability/design/service/other
+    painPoint: text("pain_point").notNull(),
+    evidence: jsonb("evidence").$type<Array<{reviewId: string, snippet: string, rating: number}>>().default([]),
+    frequency: integer("frequency").notNull().default(1), // 1-5
+    severity: integer("severity").notNull().default(1), // 1-5
+    solvability: numeric("solvability", { precision: 3, scale: 1 }).notNull().default(1.0), // 1-3
+    pps: numeric("pps", { precision: 8, scale: 2 }).notNull(), // frequency*severity*solvability
+    isCore: varchar("is_core", { length: 8 }).default("false"), // S/A/B级判定
+    suggestedFeature: text("suggested_feature"),
+    ...timestamps,
+  },
+  (t) => [
+    index("ai_cand_pain_cand_idx").on(t.candidateId),
+    index("ai_cand_pain_pps_idx").on(t.candidateId, t.pps),
+  ],
+)
+```
+
+#### `ai_candidate_upgrades` - 升级款匹配
+```typescript
+export const aiCandidateUpgrades = pgTable(
+  "ai_candidate_upgrades",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    candidateId: text("candidate_id").notNull().references(() => productCandidates.id, { onDelete: "cascade" }),
+    sourcePlatform: varchar("source_platform", { length: 32 }), // 1688/alibaba/other
+    sourceUrl: text("source_url"),
+    productTitle: text("product_title").notNull(),
+    supplier: text("supplier"),
+    moq: integer("moq"),
+    purchasePriceCny: numeric("purchase_price_cny", { precision: 15, scale: 4 }),
+    purchasePriceMin: numeric("purchase_price_min", { precision: 15, scale: 4 }),
+    purchasePriceMax: numeric("purchase_price_max", { precision: 15, scale: 4 }),
+    features: jsonb("features").$type<string[]>().default([]),
+    matchedPainPoints: jsonb("matched_pain_points").$type<string[]>().default([]),
+    visibility: integer("visibility").default(3), // 1-5 主图可展示程度
+    costControllable: integer("cost_controllable").default(3), // 1-5
+    killShot: integer("kill_shot").default(3), // 1-5 一击致命
+    overallFit: numeric("overall_fit", { precision: 6, scale: 2 }), // 综合匹配度
+    verified: varchar("verified", { length: 8 }).default("false"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("ai_cand_upgrade_cand_idx").on(t.candidateId),
+  ],
+)
+```
+
+#### `ai_candidate_costs` - 全成本测算
+```typescript
+export const aiCandidateCosts = pgTable(
+  "ai_candidate_costs",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    candidateId: text("candidate_id").notNull().references(() => productCandidates.id, { onDelete: "cascade" }),
+    scenarioName: varchar("scenario_name", { length: 32 }).notNull(), // main/test/fcl/custom
+    currency: varchar("currency", { length: 3 }).notNull().default("LKR"),
+    fxRateCnyToLkr: numeric("fx_rate_cny_to_lkr", { precision: 10, scale: 4 }),
+    // 成本明细
+    purchasePriceCny: numeric("purchase_price_cny", { precision: 15, scale: 4 }),
+    purchasePriceLkr: numeric("purchase_price_lkr", { precision: 15, scale: 4 }),
+    freightCny: numeric("freight_cny", { precision: 15, scale: 4 }),
+    freightLkr: numeric("freight_lkr", { precision: 15, scale: 4 }),
+    logisticsMode: varchar("logistics_mode", { length: 16 }).$type<LogisticsMode>(),
+    // 关税
+    hsCode: varchar("hs_code", { length: 20 }),
+    cidRate: numeric("cid_rate", { precision: 6, scale: 4 }),
+    palRate: numeric("pal_rate", { precision: 6, scale: 4 }),
+    vatRate: numeric("vat_rate", { precision: 6, scale: 4 }),
+    ssclRate: numeric("sscl_rate", { precision: 6, scale: 4 }),
+    cessRate: numeric("cess_rate", { precision: 6, scale: 4 }),
+    dutyTotalLkr: numeric("duty_total_lkr", { precision: 15, scale: 4 }),
+    landedCostLkr: numeric("landed_cost_lkr", { precision: 15, scale: 4 }),
+    // 平台费用
+    commissionRate: numeric("commission_rate", { precision: 6, scale: 4 }), // daraz通常较高
+    commissionLkr: numeric("commission_lkr", { precision: 15, scale: 4 }),
+    paymentFeeLkr: numeric("payment_fee_lkr", { precision: 15, scale: 4 }),
+    otherPlatformFeeLkr: numeric("other_platform_fee_lkr", { precision: 15, scale: 4 }),
+    // 运营费用预留
+    marketingRate: numeric("marketing_rate", { precision: 6, scale: 4 }),
+    marketingLkr: numeric("marketing_lkr", { precision: 15, scale: 4 }),
+    returnRate: numeric("return_rate", { precision: 6, scale: 4 }),
+    returnLkr: numeric("return_lkr", { precision: 15, scale: 4 }),
+    // 定价与利润
+    suggestPriceLkr: numeric("suggest_price_lkr", { precision: 15, scale: 4 }),
+    netProfitLkr: numeric("net_profit_lkr", { precision: 15, scale: 4 }),
+    netMarginPct: numeric("net_margin_pct", { precision: 6, scale: 2 }),
+    breakEvenPriceLkr: numeric("break_even_price_lkr", { precision: 15, scale: 4 }),
+    // 明细
+    breakdown: jsonb("breakdown").$type<Record<string, unknown>>().default({}),
+    isRecommended: varchar("is_recommended", { length: 8 }).default("false"),
+    ...timestamps,
+  },
+  (t) => [
+    index("ai_cand_cost_cand_idx").on(t.candidateId),
+  ],
+)
+```
+
+#### `ai_selection_reports` - 分析报告（汇总七步结果）
+```typescript
+export const aiSelectionReports = pgTable(
+  "ai_selection_reports",
+  {
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    taskId: text("task_id").notNull().references(() => aiSelectionTasks.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id").references(() => productCandidates.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").notNull().references(() => organization.id),
+    // 七步摘要
+    step1Summary: jsonb("step1_summary").$type<Record<string, unknown>>().default({}),
+    step2Summary: jsonb("step2_summary").$type<Record<string, unknown>>().default({}),
+    step3Summary: jsonb("step3_summary").$type<Record<string, unknown>>().default({}),
+    step4Summary: jsonb("step4_summary").$type<Record<string, unknown>>().default({}),
+    step5Summary: jsonb("step5_summary").$type<Record<string, unknown>>().default({}),
+    step6Summary: jsonb("step6_summary").$type<Record<string, unknown>>().default({}),
+    step7Summary: jsonb("step7_summary").$type<Record<string, unknown>>().default({}),
+    // 综合结论
+    verdict: text("verdict"),
+    actionPlan: jsonb("action_plan").$type<Array<{week: string, action: string, owner: string}>>().default([]),
+    fullReport: jsonb("full_report").$type<Record<string, unknown>>().default({}), // 完整报告快照
+    generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index("ai_sel_reports_task_idx").on(t.taskId),
+    index("ai_sel_reports_cand_idx").on(t.candidateId),
+    index("ai_sel_reports_org_idx").on(t.organizationId),
+  ],
+)
+```
+
+### 4.3 数据规范检查
+
+- ✅ 所有业务表都有 `organization_id`（且 `NOT NULL`，除非确实是跨租户全局配置）
+- ✅ 外部平台ID仅存在于映射表（`ai_candidate_competitors.externalProductId` 配合 `platform` 使用；未来如需shop级隔离可关联`shops`）
+- ✅ 金额字段用 `numeric(precision, scale)`（采购价、运费、关税、利润等）
+- ✅ 时间戳用 `timestamp(..., { withTimezone: true }).defaultNow()`，更新用 `$onUpdate`
+- ✅ 枚举用 `varchar` + TypeScript `as const` 数组
+- ✅ 扩展字段用 `jsonb`
+- ✅ 索引覆盖组织隔离和常用查询（org+status、org+createdAt等）
+- ✅ 使用 `cuid2` 主键
+- ✅ 迁移由 `drizzle-kit generate` 生成，不手动编辑
+
+> 注：`ai_selection_tasks.createdBy` 引用 `user.id`，需确认 `user` 表存在（auth-schema中应有）。
+
+## 5. 接口设计（tRPC）
+
+### 5.1 Router结构
+
+在 `apps/shop/src/server/` 下创建（若shop尚无server目录，需按项目风格组织）：
+
+```
+apps/shop/src/
+├── server/
+│   ├── trpc.ts          # tRPC初始化（context含session/organization）
+│   ├── routers/
+│   │   ├── index.ts
+│   │   └── aiSelection.ts
+│   └── dataaccess/
+│       └── aiSelection.ts
+└── lib/server/          # 也可复用现有lib/server模式
+```
+
+> AGENTS.md 提到 `apps/web/src/lib/server/routers/` 等模式。`apps/shop` 目前无tRPC，需新增基础设施。也可先在 `apps/web` 的跨租户视角实现，或在 `apps/shop` 新增。建议**优先在 `apps/shop`** 实现租户端选品工作台，符合模块边界。
+
+### 5.2 Router定义
+
+```typescript
+// apps/shop/src/server/routers/aiSelection.ts
+import { z } from "zod"
+import { router, protectedProcedure } from "../trpc"
+import { TRPCError } from "@trpc/server"
+import * as dataaccess from "../dataaccess/aiSelection"
+
+const paginationInput = z.object({
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+})
+
+export const aiSelectionRouter = router({
+  // 任务
+  createTask: protectedProcedure
+    .input(z.object({
+      type: z.enum(["full", "competitor_scan", "painpoint_mine"]).default("full"),
+      title: z.string().min(1).max(200),
+      platform: z.enum(["daraz", "lazada", "shopee", "tiktok_shop"]),
+      marketplaceCountry: z.string().length(2), // lk, my...
+      categoryKeyword: z.string().optional(),
+      hsCode: z.string().optional(),
+      priceRangeMin: z.number().optional(),
+      priceRangeMax: z.number().optional(),
+      targetMarginPct: z.number().min(0).max(100).optional(),
+      params: z.record(z.unknown()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 权限：必须有组织，且可创建选品任务
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.createTask(ctx.organizationId, ctx.userId, input)
+    }),
+
+  listTasks: protectedProcedure
+    .input(paginationInput.extend({
+      status: z.enum(["pending", "running", "succeeded", "failed", "cancelled"]).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.listTasks(ctx.organizationId, input)
+    }),
+
+  getTask: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.getTask(ctx.organizationId, input.id)
+    }),
+
+  // 候选
+  listCandidates: protectedProcedure
+    .input(paginationInput.extend({
+      taskId: z.string().optional(),
+      status: z.string().optional(),
+      decision: z.enum(["go", "hold", "no_go"]).optional(),
+      keyword: z.string().optional(),
+      platform: z.string().optional(),
+      marketplaceCountry: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.listCandidates(ctx.organizationId, input)
+    }),
+
+  getCandidateDetail: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.getCandidateDetail(ctx.organizationId, input.id)
+    }),
+
+  // 操作
+  updateCandidateDecision: protectedProcedure
+    .input(z.object({
+      id: z.string().min(1),
+      decision: z.enum(["go", "hold", "no_go"]),
+      decisionReason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.updateCandidateDecision(ctx.organizationId, input)
+    }),
+
+  // 报告
+  getReport: protectedProcedure
+    .input(z.object({ candidateId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.getReport(ctx.organizationId, input.candidateId)
+    }),
+
+  // 成本测算（手动调整参数重新计算）
+  recalcCost: protectedProcedure
+    .input(z.object({
+      candidateId: z.string().min(1),
+      scenarioName: z.string(),
+      purchasePriceCny: z.number().positive(),
+      logisticsMode: z.enum(["air_ddp", "sea_lcl", "sea_fcl"]),
+      freightCny: z.number().nonnegative(),
+      suggestPriceLkr: z.number().positive(),
+      // 可选覆盖费率
+      commissionRate: z.number().min(0).max(1).optional(),
+      marketingRate: z.number().min(0).max(1).optional(),
+      returnRate: z.number().min(0).max(1).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.organizationId) throw new TRPCError({ code: "FORBIDDEN" })
+      return dataaccess.recalcCost(ctx.organizationId, input)
+    }),
+})
+```
+
+### 5.3 DataAccess层（事务）
+
+```typescript
+// apps/shop/src/server/dataaccess/aiSelection.ts（示例）
+import { db } from "@workspace/db" // 或按项目实际导出
+import { aiSelectionTasks, productCandidates } from "@workspace/db/schema"
+import { eq, and, desc } from "drizzle-orm"
+
+export async function createTask(orgId: string, userId: string, input: any) {
+  return db.transaction(async (tx) => {
+    const [task] = await tx.insert(aiSelectionTasks).values({
+      organizationId: orgId,
+      createdBy: userId,
+      type: input.type,
+      title: input.title,
+      platform: input.platform,
+      marketplaceCountry: input.marketplaceCountry,
+      categoryKeyword: input.categoryKeyword,
+      hsCode: input.hsCode,
+      priceRangeMin: input.priceRangeMin?.toString(),
+      priceRangeMax: input.priceRangeMax?.toString(),
+      targetMarginPct: input.targetMarginPct?.toString(),
+      params: input.params ?? {},
+      status: "pending",
+      progress: 0,
+    }).returning()
+    
+    // 可在此触发异步任务队列（如 BullMQ）开始执行七步流程
+    // await enqueueAiSelectionTask(task.id)
+    
+    return task
+  })
+}
+```
+
+> 注意：AGENTS.md 强调"事务统一用 `db.transaction(async (tx) => { ... })`"。分页必须用 `count()` + `limit/offset`，禁止全量拉取再 slice。
+
+### 5.4 DTO与映射
+
+- **输入**：全部用 zod 校验
+- **输出**：与 DB 模型分离，复杂映射放 `mappers/`（如 `apps/shop/src/lib/server/mappers/aiSelection.ts`）
+- **权限**：所有 procedure 必须校验 `organizationId`，且查询时强制加 `eq(organizationId, ctx.organizationId)` 过滤
+
+## 6. AI流程设计（Skills/Agent编排）
+
+将文档中的七步法映射到系统化的技能编排。
+
+### 6.1 整体流程图
+
+```mermaid
+flowchart TD
+  A[用户创建选品任务\n平台/国家/类目/HS码] --> B[任务入队 pending]
+  B --> C[Step1: 品类预筛]
+  C --> D[Step2: 竞品全景扫描]
+  D --> E[Step3: 差评痛点挖掘 + PPS]
+  E --> F[Step4: 升级款匹配]
+  F --> G[Step5: 物流决策]
+  G --> H[Step6: 全成本利润测算]
+  H --> I[Step7: 风险合规排查]
+  I --> J{生成候选清单}
+  J --> K[写入 ai_selection_candidates\n+ competitors/painpoints/upgrades/costs/reports]
+  K --> L[任务状态 succeeded\n进度100%]
+  
+  C -.-> C1[HS库查询\n关税计算\nSLSI清单]
+  D -.-> D1[Marketplace API\n或爬虫获取竞品]
+  E -.-> E1[差评采集\nAI提取痛点\nPPS计算]
+  F -.-> F1[1688搜索建议\n特征匹配\n可行性评分]
+  G -.-> G2[运费模板\n关税规则]
+  H -.-> H1[多情景测算\n盈亏平衡]
+  I -.-> I1[合规清单校验]
+```
+
+### 6.2 技能定义（Skills）
+
+建议将每个步骤封装为独立技能，便于复用和调试：
+
+| 技能 | 输入 | 输出 | 实现方式 |
+|------|------|------|---------|
+| `skill.preFilter` | `{platform, country, keyword, hsCode}` | `{feasible: boolean, hsInfo, tariff: {...}, compliance: {...}}` | 规则引擎（HS库、关税表、SLSI清单）先行，MVP可硬编码常用HS如8516.31 |
+| `skill.scanCompetitors` | `{category, country, limit: 20}` | `competitor[]` | 优先用 `packages/marketplace` Daraz适配器获取；若API受限可降级为人工导入 |
+| `skill.minePainPoints` | `{competitorIds[], reviews: []}` | `painPoint[]` with PPS | 可用LLM提取（结构化输出：category/painPoint/evidence/frequency/severity/solvability）+ 规则兜底 |
+| `skill.matchUpgrades` | `{painPoints[], category}` | `upgradeCandidate[]` | 先用规则推荐（基于痛点关键词映射到特征），再结合1688搜索建议（MVP返回建议清单，由运营确认采购价） |
+| `skill.decideLogistics` | `{weight, volume, qty, country}` | `logisticsOptions[]` | 运费模板表（按模式预设），结合带电产品限制 |
+| `skill.calcProfit` | `{costs: {...}, prices: {...}, rates: {...}}` | `scenarios[]` | 纯计算引擎（确定性），可单元测试 |
+| `skill.checkCompliance` | `{hsCode, category}` | `risks[]` | 清单校验（SLSI、TRCSL、IP风险提示） |
+
+### 6.3 执行方式
+
+有两种思路：
+
+**方案A：任务队列（推荐）**
+- 使用 Redis/BullMQ（项目已有 `packages/redis`）
+- `createTask` 写入DB后立即入队
+- Worker 按步骤顺序执行，实时更新 `ai_selection_tasks.progress/currentStep/status`
+- 前端轮询或订阅任务状态
+
+**方案B：直接调用（MVP简化）**
+- tRPC mutation 同步触发（但七步流程较长，可能超时）
+- 建议至少用队列异步化，避免阻塞请求
+
+MVP 建议先用**方案B简化版**（同步执行，限制竞品数量和差评数量），待流程稳定后迁移到队列。
+
+### 6.4 AI集成思路
+
+- **结构化提取**：痛点挖掘用LLM将非结构化差评转为结构化（强制JSON Schema）
+- **推理辅助**：差异化建议、卖点文案、风险分析等用LLM生成
+- **规则优先**：关税计算、利润测算等确定性逻辑必须用代码实现，不要交给LLM
+- **可配置**：模型、温度、提示词放配置，便于切换
+
+## 7. 前端设计
+
+### 7.1 页面结构（apps/shop）
+
+现有结构：
+```
+apps/shop/src/app/[locale]/console/(ops)/candidates/
+├── page.tsx        # 列表（已存在，mock）
+└── [id]/
+    └── page.tsx    # 详情（已存在）
+```
+
+建议扩展为完整工作台：
+
+```
+apps/shop/src/app/[locale]/console/(ops)/ai-selection/
+├── page.tsx                    # 工作台首页：任务列表 + 快速创建
+├── new/
+│   └── page.tsx                # 创建选品任务（表单：平台/国家/类目/HS码等）
+├── tasks/
+│   ├── page.tsx                # 任务列表（分页）
+│   └── [taskId]/
+│       ├── page.tsx            # 任务详情：七步进度 + 候选结果
+│       └── report/
+│           └── page.tsx        # 任务汇总报告
+└── candidates/
+    ├── page.tsx                # 候选库（整合现有candidates，支持筛选分页）
+    └── [id]/
+        ├── page.tsx            # 候选详情总览
+        ├── competitors/page.tsx
+        ├── pain-points/page.tsx
+        ├── upgrades/page.tsx
+        ├── cost/page.tsx      # 成本测算（多情景对比）
+        └── report/page.tsx
+```
+
+也可复用现有 `candidates/` 路径，新增 `ai-selection/` 作为新入口，两者渐进整合。
+
+### 7.2 组件设计（shadcn/ui）
+
+使用 `@workspace/ui` 组件，遵循规范：
+
+| 组件 | 用途 | 建议 |
+|------|------|------|
+| `Card` | 分块容器（步骤卡片、概览卡片） | 标准用法 |
+| `Tabs` | 候选详情页Tab切换（概览/竞品/痛点/升级款/成本/报告） | shadcn Tabs |
+| `Table` | 列表、竞品表、痛点表、成本明细表 | 配合分页 |
+| `Badge` | 状态（pending/running/succeeded）、决策（GO/HOLD/NO-GO） | 按状态配色 |
+| `Button` | 操作（创建任务、更新决策、重新测算） | 主次区分 |
+| `Form` + `Input` + `Select` + `Label` | 创建任务表单 | zod校验配合react-hook-form |
+| `Progress` | 任务执行进度条 | 展示当前步骤 |
+| `Alert`/`Callout` | 风险提示、合规警告 | 借鉴HTML文档样式但用组件实现 |
+| `Sheet`/`Dialog` | 快速操作（更新决策理由） | 弹层 |
+| `Skeleton` | 加载状态 | 体验优化 |
+
+私有组件放 `apps/shop/src/app/[locale]/console/(ops)/ai-selection/_components/`，工具函数放 `_lib/`。
+
+### 7.3 交互设计要点
+
+- **URL可分享**：筛选、分页用 `searchParams`（列表页）
+- **渐进展示**：任务执行中实时更新进度，完成后自动刷新候选列表
+- **决策闭环**：候选详情页可直接操作 `GO/HOLD/NO-GO` 并填写理由，写入 `decision` 字段
+- **成本对比**：成本页用表格对比多情景（测款/主推/FCL），高亮推荐情景
+- **报告可视化**：借鉴HTML文档的卡片、评分卡、时间轴，用shadcn组件复现关键信息
+- **响应式**：桌面端为主（选品通常在PC操作）
+
+### 7.4 与现有candidates整合
+
+现有 `candidates/page.tsx` 使用 `MOCK_CANDIDATES`。建议：
+1. 先接入 tRPC `aiSelection.listCandidates`，保留筛选逻辑
+2. 增加"来源"标识（AI推荐 vs 手动导入）
+3. 增加"任务"筛选（按 `taskId`）
+4. 决策字段从现有 `goNoGo` 向 `decision` 迁移（可双写兼容）
+
+## 8. 集成点
+
+### 8.1 与 packages/marketplace（Daraz）
+
+**现状**：`DarazConnector` 基于 `LazopBase`，具备签名、OAuth等基础能力。
+
+**需扩展能力：**
+```typescript
+// packages/marketplace/src/adapters/daraz.ts 扩展
+interface DarazDataProvider {
+  searchProducts(params: { keyword: string, page: number, pageSize: number, country: string }): Promise<CompetitorProduct[]>
+  getProductDetail(externalId: string): Promise<ProductDetail>
+  getProductReviews(externalId: string, params: { page: number, pageSize: number }): Promise<Review[]>
+}
+```
+
+**实现路径：**
+1. 研究 Daraz Open Platform（LazOP）可用API：商品搜索、商品详情、评价列表
+2. 在 `DarazConnector` 增加方法，遵循现有模式（认证、签名、错误处理）
+3. `apps/shop` dataaccess 调用 marketplace 服务获取竞品数据
+4. 考虑限流、缓存（Redis）避免频繁请求
+
+> MVP可先用**手动导入**（CSV/JSON）竞品数据，跳过实时API抓取，降低复杂度。
+
+### 8.2 与 packages/db
+
+- 在 `packages/db/src/` 新增 `ai-selection-schema.ts`，导出到 `index.ts` 或 `schema.ts`
+- 扩展 `productCandidates` 表（向后兼容，新增可空字段）
+- 运行 `pnpm --filter @workspace/db db:generate` 生成迁移
+- 在使用处通过 Drizzle 查询
+
+### 8.3 权限与组织隔离
+
+- **租户隔离**：所有表强制 `organizationId`，所有查询必须过滤 `organizationId = ctx.organizationId`
+- **用户权限**：依赖 `better-auth` session，`ctx.userId`、`ctx.organizationId` 来自 context
+- **跨租户操作**：`apps/shop` 是租户视角，只能操作本组织数据。`apps/web` 如需平台视角需额外校验
+- **待审机制**：若后续涉及"上架刊登"等写操作，按AGENTS.md需进入待审队列（复用 `pendingActions`）
+
+### 8.4 与现有业务流
+
+- **选品→刊登**：`GO` 的候选可关联到 `products` 或直接发起刊登流程，走 `pendingActions`（kind: `listing_submit`）
+- **成本关联**：可复用 `costs` 模块的成本计算思路（`packages/db` 中有 `productCosts`、`costComponents`）
+- **店铺上下文**：选品时可关联目标店铺（`shops`）用于费用模板定制
+
+## 9. 实施计划
+
+分阶段实施，MVP优先跑通核心流程。
+
+### 阶段1：基础设施（MVP前置）
+| 任务 | 文件/位置 | 说明 |
+|------|-----------|------|
+| **1.1 Schema设计** | `packages/db/src/ai-selection-schema.ts` | 新增上述6张表 + 枚举，扩展 `productCandidates` |
+| **1.2 导出Schema** | `packages/db/src/index.ts` | 导出新表和类型 |
+| **1.3 生成迁移** | `packages/db/` | `pnpm --filter @workspace/db db:generate` |
+| **1.4 tRPC基础（shop）** | `apps/shop/src/server/*` | 初始化trpc、context、router（若不存在需搭建最小框架） |
+| **1.5 权限校验** | `apps/shop/src/server/trpc.ts` | protectedProcedure，校验session+organization |
+
+### 阶段2：数据模型与API（MVP核心）
+| 任务 | 文件/位置 | 说明 |
+|------|-----------|------|
+| **2.1 DataAccess** | `apps/shop/src/server/dataaccess/aiSelection.ts` | CRUD、分页、事务（createTask/listCandidates/getDetail） |
+| **2.2 Router** | `apps/shop/src/server/routers/aiSelection.ts` | 按5.2设计实现，zod校验全覆盖 |
+| **2.3 Mappers** | `apps/shop/src/lib/server/mappers/aiSelection.ts` | DTO转换，脱敏、格式化 |
+| **2.4 合并Router** | `apps/shop/src/server/routers/index.ts` | 挂载 `aiSelection` |
+
+### 阶段3：前端工作台（MVP UI）
+| 任务 | 文件/位置 | 说明 |
+|------|-----------|------|
+| **3.1 工作台首页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/page.tsx` | 任务列表、创建入口、快捷统计 |
+| **3.2 创建任务页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/new/page.tsx` | 表单（平台/国家/类目/HS码/参数），提交到tRPC |
+| **3.3 候选库页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/candidates/page.tsx` | 分页+筛选（用searchParams），表格展示决策/评分/利润率 |
+| **3.4 候选详情页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/candidates/[id]/page.tsx` | Tabs：概览、竞品、痛点、升级款、成本、报告 |
+| **3.5 成本测算页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/candidates/[id]/cost/page.tsx` | 多情景对比表，支持 `recalcCost` |
+| **3.6 组件** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/_components/*` | 步骤进度卡片、评分卡片、痛点表等 |
+
+### 阶段4：AI流程引擎（核心逻辑）
+| 任务 | 文件/位置 | 说明 |
+|------|-----------|------|
+| **4.1 技能框架** | `apps/shop/src/lib/server/ai-selection/skills/*` | 封装7个技能接口和基础实现 |
+| **4.2 关税计算** | `apps/shop/src/lib/server/ai-selection/calculators/tariff.ts` | Daraz SL关税公式（CID/PAL/VAT/SSCL），可先硬编码8516.31案例 |
+| **4.3 利润测算** | `apps/shop/src/lib/server/ai-selection/calculators/profit.ts` | 全成本计算+多情景，单元测试覆盖文档案例 |
+| **4.4 PPS计算** | `apps/shop/src/lib/server/ai-selection/utils/pps.ts` | 频率×严重度×可解决度 |
+| **4.5 流程编排** | `apps/shop/src/lib/server/ai-selection/orchestrator.ts` | 顺序执行7步，更新任务进度，写入各表 |
+| **4.6 任务触发** | 集成到 `createTask` | 同步执行（MVP）或入队（后续） |
+
+### 阶段5：市场数据集成（可选但重要）
+| 任务 | 文件/位置 | 说明 |
+|------|-----------|------|
+| **5.1 Marketplace扩展** | `packages/marketplace/src/adapters/daraz.ts` | 增加 `searchProducts`、`getReviews` 方法 |
+| **5.2 数据适配** | `apps/shop/src/server/dataaccess/aiSelection.ts` | 将marketplace数据映射到schema |
+| **5.3 手动导入兜底** | UI新增导入功能 | 支持CSV导入竞品，确保流程可跑通（不强依赖API） |
+
+### 阶段6：整合与验证
+| 任务 | 说明 |
+|------|------|
+| **6.1 与现有candidates整合** | 逐步替换mock，统一入口 |
+| **6.2 导航入口** | 在 `apps/shop` 控制台侧边栏新增"AI选品"入口（参考现有导航） |
+| **6.3 Lint/Typecheck** | `pnpm --filter shop lint && pnpm --filter shop typecheck` |
+| **6.4 浏览器验证** | 创建任务→查看进度→浏览候选→查看详情→成本测算→更新决策 |
+| **6.5 跨包验证** | 涉及db/marketplace改动时跑 `pnpm lint && pnpm typecheck` |
+
+## 10. 验证要点
+
+### 10.1 代码规范验证
+- [ ] **模块边界**：依赖方向符合AGENTS.md
+- [ ] **数据访问**：全走tRPC → dataaccess → Drizzle，事务用`db.transaction`
+- [ ] **分页**：用`count()` + `limit().offset()`，接受`page/pageSize`（默认1/20，最大100）
+- [ ] **Drizzle规范**：`numeric`金额、`timestamp withTimezone`、`varchar+union`、`jsonb`扩展、索引完整
+- [ ] **组织隔离**：所有查询过滤`organizationId`
+- [ ] **权限控制**：protectedProcedure校验
+- [ ] **Next.js规范**：用App Router、`searchParams`分页筛选、不用`'use server'`、私有组件放`_components/`
+
+### 10.2 功能验证
+- [ ] **七步流程**：能完整跑通（至少用mock数据），各步骤产出写入对应表
+- [ ] **PPS计算**：验证公式 `frequency*severity*solvability` 正确
+- [ ] **关税计算**：用文档案例（8516.31，Daraz SL）验证有效税率≈29.8%
+- [ ] **利润测算**：复现文档表格中场景①（¥80+LCL，Rs.11,990→毛利率15.3%）的计算逻辑
+- [ ] **决策流**：GO/HOLD/NO-GO 更新生效，理由可记录
+- [ ] **分页**：大列表分页正常，无全量加载
+
+### 10.3 工程验证
+```bash
+# shop相关
+pnpm --filter shop lint
+pnpm --filter shop typecheck
+
+# db相关（如有schema变更）
+pnpm --filter @workspace/db db:generate
+
+# 跨包
+pnpm lint
+pnpm typecheck
+```
+
+### 10.4 浏览器验证流程
+1. 登录 `apps/shop`，进入控制台
+2. 进入 AI选品 → 新建任务（填入 Daraz Sri Lanka、类目关键词等）
+3. 等待任务执行，观察进度条和当前步骤
+4. 任务完成后查看候选列表，筛选/分页
+5. 进入候选详情，查看概览、竞品、痛点（含PPS）、升级款、成本测算
+6. 在成本页切换不同场景对比利润率
+7. 更新决策为 GO 并填写理由
+8. 查看分析报告页，确认七步摘要完整
+
+## 11. 风险与对策
+
+| 风险 | 等级 | 说明 | 对策 |
+|------|------|------|------|
+| **tRPC基础设施缺失（apps/shop）** | 高 | `apps/shop` 目前无tRPC，需从零搭建 | 参考 `apps/web` 的trpc模式最小化搭建，先实现核心procedure即可 |
+| **Marketplace API限制** | 高 | Daraz API可能需要认证、权限、限流，实测难度大 | MVP用**手动导入**竞品数据，接口预留扩展点，后续再对接真实API |
+| **AI成本** | 中 | 差评挖掘用LLM可能产生费用 | 规则优先、限制样本量（前N条差评）、结构化prompt、可配置开关（可先用规则模拟） |
+| **数据量膨胀** | 中 | 竞品、差评快照会产生大量数据 | 按任务归档、定期清理、只存必要字段、jsonb合理使用 |
+| **关税规则复杂** | 中 | 各国规则不同，Sri Lanka有PAL Gen/SG两档等细节 | 先硬编码常用规则（参考文档），做成配置表便于扩展 |
+| **与现有mock冲突** | 低 | 现有candidates用mock数据 | 渐进迁移：先新增ai-selection路由，保留旧路由，逐步切换数据源 |
+| **Schema迁移影响** | 低 | 扩展productCandidates需注意现有查询 | 只新增可空字段，避免破坏性变更 |
+
+## 12. 参考
+
+- @see docs/design/ai-candidates/斯里兰卡Daraz差异化选品方法论.html
+- @see docs/design/ai-candidates/高速吹风机Daraz选品分析.html
+- @see AGENTS.md（全局规范）
+- @see packages/db/src/commerce-schema.ts（现有跨境schema）
+- @see apps/shop/src/app/[locale]/console/(ops)/candidates/page.tsx（现有候选页）
+- @see packages/marketplace/src/adapters/daraz.ts（Daraz连接器）
+
+---
+
+**文档版本**: v1.0  
+**创建日期**: 2026-10-27  
+**状态**: 设计方案（仅文档，不涉及代码修改）
