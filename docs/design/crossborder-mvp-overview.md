@@ -36,10 +36,12 @@ packages/marketplace  Daraz / Lazada / TikTok 连接器
 packages/ui  共享组件
 ```
 
-选品推理在 **OpenWork skills**；本平台只存数据 + 暴露 MCP/OpenAPI。  
+选品推理与策略由 **OpenWork skills** 动态定义；Open Shop 提供业务输入数据接口，通过 MCP 接收 Skill execution、过程事件和结果，并将完整知识内容写入 LLM Wiki（Open Knowledge Format，OKF）电商知识库。PostgreSQL 只保留组织隔离、运行/知识对象索引、同步/复核状态和业务 lineage；不固定研究步骤，也不存知识正文。Desktop 与租户台通过 execution/OKF 引用及候选/商品关联协作。  
 交易全部来自第三方平台 API（MVP：Daraz）。
 
 **本阶段明确不做：** 接入 tRPC 业务路由（等确认后再做）；完整四平台；自营结账。
+
+**知识闭环设计已扩展：** execution/OKF 索引 schema 见 `crossborder-database-design.md` §3.15-3.16；租户知识与执行索引、复核和运营结果 UED 见 `apps/shop/content/design/crossborder-shop-ued-product-design.md` §5.2A-5.2E、附录 C。Skill 自定义内容保存在 OKF；数据库与 UED 为设计目标，需完成知识库 adapter、MCP、授权和业务 API 后方可宣称可用。
 
 ---
 
@@ -94,6 +96,8 @@ packages/ui  共享组件
 | B | `pending_actions` + shop/web 待审页；MCP `confirm` |
 | C | OpenWork Skill 只读 + MCP 只读 tools |
 
+对齐双产品闭环后，C 级是 Skill 决策辅助；MCP/API 可读业务输入并写入 execution/OKF 知识内容，具体 Skill 流程不由 Shop schema 固定。高影响业务动作仍走 `pending_actions` 和组织角色审批，不能因 Agent 拥有知识写权限而获得刊登/改价/库存执行权限。
+
 ---
 
 ## 6. 实施顺序
@@ -104,6 +108,7 @@ packages/ui  共享组件
 | **P1（确认后）** | domain/dataaccess + tRPC routers；api OpenAPI 资源；MCP server | 接入 |
 | **P2** | Daraz connector + worker | — |
 | **P3** | OpenWork 选品 Skill + 端到端 | — |
+| **P4（新增设计目标）** | 动态 Skill execution/OKF 索引与知识库 adapter；MCP 完整业务输入读写、组织角色/知识 ACL；Desktop 关联；候选→商品→listing→平台结果复盘 | 共用 domain |
 
 ---
 
