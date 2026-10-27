@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="eD6GOy0mfiBnGAXq5gkTsw">
+<head data-page-node-id="QLjqLhntjJ22T3gZcgAgto">
+  <meta charset="UTF-8" data-page-node-id="9UyBiQAEdKAFulcFRBFTqW">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="dwhMNirTp1jZxK5uPzWlzu">
+  <title>整柜关税 & 到仓成本计算器</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-light: #eff6ff;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --border: #e5e7eb;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 24px; margin: 0 0 6px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+
+    .field-group { margin-bottom: 16px; }
+    .field-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap input, .input-wrap select {
+      width: 100%;
+      padding: 10px 38px 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s;
+      background: #fff;
+    }
+    .input-wrap input:focus, .input-wrap select:focus { border-color: var(--primary); }
+    .unit {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 13px;
+      pointer-events: none;
+    }
+
+    .section-title {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 20px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    .checkbox-wrap input { width: auto; }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 700px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+    }
+    .kpi {
+      background: #fffbeb;
+      border-radius: 10px;
+      padding: 18px;
+      text-align: center;
+      border: 1px solid #fde68a;
+    }
+    .kpi.blue { background: #eff6ff; border-color: #bfdbfe; }
+    .kpi.red { background: #fef2f2; border-color: #fecaca; }
+    .kpi-value { font-size: 26px; font-weight: 700; color: #111827; }
+    .kpi-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+    .bar-section { margin-top: 8px; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .bar-label { width: 70px; font-size: 13px; color: var(--muted); }
+    .bar-track {
+      flex: 1;
+      height: 18px;
+      background: #e5e7eb;
+      border-radius: 9px;
+      overflow: hidden;
+      margin: 0 12px;
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      background: #94a3b8;
+      border-radius: 9px;
+      transition: width .3s;
+    }
+    .bar-fill.new { background: var(--primary); }
+    .bar-value { font-size: 13px; font-weight: 500; min-width: 56px; text-align: right; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; background: #f9fafb; }
+    tr:last-child td { border-bottom: none; }
+    td.num, th.num { text-align: right; }
+    .diff { color: var(--danger); font-weight: 500; }
+    .diff.pos { color: var(--success); }
+
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      line-height: 1.6;
+    }
+
+    .hidden { display: none; }
+
+    .match-hint {
+      font-size: 12px;
+      margin-top: 6px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none;
+      line-height: 1.5;
+    }
+    .match-hint.ok { display:block; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+    .match-hint.warn { display:block; background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
+    .match-hint.miss { display:block; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+    .custom-rates {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body data-page-node-id="VSmw04P4xYEA54QUagHo65">
+  <div class="container" data-page-node-id="SvFtIySHfUqpDYYVJ9Kogb">
+    <h1 data-page-node-id="AftuMZR4PhjMRovF5B9BbE">整柜关税 & 到仓成本计算器</h1>
+    <div class="subtitle" data-page-node-id="uKAMQlAzbOwdQV4b5VuNPl">输入一箱体积、重量、数量及单品采购价，实时计算海运费、关税、到仓成本和 Daraz 定价。</div>
+
+    <div class="grid" data-page-node-id="5kE9THOAaj1t1rTOd4pVRt">
+      <!-- 左侧参数 -->
+      <div class="card" data-page-node-id="RzUz1sR91sf5ITenn4BVgT">
+        <div class="card-title" data-page-node-id="HlIXHW4ZdMJTU5dEKPfBf9">产品参数</div>
+
+        <div class="field-group" data-page-node-id="XItScKHaCidJpnhciGmqjw">
+          <label data-page-node-id="XL4fmtAP28MQUhcAZzh75F">产品名称（输入即自动匹配 HS 编码）</label>
+          <div class="input-wrap" data-page-node-id="KEUuxSSPwIjBOvHZjS2BFo">
+            <input type="text" id="productName" value="太阳能摄像头" style="padding-right:12px" data-page-node-id="IqAmfp2ZboAnRhgH7ZQ7m9">
+          </div>
+          <div id="matchHint" class="match-hint" data-page-node-id="4gwVqGgPyVjK3HAKwFFDiM"></div>
+        </div>
+
+        <div class="field-group" data-page-node-id="GIFGUCVC2tQcBDEzVnKzBJ">
+          <label data-page-node-id="4q8kenUeYe5P15Q13TTCTG">一箱体积</label>
+          <div class="input-wrap" data-page-node-id="3jFeb6QGzhPJFJMIqFGVFB">
+            <input type="number" id="ctnVolume" value="0.13918" step="0.00001" data-page-node-id="i3WG57sGvQjAHHf0JRnSgD">
+            <span class="unit" data-page-node-id="0VAqx9eg78CDu6Xzls8Wmu">m³</span>
+          </div>
+        </div>
+
+        <div class="field-group" data-page-node-id="Usqyr7suACYDtlmL7DGbTr">
+          <label data-page-node-id="cCt0oHZjgVRcPBtf1A8TIw">一箱毛重</label>
+          <div class="input-wrap" data-page-node-id="9j0ajAIETOZH5G9nfDVQsF">
+            <input type="number" id="ctnWeight" value="24.7" step="0.1" data-page-node-id="yX5QhzyPWrbnspKcLLKVd2">
+            <span class="unit" data-page-node-id="BkcVaeHEK9QrkxLVUFxADU">kg</span>
+          </div>
+        </div>
+
+        <div class="field-group" data-page-node-id="rv01Tke77aZCfGeHb5DPMF">
+          <label data-page-node-id="eSoSftUGySBrvFZqgUon1e">一箱数量</label>
+          <div class="input-wrap" data-page-node-id="sEfvMBzjRGIXtCTxUMDD63">
+            <input type="number" id="ctnQty" value="18" step="1" data-page-node-id="pnXUo0U4h8oKkuCNN1CyBL">
+            <span class="unit" data-page-node-id="7t9cHBiIgajibYF77fRXEi">件</span>
+          </div>
+        </div>
+
+        <div class="field-group" data-page-node-id="Dw67YFfwYsCS7dHjwWDk9G">
+          <label data-page-node-id="r57J8YZ2MX0qj0JCMflU1g">单品采购价（FOB）</label>
+          <div class="input-wrap" data-page-node-id="iUsQidtpH2MJMndoZEMunG">
+            <input type="number" id="unitPrice" value="145" step="0.01" data-page-node-id="JE7jPgBu01NpvZlXFMP7CN">
+            <span class="unit" data-page-node-id="XxBRpZWtpnCJxbW3ZSLHIH">元</span>
+          </div>
+        </div>
+
+        <div class="section-title" data-page-node-id="0VFohPDreOWaZmBaJhYKfU">整柜参数</div>
+        <div class="field-group" data-page-node-id="UN9iB33cLbgsWGm8OhSWSf">
+          <label data-page-node-id="RZMrWB1NAjmfGUgFsY2DHQ">柜型容积</label>
+          <div class="input-wrap" data-page-node-id="6PunASCzQmsDkl1KTc7EAa">
+            <input type="number" id="fclCbm" value="65" step="1" data-page-node-id="sx0U3ZdSb7b5oVHfzwBJe3">
+            <span class="unit" data-page-node-id="ANiUe7Jz3P86BbX8GHUTAq">CBM</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="1PQqJauN3CfoJ8E7elfLbr">
+          <label data-page-node-id="OwxIas1rQWurDxCaBfzX57">整柜运费</label>
+          <div class="input-wrap" data-page-node-id="mKiRE0wAFnnqNUspgM4dm5">
+            <input type="number" id="fclUsd" value="2500" step="1" data-page-node-id="1EH2vBYteZoGY5J0kB5aWe">
+            <span class="unit" data-page-node-id="TzZAoxjJUZtsIt09VWGVHu">USD</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="911SKuylRI4zO50drPywhh">
+          <label data-page-node-id="qwy98v4EYCrhv0wQCAQFuV">USD/CNY 汇率</label>
+          <div class="input-wrap" data-page-node-id="xytABLBciGwEOcG0wbgDp2">
+            <input type="number" id="usdcny" value="6.7589" step="0.0001" data-page-node-id="hkFIopM9PWh5Ab7z2MSmrt">
+            <span class="unit" data-page-node-id="ahfLlLmTPZrw0RHqYLibml">—</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="ADSr51lrnaBEpCazgyAq1x">
+          <label data-page-node-id="rBkvv8K5fyoxo09ItofJNO">保险费率</label>
+          <div class="input-wrap" data-page-node-id="4au483qZdHASyjO9DK8xKR">
+            <input type="number" id="insRate" value="0.3" step="0.01" data-page-node-id="yh8nINoB5J4TQVpapX8LOg">
+            <span class="unit" data-page-node-id="ATkAmxcYpiOuTH5Fcjgf4M">%</span>
+          </div>
+        </div>
+
+        <div class="section-title" data-page-node-id="T956tGrwRjLidZGCaDu5DS">税率选择</div>
+        <div class="field-group" data-page-node-id="ZmYYixRbN99G9ukmFgztkO">
+          <label data-page-node-id="WFA4Ys04Wu9cB6dciYksDu">HS 编码 / 税率模板</label>
+          <div class="input-wrap" data-page-node-id="qJDd366nrOP6z9O3Xq3W6L">
+            <select id="hsTemplate" data-page-node-id="E0SlGYolMpOOnOp1IOSCnU">
+              <option value="custom" data-page-node-id="ASP1wyKWKkcdRNgWxbbr3x">自定义税率</option>
+              <option value="7323.99" data-page-node-id="mIBOTTGDR9Dbxckl9RW4dC">7323.99 铁/钢制厨具（GD20% PAL10% CESS25% VAT18%）</option>
+              <option value="8525.89" data-page-node-id="mw2XyuHDY80Jvw9211SdHj">8525.89 普通摄像头（GD20% VAT18% PAL5% SSCL2.5%）</option>
+              <option value="8525.83" data-page-node-id="gDCEqPfeORr56JsPByqEew">8525.83 夜视摄像头（GD0% VAT18% PAL5% SSCL2.5%）</option>
+              <option value="6402.99" data-page-node-id="i0B00ocnQUs3GBbt5O7Ojh">6402.99 鞋类（GD20% VAT18% SSCL2.5% + 从量税Rs700）</option>
+              <option value="6203.12" data-page-node-id="EuXtOqxBvh5uTAJiOt60TT">6203.12 化纤男裤（GD0% PAL5% CESS4.5% VAT18% + 从量税Rs300）</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="customRates" class="custom-rates" data-page-node-id="s8BRoczeS9gPAdOcI01oHk">
+          <div class="field-group" data-page-node-id="Nn9uttDmbdL9m4fsGE9JtZ">
+            <label data-page-node-id="1RfE0A443fGD6yJtjCHS42">关税 GD</label>
+            <div class="input-wrap" data-page-node-id="GAFMVuoSagaj3VQQEZoy19">
+              <input type="number" id="rateGD" value="20" step="0.1" data-page-node-id="BpwpzYWggldT3ess5MKHrA"><span class="unit" data-page-node-id="FyUisKN5P7P7GvUAHf4ez1">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="iMPgq1WzGiM4EaxKl5H1Wf">
+            <label data-page-node-id="tiCwp6fLBrdx3SyLrmOAuP">PAL</label>
+            <div class="input-wrap" data-page-node-id="HqXJUCfUlFA1V4BwSfDnV2">
+              <input type="number" id="ratePAL" value="10" step="0.1" data-page-node-id="vZZB1bMpuExtVWL4CRb9cV"><span class="unit" data-page-node-id="ABzAAmEa0BfbzOkiQgacN3">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="EJx3R6i0fQYKY2qVKDbv19">
+            <label data-page-node-id="gBd4cMFOE9kO0FWc5fkrEs">CESS</label>
+            <div class="input-wrap" data-page-node-id="SbDHdb3Y9T23bPSd1FIeZX">
+              <input type="number" id="rateCESS" value="25" step="0.1" data-page-node-id="yAQL7DygBFMEON6ZM2ddZs"><span class="unit" data-page-node-id="X4Ve0ySEcpGUoaPFeCntyE">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="2CSwVIPltpmfLK8cq3WU4s">
+            <label data-page-node-id="8mBGFeBG9lI3i0or787Tmq">VAT</label>
+            <div class="input-wrap" data-page-node-id="i2Jk4VRF6x6ADJZ3OKM3wV">
+              <input type="number" id="rateVAT" value="18" step="0.1" data-page-node-id="NkeLOqir8vP9Z58BjACzfx"><span class="unit" data-page-node-id="837bi24eO5oqHZCDdVxIAp">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="F2StbS4nxJNXXmJP3A6B6r">
+            <label data-page-node-id="HPHtrDPcHRq84a7DS2N1Kl">Excise</label>
+            <div class="input-wrap" data-page-node-id="P2qWSsiGYN9Zvvm6lAqXbB">
+              <input type="number" id="rateEXC" value="0" step="0.1" data-page-node-id="EkRHvGR9gUwuSJavn7359G"><span class="unit" data-page-node-id="qYVHP4E0C28W4NIUs9KXbJ">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="I4op0O949drokCQH1OWUgD">
+            <label data-page-node-id="tAASapx0oc3mceHebMPB12">SSCL</label>
+            <div class="input-wrap" data-page-node-id="gtNdCHFMA6pbUETRKEhAO7">
+              <input type="number" id="rateSSCL" value="0" step="0.1" data-page-node-id="kzdV8UZ6eWL4wAuHBNT0Xr"><span class="unit" data-page-node-id="umpxNiZ4M17EYT8fudjwO2">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="qRZkIaQ41yGmQTO409kvOj">
+            <label data-page-node-id="XA8yvNnwBB53xEDCDQ7WA9">关税附加税</label>
+            <div class="input-wrap" data-page-node-id="XmVpSD04x8IdgBBe1tsHuF">
+              <input type="number" id="rateSUR" value="2.5" step="0.1" data-page-node-id="dzUx8RbGnvpYPkNkZR7itP"><span class="unit" data-page-node-id="jciJ1IWbwzWnlLflVI61bs">%</span>
+            </div>
+          </div>
+          <div class="field-group" data-page-node-id="JBUFRcU5CeEegoZDVclqbx">
+            <label data-page-node-id="jjtc8dOtdSguHa6amZBdEX">从量税</label>
+            <div class="input-wrap" data-page-node-id="9nWpJyOSxNFmipA0sAkrZC">
+              <input type="number" id="specificTax" value="0" step="0.01" data-page-node-id="bMZYkW4OJ5ASi4mJgINM0E"><span class="unit" data-page-node-id="GIg0eL5JCPK9UyQOizJy7W">元/件</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title" data-page-node-id="OqkG5SOtR47r1PjBUwkW7H">Daraz 定价参数</div>
+        <div class="field-group" data-page-node-id="jfGsWGCMc0CNQ9O1Crp6yz">
+          <label data-page-node-id="2QVBmHs8MFNUQ6lOpHHYbB">目标毛利率</label>
+          <div class="input-wrap" data-page-node-id="CZWhJSmxiVrXusG7juPbg7">
+            <input type="number" id="margin" value="40" step="1" data-page-node-id="HaiijqjjTOO2ymv3OAyLeB"><span class="unit" data-page-node-id="M1tCzDHRSJU453LIVms2Xw">%</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="jal9FuBII2no9f7c0RDz1Q">
+          <label data-page-node-id="KlzixQz2Of81ioFdVeLxlV">平台佣金</label>
+          <div class="input-wrap" data-page-node-id="7xfjWVGf7Vi6puUR6dHwV6">
+            <input type="number" id="platCom" value="11" step="0.1" data-page-node-id="uE1ziwAf1ERtxH6AA0It5K"><span class="unit" data-page-node-id="WuCmuXXEUHB1UrFAq6dQ9N">%</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="uVAmCr9H3NMWxyFmRNb6aZ">
+          <label data-page-node-id="RccAj1W5N9OsNj8qS6BK8c">包邮佣金</label>
+          <div class="input-wrap" data-page-node-id="vNjA21B2xSuPYFUDfKEIc4">
+            <input type="number" id="freeCom" value="5" step="0.1" data-page-node-id="AEkcczohtsP6u1ZnlHcluI"><span class="unit" data-page-node-id="1YI1IJbhALWxHCKwJB96DN">%</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="yMUYNWTsdFZwUFRIntbTJB">
+          <label data-page-node-id="AkCIqFvnuzzIc1C3uNW2h6">回款手续费</label>
+          <div class="input-wrap" data-page-node-id="pNzT3wcA2woGUrkgwG1Uq1">
+            <input type="number" id="payFee" value="3.5" step="0.1" data-page-node-id="OouLqOE7SSqhIP31Pgm36z"><span class="unit" data-page-node-id="mBvd5zJ67I3gGy9pp0SolJ">%</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="CIKH64HtTxY9DcVOJ8c0ES">
+          <label data-page-node-id="7Ru9Xnlc1xM8TdJ1FhFgvk">仓库杂费</label>
+          <div class="input-wrap" data-page-node-id="ZefPEbycsHTkQCuA1e4cRT">
+            <input type="number" id="whFee" value="10" step="0.1" data-page-node-id="xPyqT1JXC6gbW2tv0NVQOP"><span class="unit" data-page-node-id="K96HJL1GvcYuYKt7zatxgH">%</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="D66dhhSyEdlRw72KZmFeYM">
+          <label data-page-node-id="0WkZbIs6GR6LAmQj6W3ZjN">包邮佣金封顶（CNY）</label>
+          <div class="input-wrap" data-page-node-id="0LO6pP0DHyoj9NRBC5hHLL">
+            <input type="number" id="freeCap" value="9.15" step="0.01" data-page-node-id="nVlpyKBPFPzegwgdSJ7TOq"><span class="unit" data-page-node-id="0euAl1Z9rFWFR1ZKwiLvA9">元</span>
+          </div>
+        </div>
+        <div class="field-group" data-page-node-id="nFO2Ay2bKjoonf8P0WLM9X">
+          <label data-page-node-id="El1K9fH5C4r0RQM4Bh3biS">CNY/LKR 汇率</label>
+          <div class="input-wrap" data-page-node-id="EcReXQL200kUUdarg7OeCn">
+            <input type="number" id="cnylkr" value="49.2913" step="0.0001" data-page-node-id="BLMvmKIsoPWWn5AThgH70L"><span class="unit" data-page-node-id="LR4BfpIdiRbgS9iKcfLFRo">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧结论 -->
+      <div data-page-node-id="c5MRi2A9JBjfydGHg2f4Iy">
+        <div class="card" data-page-node-id="HffprwHZFBaVXSIY1ZPR1A">
+          <div class="card-title" data-page-node-id="ACQEP6o1yhHKdaCqKw9Tmh">核心结论（每单位）</div>
+          <div class="kpi-grid" data-page-node-id="ibHRUIDtmPbjzAOrwyYoJW">
+            <div class="kpi" data-page-node-id="nRVc6eXD5iKyYVIbRJzmDb">
+              <div class="kpi-value" id="kpiLanded" data-page-node-id="kmXZ0dD0THRKS8pXOfLLCO">¥0</div>
+              <div class="kpi-label" data-page-node-id="lhNc1V3S1pfvpwCpNZHrBw">到仓成本</div>
+            </div>
+            <div class="kpi blue" data-page-node-id="Yh8Nj415hkivPtpS3cMK02">
+              <div class="kpi-value" id="kpiTotal" data-page-node-id="cThWCCD9A4TkAU8RaIB6SZ">¥0</div>
+              <div class="kpi-label" data-page-node-id="HJSMsz1SOVD98nS8hcQgd0">总成本（FOB+到仓）</div>
+            </div>
+            <div class="kpi red" data-page-node-id="hvqpanpAXkS2B1pkEih4Wn">
+              <div class="kpi-value" id="kpiRatio" data-page-node-id="VCWjZrELzBH3T1AEV2sS39">0.00x</div>
+              <div class="kpi-label" data-page-node-id="2Gd7GQuMpMJSApFL2vJYcn">成本倍率</div>
+            </div>
+          </div>
+
+          <div class="bar-section" data-page-node-id="wgwJFc9tdnABkdmr6dq6T6">
+            <div class="bar-row" data-page-node-id="wA3gSxYEyuGl3WoXMDs2ci">
+              <div class="bar-label" data-page-node-id="XRQ2foQpEisU1TlbrJpLp8">FOB占比</div>
+              <div class="bar-track" data-page-node-id="VRZuPV4QYNGvmEWhCBRoqD"><div class="bar-fill" id="barFob" style="width:50%" data-page-node-id="go5Y6BBWRnD3CyuwSYpQl3"></div></div>
+              <div class="bar-value" id="pctFob" data-page-node-id="SXaF9lk2DpWIqWI0pHCy6A">50%</div>
+            </div>
+            <div class="bar-row" data-page-node-id="l0B1zTLrRrqeKiZ0IZrqpT">
+              <div class="bar-label" data-page-node-id="w61Gyp8A0UajllkbV4Dg2Q">海运费</div>
+              <div class="bar-track" data-page-node-id="9hHNJdxTEabnNagCZSoEGe"><div class="bar-fill new" id="barFrt" style="width:10%" data-page-node-id="W0tHOTlgIN2aluquGx5Lkb"></div></div>
+              <div class="bar-value" id="pctFrt" data-page-node-id="WfhpriePO8bHsrElgpvml3">10%</div>
+            </div>
+            <div class="bar-row" data-page-node-id="kWAQUtwomvXvsKbwSumnU3">
+              <div class="bar-label" data-page-node-id="oFTXgI3RCQaA405xMKEH4K">关税/税费</div>
+              <div class="bar-track" data-page-node-id="ZEtrMGKDJyFN93rbKGAqE2"><div class="bar-fill new" id="barTax" style="width:40%" data-page-node-id="yy4Km0VDrFlIQeWJQ1Qvu4"></div></div>
+              <div class="bar-value" id="pctTax" data-page-node-id="84zUHhmFqDEo91x6LW60an">40%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:24px" data-page-node-id="wzqj92ob6nwD50FE0Zk9PT">
+          <div class="card-title" data-page-node-id="YWWMY0O6EJDdXhCsW8vqDZ">Daraz 定价建议</div>
+          <div class="kpi-grid" data-page-node-id="n8LUQTkWkHxcjor1Lj9KO6">
+            <div class="kpi" data-page-node-id="bTyyyEgwdWC2xdYyHAAnJJ">
+              <div class="kpi-value" id="kpiPrice" data-page-node-id="SK3jDQmKFYjW1LHMXisl9T">¥0</div>
+              <div class="kpi-label" data-page-node-id="NjQnO6t69Rv8MIFGmlDuLg">标准定价</div>
+            </div>
+            <div class="kpi blue" data-page-node-id="CJ1Wdz94NW39v2UYNXI77k">
+              <div class="kpi-value" id="kpiFreePrice" data-page-node-id="aFHlZ8bfMaVd3Y9kjvsmTf">¥0</div>
+              <div class="kpi-label" data-page-node-id="w3yclq3zM0Yzp4DdRtNk8y">包邮定价</div>
+            </div>
+            <div class="kpi red" data-page-node-id="Kcmcje3eTuojBEnQKpB34W">
+              <div class="kpi-value" id="kpiFreeCap" data-page-node-id="fdg6opuDIJWEyGioU1BrxT">—</div>
+              <div class="kpi-label" data-page-node-id="SCkbfvavApMIbKuabuxEIb">包邮封顶状态</div>
+            </div>
+          </div>
+          <div class="note" data-page-node-id="Wlb7vZwtJ3liHTIgVa6i9y">标准定价 = 总成本 ÷ (1 - 平台佣金 - 回款费 - 仓库杂费 - 毛利率)；包邮定价中 5% 佣金按 min(售价×5%, 封顶) 计算。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 明细对比 -->
+    <div class="card" data-page-node-id="zGMA5QnDVGEiCRlZAkDewK">
+      <div class="card-title" data-page-node-id="vn7hqSWhDei1IoIoaBGVCX">费用明细（每单位）</div>
+      <table data-page-node-id="EkAlviCVlDECHhEGKZZBKI">
+        <thead data-page-node-id="CIEHJ7a3lJw9SXlR18yBrK">
+          <tr data-page-node-id="HbGA6RcoJJxl0qFAjJFEcX">
+            <th data-page-node-id="lQEkd99wpQGKjQdlbxxXLd">项目</th>
+            <th class="num" data-page-node-id="reD532upDCxTQd9m0pg9zK">金额（元）</th>
+            <th class="num" data-page-node-id="9zbSvTQHCi6rJWJl6WfpsX">占 FOB 比例</th>
+            <th data-page-node-id="dpfkyuvwEiIXzjCEPRwCL9">说明</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody" data-page-node-id="9UeEcjZ6BXGcdgQrJ2jBT6">
+          <!-- JS 填充 -->
+        </tbody>
+      </table>
+
+      <div class="note" data-page-node-id="DODayV0mWeAlk4xKyBFnNI">
+        计算逻辑：CIF = FOB + 海运费；保险费 = CIF × 保险费率；关税/附加税/PAL/CESS 以 CIF+保险为基数；VAT 以 CIF+保险+关税+附加税+PAL+CESS+Excise 为基数。海运费 = 箱体积 ÷ 箱数量 × 每 m³ 运费。
+      </div>
+    </div>
+  </div>
+
+      <script>
+// 自动生成：HS 编码匹配规则 + 税率数据库（请勿手动编辑）
+// 规则数: 214 | 税率条目: 137
+const HS_RULES = [["夜视|night.?vision", "8525.83"], ["保温.*饭盒|真空.*饭盒|焖烧.*饭盒|保温.*罐", "9617.00"], ["空气炸锅|air.?fryer", "8516.60.90"], ["电饭|饭煲|rice.?cooker", "8516.60.10"], ["微波", "8516.50"], ["烤面包|多士|toaster", "8516.72"], ["咖啡|coffee", "8516.71"], ["电水壶|热水壶|kettle", "8516.79.20"], ["电热锅|电煮锅|电火锅|多功能锅|不锈钢锅|锅具|不粘锅|汤锅|煎锅|炒锅|蒸锅|奶锅", "7323.93"], ["挂烫|熨烫|蒸汽熨|电熨斗|烫斗", "8516.40"], ["吹风|hair.?dryer", "8516.31"], ["卷发|直发|美发|造型器|卷发器|直发器|夹板", "8516.32"], ["吸尘|vacuum", "8508.11"], ["剃须|理发|电推|hair.?clipper|理发器|推剪", "8510.20"], ["打蛋|搅拌|榨汁|料理|破壁|绞肉|豆浆|辅食|研磨|切碎|碎菜", "8509.40"], ["电风扇|风扇|usb.?fan|桌面扇|手持.*风扇|便携.*风扇|挂脖.*风扇|小风扇|夹扇|吊扇", "8414.51"], ["充电器|电源适配|adapter.*charger|氮化镓.*充|快充.*头", "8504.40"], ["数据线(?!.*收纳|.*包)|充电线|usb.?cable|lightning|转接头|转换器|扩展坞|分线器|集线器|otg", "8544.42"], ["插排|插座|排插|接线板|延长线插座|转换插|多口.*充", "8536.69"], ["车充|车载.*充电", "8504.40"], ["无线充|无线.*充电", "8504.40"], ["充电宝|移动电源|power.?bank", "8507.60"], ["LED.*灯|led.*lamp|台灯|夜灯|灯泡|照明|头灯|工作灯|橱柜灯|小夜灯|感应灯|氛围灯|阅读灯|吸顶灯|射灯|筒灯|面板灯", "9405.42.90"], ["灯串|装饰灯|串灯|彩灯|圣诞灯", "9405.39"], ["太阳能.*灯|solar.*lamp", "9405.42.90"], ["手电|强光手电|手电筒", "8513.10"], ["蓝牙.*音箱|蓝牙.*音响|bluetooth.?speaker|桌面.*音箱|低音炮", "8518.22"], ["耳机|earphone|headphone|耳塞|有线.*耳|无线.*耳|蓝牙.*耳|脖挂|耳挂", "8518.30"], ["标签机|标签打印|label.*print|热敏.*机", "8443.32"], ["计算器", "8470.10"], ["温度计|体温计|thermometer", "9025.19"], ["量尺|卷尺|软尺|尺子|直尺|米尺|测量.*尺|皮尺", "9017.80"], ["手表|腕表|watch|电子表|石英表", "9102.12"], ["表带", "9113.90"], ["钟|时钟|闹钟|挂钟|石英钟", "9105.91"], ["背包|书包|双肩包|backpack", "4202.92"], ["旅行袋|手提包|挎包|手袋|收纳袋|购物袋|束口袋|环保袋|帆布包|斜挎|单肩|拎包|妈咪包", "4202.92"], ["钱包|卡包|卡套|证件套|卡夹", "4202.31"], ["化妆包|洗漱包|旅行包|收纳包|笔袋|文具袋|文件袋|护照夹|钥匙包", "4202.92"], ["腰包|胸包|公文包|电脑包|邮差包", "4202.91"], ["收纳盒|储物盒|整理盒|塑料盒|盒子|保鲜盒|储物箱|整理箱|收纳箱.*塑料|封口.*夹", "3924.90.90"], ["塑料篮|塑料筐|收纳筐|收纳篮|脏衣篮|垃圾桶|纸篓|篮子", "3924.90.90"], ["挂钩|粘钩|挂钩粘胶|无痕钩|吸盘钩|粘胶.*钩|魔力贴", "3926.90.99"], ["塑料瓶|水壶|水杯|运动水壶|太空杯|随手杯", "3924.10.90"], ["饭盒|便当|午餐盒|餐盒", "3924.10.90"], ["衣架|晾衣架|裤架|衣夹|防风夹|晒衣", "3926.90.99"], ["拖鞋|凉拖|塑料鞋|浴室.*鞋|家居鞋|eva.*鞋|洞洞鞋", "6402.99"], ["雨伞|晴雨伞|折叠伞|遮阳伞|太阳伞", "6601.91"], ["皂液器|皂盒|肥皂盒|牙刷架|牙具架|置物架|沥水|吸盘.*架|壁挂.*架|毛巾架|纸巾架", "3924.90.90"], ["地漏|下水|水槽.*塞|排水|防臭.*芯|下水器", "3925.90"], ["脸盆|水桶|盆.*塑料|洗脸盆|洗衣盆", "3924.90.90"], ["磨刀|磨刀石", "6804.30"], ["米桶|米箱|面粉桶|杂粮.*桶", "3924.90.90"], ["碗|盘|碟|筷子|勺|铲|砧板|切菜板|擀面杖|饭勺|漏勺|汤勺", "3924.10.90"], ["保鲜膜|保鲜袋|食品袋|密封袋|自封袋", "3923.29.90"], ["冰格|制冰|冰块|冰模|冰棒.*模", "3924.10.90"], ["雨刮|雨刷|wiper", "8512.40"], ["车灯|汽车灯|前大灯|尾灯|雾灯|日行灯|阅读灯|示宽|倒车灯", "8512.20"], ["汽车.*罩|车罩|摩托车罩", "6307.90.90"], ["座垫|坐垫|汽车座椅套|汽车座套|cushion.*car|腰靠|头枕.*车", "9401.20"], ["方向盘套|方向盘.*套", "8708.94"], ["手机支架.*车|车载支架", "3926.90.99"], ["汽车.*改装|汽车.*装饰|车贴|防撞条|门槛条|挡泥板|遮阳挡|车门.*防撞", "8708.99"], ["反光贴|反光条|安全.*标志.*车", "3919.90"], ["围巾|丝巾|披肩|scarf", "6214.90"], ["毯子|毛毯|盖毯|blanket|空调毯|午睡毯|法兰绒.*毯|珊瑚绒.*毯", "6301.40"], ["毛巾|浴巾|面巾|方巾|干发帽|擦手巾|洗碗巾|抹布|清洁布|百洁布", "6302.60"], ["枕套|床单|被套|床笠|枕巾|床品", "6302.31"], ["窗帘|窗纱", "6303.92"], ["桌布|桌旗|餐垫|杯垫|隔热垫|餐桌.*布", "6302.51"], ["收纳箱.*布|布艺.*收纳|折叠收纳|牛津布.*收纳", "6307.90.90"], ["围裙|袖套", "6211.43"], ["按摩.*脚垫|足底.*按摩|脚底.*按|指压.*垫|穴位.*垫", "3926.90"], ["地垫|门垫|脚垫|浴室垫|防滑垫.*布|门口.*垫|玄关.*垫", "5705.00"], ["帽子|鸭舌帽|棒球帽|遮阳帽|渔夫帽|太阳帽|空顶帽", "6505.00"], ["袜子|船袜|隐形袜|短袜|运动袜", "6115.96"], ["T恤|t恤|t.?shirt|短袖|polo|文化衫", "6109.10"], ["内裤|内衣|短裤|裤衩|平角|三角.*裤", "6211.43.99"], ["足球|足球鞋|soccer", "9506.62"], ["篮球|basketball", "9506.62"], ["排球|volleyball", "9506.62"], ["羽毛球|badminton", "9506.59"], ["乒乓球|table.?tennis", "9506.40"], ["跳绳|jump.?rope", "9506.99"], ["瑜伽|yoga.*mat|瑜伽垫", "9506.99"], ["玩具|toy|拼图|积木|魔方|飞盘|泡泡|风筝|陀螺", "9503.00"], ["球类|球拍|运动", "9506.99"], ["哑铃|杠铃|拉力|健身|腹肌|臂力", "9506.91"], ["螺丝刀|扳手|钳子|工具套装|tool.?set|套筒|内六角", "8206.00"], ["剪刀|scissor", "8213.00"], ["脚皮.*刮|修脚|足部.*刮|脚后跟.*刮", "8214.20"], ["抹刀|刮刀.*蛋糕|奶油.*刀|蛋糕.*抹", "8215.99"], ["刀|knife|厨刀|水果刀|菜刀|小刀|美工刀|壁纸刀", "8211.92"], ["螺丝|螺母|螺栓|垫圈|钉|铆钉|弹簧|自攻|膨胀", "7318.15"], ["胶水|胶.*粘|万能胶|502|哥俩好|ab胶|瞬干", "3506.10"], ["扎带|束线带|尼龙扎带", "3926.90.99"], ["笔|pen|钢笔|圆珠笔|记号笔|签字笔|马克笔|荧光笔|白板笔|油漆笔", "9608.10"], ["笔记本|记事本|notebook|线圈本|活页本", "4820.10"], ["贴纸|标签纸|便签|sticker|label|价签|价格.*签", "3919.90"], ["胶带|透明胶|双面胶|tape|美纹纸|胶纸|封箱.*胶|电工.*胶|绝缘.*胶", "3919.10"], ["便签纸|便利贴", "4820.10"], ["订书机|打孔器|起钉器", "8472.90"], ["梳子|发梳|hair.?brush|气囊梳|按摩梳|卷梳|排骨梳|扁梳", "9615.11"], ["牙签|牙线|toothpick|牙线棒", "3926.90.99"], ["雨衣|raincoat", "3926.20"], ["指甲刀|指甲钳|指甲剪|耳勺|挖耳|指甲锉", "8214.20"], ["镜子|化妆镜|便携镜|led.*镜|台式镜|壁挂.*镜|美容镜|手持镜", "7009.92"], ["沐浴球|浴球|浴花|搓澡|沐浴擦|起泡网|浴刷", "3926.90.99"], ["化妆刷|粉扑|美妆蛋|化妆棉|散粉.*扑", "9616.20"], ["发圈|发夹|头绳|发箍|发带|头饰|一字夹|香蕉夹|鸭嘴夹", "9615.19"], ["剃须刀|手动.*剃须|刮胡刀|剃毛", "8212.10"], ["手机壳|手机套|保护壳|保护套.*手机|tpu.*套|透明壳|防摔壳|硅胶.*壳", "3926.90.99"], ["手机膜|钢化膜|软膜|水凝膜|防窥膜", "3920.62"], ["手机支架|指环扣|手机.*扣|懒人.*支架", "3926.90.99"], ["手机.*挂绳|挂绳|腕带|lanyard|手机.*绳|颈挂", "6307.90.90"], ["自拍杆|自拍神器", "9620.00"], ["宠物.*梳|宠物.*刷|宠物.*毛", "9603.90"], ["宠物.*玩具|宠物.*球|狗.*玩具|猫.*玩具", "9503.00"], ["宠物.*碗|宠物.*盆|宠物.*食", "3924.10.90"], ["宠物.*绳|牵引绳|狗链|猫链|胸背|项圈.*宠", "4201.00"], ["宠物.*衣|宠物.*服|狗.*衣服", "4201.00"], ["密封条|门缝|门窗.*密封|挡风条|防风.*条", "4016.93.90"], ["防撞|防碰|护角|桌角.*护|门.*防撞", "3926.90.99"], ["门吸|门挡|门顶|门碰", "8302.41"], ["蜡烛|香薰.*蜡|工艺.*蜡", "3406.00"], ["打火机|lighter", "9613.10"], ["放大镜|老花镜|放大.*镜|阅读.*放大", "9013.80"], ["袖扣|领带夹|胸针|领针", "7117.19"], ["藤条灯|装饰.*藤.*灯", "9405.39"], ["电蚊拍|灭蚊.*拍|蚊拍", "8543.70"], ["感应.*音响|感应.*音箱|声控.*音箱", "8518.22"], ["封口机|塑封|封袋", "8422.30"], ["扑克牌|扑克|纸牌|playing.*card", "9504.40"], ["玻璃.*刮|刮水|刮窗|擦窗.*刮|玻璃.*清洁", "9603.90"], ["防水袋.*手机|手机.*防水袋|潜水.*袋", "3926.90.99"], ["墨镜|太阳镜|太阳.*眼镜|偏光.*镜|驾驶.*镜|日夜.*镜|变色.*镜", "9004.10"], ["油瓶|油壶|酱油瓶|调味.*瓶|醋瓶|料酒.*瓶", "7013.49"], ["花洒.*支架|花洒.*座|淋浴.*支架", "3924.90.90"], ["调料瓶|调味罐|调料.*盒|调味.*盒|调料.*罐", "7013.49"], ["驼背.*矫正|矫正.*带|护腰带|腰托|背背佳|姿势.*矫正", "6307.90.90"], ["蚊香.*盒|蚊香.*盘|蚊香.*架", "7323.99"], ["打气筒|气筒|打气.*泵|充气.*泵|pump.*ball|pump.*bike", "8414.20"], ["办公套装|文具套装|办公.*套", "3926.10"], ["链条.*清洁|链条.*刷|洗链", "9603.90"], ["菜板.*竹|竹.*菜板|竹.*砧板|木.*菜板|木.*砧板|竹板", "4419.19"], ["衣.*收纳|衣服.*收纳|衣物.*收纳|收纳.*衣.*箱|衣柜.*收纳", "6307.90.90"], ["桌垫|鼠标垫|键盘垫|办公.*垫|书写.*垫|切割.*垫", "3926.90.99"], ["捆扎|绑带|弹力.*绳|弹力.*带|松紧.*绳|bungee", "5609.00"], ["粘毛|除毛.*滚筒|去毛.*滚|粘尘.*滚|lint.*roll", "9603.90"], ["刀具.*套装|厨具.*套|刀组", "8211.10"], ["冰袋|冰包|保温.*包|保冷.*包|cooler.*bag", "4202.92"], ["旅行.*枕|颈枕|u型.*枕|充气.*枕|眼罩|睡眠.*罩", "6307.90.90"], ["餐巾|纸巾(?!.*盒)|纸手帕|面巾纸|抽纸", "4818.20"], ["湿巾|湿纸巾|湿.*wipe", "3401.19"], ["手套.*橡胶|橡胶.*手套|乳胶.*手套|家务.*手套|洗碗.*套", "4015.19"], ["手套.*布|布.*手套|劳保.*手套|防护.*手套|工作.*手套", "6216.00"], ["洗车.*毛巾|洗车.*巾|擦车.*巾|汽车.*毛巾|超细.*纤维.*巾", "6307.10"], ["浴帘|淋浴.*帘|shower.*curtain", "3924.90.90"], ["地漏.*盖|地漏.*芯|下水.*盖", "3925.90"], ["水龙头|龙头|faucet|水嘴", "8481.80"], ["锁|挂锁|密码.*锁|自行车.*锁|门锁|padlock", "8301.10"], ["粘扣|魔术贴|velcro|子母扣", "5806.10"], ["胶枪|热熔.*枪|glue.*gun", "8467.29"], ["防晒.*袖|冰袖|防晒.*臂|护臂|袖套.*防晒", "6117.80"], ["鞋垫|insole|增高.*垫|足跟.*垫", "6406.90"], ["开瓶器|开罐器|瓶起子|红酒.*开", "8205.51"], ["食物.*夹|面包.*夹|夹子.*厨房|取物.*夹", "3924.10.90"], ["锅铲|漏勺|汤勺|饭勺|炒勺|厨具.*勺", "7323.93"], ["密封罐|储物罐|玻璃.*罐|收纳.*罐|陶瓷.*罐|调料.*罐.*玻璃", "7010.90"], ["饭盒.*保温|保温.*饭盒|焖烧.*罐|焖烧.*杯", "9617.00"], ["电子秤|厨房.*称|厨房.*秤|烘焙.*称|计价.*秤|体重.*秤", "8423.10"], ["定时器|计时器|厨房.*计时|timer", "9106.90"], ["电蚊拍|灭蚊.*拍|蚊拍|魔法.*蚊", "8543.70"], ["菜板|砧板|切菜.*板|竹.*板|木.*板", "4419.19"], ["俯卧撑|push.?up.*bar|push.?up.*board|俯卧", "9506.91"], ["音响.*拆装|拆装.*音响|音响.*工具", "8205.59"], ["侧支架|延长.*支架|支架.*延长|side.?stand", "8714.99"], ["手提.*秤|便携.*秤|手提.*称|挂秤|挂钩.*称|弹簧.*称|行李.*称", "8423.10"], ["盲区.*镜|盲点.*镜|辅助.*镜|广角.*镜|后视.*镜|倒车.*镜|小圆镜", "7009.10"], ["衣服$|服装|上衣|外套|夹克|卫衣|衬衫|风衣|棉衣|羽绒|大衣|西装", "6211.43.99"], ["裙子|连衣裙|半身裙|短裙|长裙", "6211.43.99"], ["高压.*水枪|高压.*清洗|洗车.*机|清洗.*机.*高压|pressure.*wash", "8424.30"], ["手提灯|手提高|手提.*照|检修灯|工作.*手灯", "8513.10"], ["手刹.*套|手刹.*盖|挡把.*套|排挡.*套|档杆.*套", "8708.99"], ["恶魔眼|天使眼|车标.*灯|中网.*灯|装饰.*灯.*车", "8512.20"], ["防滑垫|防滑.*车|仪表.*垫|中控.*垫|dashboard.*mat", "3926.90"], ["水管.*挂架|水管.*架|水枪.*架|喷枪.*架|挂架.*水", "7326.90"], ["折叠.*桌|户外.*桌|便携.*桌|camping.*table|折叠桌", "9403.70"], ["遥控器.*钥匙|遥控.*钥匙|车.*遥控|汽车.*遥控", "8526.92"], ["握力器|握力.*球|握力.*训练|grip.*train", "9506.91"], ["加湿器|humidifier|雾化", "8509.80"], ["精油|香薰.*油|aroma.*oil|精油.*瓶", "3301.90"], ["防晒.*衣|防紫外线|紫外线.*衣|upf", "6210.50"], ["手套.*防晒|防晒.*手套", "6116.93"], ["杯套|杯袋|杯.*保护|水杯.*套", "4202.92"], ["驱蚊.*手环|驱蚊.*腕带|防蚊.*手环|防蚊.*腕带", "3808.91"], ["真空.*压缩袋|压缩袋|真空.*收纳袋", "3923.29.90"], ["抽屉.*分隔|分隔板.*抽屉|抽屉.*隔板", "3926.90"], ["无肩带.*抹胸|抹胸|tube.?top|strapless", "6212.90"], ["首饰盒|首饰.*盒|珠宝盒|首饰.*收纳|戒指盒", "4202.92"], ["亚克力.*展示|展示架.*亚克力|亚克力.*架|acrylic.*display|acrylic.*stand", "3926.90"], ["急救包|first.?aid.*kit|急救.*箱|急救.*袋|医药包", "4202.92"], ["药品.*分装|分装.*药|药盒.*便携|便携.*药盒|药丸.*盒|pill.?box|pill.?organizer", "3926.90"], ["洗鼻|鼻.*刷|鼻腔.*清|洗鼻.*器", "9603.90"], ["宠物.*项圈|宠物.*脖|宠物.*颈圈|项圈(?!.*宠)", "3926.90"], ["防蚊.*贴|驱蚊.*贴|驱蚊.*膏|防蚊.*膏|防蚊.*喷雾|驱蚊.*喷雾|mosquito.*patch|mosquito.*repellent", "3808.91"], ["拍水垫|戏水.*垫|喷水.*垫|splash.*pad|溅水.*垫|玩水.*垫", "9503.00"], ["烘焙纸|烤盘.*纸|烤箱.*纸|baking.?paper|parchment.*paper|油纸.*烘焙|硅油纸", "4823.90"], ["纸巾盒|纸巾.*盒|面巾.*盒|tissue.*box|纸巾.*架.*车", "4202.92"], ["车用.*纸巾|汽车.*纸巾|车载.*纸巾|car.*tissue", "4202.92"], ["摄像头|camera|监控|摄头|网络.*摄|wifi.*摄|太阳能.*摄|双目.*摄", "8525.89"], ["保温杯|保温瓶|真空杯|焖烧杯|保温壶|vacuum.?flask|vacuum.?bottle|便携.*水壶", "9617.00"], ["玻璃杯|玻璃罐|玻璃瓶|玻璃.*容器|密封罐.*玻璃|储物罐.*玻璃", "7010.90"], ["运动水壶|塑料.*水壶|太空杯|随手杯|杯子.*塑料|水杯.*塑料", "3924.10.90"]];
+
+const HS_TARIFF = {"8525.83": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9617.00": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.0, "specific": 0, "desc": ""}, "8516.60.90": {"gd": 0.2, "pal": 0.05, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Other"}, "8516.60.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Rice cookers"}, "8516.50": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Microwave ovens"}, "8516.72": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Toasters"}, "8516.71": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Coffee or tea makers"}, "8516.79.20": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Electric kettles"}, "7323.93": {"gd": 0.2, "pal": 0.1, "cess": 0.25, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": ""}, "8516.40": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Electric smoothing irons :"}, "8516.31": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Hair dryers"}, "8516.32": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Other hair-dressing apparatus"}, "8508.11": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Of a power not exceeding 1,500 W and\nhaving a dust bag or other receptacle\ncapacity not exceeding 20 l"}, "8510.20": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Hair clippers"}, "8509.40": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Food grinders and mixers; fruit or vegetable\njuice extractors"}, "8414.51": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Table, floor, wall, window, ceiling or roof\nfans, with a self-contained electric motor\nof an output not exceeding 125 W"}, "8504.40": {"gd": 0.0, "pal": 0.05, "cess": 0.08, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Contaminated with or containing\nPolychlorinated biphenyls (PCB)"}, "8544.42": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8536.69": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "13A, plugs and sockets of Type – G as\ndefined by International Electrotechnical\nCommission (IEC); adaptors , connection\n"}, "8507.60": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9405.42.90": {"gd": 0.2, "pal": 0.075, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "9405.39": {"gd": 0.2, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "8513.10": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "12V, DC portable solar lamps"}, "8518.22": {"gd": 0.15, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Multiple loudspeakers, mounted in the same\nenclosure"}, "8518.30": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Headphones and earphones, whether or not\ncombined with a microphone, and sets\nconsisting of a microphone and one or more"}, "8443.32": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Offset printing machinery, reel-fed"}, "8470.10": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Electronic calculators capable of\noperation without an external source of\nelectric power and pocket-size data\nrecording,"}, "9025.19": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9017.80": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other instruments (+)"}, "9102.12": {"gd": 0.2, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "With opto-electronic display only"}, "9113.90": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9105.91": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Electrically operated"}, "4202.92": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "With outer surface of sheeting of plastics\nor of textile materials"}, "4202.31": {"gd": 0.2, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "With outer surface of leather or of\ncomposition leather"}, "4202.91": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "With outer surface of leather or of\ncomposition leather"}, "3924.90.90": {"gd": 0.2, "pal": 0.1, "cess": 0.3, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "3926.90.99": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other :"}, "3924.10.90": {"gd": 0.2, "pal": 0.1, "cess": 0.3, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Of other plastics"}, "6402.99": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 14.2, "desc": ""}, "6601.91": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "3925.90": {"gd": 0.2, "pal": 0.1, "cess": 0.2, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "6804.30": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "3923.29.90": {"gd": 0.2, "pal": 0.1, "cess": 0.15, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "8512.40": {"gd": 0.15, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Windscreen wipers, defrosters and demisters"}, "8512.20": {"gd": 0.15, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Other lighting or visual signalling equipment"}, "6307.90.90": {"gd": 0.15, "pal": 0.1, "cess": 0.3, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "9401.20": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "8708.94": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Steering wheels, steering columns and steering\nboxes; parts thereof"}, "8708.99": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Bumpers and parts thereof"}, "3919.90": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6214.90": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Printed by batik process"}, "6301.40": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6302.60": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Bed linen, knitted or crocheted"}, "6302.31": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Bed linen, knitted or crocheted"}, "6303.92": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Of synthetic fibres"}, "6302.51": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Bed linen, knitted or crocheted"}, "6211.43": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other, printed by Batik process"}, "3926.90": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other :"}, "5705.00": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6505.00": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6115.96": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Of synthetic fibres"}, "6109.10": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Of cotton"}, "6211.43.99": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "9506.62": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Inflatable :"}, "9506.59": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other :"}, "9506.40": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Articles and equipment for table-tennis"}, "9506.99": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "9503.00": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Tricycles, scooters, pedal cars and similar wheeled\ntoys; dolls' carriages"}, "9506.91": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Articles and equipment for general physical\nexercise, gymnastics or athletics"}, "8206.00": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Tools of two or more of the headings\n82.02 to 82.05, put up in sets for retail\nsale."}, "8213.00": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Scissors, tailors' shears and similar\nshears, and blades therefor."}, "8214.20": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Manicure or pedicure sets and instruments\n(including nail files)"}, "8215.99": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "8211.92": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "7318.15": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "3506.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9608.10": {"gd": 0.2, "pal": 0.1, "cess": 0.2, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Plastic"}, "4820.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "3919.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8472.90": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.0, "specific": 0, "desc": "Other :"}, "9615.11": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Of hard rubber or plastics"}, "3926.20": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Electronic duplicator stencils"}, "7009.92": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Framed"}, "9616.20": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Powder-puffs and pads for the application of\ncosmetics or toilet preparations"}, "9615.19": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "8212.10": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Heads of disposable razors (incomplete\nrazors)"}, "3920.62": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9620.00": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Monopods, bipods, tripods and similar\narticles."}, "9603.90": {"gd": 0.2, "pal": 0.0, "cess": 0.25, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Brooms made of coconut fibre"}, "4201.00": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "4016.93.90": {"gd": 0.15, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.025, "sscl": 0.0, "sur": 0.0, "specific": 0, "desc": "Other"}, "8302.41": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "3406.00": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "9613.10": {"gd": 0.15, "pal": 0.1, "cess": 0.2, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Pocket lighters, gas fuelled, non-refillable"}, "9013.80": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "7117.19": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8543.70": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Particle accelerators"}, "8422.30": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.3, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Of the household type"}, "9504.40": {"gd": 0.2, "pal": 0.1, "cess": 0.1, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Playing cards"}, "9004.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "7013.49": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "7323.99": {"gd": 0.2, "pal": 0.1, "cess": 0.25, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": ""}, "8414.20": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Hand or foot-operated air pump"}, "3926.10": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Electronic duplicator stencils"}, "4419.19": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "5609.00": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8211.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "4818.20": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "3401.19": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "4015.19": {"gd": 0.2, "pal": 0.1, "cess": 0.15, "vat": 0.18, "exc": 0.025, "sscl": 0.0, "sur": 0.0, "specific": 0, "desc": "Other"}, "6216.00": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6307.10": {"gd": 0.15, "pal": 0.1, "cess": 0.3, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Floor-cloths, dish-cloths, dusters and\nsimilar cleaning cloths"}, "8481.80": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8301.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "5806.10": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8467.29": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6117.80": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Shawls, scarves, mufflers, mantillas, veils\nand the like"}, "6406.90": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8205.51": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Household tools"}, "7010.90": {"gd": 0.15, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Ampoules"}, "8423.10": {"gd": 0.0, "pal": 0.075, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Personal weighing machines, including\nbaby scales"}, "9106.90": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8205.59": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "8714.99": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Frames, with or without frount folk"}, "7009.10": {"gd": 0.2, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Rear-view mirrors for vehicles"}, "8424.30": {"gd": 0.0, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Steam or sand blasting machines and\nsimilar jet projecting machines"}, "7326.90": {"gd": 0.15, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Grinding balls and similar articles for mills"}, "9403.70": {"gd": 0.2, "pal": 0.1, "cess": 0.25, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Used"}, "8526.92": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8509.80": {"gd": 0.0, "pal": 0.1, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": "Other appliances :"}, "3301.90": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6210.50": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "6116.93": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Of synthetic fibres"}, "3808.91": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "DDT (ISO) (clofenotane (INN)), in packings of a net\nweight content not exceeding 300g"}, "6212.90": {"gd": 0.0, "pal": 0.0, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.0, "sur": 0.025, "specific": 0, "desc": "Other"}, "4823.90": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}, "8525.89": {"gd": 0.2, "pal": 0.05, "cess": 0.0, "vat": 0.18, "exc": 0.0, "sscl": 0.025, "sur": 0.0, "specific": 0, "desc": ""}};
+
+const HS_EXACT = {"8525.83": true, "9617.00": true, "8516.60.90": true, "8516.60.10": true, "8516.50": true, "8516.72": true, "8516.71": true, "8516.79.20": true, "7323.93": true, "8516.40": true, "8516.31": true, "8516.32": true, "8508.11": true, "8510.20": true, "8509.40": true, "8414.51": true, "8504.40": false, "8544.42": false, "8536.69": false, "8507.60": false, "9405.42.90": true, "9405.39": true, "8513.10": false, "8518.22": true, "8518.30": true, "8443.32": false, "8470.10": true, "9025.19": false, "9017.80": true, "9102.12": true, "9113.90": false, "9105.91": true, "4202.92": true, "4202.31": true, "4202.91": true, "3924.90.90": true, "3926.90.99": false, "3924.10.90": true, "6402.99": true, "6601.91": false, "3925.90": true, "6804.30": false, "3923.29.90": true, "8512.40": true, "8512.20": true, "6307.90.90": true, "9401.20": false, "8708.94": true, "8708.99": false, "3919.90": false, "6214.90": false, "6301.40": false, "6302.60": false, "6302.31": false, "6303.92": true, "6302.51": false, "6211.43": false, "3926.90": true, "5705.00": false, "6505.00": false, "6115.96": true, "6109.10": true, "6211.43.99": true, "9506.62": true, "9506.59": true, "9506.40": true, "9506.99": true, "9503.00": false, "9506.91": true, "8206.00": true, "8213.00": true, "8214.20": true, "8215.99": true, "8211.92": false, "7318.15": false, "3506.10": false, "9608.10": false, "4820.10": false, "3919.10": false, "8472.90": true, "9615.11": true, "3926.20": false, "7009.92": true, "9616.20": true, "9615.19": true, "8212.10": false, "3920.62": false, "9620.00": true, "9603.90": false, "4201.00": false, "4016.93.90": true, "8302.41": false, "3406.00": false, "9613.10": true, "9013.80": false, "7117.19": false, "8543.70": false, "8422.30": false, "9504.40": true, "9004.10": false, "7013.49": false, "7323.99": true, "8414.20": true, "3926.10": false, "4419.19": false, "5609.00": false, "8211.10": false, "4818.20": false, "3401.19": false, "4015.19": true, "6216.00": false, "6307.10": true, "8481.80": false, "8301.10": false, "5806.10": false, "8467.29": false, "6117.80": false, "6406.90": false, "8205.51": true, "7010.90": false, "8423.10": false, "9106.90": false, "8205.59": true, "8714.99": false, "7009.10": true, "8424.30": true, "7326.90": false, "9403.70": false, "8526.92": false, "8509.80": true, "3301.90": false, "6210.50": false, "6116.93": true, "3808.91": false, "6212.90": true, "4823.90": false, "8525.89": true};
+
+    </script>
+
+    <script>
+    const templates = {
+      '7323.99': { gd: 20, pal: 10, cess: 25, vat: 18, exc: 0, sscl: 0, sur: 2.5, specific: 0 },
+      '8525.89': { gd: 20, pal: 5, cess: 0, vat: 18, exc: 0, sscl: 2.5, sur: 0, specific: 0 },
+      '8525.83': { gd: 0, pal: 5, cess: 0, vat: 18, exc: 0, sscl: 2.5, sur: 0, specific: 0 },
+      '6402.99': { gd: 20, pal: 0, cess: 0, vat: 18, exc: 0, sscl: 2.5, sur: 0, specific: 14.20 },
+      '6203.12': { gd: 0, pal: 5, cess: 4.5, vat: 18, exc: 0, sscl: 2.5, sur: 0, specific: 6.09 }
+    };
+
+    function getNum(id) { return parseFloat(document.getElementById(id).value) || 0; }
+    function fmt(v) { return '¥' + v.toFixed(2); }
+    function pct(v) { return (v * 100).toFixed(1) + '%'; }
+
+    function applyTemplate() {
+      const t = document.getElementById('hsTemplate').value;
+      const custom = document.getElementById('customRates');
+      if (t === 'custom') {
+        custom.style.opacity = '1';
+        custom.style.pointerEvents = 'auto';
+      } else {
+        const r = templates[t];
+        document.getElementById('rateGD').value = r.gd;
+        document.getElementById('ratePAL').value = r.pal;
+        document.getElementById('rateCESS').value = r.cess;
+        document.getElementById('rateVAT').value = r.vat;
+        document.getElementById('rateEXC').value = r.exc;
+        document.getElementById('rateSSCL').value = r.sscl;
+        document.getElementById('rateSUR').value = r.sur;
+        document.getElementById('specificTax').value = r.specific;
+        custom.style.opacity = '1';
+        custom.style.pointerEvents = 'auto';
+      }
+      calculate();
+    }
+
+    function calculate() {
+      const ctnVol = getNum('ctnVolume');
+      const ctnQty = getNum('ctnQty') || 1;
+      const unitVol = ctnVol / ctnQty;
+      const fob = getNum('unitPrice');
+
+      const fclCbm = getNum('fclCbm') || 1;
+      const fclUsd = getNum('fclUsd');
+      const usdcny = getNum('usdcny');
+      const freightPerCbm = (fclUsd * usdcny) / fclCbm;
+      const insRate = getNum('insRate') / 100;
+
+      const frt = unitVol * freightPerCbm;
+      const cif = fob + frt;
+      const ins = cif * insRate;
+      const base = cif + ins;
+
+      const gd = getNum('rateGD') / 100;
+      const pal = getNum('ratePAL') / 100;
+      const cess = getNum('rateCESS') / 100;
+      const vat = getNum('rateVAT') / 100;
+      const exc = getNum('rateEXC') / 100;
+      const sscl = getNum('rateSSCL') / 100;
+      const sur = getNum('rateSUR') / 100;
+      const specific = getNum('specificTax');
+
+      const duty = base * gd;
+      const dSur = duty * sur;
+      const palA = base * pal;
+      const cessA = base * cess;
+      const excBase = base + duty + dSur + palA + cessA;
+      const excA = excBase * exc;
+      const vatBase = excBase + excA;
+      const vatA = vatBase * vat;
+      const ssclBase = vatBase + vatA;
+      const ssclA = ssclBase * sscl;
+      const specA = specific;
+
+      const landed = frt + ins + duty + dSur + palA + cessA + excA + vatA + ssclA + specA;
+      const total = fob + landed;
+      const ratio = total / fob;
+
+      // 定价
+      const margin = getNum('margin') / 100;
+      const platCom = getNum('platCom') / 100;
+      const freeCom = getNum('freeCom') / 100;
+      const payFee = getNum('payFee') / 100;
+      const whFee = getNum('whFee') / 100;
+      const freeCap = getNum('freeCap');
+
+      const denomStd = 1 - platCom - payFee - whFee - margin;
+      const priceStd = denomStd > 0 ? total / denomStd : 0;
+
+      // 包邮定价：考虑封顶
+      let priceFree = 0, capped = false;
+      const denomFreeNoCap = 1 - platCom - freeCom - payFee - whFee - margin;
+      if (denomFreeNoCap > 0) {
+        const pNoCap = total / denomFreeNoCap;
+        const freeA = pNoCap * freeCom;
+        if (freeA <= freeCap) {
+          priceFree = pNoCap;
+        } else {
+          priceFree = (total + freeCap) / (1 - platCom - payFee - whFee - margin);
+          capped = true;
+        }
+      }
+
+      const cnylkr = getNum('cnylkr');
+
+      // 渲染 KPI
+      document.getElementById('kpiLanded').textContent = fmt(landed);
+      document.getElementById('kpiTotal').textContent = fmt(total);
+      document.getElementById('kpiRatio').textContent = ratio.toFixed(2) + 'x';
+      document.getElementById('kpiPrice').textContent = fmt(priceStd) + ' / Rs ' + (priceStd * cnylkr).toFixed(0);
+      document.getElementById('kpiFreePrice').textContent = fmt(priceFree) + ' / Rs ' + (priceFree * cnylkr).toFixed(0);
+      document.getElementById('kpiFreeCap').textContent = capped ? '已封顶' : '未封顶';
+
+      // 进度条
+      const totalTax = landed - frt;
+      const max = Math.max(fob, frt, totalTax, 1);
+      document.getElementById('barFob').style.width = (fob / max * 100) + '%';
+      document.getElementById('barFrt').style.width = (frt / max * 100) + '%';
+      document.getElementById('barTax').style.width = (totalTax / max * 100) + '%';
+      document.getElementById('pctFob').textContent = pct(fob / total);
+      document.getElementById('pctFrt').textContent = pct(frt / total);
+      document.getElementById('pctTax').textContent = pct(totalTax / total);
+
+      // 明细表
+      const rows = [
+        ['FOB 采购价', fob, '单品采购价'],
+        ['海运费', frt, `箱体积 ${ctnVol}m³ ÷ ${ctnQty}件 × ¥${freightPerCbm.toFixed(2)}/m³`],
+        ['保险费', ins, `CIF ${fmt(cif)} × ${(insRate*100).toFixed(1)}%`],
+        ['关税 (GD)', duty, `基数 ${fmt(base)} × ${(gd*100).toFixed(1)}%`],
+        ['关税附加税', dSur, `关税 × ${(sur*100).toFixed(1)}%`],
+        ['PAL', palA, `基数 ${fmt(base)} × ${(pal*100).toFixed(1)}%`],
+        ['CESS', cessA, `基数 ${fmt(base)} × ${(cess*100).toFixed(1)}%`],
+        ['Excise', excA, `基数 ${fmt(excBase)} × ${(exc*100).toFixed(1)}%`],
+        ['VAT', vatA, `基数 ${fmt(vatBase)} × ${(vat*100).toFixed(1)}%`],
+        ['SSCL', ssclA, `基数 ${fmt(ssclBase)} × ${(sscl*100).toFixed(1)}%`],
+        ['从量税', specA, specific > 0 ? `固定 ¥${specific.toFixed(2)}/件` : '—']
+      ];
+
+      const tbody = document.getElementById('detailBody');
+      tbody.innerHTML = '';
+      rows.forEach(([name, val, desc]) => {
+        const tr = document.createElement('tr');
+        if (name === '到仓成本' || name === '总成本') tr.style.fontWeight = '600';
+        tr.innerHTML = `
+          <td>${name}</td>
+          <td class="num">${val.toFixed(2)}</td>
+          <td class="num">${fob > 0 ? (val / fob * 100).toFixed(1) + '%' : '—'}</td>
+          <td style="color:var(--muted);font-size:13px">${desc}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // 汇总行
+      const sumTr = document.createElement('tr');
+      sumTr.style.background = '#f9fafb';
+      sumTr.style.fontWeight = '600';
+      sumTr.innerHTML = `
+        <td>到仓成本</td>
+        <td class="num">${landed.toFixed(2)}</td>
+        <td class="num">${fob > 0 ? (landed / fob * 100).toFixed(1) + '%' : '—'}</td>
+        <td style="color:var(--muted);font-size:13px">海运费 + 保险费 + 所有税费</td>
+      `;
+      tbody.appendChild(sumTr);
+
+      const totalTr = document.createElement('tr');
+      totalTr.style.background = '#eff6ff';
+      totalTr.style.fontWeight = '700';
+      totalTr.innerHTML = `
+        <td>总成本</td>
+        <td class="num">${total.toFixed(2)}</td>
+        <td class="num">${ratio.toFixed(2)}x</td>
+        <td style="color:var(--muted);font-size:13px">FOB + 到仓成本</td>
+      `;
+      tbody.appendChild(totalTr);
+    }
+
+    function autoMatch() {
+      const name = document.getElementById('productName').value.trim();
+      const hint = document.getElementById('matchHint');
+      if (!name) { hint.className = 'match-hint'; hint.textContent = ''; return; }
+      let matched = null;
+      for (const [pat, code] of HS_RULES) {
+        if (new RegExp(pat, 'i').test(name)) { matched = code; break; }
+      }
+      if (!matched) {
+        hint.className = 'match-hint miss';
+        hint.textContent = '⚠ 未匹配到 HS 编码，请手动选择税率模板或在下方自定义。';
+        return;
+      }
+      const t = HS_TARIFF[matched];
+      const exact = HS_EXACT[matched];
+      document.getElementById('hsTemplate').value = 'custom';
+      document.getElementById('rateGD').value = (t.gd * 100).toFixed(1);
+      document.getElementById('ratePAL').value = (t.pal * 100).toFixed(1);
+      document.getElementById('rateCESS').value = (t.cess * 100).toFixed(1);
+      document.getElementById('rateVAT').value = (t.vat * 100).toFixed(1);
+      document.getElementById('rateEXC').value = (t.exc * 100).toFixed(1);
+      document.getElementById('rateSSCL').value = (t.sscl * 100).toFixed(1);
+      document.getElementById('rateSUR').value = (t.sur * 100).toFixed(1);
+      document.getElementById('specificTax').value = t.specific.toFixed(2);
+      const cls = exact ? 'ok' : 'warn';
+      const status = exact ? '✓ 精确匹配' : '~ 近似匹配（税率已回退，请核对）';
+      const spec = t.specific > 0 ? `，从量税 ¥${t.specific.toFixed(2)}/件` : '';
+      hint.className = 'match-hint ' + cls;
+      hint.textContent = `${status}：HS ${matched} | 关税 ${(t.gd*100).toFixed(0)}% · PAL ${(t.pal*100).toFixed(0)}% · CESS ${(t.cess*100).toFixed(0)}% · VAT ${(t.vat*100).toFixed(0)}%${spec}`;
+      calculate();
+    }
+
+    // 事件绑定
+    const ids = ['productName','ctnVolume','ctnWeight','ctnQty','unitPrice','fclCbm','fclUsd','usdcny','insRate',
+                 'rateGD','ratePAL','rateCESS','rateVAT','rateEXC','rateSSCL','rateSUR','specificTax',
+                 'margin','platCom','freeCom','payFee','whFee','freeCap','cnylkr'];
+    ids.forEach(id => {
+      document.getElementById(id).addEventListener('input', calculate);
+    });
+    document.getElementById('hsTemplate').addEventListener('change', applyTemplate);
+    document.getElementById('productName').addEventListener('input', autoMatch);
+
+    applyTemplate();
+    autoMatch();
+  </script>
+</body>
+</html>

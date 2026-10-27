@@ -10,6 +10,7 @@
 | [crossborder-database-design.md](crossborder-database-design.md) | **生效** | 跨境运营域 Drizzle / PostgreSQL schema；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage |
 | [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
+| [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算模块（整柜 FCL）：按 Daraz SL 整柜逻辑设计；UED + API 草案；品名自动匹配 HS、单件费用明细、标准/包邮 `min(售价×5%,封顶)` 定价；HS/税率/规则/费率/汇率版本化维护与 Excel/API 导入；`freight_estimates` 快照与消费方解耦，AI 选品按需调用 |
 
 ## 2. 模块内设计
 
