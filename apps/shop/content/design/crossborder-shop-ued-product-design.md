@@ -4,11 +4,11 @@
 |----|------|
 | 文档范围 | `apps/shop` 租户端运营工作台（跨境电商数据中枢）的信息架构、布局规范与逐页产品/UED 设计 |
 | 受众 | 产品、UED、前端工程（Next.js + `@workspace/ui`） |
-| 版本 | **v1.5** |
-| 日期 | 2026-10-21（Asia/Shanghai） |
+| 版本 | **v2.1** |
+| 日期 | 2026-10-27（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop`（私有） |
 | 关联 | [`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md)、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)、**`cost-calculator-sl-landed-ued.md`（成本计算器专篇）**；HTML MVP Demo（好时运 AI·ERP，**仅功能/IA 参考**） |
-| **门禁** | 设计已更新（v1.5）。实现：控制台壳 + 详情页 mock enrichment + **UX polish**；默认不接 tRPC。壳层用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。**成本计算器专篇已出** → `cost-calculator-sl-landed-ued.md`。 |
+| **门禁** | v2.0 的 UED 基础上，v2.1 调整为动态 Skill execution + OKF 知识库：不固定研究步骤；Open Shop 展示知识对象/执行/复核状态索引，详情正文从 OKF 读取。业务输入和运营事实仍来自 Open Shop DB。具体实现按确认后的 API/权限/dataaccess 阶段推进，不将 mock 视为生产接入。壳层仍用 Next.js App Router 嵌套 `layout.tsx`；**禁止**独立 AppShell 组件。**成本计算器专篇** → `cost-calculator-sl-landed-ued.md`。 |
 
 ### 修订记录
 
@@ -21,6 +21,8 @@
 | **v1.4** | **2026-10-21** | **UX polish**：① AI 助手从右下角 FAB/overlay 改为 `(console)/layout` **右侧布局列**（~380px），Topbar Sparkles 开关；关闭时主区恢复全宽。② 商品详情 `/console/products/[sku]` 去掉 Tabs，基础信息 / 多店刊登 / AI 信号改为纵向堆叠。③ 仪表盘增加近 7 天订单/营收趋势图（recharts + `@workspace/ui` Chart）。④ 移除「Demo · 未接 tRPC」横幅组件及全部引用。 |
 | **v1.5** | **2026-10-21** | **成本计算器方案已出**：新增专篇 `cost-calculator-sl-landed-ued.md`（LK 税叠 Customs/PAL/CESS/VAT/SSCL、LCL/FCL、建议售价与净利率、UED 工作台）；§5.7 增加深化指针。 |
 | **v1.6** | **2026-10-25** | 文档随 Open Shop 定位收敛：移除历史业务表述；关联文档迁至 `docs/design/` 与 `apps/shop/content/design/`；营销页暂保持现状。 |
+| **v2.0** | **2026-10-27** | 历史版本：曾提出跨境研究项目/固定七步 UED；已由 v2.1 修订为动态 Skill execution + OKF，不作为现行流程或数据库要求。 |
+| **v2.1** | **2026-10-27** | 按知识架构调整研究 UED：移除固定七步导航/状态依赖，改为 Skill/策略动态执行记录；过程与知识正文进入 LLM Wiki / OKF，Open Shop 只展示索引、时间线、复核状态和业务关联，保留业务运营数据和审批真相在 SQL。 |
 
 ---
 
@@ -34,7 +36,7 @@
 4. 以第 6 节全局 CopilotKit 与跨页能力补齐壳层；
 5. 以第 8 节迁移表从现有 `/crossborder/*` 平滑切到目标路由。
 
-数据模型已在 commerce schema 中设计（`shops`、`products`、`listings`、`orders`、`inventory_*`、`cost_components`、`settlements`、`pending_actions`、`product_candidates`）。本文**不重新设计数据库**，只引用概念字段。
+基础运营数据模型已在 commerce schema 中设计（`shops`、`products`、`listings`、`orders`、`inventory_*`、`cost_components`、`settlements`、`pending_actions`、`product_candidates`）。Skill execution/OKF 知识索引模型见 `docs/design/crossborder-database-design.md`；本文定义动态执行/知识对象索引、人工复核和运营闭环，不固定 Skill 流程，也不替代 schema 文档。
 
 ---
 
@@ -136,12 +138,13 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 |------|--------|----------|-------------------|------|
 | 1 | 运营仪表盘 | `/console/dashboard` | `LayoutDashboard` | 默认落地页；**`/console` redirect → `/console/dashboard`**（已确认） |
 | 2 | AI 选品 | `/console/candidates` | `Sparkles` / `PackageSearch` | 列表；详情/分析用抽屉。旧 `/crossborder/candidates` redirect 至此（已确认命名） |
-| 3 | 待审队列 | `/console/pending` | `ClipboardList` | AI-B HITL；角标可显示 pending 数 |
-| 4 | 商品与刊登 | `/console/products` | `Package` | 本地商品 + listing 状态 |
-| 5 | 订单 | `/console/orders` | `ShoppingCart` | 多店订单 |
-| 6 | 库存预警 | `/console/inventory` | `Warehouse` | 预警优先，非完整 WMS |
-| 7 | 成本计算 | `/console/costs` | `Calculator` | 到仓成本 / 税项 / 定价 |
-| 8 | 财务中心 | `/console/finance` | `Wallet` | 营收成本利润粗览；与成本页分离 |
+| 3 | 知识与执行 | `/console/knowledge` | `Brain` | Skill 执行索引、OKF 知识对象、待复核记录与业务关联；不假设固定步骤 |
+| 4 | 待审队列 | `/console/pending` | `ClipboardList` | AI-B HITL；角标可显示 pending 数 |
+| 5 | 商品与刊登 | `/console/products` | `Package` | 本地商品 + listing 状态 |
+| 6 | 订单 | `/console/orders` | `ShoppingCart` | 多店订单 |
+| 7 | 库存预警 | `/console/inventory` | `Warehouse` | 预警优先，非完整 WMS |
+| 8 | 成本计算 | `/console/costs` | `Calculator` | 到仓成本 / 税项 / 定价 |
+| 9 | 财务中心 | `/console/finance` | `Wallet` | 营收成本利润粗览；与成本页分离 |
 | — | ─── divider ─── | | | |
 | 底 | 设置 | `/console/settings`（及子路径） | `Settings` | **pinned footer**；同时 Topbar 齿轮进入 |
 
@@ -199,8 +202,13 @@ apps/shop/app/.../（示意 · App Router）
     │                                # 包裹全部 /console/*；禁止独立 AppShell 组件
     ├── page.tsx                     # /console → redirect → /console/dashboard
     ├── dashboard/page.tsx
-    ├── candidates/page.tsx          # 勿用 /selection
-    │   └── [id]/page.tsx           # 选品 Go/No-Go 详情
+     ├── candidates/page.tsx          # 勿用 /selection
+     │   └── [id]/page.tsx           # 选品 Go/No-Go 详情
+    ├── knowledge/
+    │   ├── page.tsx                  # Skill 执行/知识对象索引；筛选 skill/平台/运行人/状态
+    │   ├── executions/[id]/page.tsx  # 一次执行的过程 timeline + OKF 内容链接 + 输入/业务关联
+    │   ├── objects/[id]/page.tsx     # OKF document/node 摘要、revision、来源和复核状态
+    │   └── reviews/page.tsx          # 待复核索引；详情内容由 OKF provider 读取
     ├── pending/page.tsx
     ├── products/page.tsx
     │   └── [sku]/page.tsx          # 商品/刊登详情（多店 listing）
@@ -370,14 +378,72 @@ apps/shop/app/.../（示意 · App Router）
 | 项 | 内容 |
 |----|------|
 | 目标用户 | 选品运营 |
-| 页面目标 | 浏览候选、看 AI 分析、接受/拒绝并进入待审或商品流 |
+| 页面目标 | 浏览 Skill/OKF 结果关联的候选、查看复核状态、接受/拒绝并进入商品流 |
 | 主要区块 | FilterBar；候选表；右侧/抽屉「AI 选品分析面板」 |
 | 关键交互 | 行选中 → 打开分析；「接受」→ 可选创建 `pending_actions`（listing/sourcing）；「拒绝」更新 candidate status；「分析」仅 C 级展示 |
 | 表列 | 产品、类目、到仓成本、建议售价、净利率、潜力评分、风险、操作（对齐 Demo） |
 | 分析面板字段 | 市场潜力、建议售价与净利率说明、竞争程度、风险提示、推荐操作（示例文案） |
-| 空态 | 无候选 →「等待 OpenWork 写入」或「手动导入」（P2） |
+| 空态 | 无候选 →「从知识/执行结果生成候选」或「由 OpenWork Desktop 提交」；显示集成是否可用 |
 | AI A/B/C | **C** 页内分析面板（可与全局 Copilot 并存）；接受上架类动作进 **B** 待审；自动刷候选属 pipeline **A/C** 边界，由 OpenWork 侧定义 |
-| 与 Demo 差异 | Demo 无待审闭环；本设计强制与 `/console/pending`、`product_candidates` 对齐。**路由名为 `candidates`（已确认），不是 `selection`**；旧 `/crossborder/candidates` redirect 至此 |
+| 与 Demo 差异 | 增加 OKF 知识对象/执行引用、人工复核状态和转换 lineage；接受候选不等于已刊登。强制与 `/console/knowledge`、`/console/pending`、`product_candidates` 对齐。**路由名为 `candidates`（已确认），不是 `selection`**；旧 `/crossborder/candidates` redirect 至此 |
+
+### 5.2A Skill 执行与知识索引 `/console/knowledge`
+
+| 项 | 内容 |
+|----|------|
+| 目标用户 | 选品负责人、研究员、运营与审批人 |
+| 页面目标 | 查看 desktop Skills 运行、OKF 知识对象索引、待复核状态及其关联的业务实体；不要求所有 Skill 使用相同流程 |
+| 列表列 | 执行/知识标题、Skill 与版本、平台/站点、店铺、发起人、结果摘要、执行状态、OKF 同步状态、复核状态、关联候选、更新时间 |
+| 筛选 | Skill/版本、国家/平台、店铺、发起人、执行状态、复核状态、同步状态、时间；搜索标题/执行 ID/知识对象 ID/候选 ID |
+| 主操作 | 从 Desktop 继续/打开（用户主动）；查看执行记录；打开 OKF 知识内容；创建业务候选（角色授权时）；无连接时显示真实连接状态 |
+| 空态 | 说明如何从 OpenWork Desktop 运行已授权 Skill；当前没有执行/知识索引。可创建组织知识空间（如产品提供该能力） |
+| 权限 | 按组织角色与 OKF ACL 同时授权；Viewer 只读；研究贡献者可提交结果/过程；Approver 可复核；管理员管理成员/连接。Shop 索引权限不能绕过 OKF 文档权限 |
+
+### 5.2B Skill 执行详情 `/console/knowledge/executions/[id]`
+
+**首屏执行摘要**：执行标题、Skill/策略版本、发起人、组织/店铺范围、输入数据时间点、开始/结束时间、执行状态、OKF 持久化状态、结果摘要和业务关联。Skill 输出是建议/知识，不等于人工决策或平台事实。
+
+**页面结构：**
+
+1. `执行信息`：request/trace ID、Skill/strategy 版本、输入业务资源引用/字段范围、调用权限范围、开始/结束/耗时和安全错误摘要。
+2. `过程时间线`：按 MCP 写入的 event sequence 显示运行开始、输入快照引用、工具调用摘要、证据/知识节点创建、复核状态变化、结果写入；事件类型由 Skill 动态提供，不构成固定步骤模板。
+3. `结果索引`：OKF space/document/node/revision 链接、格式版本、hash、同步状态、知识对象标题/短摘要；正文从 OKF 按访问权限读取，不从 SQL 重建。
+4. `人工复核`：显示待复核/通过/退回/拒绝、目标 OKF revision、审核人、时间和摘要；详细批注/逐项内容由 OKF 提供，Shop 只持有任务索引。
+5. `业务关联`：candidate/product/listing/order/inventory 等现有业务实体和真实状态；各实体从 Open Shop SQL/domain 读取。
+6. `操作审计`：MCP/Shop UI/API/worker 调用主体、动作、结果、幂等 ID 与可安全展示的摘要。
+
+### 5.2C OKF 知识对象详情与人工复核 `/console/knowledge/objects/[id]`
+
+页面从 OKF adapter 按 revision 读取内容，并支持动态节点结构。UI 不写死“市场/竞品/PPS/利润”步骤树，只按 OKF 内容节点类型和元数据渲染通用结构；未知节点类型降级为安全的 JSON/Markdown/附件视图，并保留可复核来源。
+
+| 区域 | 展示与交互 |
+|---|---|
+| 对象头 | OKF 对象类型、标题、space/document/node ID、revision、格式版本、Skill 来源、创建人/时间、ACL 状态 |
+| 内容区 | 按 OKF 文档/节点渲染 Markdown、结构化字段、表格、图谱关系或附件；展示/隐藏字段遵循 OKF ACL |
+| 来源与关系 | 来源 URI/类型/观察时间、关联对象、知识关系；完整内容直接由 OKF 读取 |
+| 版本区 | revision 历史、内容 hash、变更摘要、父/新版本关系；可对比任意两版 |
+| 人工复核 | 绑定确切 revision；按 OKF 节点结构提供通用批注/标记；Shop 存任务/状态索引，复核正文写入 OKF |
+| 缺口/下一步 | OKF 中由 Skill 生成的任务/建议节点；可“在 Desktop 中继续”并带 execution/object 引用 |
+| 关联业务 | candidate、product、listing 等 Open Shop 实体及状态；可创建候选/业务动作，但需权限和审核 |
+| 操作栏 | 打开知识库、复核、要求更新、创建候选；由角色、OKF ACL 和业务 policy 联合决定 |
+
+**复核规则**：复核绑定 `okf_revision_id`；OKF 新版本发布后，旧 review 保留历史，新版本需按策略重新复核。证据状态/节点 schema 由 Skill/OKF 定义；Shop 不在 SQL 中固定“假设/已核验”结构，但可以读取 OKF 暴露的摘要字段用于列表过滤，缺少字段时显示“未提供”。
+
+### 5.2D 知识版本与执行历史
+
+- 执行列表按 execution 时间、Skill/strategy 版本、触发人、输入范围和结果对象展示；同一知识对象可由多次 execution 更新。
+- revision 列表由 OKF 返回；显示版本号、提交者、时间、hash、变更摘要、复核状态和来源 execution。
+- 版本比较由 OKF diff API 提供；Shop 不自行解析/拼接不同版本正文。
+- 旧版只读；“以此为上下文继续”启动新的 Desktop execution/new revision，不覆盖已审核内容。
+- 导出复核包由 OKF 生成内容，Shop 可附上业务实体状态快照；按组织权限脱敏，不导出密钥或买家 PII。
+
+### 5.2E 候选详情增强 `/console/candidates/[id]`
+
+- 页头同时显示候选状态、来源 OKF 知识对象/执行、人工复核状态和 Skill 提出的建议；状态标签不得混用。
+- 关键指标（评分、到仓成本、建议售价、利润率）仍由候选业务字段提供；依据链接至 OKF 结果/计算节点，查看参数和公式版本。
+- 「研究依据」从 OKF 动态读取来源、关键支持/反对证据和未解决风险；不链接固定研究步骤。
+- 人工操作：接受/拒绝/退回补证，记录理由；接受候选后以事务创建/关联 product 草稿，不等于发布 listing。
+- 详情页审计时间线呈现 Desktop 提交、人工修改、复核决定、product 转换及后续 listing 同步状态。
 
 ### 5.3 待审队列 `/console/pending`
 
@@ -385,12 +451,12 @@ apps/shop/app/.../（示意 · App Router）
 |----|------|
 | 目标用户 | 有确认权限的运营 |
 | 页面目标 | AI-B HITL：确认或拒绝拟执行动作 |
-| 主要区块 | 状态 Tab（pending / confirmed / failed…）；表格；详情 Sheet（payload / field_diff） |
-| 关键交互 | **确认** / **拒绝**；批量确认（P2）；过期展示 `expired` |
-| 字段 | `kind`、`title`、`shop`、`status`、`created_by`、`expires_at`、`payload` 摘要 |
+| 主要区块 | 状态 Tab（pending / confirmed / executing / failed…）；表格；复核详情页/Sheet（payload / field_diff / 来源研究证据） |
+| 关键交互 | **确认** / **拒绝** / **要求补充**；高风险动作逐项确认，批量确认后置；过期展示 `expired` |
+| 字段 | `kind`、`title`、`shop`、`status`、发起人/来源（Desktop/用户/系统）、关联 OKF 执行/候选、变更差异、风险、`expires_at` |
 | 空态 | 「暂无待审，去喝杯咖啡」+ 链到选品/商品 |
 | AI A/B/C | 本页即 **B** 主战场 |
-| 与 Demo 差异 | HTML Demo **无此页**；为 Open Shop 数据中枢核心增量 |
+| 与 Demo 差异 | HTML Demo **无此页**；详情必须能复核 Agent 建议所引用的项目版本/证据，以及预期影响和失败恢复方式 |
 
 ### 5.4 商品与刊登 `/console/products`
 
@@ -530,6 +596,7 @@ apps/shop/app/.../（示意 · App Router）
 ### 7.2 后续（P1+）
 
 - 真 pending 执行器与幂等；
+- LLM Wiki / OKF adapter、MCP execution/knowledge 索引写入和组织 ACL；
 - 成本税率配置化与 HS 表（详见 `cost-calculator-sl-landed-ued.md` P1）；
 - 财务结算导入与对账；
 - 通知 / 钉钉；
@@ -592,4 +659,118 @@ apps/shop/app/.../（示意 · App Router）
 
 ---
 
-**文档结束（v1.5）。设计已更新；成本计算器见 `cost-calculator-sl-landed-ued.md`。壳层按 §4 / §7.1 / §8：嵌套 `layout.tsx` + CopilotKit；禁止独立 AppShell；默认不接 tRPC。**
+## 附录 C · Desktop × Open Shop 完整商业闭环 UED
+
+### C.1 闭环与页面归属
+
+```mermaid
+flowchart LR
+  D[Desktop Chat / Skill] -->|MCP 写 execution / 过程 / 结果| K[OKF 电商知识库]
+  D -->|查询授权业务上下文| I[Open Shop 输入接口]
+  I --> B[Open Shop 业务数据库]
+  K -->|索引 / ACL / 业务关联| X[Open Shop 知识与执行索引]
+  X -->|人工复核 / 要求更新| H[知识对象复核工作台]
+  H -->|创建/更新候选| C[产品候选]
+  C -->|接受后生成草稿| P[Product / Variant]
+  P -->|待审刊登| A[Pending Action]
+  A -->|审批后由 Connector 执行| L[Daraz Listing]
+  L -->|同步订单/库存/结算| O[经营结果]
+  O -->|作为输入供新 Skill execution 复盘| D
+```
+
+Skill 过程/结果与 Open Shop 运营结果分区呈现：知识内容回答“Skill 输出了什么、引用了什么输入/来源、由谁复核”；业务数据回答“候选是否接受、商品是否生成、listing 是否在线、实际订单/库存/结算如何”。两者用 execution/OKF object/candidate/product/listing ID 建立 lineage。不得将 AI 建议值显示成平台实际值；Shop 不固定 Skill 的步骤、章节、顺序或策略。
+
+| 数据类别 | 示例 | 页面展示 | 人工复核 |
+|---|---|---|---|
+| 业务输入 | 店铺、商品、刊登、订单、库存、成本、结算 | Open Shop DB/API 的业务数据及同步时间；execution 保存资源引用/版本 | 按业务角色查看；不能读取越权字段 |
+| 知识过程 | 来源、采集记录、过程事件、计算/策略输出 | OKF 对象/节点时间线；SQL 只保存 ID、时间、hash、状态等索引 | 打开 OKF 内容并按对象 ACL 批注/复核 |
+| Skill 结果 | 自定义摘要、建议、风险、结构化结果 | execution result 与 OKF revision，标注 Skill/策略版本 | 批注、要求更新；不能标成平台事实 |
+| 人工复核/业务决策 | OKF revision review、候选接受、listing 审批 | 知识复核状态与业务 pending action 分开显示 | 依组织角色审批并留审计 |
+| 运营结果 | candidate/product/listing/order/inventory/settlement | Open Shop 业务实体状态、平台来源和最近同步时间 | 可发起复盘或受控业务动作 |
+
+### C.2 Desktop execution 与知识库绑定流程
+
+1. 用户在 Desktop 通过 Open Shop 授权连接，选择 organization；Open Shop 按会话身份获取角色，不信任客户端指定租户作为授权证明。
+2. Skill 通过 MCP 按授权读取所需业务输入；输入范围可为店铺、产品、刊登、订单、库存、成本等，由工具 scope 限制。
+3. MCP 创建 `skill_execution` 索引记录，返回 execution ID、组织知识空间/OKF 引用、允许的读写工具和主动打开链接；幂等键防止不确定重试产生重复执行索引。
+4. Skill/策略自由定义过程内容与结果结构，运行过程、来源、结论和可持久化产物按 Open Knowledge Format 写入 LLM Wiki 电商知识库。
+5. Open Shop PostgreSQL 写入执行/事件/文档索引、权限范围、版本/hash/同步状态和业务关联；不保存知识正文或固定步骤数据。
+6. 内容持久化到 OKF 成功后才报告“已保存”；失败时返回明确的待同步/失败状态和 request ID，支持幂等重试/补偿。
+7. 用户可在 Open Shop `/console/knowledge` 查看索引并主动打开知识内容/回到 Desktop；不自动抢焦点。
+
+### C.3 动态过程时间线与知识对象复核
+
+执行列表按 MCP event sequence 展示（如工具调用摘要、证据/知识节点写入、复核请求、结果发布），事件 key/type 由 Skill 提供，不构成固定流程。未上报的事件类型采用通用展示，未知内容只按安全 schema 渲染。
+
+```text
+Daraz LK 候选分析 · run 8F2                     [在 Desktop 继续] [打开知识库]
+Skill / strategy 版本 · 发起人 · 输入数据同步时间
+执行状态：已完成                         OKF 持久化：已同步 · revision r4
+
+执行过程（按时间）
+10:31 读取店铺/刊登输入（12 条，字段范围：公开商品字段）
+10:32 写入知识节点：竞品观察（OKF node …）
+10:34 保存结果 revision r4（hash …）
+10:35 请求人工复核（Reviewer …）
+
+知识对象索引
+┌ 标题/类型 ───────── revision ── 来源 execution ── 复核 ── 操作 ┐
+│ 竞品观察摘要          r4          run 8F2         待复核   打开 │
+│ 供应商报价记录        r2          run 7C1         已通过   打开 │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- 正文由 OKF adapter 按对象 ACL 获取；SQL 仅提供索引信息和待办状态。
+- 可按 OKF 通用 node/source 元数据复核；复核绑定 `okf_revision_id`，新 revision 不继承旧版通过状态。
+- 逐条复核批注和版本 diff 写入 OKF；Open Shop 的 review 索引只服务于责任人、状态、待办和筛选。
+- 页面不能假设知识一定包含 PPS、法规、税率或利润节点；若 OKF 返回相应结构化 renderer/schema，再提供专属展示，否则用通用内容视图。
+
+### C.4 候选与运营闭环
+
+1. 组织策略可配置创建候选的条件（如要求特定 OKF 元数据或人工复核），但不得依赖固定七步完成状态。
+2. Desktop/MCP 创建候选时，Open Shop 保存业务列表字段与 `source_execution_id`/OKF space/document/node/revision 引用；候选结论正文留在 OKF。
+3. Reviewer 在候选详情查看结构化字段、来源知识引用和复核状态；接受后事务创建/关联 `products`/`product_variants` 草稿，保留 lineage。
+4. 创建 listing 时由 Open Shop 按店铺和平台校验必填字段；发布、改价、推库存等操作经过 `pending_actions` 与组织角色确认。
+5. Connector 回执决定 listing 是否成功/在线；实际订单、库存、结算继续由 Open Shop 业务表承载。
+6. 复盘时 Skill 通过 Open Shop 输入接口读取限定时间窗的真实业务数据，产生新的 execution/OKF revision；不覆盖旧知识结论，也不复制交易明细进入知识索引表。
+
+### C.5 状态、权限与异常
+
+| 情况 | UI 表达 | 恢复路径 |
+|---|---|---|
+| Desktop 未连接/授权过期 | 显示连接状态；Shop 原有业务数据仍可用 | 按组织授权重新连接 |
+| 无组织或 OKF 文档权限 | 不泄露标题/正文，显示访问受限状态 | 请求组织角色/知识 ACL 授权 |
+| Skill execution 完成但 OKF 写入失败 | 区分 execution 结果与知识持久化状态，不显示“已保存” | 按 request/idempotency 查询并重试/补偿 |
+| OKF 暂不可用 | 索引标记 pending/failed；不把 SQL 正文缓存当作知识库 | 恢复后由 outbox 幂等投递 |
+| 未知 Skill/节点格式 | 通用安全视图，保留原始 OKF 引用 | 使用兼容的 knowledge adapter/renderer |
+| 新 revision 导致旧复核过期 | 明确显示已复核的 revision 与当前 revision | 对新 revision 重新复核 |
+| 业务输入同步过期/缺字段 | 显示来源同步时间和缺口 | 补同步或由用户导入；不伪造零值 |
+| MCP 写入结果不确定 | request ID、处理中/状态未知 | 先查询 idempotency 状态再重试 |
+| Marketplace 同步失败 | listing 错误摘要和最近尝试时间 | 查看集成日志；按 connector 策略重试 |
+| 案例 Demo | 显示案例日期、示例/待复核标记 | 不与真实组织数据混用 |
+
+组织角色决定是否能读取业务输入、写执行/知识、审核知识、提交候选和确认业务动作；OKF ACL 进一步限制知识正文。两套权限均须通过服务端执行，不能只依赖隐藏 UI。
+
+### C.6 高速吹风机 Daraz LK Demo
+
+- 示例分析内容存为 OKF demo knowledge space/document，并在 PostgreSQL 建 organization-scoped 索引；历史输入显示“2026-07-18 案例样本、需复核”。
+- 附件中的分析章节可作为该 Skill 当时的内容，不成为 UI 或 schema 的固定研究模板。
+- “前 20 商品未见高速款”限定为样本观察；“干发慢 PPS”在内容元数据中保持假设状态；税率、物流、成本和汇率不作为系统默认值。
+- Demo 组织隔离于真实租户；用户复核/修改通过 OKF 新 revision 保留原版本。
+
+### C.7 交付与 UX 验收
+
+1. UI 不依赖固定七步；Skill/策略更新不会要求数据库迁移才能增加/调整过程节点。
+2. PostgreSQL 只存 Skill execution/OKF object 的定位、租户、权限索引、状态、时间、版本/hash、业务关联和必要列表摘要，不保存知识正文/完整过程。
+3. OKF 正文可按 organization ACL 读取；没有知识库权限时，即使拥有 SQL 索引访问也看不到内容。
+4. 过程时间线、知识版本、人工复核和业务运营状态可区分；复核绑定确切 OKF revision。
+5. 候选 lineage 可从 `execution/OKF object → product_candidate → product → listing → platform result` 回溯。
+6. MCP 写入具备幂等、同步状态、失败恢复和审计；不出现“已保存”但 OKF 未持久化的假成功。
+7. 所有业务输入仍受组织角色/scope 限制；listing/价格/库存等高影响动作进入现有 pending action 审批。
+8. UI 支持未知 Skill/OKF schema 的通用展示和版本兼容；不能因新策略增加内容类型而阻断旧数据读取。
+9. 高速吹风机 Demo 显示历史日期、证据状态和组织隔离。
+10. 页面使用 `@workspace/ui` 和现有 shadcn tokens；真实 UI 流程需浏览器验证及截图/端到端证据。
+
+---
+
+**文档结束（v2.1）。跨境业务与 execution/OKF 索引模型见 `docs/design/crossborder-database-design.md`；成本计算器见 `cost-calculator-sl-landed-ued.md`。壳层按 §4 / §7.1 / §8：嵌套 `layout.tsx` + CopilotKit；禁止独立 AppShell。OKF adapter、MCP 和权限闭环需按实现阶段落地；本文 UED 不代表 mock 已接入生产数据。**
