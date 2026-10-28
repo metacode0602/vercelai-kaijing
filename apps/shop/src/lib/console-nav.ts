@@ -5,6 +5,17 @@
 
 export type ConsoleNavTitleKey =
   | 'nav.dashboard'
+  | 'nav.masterData'
+  | 'nav.suppliers'
+  | 'nav.warehouse'
+  | 'nav.purchases'
+  | 'nav.mappings'
+  | 'nav.inventoryLedger'
+  | 'nav.aftersales'
+  | 'nav.reports'
+  | 'nav.imports'
+  | 'nav.systemLog'
+  | 'nav.accessControl'
   | 'nav.candidates'
   | 'nav.pending'
   | 'nav.products'
@@ -30,6 +41,12 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
   {
     items: [
       { url: '/console/dashboard', titleKey: 'nav.dashboard' },
+      { url: '/console/master-products', titleKey: 'nav.masterData' },
+      { url: '/console/suppliers', titleKey: 'nav.suppliers' },
+      { url: '/console/mappings', titleKey: 'nav.mappings' },
+      { url: '/console/warehouse', titleKey: 'nav.warehouse' },
+      { url: '/console/purchases', titleKey: 'nav.purchases' },
+      { url: '/console/inventory-ledger', titleKey: 'nav.inventoryLedger' },
       { url: '/console/candidates', titleKey: 'nav.candidates' },
       { url: '/console/pending', titleKey: 'nav.pending', badgeKey: 'pendingCount' },
       { url: '/console/products', titleKey: 'nav.products' },
@@ -38,6 +55,11 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/inventory', titleKey: 'nav.inventory', badgeKey: 'inventoryAlerts' },
       { url: '/console/costs', titleKey: 'nav.costs' },
       { url: '/console/finance', titleKey: 'nav.finance' },
+      { url: '/console/aftersales', titleKey: 'nav.aftersales' },
+      { url: '/console/reports', titleKey: 'nav.reports' },
+      { url: '/console/imports', titleKey: 'nav.imports' },
+      { url: '/console/system-log', titleKey: 'nav.systemLog' },
+      { url: '/console/access-control', titleKey: 'nav.accessControl' },
     ],
   },
 ]
@@ -48,6 +70,8 @@ export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
 
 export const SETTINGS_NAV = [
   { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
+  { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
+  { url: '/console/settings/dictionaries', titleKey: 'settings.dictionaries' as const },
   { url: '/console/settings/credentials', titleKey: 'settings.credentials' as const },
   { url: '/console/settings/notifications', titleKey: 'settings.notifications' as const },
   { url: '/console/settings/members', titleKey: 'settings.members' as const },

@@ -51,7 +51,9 @@ export function SectionSidebar({
               {items.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
-                    <LocaleLink href={item.url}>{t(item.titleKey as 'settings.shops')}</LocaleLink>
+                    <LocaleLink href={item.url}>
+                      {t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'nav.masterData' | 'nav.suppliers' | 'nav.warehouse' | 'nav.purchases' | 'nav.mappings' | 'nav.inventoryLedger' | 'nav.aftersales' | 'nav.reports' | 'nav.imports' | 'nav.systemLog' | 'nav.accessControl')}
+                    </LocaleLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

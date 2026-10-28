@@ -10,6 +10,9 @@
 | [crossborder-database-design.md](crossborder-database-design.md) | **生效** | 跨境运营域 Drizzle / PostgreSQL schema；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage |
 | [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
+| [haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md) | **初步设计，待业务/IT确认** | 好时运 ERP 需求 Excel（9 张表）覆盖分析、当前仓库证据、目标模型与分阶段整改方案 |
+| [haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md) | **UED 初版，待评审** | 平台/国家站点/仓库/币种主数据及可复用基础字典交互与数据库落地边界 |
+| [haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) | **UED 规格，待逐页实现** | 好时运 ERP 剩余页面 IA 与交互状态：店铺多仓、商品、供应商、采购、库存、订单履约、售后、报表、导入、日志和权限 |
 | [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算：先做可交互 UED 并确认使用习惯，再接业务 API/tRPC；覆盖空运 DDP、海运 LCL/FCL；按有效报价和规则计算、展示费用边界/数据来源/历史快照；HS/税率/规则/费率/汇率版本化维护与消费方解耦 |
 | [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
 | [comment-scraping-and-report-design.md](comment-scraping-and-report-design.md) | **设计稿** | 评论抓取与入口设计：API 优先（Lazop Review）、AI 辅助兜底，统一 DomainReview，生成 `docs/comments/` HTML 报告（涵盖 KPI/评分分布/关键发现/负向中性/全部评价） |
