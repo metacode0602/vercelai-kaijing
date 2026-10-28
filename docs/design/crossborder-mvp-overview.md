@@ -39,7 +39,7 @@ packages/ui  共享组件
 选品推理与策略由 **OpenWork skills** 动态定义；Open Shop 提供业务输入数据接口，通过 MCP 接收 Skill execution、过程事件和结果，并将完整知识内容写入 LLM Wiki（Open Knowledge Format，OKF）电商知识库。PostgreSQL 只保留组织隔离、运行/知识对象索引、同步/复核状态和业务 lineage；不固定研究步骤，也不存知识正文。Desktop 与租户台通过 execution/OKF 引用及候选/商品关联协作。  
 交易全部来自第三方平台 API（MVP：Daraz）。
 
-**本阶段明确不做：** 接入 tRPC 业务路由（等确认后再做）；完整四平台；自营结账。
+**交付边界：** 成本计算与 AI 选品等用户可见能力按两步走：先实现可交互 UED，用明确标记的示例数据让用户确认流程和习惯；确认后再接入 tRPC/domain/dataaccess、真实来源和持久化。UED mock 不得声称是生产计算或数据库保存。完整四平台、自营结账不在当前 MVP。
 
 **知识闭环设计已扩展：** execution/OKF 索引 schema 见 `crossborder-database-design.md` §3.15-3.16；租户知识与执行索引、复核和运营结果 UED 见 `apps/shop/content/design/crossborder-shop-ued-product-design.md` §5.2A-5.2E、附录 C。Skill 自定义内容保存在 OKF；数据库与 UED 为设计目标，需完成知识库 adapter、MCP、授权和业务 API 后方可宣称可用。
 

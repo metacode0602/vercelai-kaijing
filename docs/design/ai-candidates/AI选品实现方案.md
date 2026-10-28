@@ -18,7 +18,20 @@
 - **全链路量化**：整合关税、物流、平台费用、汇率等全成本，防止盲目选品
 - **可落地验证**：借助现有的 `product_candidates` 表和 `/console/candidates` 页面，渐进式完善
 
-### 1.2 现状分析
+### 1.2 产品目标与分阶段边界
+
+**产品目标：让用户能够准确地计算成本，让 AI 获得足够且可追溯的数据进行选品，从而提升选品效率。**
+
+本功能按两个连续阶段交付，二者都属于可运行的业务功能建设：
+
+| 阶段 | 目标 | 交付内容 | 明确不做 |
+|---|---|---|---|
+| **阶段一：UED / 可交互验证** | 让真实用户试用流程、判断是否符合工作习惯 | 可操作的页面；使用显式标注的样例/模拟数据；候选证据与假设状态展示；成本计算器含空运 DDP、海运 LCL、海运 FCL 对比；中间分析数据结构与保存/复用交互可在 Demo 中演示 | 不把前端 Mock 声称为已持久化；不接业务 tRPC、生产任务队列或真实平台采集 |
+| **阶段二：业务接入** | 将确认过的流程变成真实、可追溯的业务能力 | 接入 tRPC/domain/dataaccess；按组织隔离持久化任务、输入、来源、证据、分析、包装、运价/税率版本和成本快照；接入授权数据源与可复算计算引擎；为 AI 提供可复用结构化数据 | 未核实来源的数据不得变成默认税率、真实市场事实或自动上架结论 |
+
+UED 阶段可以执行前端确定性计算以验证交互，但结果必须显示“演示计算/示例参数”，且不可误导用户认为已保存到数据库。第二阶段上线后，中间数据需可重新用于候选比较、重新测算和后续经营复盘。
+
+### 1.3 现状分析
 
 当前代码库已有雏形：
 - **前端**: `apps/shop/src/app/[locale]/console/(ops)/candidates/` 已有候选列表页和详情页，使用 mock 数据（`@/lib/crossborder/mock-data`）
@@ -35,9 +48,9 @@
 |-----------|---------|-----------|---------|
 | **1. 品类预筛** | HS编码→关税计算（CID/PAL/VAT/SSCL）→SLSI合规→物流可行性 | HS码库、关税规则、合规清单、品类可行性评分 | `aiSelectionTasks`、`aiSelectionReports` |
 | **2. 竞品全景** | Daraz SL前N名竞品、价格带、品牌格局、发货地、标题卖点 | 竞品采集（可基于marketplace API或爬取）、竞品快照、价格带分析 | `aiCandidateCompetitors` |
-| **3. 痛点挖掘** | 差评收集→痛点分类→PPS = 频率×严重度×可解决度 | 差评采集、痛点提取（AI/规则）、PPS量化、优先级排序 | `aiCandidatePainPoints` |
+| **3. 痛点挖掘** | 差评收集→痛点分类→PPS = 频率×严重度×可解决度 | 仅对有来源的评论证据计算；假设单独标记，不冒充观测值 | `aiCandidatePainPoints` / OKF 证据 |
 | **4. 升级匹配** | 痛点→特征→1688搜索验证→可见性/成本可控/一击致命 | 升级款候选库、特征映射、采购价预估、可行性验证 | `aiCandidateUpgrades` |
-| **5. 物流决策** | 空运DDP vs 海运LCL vs 海运FCL、带电产品限制、时效权衡 | 物流方案库、运费估算（重量/体积）、盈亏平衡点计算 | 纳入成本测算 |
+| **5. 物流决策** | 空运DDP vs 海运LCL vs 海运FCL、带电产品限制、时效权衡 | 三种方案均可比较；按各自计费规则计算、保留报价来源/有效期/未含费用；条件不足时标为待补数据，不给虚假精确值 | `freight_estimates` / 消费方成本快照 |
 | **6. 全成本利润测算** | 采购+运费+关税+平台费+营销+退货+汇率，模拟多情景 | 成本模板、费用规则、汇率、利润测算引擎、多情景对比 | `aiCandidateCosts` |
 | **7. 风险合规** | SLSI、TRCSL、IP侵权（外观）、插头、电压、带电物流 | 合规检查清单、风险评级、整改建议 | 纳入报告 |
 
@@ -45,10 +58,29 @@
 
 | 指标 | 计算方式 | 用途 |
 |------|---------|------|
-| **PPS（痛点优先级）** | `频率(1-5) × 严重度(1-5) × 可解决度(1-3)` | 排序待解决痛点，优先匹配高PPS项 |
+| **PPS（痛点优先级）** | `频率(1-5) × 严重度(1-5) × 可解决度(0.5-1.5)` | 与方法论 HTML 一致；可解决度越高代表越容易/成本越低。只对已核验评论计算；假设项显示“暂不评分”或单列假设分，不与实测排序混排 |
 | **有效税率** | `CID + PAL + VAT + SSCL + CESS`（按Daraz SL规则） | 品类门槛判断（文档案例：8516.31→29.8%） |
-| **综合毛利率** | `(建议售价 - 到岸成本 - 平台费用 - 其他费用) / 建议售价 × 100%` | 决策GO/NO-GO（目标≥15%为主推线） |
-| **差异化强度** | 基于痛点覆盖率、零竞品程度、可见性评分 | 溢价合理性判断 |
+| **经营净利率** | `(售价 - 完整经营成本) / 售价 × 100%`；完整经营成本 = 到仓成本 + 平台/支付/营销/退货等明确计入项 | GO/HOLD/NO-GO 的主要利润指标；必须列出包含项/缺失项；未提供的费用不得默认为 0 且不标注 |
+| **机会评分** | 明确方向：高分=机会更好；由需求证据、竞争空档、差异化可行性等分项组成 | 仅作排序辅助，不得用单一分数代替证据与人工决策 |
+| **竞争强度** | 独立展示“竞争越强，数值越高”或“竞争越有利，数值越高”，产品内固定一种表达 | 不与“机会分”混用；Demo 暂采用“竞争压力：低/中/高”避免歧义 |
+| **合规状态** | `已核实 / 有风险 / 未核实 / 不适用` | “低风险”不等于“8.5高分”；展示证据来源及核对日期 |
+
+### 2.1 指标口径与证据状态（全产品统一）
+
+**成本命名统一：**“到仓成本”必须包含明确标示的采购价、国际物流、进口税费和清关/派送等约定项目；如果输入仅有部分项目，应标“部分成本/尚未完整”，不得误称完整到仓成本。“经营总成本”再加平台佣金、支付、仓储、营销、退货等售价侧费用。成本详情需逐项显示金额、币种、是否已含于货代报价和来源。DDP 报价若包含关税，不能再次叠加同一进口税；未拆分的含税报价显示为打包费用并保留税项未拆分提示。
+
+统一 PPS：频率 1–5 × 严重度 1–5 × 可解决度 0.5–1.5，范围 0.5–37.5。等级建议：S ≥20、A 10–<20、B 5–<10、C <5；上线前用真实样本校准阈值。不得沿用本方案早期草稿中的“可解决度 1–3”。
+
+每个关键信息、评分和结论必须有证据状态：
+
+| 状态 | 用户可见含义 | 可否用于自动评分/建议 |
+|---|---|---|
+| **已核实** | 有可检查来源、采集时间和具体证据 | 可纳入对应指标；显示样本范围 |
+| **估算** | 有明确计算方法，但输入或参数不是实测值 | 可用于情景比较；显著标注估算和输入来源 |
+| **假设/待验证** | 专家推测、AI推断或未经采集验证 | 不计入“实测”评分；仅列为待验证假设 |
+| **未提供/过期** | 缺数据或来源已过有效期 | 阻止产生确定性结论，提示补数据/更新 |
+
+AI 产出需分别存储原始证据引用、提取结果、置信度/人工复核状态、模型/提示版本和生成时间；AI 摘要不得覆盖原始来源。金额计算用可复算的确定性公式，模型不直接编造税率、报价或销量。
 
 ## 3. 架构设计
 
@@ -220,9 +252,13 @@ export const aiCandidatePainPoints = pgTable(
     evidence: jsonb("evidence").$type<Array<{reviewId: string, snippet: string, rating: number}>>().default([]),
     frequency: integer("frequency").notNull().default(1), // 1-5
     severity: integer("severity").notNull().default(1), // 1-5
-    solvability: numeric("solvability", { precision: 3, scale: 1 }).notNull().default(1.0), // 1-3
+  solvability: numeric("solvability", { precision: 3, scale: 1 }).notNull().default(1.0), // 0.5-1.5；仅证据充分时打分
     pps: numeric("pps", { precision: 8, scale: 2 }).notNull(), // frequency*severity*solvability
-    isCore: varchar("is_core", { length: 8 }).default("false"), // S/A/B级判定
+  evidenceStatus: varchar("evidence_status", { length: 16 }).notNull().default("unverified"), // verified|estimated|assumption|unverified|stale
+  evidenceSourceRefs: jsonb("evidence_source_refs").$type<Array<{sourceType: string, sourceRef: string, observedAt?: string}>>().default([]),
+  sampleSize: integer("sample_size"),
+  confidence: numeric("confidence", { precision: 5, scale: 2 }),
+  isCore: varchar("is_core", { length: 8 }).default("false"), // S/A/B/C；仅用于可评分证据
     suggestedFeature: text("suggested_feature"),
     ...timestamps,
   },
@@ -254,7 +290,10 @@ export const aiCandidateUpgrades = pgTable(
     costControllable: integer("cost_controllable").default(3), // 1-5
     killShot: integer("kill_shot").default(3), // 1-5 一击致命
     overallFit: numeric("overall_fit", { precision: 6, scale: 2 }), // 综合匹配度
-    verified: varchar("verified", { length: 8 }).default("false"),
+  evidenceStatus: varchar("evidence_status", { length: 16 }).notNull().default("assumption"), // verified|estimated|assumption|unverified|stale
+  evidenceSourceRefs: jsonb("evidence_source_refs").$type<Array<{sourceType: string, sourceRef: string, observedAt?: string}>>().default([]),
+  verifiedBy: text("verified_by").references(() => user.id),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
     notes: text("notes"),
     ...timestamps,
   },
@@ -277,9 +316,16 @@ export const aiCandidateCosts = pgTable(
     // 成本明细
     purchasePriceCny: numeric("purchase_price_cny", { precision: 15, scale: 4 }),
     purchasePriceLkr: numeric("purchase_price_lkr", { precision: 15, scale: 4 }),
-    freightCny: numeric("freight_cny", { precision: 15, scale: 4 }),
+     freightCny: numeric("freight_cny", { precision: 15, scale: 4 }),
     freightLkr: numeric("freight_lkr", { precision: 15, scale: 4 }),
-    logisticsMode: varchar("logistics_mode", { length: 16 }).$type<LogisticsMode>(),
+     logisticsMode: varchar("logistics_mode", { length: 16 }).$type<LogisticsMode>(), // sea_fcl|sea_lcl|air_ddp
+     freightEstimateId: text("freight_estimate_id"), // 运费域快照逻辑引用；无跨模块 FK
+     freightQuoteSource: text("freight_quote_source"),
+     freightQuoteAt: timestamp("freight_quote_at", { withTimezone: true }),
+     freightQuoteExpiresAt: timestamp("freight_quote_expires_at", { withTimezone: true }),
+     exchangeRateSnapshot: jsonb("exchange_rate_snapshot").$type<Record<string, unknown>>().default({}),
+     evidenceStatus: varchar("evidence_status", { length: 16 }).notNull().default("estimated"),
+     excludedCostItems: jsonb("excluded_cost_items").$type<string[]>().default([]),
     // 关税
     hsCode: varchar("hs_code", { length: 20 }),
     cidRate: numeric("cid_rate", { precision: 6, scale: 4 }),
@@ -289,7 +335,7 @@ export const aiCandidateCosts = pgTable(
     cessRate: numeric("cess_rate", { precision: 6, scale: 4 }),
     dutyTotalLkr: numeric("duty_total_lkr", { precision: 15, scale: 4 }),
     landedCostLkr: numeric("landed_cost_lkr", { precision: 15, scale: 4 }),
-    // 平台费用
+    // 平台/运营费用。净利口径必须明确包含项与排除项。
     commissionRate: numeric("commission_rate", { precision: 6, scale: 4 }), // daraz通常较高
     commissionLkr: numeric("commission_lkr", { precision: 15, scale: 4 }),
     paymentFeeLkr: numeric("payment_fee_lkr", { precision: 15, scale: 4 }),
@@ -302,7 +348,7 @@ export const aiCandidateCosts = pgTable(
     // 定价与利润
     suggestPriceLkr: numeric("suggest_price_lkr", { precision: 15, scale: 4 }),
     netProfitLkr: numeric("net_profit_lkr", { precision: 15, scale: 4 }),
-    netMarginPct: numeric("net_margin_pct", { precision: 6, scale: 2 }),
+    netMarginPct: numeric("net_margin_pct", { precision: 6, scale: 2 }), // 经营净利率，不等同于未扣平台费毛利率
     breakEvenPriceLkr: numeric("break_even_price_lkr", { precision: 15, scale: 4 }),
     // 明细
     breakdown: jsonb("breakdown").$type<Record<string, unknown>>().default({}),
@@ -495,6 +541,8 @@ export const aiSelectionRouter = router({
 })
 ```
 
+> 以下 tRPC/DataAccess 代码仅说明**阶段二**可能的实现形态，不能在阶段一提前接入；落地前必须按 `crossborder-mvp-overview.md` 与 `crossborder-database-design.md` 的动态 Skill/OKF 设计校准，不直接照搬固定七步表结构。
+
 ### 5.3 DataAccess层（事务）
 
 ```typescript
@@ -567,6 +615,8 @@ flowchart TD
   I -.-> I1[合规清单校验]
 ```
 
+**工作流实现原则：** 产品 UED 可以围绕选品分析展示清晰的引导步骤，但数据模型不得把固定七步当成 Skill 执行协议。按项目总览，Skill 执行/过程正文进入 OKF；数据库保存组织隔离的业务输入、候选、数据来源/证据索引、状态、计算快照及 OKF 引用。固定七步是该方法论/样例的呈现模板，不应限制未来 Skill 的步骤。
+
 ### 6.2 技能定义（Skills）
 
 建议将每个步骤封装为独立技能，便于复用和调试：
@@ -577,7 +627,7 @@ flowchart TD
 | `skill.scanCompetitors` | `{category, country, limit: 20}` | `competitor[]` | 优先用 `packages/marketplace` Daraz适配器获取；若API受限可降级为人工导入 |
 | `skill.minePainPoints` | `{competitorIds[], reviews: []}` | `painPoint[]` with PPS | 可用LLM提取（结构化输出：category/painPoint/evidence/frequency/severity/solvability）+ 规则兜底 |
 | `skill.matchUpgrades` | `{painPoints[], category}` | `upgradeCandidate[]` | 先用规则推荐（基于痛点关键词映射到特征），再结合1688搜索建议（MVP返回建议清单，由运营确认采购价） |
-| `skill.decideLogistics` | `{weight, volume, qty, country}` | `logisticsOptions[]` | 运费模板表（按模式预设），结合带电产品限制 |
+| `skill.decideLogistics` | `{weight, volume, qty, country, quotes[]}` | 各运输情景、计费输入、可比成本、时效、限制与证据状态 | 运费规则计算 + 有效货代报价；不足时返回缺失项，不凭空生成报价 |
 | `skill.calcProfit` | `{costs: {...}, prices: {...}, rates: {...}}` | `scenarios[]` | 纯计算引擎（确定性），可单元测试 |
 | `skill.checkCompliance` | `{hsCode, category}` | `risks[]` | 清单校验（SLSI、TRCSL、IP风险提示） |
 
@@ -595,7 +645,7 @@ flowchart TD
 - tRPC mutation 同步触发（但七步流程较长，可能超时）
 - 建议至少用队列异步化，避免阻塞请求
 
-MVP 建议先用**方案B简化版**（同步执行，限制竞品数量和差评数量），待流程稳定后迁移到队列。
+按项目分阶段决议：阶段一 UED 以可交互样例验证，不接生产执行；阶段二才评估异步队列。七步数据采集/LLM分析通常耗时且外部依赖不稳定，不采用“同步执行全流程”的方案作为生产实现。
 
 ### 6.4 AI集成思路
 
@@ -666,7 +716,9 @@ apps/shop/src/app/[locale]/console/(ops)/ai-selection/
 - **URL可分享**：筛选、分页用 `searchParams`（列表页）
 - **渐进展示**：任务执行中实时更新进度，完成后自动刷新候选列表
 - **决策闭环**：候选详情页可直接操作 `GO/HOLD/NO-GO` 并填写理由，写入 `decision` 字段
-- **成本对比**：成本页用表格对比多情景（测款/主推/FCL），高亮推荐情景
+- **成本对比**：统一工作台对比空运 DDP、海运 LCL、海运 FCL；显示单件/整批成本、计费依据、运输时效、报价有效期、税费口径、所缺数据和估算/核实状态。只有输入和报价可比时才标记“成本更低”，不得仅凭低报价宣称“推荐”。
+- **证据标注**：竞品/评论/HS/合规/物流报价分别显示“已核实、估算、假设/待验证、未提供/过期”；结论引用证据，并可展开查看来源与采集日期。
+- **样例标注**：吹风机报告所有非实测痛点、评分、供应商报价、物流报价、销量目标和备货量均标注“假设/示例”，不得渲染成实测或系统推荐。
 - **报告可视化**：借鉴HTML文档的卡片、评分卡、时间轴，用shadcn组件复现关键信息
 - **响应式**：桌面端为主（选品通常在PC操作）
 
@@ -677,6 +729,38 @@ apps/shop/src/app/[locale]/console/(ops)/ai-selection/
 2. 增加"来源"标识（AI推荐 vs 手动导入）
 3. 增加"任务"筛选（按 `taskId`）
 4. 决策字段从现有 `goNoGo` 向 `decision` 迁移（可双写兼容）
+5. 分析报告链接到知识库/执行结果，候选表只保留列表与业务决策需要的摘要；证据正文与动态分析进入 OKF，关键计算/输入/来源索引在业务库保存以便复用和审计。
+
+### 7.5 UED 阶段验收：三种物流场景与中间数据
+
+#### 三种物流场景必须在同一个工作台可试用
+
+| 方案 | UED 输入 | 演示计算口径 | 结果必须说明 |
+|---|---|---|---|
+| **空运 DDP** | 计费重量、报价单位、件数、报价是否含税/清关/派送、币种、时效、有效期 | 按货代报价的计费重规则计算；按承运商约定取实重/材积重、最低收费/附加费。DDP 已含税时不得再重复加进口税；税额拆分未知则显示“报价含税，税项未拆分” | 报价来源、计费重、含税边界、限制（电池/液体等）、时效、有效期；无真实报价的示例值醒目标注“演示” |
+| **海运 LCL 拼柜** | 箱规、件数、毛重、CBM、每 CBM/计费吨报价、最低收费、起运/目的港杂费、清关与派送、币种/汇率、时效 | 采用报价要求的计费规则（CBM、计费吨或 max），叠加明确列出的附加费用后按体积/重量/件数分摊；不能把整柜固定价套到拼柜 | 展示计费量、费率、最低收费、费用包含/不含、税费是否另计、来源/时间/有效期、分摊方式 |
+| **海运 FCL 整柜** | 柜型、柜价、总 CBM、箱数/件数、港杂/清关/派送及汇率 | 整柜固定费用按所选分摊基准分配；超柜容时按多柜/补充方案计算或标记需重算，不静默按单柜 | 显示装载率、柜数、固定费用分摊、进口税费和费用边界、来源/时间/有效期 |
+
+UED 的方案比较表至少包含：**单件完整成本、整批完整成本、预计时效、适用数量/装载率、税费是否包含、未计费用、数据状态、来源和假设**。在费用范围或报价时点不一致时，不显示唯一“最优方案”，而显示“暂不可比较”及需补信息。
+
+#### 交互式中间数据与保存/复用
+
+UED 必须演示以下数据如何进入、被 AI 使用并由人复核：
+
+1. 用户建立研究/选品上下文，填写平台、国家、品类、目标价格/利润、预计采购量。
+2. 导入或录入竞品与评论；每条记录保留平台链接/来源、采集日期、原文或摘要、星级、商品 ID、样本范围及授权/可用状态。
+3. AI 提取痛点与卖点时，结果可点回原始评论；用户可确认、修改或标成错误。假设不能伪装成评论证据。
+4. 供应商/升级款候选保留来源链接、规格、MOQ、报价币种、报价日期/有效期、报价人及证据状态。
+5. 成本测算保留原始输入、包装快照、三种物流情景、税率/汇率/平台费率版本、费用明细、缺失项、警告与公式版本。改输入生成新版本，不覆盖旧结果。
+6. 用户保存草稿、复制情景、复用历史数据、比较候选；复核后再形成业务候选。每个派生结论可追踪其输入来源。
+
+阶段一可用浏览器本地状态/明确的 Demo mock 演示这些交互；“保存成功”只表示本次 Demo 内可继续使用，必须明确提示尚未写入业务数据库。阶段二通过服务端持久化实现跨设备、跨会话复用与组织隔离。长文本/知识证据正文按现行架构保存在 OKF；SQL 保留业务实体、权限/状态、输入版本/来源、计算快照和 OKF 引用，不重复建固定七步知识正文表。
+
+### 7.6 上架建议与小批验证门槛
+
+AI 的输出是“建议/研究结果”，不是自动决策。候选结论按 `建议继续验证 / 暂缓 / 不建议` 表示，并同时展示支持证据、反对证据、数据缺口、成本情景、库存资金风险和合规状态。
+
+以下数值若来自示例报告，只能作为用户可编辑的测试目标，不是系统默认规则：采购价 ¥80、周销 50 台、100–200 台测款、2 万台整柜。产品不得据此自动得出必须备货/上架结论。阶段二可配置由运营确认的门槛，例如实际点击/转化、退货率、差评率、供应商样品验收、现金占用和最小利润；未建立真实销售数据前，报告应显示“尚未验证需求”。
 
 ## 8. 集成点
 
@@ -726,7 +810,33 @@ interface DarazDataProvider {
 
 分阶段实施，MVP优先跑通核心流程。
 
-### 阶段1：基础设施（MVP前置）
+### 阶段一：可交互 UED（先确认使用习惯）
+
+| 任务 | 说明 |
+|---|---|
+| U1 | 选品工作台、候选列表/详情、证据来源/状态、痛点人工确认、情景保存/复制、决策复核流程均可交互 |
+| U2 | 成本工作台包含 air_ddp、sea_lcl、sea_fcl 三个情景，单件/整批成本可对比；公式与缺失数据/费用边界可见 |
+| U3 | 使用统一且明确的示例数据；吹风机分析里未核验内容一律标为假设/示例，不呈现“已实测”“强烈建议上架”等断言 |
+| U4 | Demo 的保存/复用状态需解释为演示状态，不冒充数据库持久化；安排卖家/运营走查并记录不能完成的任务、误解项和需要字段 |
+| U5 | UED 验收后冻结流程、必填数据、比较口径、缺失数据体验，再进入服务端实现 |
+
+**UED 通过标准：** 目标用户能独立完成“导入/检查证据 → 形成候选 → 查看三种运输成本 → 发现数据缺口 → 保存/复制情景 → 作出暂缓/继续验证决定”；成本项及包含/不含边界能被用户正确复述；用户不会把假设当实测、运费报价当最终到仓成本，或把演示保存当已持久化。
+
+### 阶段二：业务接入（UED 确认后）
+
+实现前先对照 `crossborder-mvp-overview.md` 与 `crossborder-database-design.md`。AI Skill 步骤保持动态；运费作为独立能力由 `packages/freight` 提供，AI 选品消费结果并保存自己的关联/摘要。业务 API/ tRPC、导入、权限、异步执行和持久化按已确认架构落地，不以此文旧草案中的 AI 专属固定表覆盖 OKF + 业务索引的设计。
+
+阶段二功能至少包括：
+
+| 能力 | 要求 |
+|---|---|
+| 成本计算 | 纯函数、服务端复算；三种运输方式各按有效费率/附加费用及税费边界计算；缺失费率/HS/必要包装时返回待补字段，不套默认税率 |
+| 数据持久化 | organization 隔离；保留用户输入、来源、采集时间、报价有效期、法规/税率/配置版本、公式版本、结果/分项快照；历史记录不可被新版本配置改写 |
+| AI 使用 | 只向 AI 提供权限范围内、带来源/状态的结构化数据；记录 execution 与 OKF 引用、生成模型/版本及人工复核；原始证据可追溯 |
+| 复用 | 同一候选/品类可复用竞品、评论、供应商报价、包装和测算情景；改动输入时生成新版本，可对比前后结果 |
+| 人工决策 | AI 建议不直接上架/改价/下单；进入候选接受或刊登等高影响操作时沿用现有待审策略 |
+
+### 9.1 历史实施建议（需按以上两阶段重排）
 | 任务 | 文件/位置 | 说明 |
 |------|-----------|------|
 | **1.1 Schema设计** | `packages/db/src/ai-selection-schema.ts` | 新增上述6张表 + 枚举，扩展 `productCandidates` |
@@ -735,7 +845,7 @@ interface DarazDataProvider {
 | **1.4 tRPC基础（shop）** | `apps/shop/src/server/*` | 初始化trpc、context、router（若不存在需搭建最小框架） |
 | **1.5 权限校验** | `apps/shop/src/server/trpc.ts` | protectedProcedure，校验session+organization |
 
-### 阶段2：数据模型与API（MVP核心）
+### 阶段2：数据模型与API（仅阶段二；以现行跨境/OKF架构校准）
 | 任务 | 文件/位置 | 说明 |
 |------|-----------|------|
 | **2.1 DataAccess** | `apps/shop/src/server/dataaccess/aiSelection.ts` | CRUD、分页、事务（createTask/listCandidates/getDetail） |
@@ -743,7 +853,7 @@ interface DarazDataProvider {
 | **2.3 Mappers** | `apps/shop/src/lib/server/mappers/aiSelection.ts` | DTO转换，脱敏、格式化 |
 | **2.4 合并Router** | `apps/shop/src/server/routers/index.ts` | 挂载 `aiSelection` |
 
-### 阶段3：前端工作台（MVP UI）
+### 阶段3：前端工作台（UED 阶段；实现 mock 后用户确认）
 | 任务 | 文件/位置 | 说明 |
 |------|-----------|------|
 | **3.1 工作台首页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/page.tsx` | 任务列表、创建入口、快捷统计 |
@@ -753,7 +863,7 @@ interface DarazDataProvider {
 | **3.5 成本测算页** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/candidates/[id]/cost/page.tsx` | 多情景对比表，支持 `recalcCost` |
 | **3.6 组件** | `apps/shop/src/app/[locale]/console/(ops)/ai-selection/_components/*` | 步骤进度卡片、评分卡片、痛点表等 |
 
-### 阶段4：AI流程引擎（核心逻辑）
+### 阶段4：AI流程引擎（阶段二；按动态 Skill execution / OKF 集成，不固定七步表）
 | 任务 | 文件/位置 | 说明 |
 |------|-----------|------|
 | **4.1 技能框架** | `apps/shop/src/lib/server/ai-selection/skills/*` | 封装7个技能接口和基础实现 |
@@ -761,9 +871,9 @@ interface DarazDataProvider {
 | **4.3 利润测算** | `apps/shop/src/lib/server/ai-selection/calculators/profit.ts` | 全成本计算+多情景，单元测试覆盖文档案例 |
 | **4.4 PPS计算** | `apps/shop/src/lib/server/ai-selection/utils/pps.ts` | 频率×严重度×可解决度 |
 | **4.5 流程编排** | `apps/shop/src/lib/server/ai-selection/orchestrator.ts` | 顺序执行7步，更新任务进度，写入各表 |
-| **4.6 任务触发** | 集成到 `createTask` | 同步执行（MVP）或入队（后续） |
+| **4.6 任务触发** | 阶段二接入已批准的 Skill execution/MCP 流程 | 按动态执行协议与 OKF 保存内容；非 tRPC mutation 同步跑完整七步 |
 
-### 阶段5：市场数据集成（可选但重要）
+### 阶段5：市场数据集成（阶段二；需先验证平台授权和接口能力）
 | 任务 | 文件/位置 | 说明 |
 |------|-----------|------|
 | **5.1 Marketplace扩展** | `packages/marketplace/src/adapters/daraz.ts` | 增加 `searchProducts`、`getReviews` 方法 |
@@ -845,6 +955,7 @@ pnpm typecheck
 
 ---
 
-**文档版本**: v1.0  
+**文档版本**: v1.1  
 **创建日期**: 2026-10-27  
-**状态**: 设计方案（仅文档，不涉及代码修改）
+**最后更新**: 2026-10-28  
+**状态**: 设计方案；先做可交互 UED 和用户确认，再接入业务 tRPC/持久化/真实数据。PPS 与证据标记已统一；三种物流场景纳入 UED，费用规则/数据可用性需在实施前验证。

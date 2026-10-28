@@ -1,9 +1,9 @@
 # 运费测算设计（Freight Estimation）——独立能力与消费方集成
 
-> **状态：设计稿（仅 UED + API 草案）**  
+> **状态：设计稿（先可交互 UED 验证，再接业务 API/tRPC）**  
 > **模块定位：独立运费测算能力**，AI 选品是首批消费方之一，但不是唯一消费方  
 > **代码形态：新增 `packages/freight`**（计算核心 + 类型 + 配置 + 快照 dataaccess），宿主先放 `apps/shop`  
-> **适用范围：** MVP 首期聚焦 **Daraz Sri Lanka（LK）海运整柜（FCL）**  
+> **适用范围：** 首期设计与 UED 覆盖 **Daraz Sri Lanka（LK）空运 DDP、海运 LCL、海运 FCL**；按确认的费率/计税规则逐阶段启用，缺真实报价时仅展示标注清楚的示例情景  
 > **引用：** @see docs/design/ship-fees/Daraz整柜定价逻辑讲解.html、@see docs/design/ship-fees/整柜关税计算器.html、@see docs/design/ai-candidates/AI选品实现方案.md §6、§8.4、@see apps/shop/content/design/cost-calculator-sl-landed-ued.md、@see docs/design/crossborder-mvp-overview.md、@see AGENTS.md
 
 ## 1. 概述
@@ -19,8 +19,11 @@
 - **输入友好**：产品名称输入即匹配 HS，展示精确/近似与完整税率；允许手动覆盖并写入快照。
 - **单件透明**：先列单件费用明细（采购/运费/保险/各项税/到仓/总成本），再汇总整柜，最后给出标准定价与包邮定价。
 - **UED 先行**：本轮输出 UED 与 **API 草案**，暂不接入 tRPC、不实现 router/dataaccess。
+- **交付分两阶段**：阶段一实现可交互 UED、用演示输入验证流程；用户确认习惯和口径后，阶段二接入 tRPC/domain/dataaccess 与生产持久化。阶段一的浏览器 state/mock 不得声称已经写入数据库。
+- **数据可复用**：阶段二需保存测算输入、费率/汇率/税率版本、报价来源与有效期、公式版本、各项结果和警告；每次重算生成新快照，旧快照不漂移。
+- **三种方案完整可比较**：UED 必须呈现空运 DDP、海运 LCL、海运 FCL；比较条件/费用包含范围不同或报价缺失时，显示“暂不可比较”与具体缺项，不伪造唯一最优方案。
 - **租户隔离**：沿用 AGENTS.md 的组织隔离、依赖方向、数据访问约定。
-- **可扩展**：预留 `sea_lcl`、`air_ddp`，MVP 仅实现 `sea_fcl`。
+- **可扩展**：UED 三种方式都有真实的输入与结果展示设计；业务阶段按真实费率、报价覆盖度及经过复核的规则逐项开放，不能只留空卡片。
 
 ## 2. 模块定位与解耦
 
@@ -119,12 +122,14 @@ apps/api（OpenAPI 导入 / 查询 / 匹配）
 | 概念 | 定义 | 备注 |
 |---|---|---|
 | **FOB** | 离岸价（采购价） | 一般取自供应商报价 |
+| **国际物流费用** | 空运 DDP、海运 LCL 或海运 FCL 报价和按报价规则分摊的费用 | 必须带币种、计费量/规则、包含/排除项、来源与有效期 |
 | **海运费（整柜包干）** | 整柜运费（USD） | 报价通常为 `$3000/40'HQ` 等整柜包干价 |
 | **CIF** | `FOB + 海运费` | 计税链路起点 |
 | **保险** | `(FOB + 海运费) × 0.3%` | HTML 明确保险单独加回计税基数，便于可追溯 |
 | **计税基数（Base）** | `CIF + 保险` | 斯里兰卡进口税费的计征基数 |
-| **到仓成本** | `采购价 + 海运费 + 关税（General Duty）` | 按 HTML 口径划分 |
-| **总成本** | `到仓成本 + 其他税费（保险 + Surcharge + PAL + CESS + Excise + VAT + SSCL + 从量税）` | 定价用的唯一基数 |
+| **进口税费合计** | 依据适用 HS 和计税规则计算的全部进口税项；DDP 报价已含的项目不得重复计入 | 税率和是否已含必须可追溯；有不确定性须标待复核 |
+| **到仓成本（经营口径）** | 采购价 + 国际物流 + 进口税费 + 明确计入的清关/派送等费用 | 必须显示组成项及未含项；不把“只有运费/FOB的粗算”叫完整到仓成本 |
+| **经营总成本** | 到仓成本 + 售价侧平台/支付/仓储/营销/退货等费用 | 仅在有输入或明确配置时计入；列明缺失项；作为净利计算成本基础 |
 | **计费方式（MVP）** | **按体积 CBM 分摊（整柜包干）** | `有效海运费(¥/m³) = 整柜运费(USD)*汇率 ÷ 总体积(CBM)`，`单件海运费 = 单件体积(m³)*有效海运费` |
 
 ### 3.2 体积计算（重点）
@@ -169,15 +174,19 @@ HTML 明确：**装箱单中的「单件体积」常是「整箱体积」**，�
 > 包邮佣金是「额外」的：未触顶时「平台佣金 + 包邮佣金」= 11% + 5% = 16%；再加上回款 3.5% 与仓杂 10%，总扣点为 29.5%（均未含毛利）。  
 > 封顶只作用于包邮的 5% 部分，不作用于 11% 基础平台佣金；即 `包邮佣金 = min(售价 × 5%, ₨450)`。
 
-### 3.5 MVP 计价范围
+### 3.5 三种物流情景的计价范围
 
 | 项目 | MVP | 说明 |
 |---|---|---|
-| 运输方式 | **仅 `sea_fcl`** | 整柜包干价，按 CBM 分摊 |
-| 计费重 | **不做「实重 vs 体积重」** | 整柜场景主导 CBM，空运再扩展 |
-| 材积系数（6000/5000） | **暂不引入** | 无依据支撑，避免偏离现有口径 |
-| 阶梯价/最小计费（minCharge） | **暂不引入** | 整柜包干无此概念 |
-| 计价单位 | `cbm`、`piece` | 与 HTML 一致 |
+| 运输方式 | UED 必须有 `air_ddp`、`sea_lcl`、`sea_fcl` 三种情景 | 参数/报价未齐全时显示待补数据，不生成貌似精确的推荐价 |
+| `sea_fcl` | 整柜包干价，按 CBM（或混装时显式选择分摊权重）分摊 | 校验柜容、柜数、港杂/清关/派送等费用范围 |
+| `sea_lcl` | 按有效货代报价选择 CBM、计费吨、或两者取高；考虑最低收费和已报价附加费 | 计费规则来自报价，不把 FCL 公式套用于 LCL |
+| `air_ddp` | 按货代约定计费重，通常在实重/材积重、最低收费与附加费之间按报价规则计算 | 必须标明 DDP 报价所含的关税、清关、派送；已含税不得二次加税 |
+| 材积系数 | 不硬编码通用 6000/5000；由具体承运商报价/规则提供 | 规则来源和有效期随快照保存；缺失则该报价不完整 |
+| 阶梯价/最小计费 | 按具体 LCL/空运报价支持 | 只在费率表/报价明确时计算 |
+| 计价单位 | `cbm`、`kg`、`chargeable_kg`、`piece`、`shipment` | 结果显示采用的计费单位和分摊基准 |
+
+**UED 方案对比列：** 单件成本、整批成本、货代报价、计费量/单位、税费是否包含、起运港/目的港及费用范围、时效、报价有效期、数据状态、未计费用和“暂不可比较”原因。所有空运/LCL/FCL 运价若只是样例，醒目标注“演示数据”，不默认推荐。
 
 ### 3.6 HS 自动匹配（产品名称 → HS 编码）
 
@@ -250,9 +259,10 @@ flowchart LR
 | 10 | VAT | `(Base + GD_applied + Surcharge + PAL + CESS + Excise) × VAT率` | 默认 18% |
 | 11 | SSCL | `(VAT基数 + VAT) × SSCL率` | 常用 2.5% |
 | 12 | 从量关税（GD specific） | `单件毛重 × Rs/kg` 或 `Rs/件` | 税则 `20% or Rs.x/kg` 时与行 4 比大小 |
-| 13 | **到仓成本/件** | `1 + 2 + GD_applied` | 采购价 + 海运费 + 关税 |
+| 13 | **内部拆分：采购+运费+GD/件** | `1 + 2 + GD_applied` | 仅为税项拆分中间值；不得将其单独标作完整“到仓成本” |
 | 14 | **其他税费/件** | `3 + 5 + 6 + 7 + 8 + 9 + 10 + 11` | 保险与各项附加税；不含已计入行 13 的 GD |
-| 15 | **总成本/件** | `13 + 14` | 定价基数 |
+| 15 | **到仓成本（经营口径）/件** | `13 + 14 + 明确计入的清关/派送等费用` | 采购+国际物流+未含进口税费+指定费用；如某项未知，显示“部分成本”及缺项 |
+| 16 | **经营总成本/件** | `15 + 售价侧经营费用` | 平台费、支付费、营销、退货等有值才计入；列明缺失项，用于利润/定价 |
 
 **从量关税取数规则：**
 
@@ -286,7 +296,7 @@ GD_applied   = 税则标注「or」 ? max(GD_advalorem, GD_specific) : GD_advalo
 总成本合计 = 单位总成本 × 总件数                  // 对应 totals.totalCostTotal
 ```
 
-> 说明：`整柜关税计算器.html` 中「到仓成本」标签为不含 FOB 的到岸费用；本设计以 `Daraz整柜定价逻辑讲解.html` 的口径为准：**到仓成本 = 采购价 + 海运费 + 关税**，**总成本 = 到仓成本 + 其他税费**。  
+> 说明：旧 HTML 对“到仓成本”的标签和内容曾存在两种口径。本设计统一改为：**到仓成本（经营口径）= 采购 + 国际物流 + 未包含在报价内的全部进口税费 + 明确计入的清关/派送等费用**；**经营总成本 = 到仓成本 + 平台/支付/营销/退货等售价侧费用**。旧公式“采购价+海运费+GD”只作为税项拆分中间值，不得当完整到仓成本展示。  
 > 其中「其他税费」与 HTML 一致 = 保险 + 关税附加（Surcharge）+ PAL + CESS + Excise + VAT + SSCL；本设计额外把从量关税/从量 CESS 也归入对应税项。
 
 ### 3.8 标准定价与包邮定价
@@ -393,7 +403,7 @@ export const freightEstimates = pgTable(
     hsTariffVersionId: text("hs_tariff_version_id"),      // 逻辑引用 hs_tariff_versions
 
     // 运输方式与状态
-    mode: varchar("mode", { length: 16 }).notNull().default("sea_fcl").$type<LogisticsMode>(),
+    mode: varchar("mode", { length: 16 }).notNull().$type<LogisticsMode>(), // air_ddp|sea_lcl|sea_fcl
     status: varchar("status", { length: 16 }).notNull().default("draft").$type<FreightEstimateStatus>(),
 
     // 输入快照
@@ -408,8 +418,23 @@ export const freightEstimates = pgTable(
     grossWeightKg: numeric("gross_weight_kg", { precision: 10, scale: 3 }),
     netWeightKg: numeric("net_weight_kg", { precision: 10, scale: 3 }),
     totalVolumeCbm: numeric("total_volume_cbm", { precision: 10, scale: 4 }),
-    containerType: varchar("container_type", { length: 16 }).default("40HQ"),
+    containerType: varchar("container_type", { length: 16 }),
     containerUsd: numeric("container_usd", { precision: 15, scale: 4 }),
+    lclRateCbm: numeric("lcl_rate_cbm", { precision: 15, scale: 4 }),
+    lclRateChargeableTon: numeric("lcl_rate_chargeable_ton", { precision: 15, scale: 4 }),
+    lclMinimumCharge: numeric("lcl_minimum_charge", { precision: 15, scale: 4 }),
+    airRatePerKg: numeric("air_rate_per_kg", { precision: 15, scale: 4 }),
+    airVolumetricDivisor: integer("air_volumetric_divisor"), // 按报价；不设通用默认值
+    chargeableWeightKg: numeric("chargeable_weight_kg", { precision: 10, scale: 3 }),
+    logisticsSurcharges: jsonb("logistics_surcharges").$type<Array<{name: string, amount: number, currency: string, includedInQuote: boolean}>>().default([]),
+    freightQuoteSource: text("freight_quote_source"),
+    freightQuotedAt: timestamp("freight_quoted_at", { withTimezone: true }),
+    freightQuoteExpiresAt: timestamp("freight_quote_expires_at", { withTimezone: true }),
+    freightQuoteIncludes: jsonb("freight_quote_includes").$type<string[]>().default([]),
+    freightQuoteExcludes: jsonb("freight_quote_excludes").$type<string[]>().default([]),
+    freightTransitDaysMin: integer("freight_transit_days_min"),
+    freightTransitDaysMax: integer("freight_transit_days_max"),
+    pricingFormulaVersion: varchar("pricing_formula_version", { length: 32 }),
     exchangeUsdCny: numeric("exchange_usd_cny", { precision: 10, scale: 4 }),
     exchangeCnyLkr: numeric("exchange_cny_lkr", { precision: 10, scale: 4 }), // CNY -> LKR，包邮封顶/售价换算
     targetMarginPct: numeric("target_margin_pct", { precision: 6, scale: 2 }),
@@ -843,16 +868,18 @@ AI 选品若希望成本记录可追溯，可在自己的 `ai_candidate_costs` �
 | 字段 | 必要性 | 说明 |
 |---|---|---|
 | `purchasePrice`（CNY/LKR） | 必填 | 采购价 |
-| `packageLengthCm/WidthCm/HeightCm` | **必填（海运整柜）** | 箱尺寸 |
+| `packageLengthCm/WidthCm/HeightCm` | 海运必填；空运按报价规则需要时必填 | 箱尺寸，用于 CBM/材积重 |
 | `piecesPerBox` | **必填** | 用于换算单件体积、单件毛重 |
 | `packageCount` 或 `totalVolumeCbm` | 必填其一 | 总体积或箱数（可自动换算） |
 | `grossWeightKg` | 从量税品类必填 | 用于从量税（CESS/部分税目） |
 | `hsCode` | 建议必填 | 建议走 HS 自动匹配；解析到 active 税率版本 |
 | `hsTariffVersionId` | 可选 | 指定税率版本（复现/审计）；缺省按生效日期取 active |
 | `packagingSpecId` | 可选 | 逻辑引用 `packaging_specs`；手工输入时可空 |
-| `containerType`、`containerUsd`、`exchangeUsdCny` | 必填 | 柜型、整柜运费及 USD→CNY 汇率 |
+| `containerType`、`containerUsd`、`exchangeUsdCny` | `sea_fcl` 必填 | 柜型、整柜运费及 USD→CNY 汇率 |
+| LCL 报价 | `sea_lcl` 必填 | 每 CBM/计费吨报价、最低收费、附加费、计费规则、包含/不包含项目及有效期 |
+| 空运 DDP 报价 | `air_ddp` 必填 | 每 kg 报价、承运商材积系数/最低收费、含税/清关/派送范围、禁限运及有效期 |
 | `exchangeCnyLkr` | 计价币种为 LKR 或需换算包邮封顶时必填 | CNY→LKR 汇率，默认参考 49.2913 |
-| `mode = sea_fcl` | 固定（MVP） | 运输方式 |
+| `mode` | 必填 | `sea_fcl` / `sea_lcl` / `air_ddp`，按所选报价规则计算 |
 | `targetMarginPct` | 必填 | 目标毛利率（倒推定价用） |
 | `freeship`、`freeshipCapLkr` | 可选 | 包邮及封顶（默认参考 ₨450） |
 | `platformRates` | 可选 | 平台佣金/回款/仓杂（可用默认值） |
@@ -875,7 +902,7 @@ flowchart TD
   G1 -- 否 --> G2[返回 unmatched，要求手动选择/补录；禁止静默回退]
   G1 -- 是 --> H[计税基数：Base = CIF + 保险]
   H --> I[级联计税：GD->Surcharge->PAL->CESS（含从量）->Excise->VAT->SSCL]
-  I --> J[成本拆分：到仓成本 = 采购价+海运费+关税；总成本 = 到仓成本+其他税费]
+  I --> J[成本拆分：到仓成本=采购+国际物流+未含进口税费+清关/派送；经营总成本再加平台/支付/营销/退货]
   J --> K[Daraz定价：倒推售价（处理包邮封顶）]
   K --> L[写入 freight_estimates: completed + breakdown]
   L --> M[返回结果给调用方（模块不写消费方表）]
@@ -937,7 +964,7 @@ HTML 里的具体商品、HS、售价和最终金额只作为**原型样例**，
 
 ## 6. API 设计（独立 API + 消费方适配）
 
-> **本轮不接入 tRPC**。以下为接口草案，待 UED 确认后按 AGENTS.md 的 dataaccess/trpc 规范落地。所有接口归属**运费模块**，不包含候选、选品等业务参数。
+> **阶段一不接入 tRPC**。先交付可交互 UED 并由用户验证习惯；确认后阶段二按 AGENTS.md 的 dataaccess/tRPC 规范接入。以下为阶段二 API 草案。所有接口归属**运费模块**，不包含候选、选品等业务参数。阶段一“保存”仅为 Demo 状态，不得冒充生产持久化。
 
 ### 6.1 `estimateFreight`（核心测算）
 
@@ -970,9 +997,23 @@ type EstimateFreightInput = {
     netWeightKg?: number
   }
   freight: {
-    mode: "sea_fcl"              // MVP 固定
+    mode: "air_ddp" | "sea_lcl" | "sea_fcl"
     containerType?: "40HQ" | "40GP" | "20GP"
-    containerUsd: number
+    containerUsd?: number
+    lclRatePerCbm?: number
+    lclRatePerChargeableTon?: number
+    lclMinimumCharge?: number
+    airRatePerKg?: number
+    airVolumetricDivisor?: number // 必须来自有效报价，不用通用默认值
+    chargeableWeightKg?: number
+    surcharges?: Array<{name: string, amount: number, currency: string}>
+    quoteSource: string
+    quotedAt: string
+    quoteExpiresAt?: string
+    quoteIncludes: string[] // DDP 是否含税/清关/派送等
+    quoteExcludes: string[]
+    transitDaysMin?: number
+    transitDaysMax?: number
     exchangeUsdCny: number
     exchangeCnyLkr: number       // CNY -> LKR，用于包邮封顶与 LKR 定价
   }
@@ -1040,9 +1081,9 @@ type EstimateFreightOutput = {
     excise: number
     vat: number
     sscl: number
-    landedCost: number            // 采购价 + 海运费 + gd
-    otherFees: number             // 保险 + surcharge + PAL + CESS + Excise + VAT + SSCL
-    totalCost: number             // 定价基数
+    landedCost: number            // 采购价 + 国际物流 + 未含税费 + 显式的清关/派送费用；缺项不能标为完整
+    otherFees: number             // 税费/保险等分项，仅用于明细，不重复计入 landedCost
+    totalCost: number             // 经营总成本=landedCost+售价侧经营费用；用于定价/净利
   }
   totals: {
     cbmTotal: number
@@ -1077,6 +1118,12 @@ type EstimateFreightOutput = {
   configVersionIds: string[]
   inputSources: Record<string, FreightInputSource>
   warnings: string[]
+  comparison: {
+    comparable: boolean
+    nonComparableReasons: string[]
+    declaredIncludedCosts: string[]
+    declaredExcludedCosts: string[]
+  }
 }
 ```
 
@@ -1094,7 +1141,7 @@ type EstimateFreightOutput = {
 ```typescript
 // Input
 type ResolveFreightInputsInput = {
-  mode?: "sea_fcl"
+  mode?: "air_ddp" | "sea_lcl" | "sea_fcl"
   lastEstimateId?: string
   context?: Partial<EstimateFreightInput> // 消费方传入的上下文（如候选包装）
 }
@@ -1245,8 +1292,9 @@ async function getFreightInputsForCandidate(candidateId: string) {
 │ 左侧：输入区                  │ 右侧：测算结果区                              │
 │ - 基础信息（标题、采购价、币种）│ - HS 匹配卡（精确/近似 + 税率）               │
 │ - 包装信息（长宽高、件/箱、毛重）│ - 单位费用明细（每件逐项）                    │
-│ - 整柜运费（柜型、USD、汇率）  │ - 运费与税费级联（整柜合计）                  │
-│   USD/CNY、CNY/LKR           │                                               │
+│ - 物流方案：空运DDP/LCL/FCL    │ - 单件/整批费用明细与情景对比                  │
+│ - 货代报价及包含/不含范围       │ - 税费级联、税费是否已含、时效/柜容校验         │
+│ - 汇率及报价有效期             │ - 暂不可比较原因 / 缺失数据                    │
 │ - 品名 → HS 自动匹配          │ - 成本拆分（到仓成本 vs 总成本）               │
 │ - 定价设置（目标毛利、包邮）   │ - 标准定价 / 包邮定价对比（含 min 封顶）       │
 │                             │ - 净毛利/净利率、盈亏平衡价、警告              │
@@ -1257,7 +1305,10 @@ async function getFreightInputsForCandidate(candidateId: string) {
 - 默认 `sourceType = standalone`，无候选上下文。
 - 支持载入历史快照、复制为新测算、查看版本列表。
 - **品名输入即匹配**：输入「太阳能摄像头」立即显示 `✓ 精确匹配：HS 8525.89 | 关税 20% · PAL 5% · CESS 0% · VAT 18% · SSCL 2.5%`，并回填表单；用户仍可手动改 HS/税率。
-- **单件优先**：右侧先展示每件费用明细，再展示整柜合计，避免用户把整柜金额误当单价。
+- **三种情景可比较**：选择空运 DDP、海运 LCL、海运 FCL；每个方案独立展示报价规则/费率来源、计费量、时效、包含/排除费用、税费处理、单件和整批成本。
+- **单件优先**：右侧先展示每件完整费用明细，再展示整批/整柜合计，避免把整批金额误当单价。
+- **可比性校验**：若报价币种、报价日期、是否含税/派送或费用范围无法对齐，标注“暂不可比较”，不高亮唯一最优方案。
+- **阶段提示**：UED 阶段 Demo 明示“示例数据/未保存至业务数据库”；业务阶段再显示真实保存状态与快照 ID。
 - **定价对比**：同时展示标准定价与包邮定价，并标注包邮佣金「按 5% 计提」或「已触顶 ₨450」。
 
 ### 7.3 组件设计（shadcn/ui，可共享）
@@ -1266,17 +1317,18 @@ async function getFreightInputsForCandidate(candidateId: string) {
 
 | 组件 | 用途 | 说明 |
 |---|---|---|
-| `FreightFclPanel` | 运费测算面板 | 左侧输入 + 右侧结果，MVP 仅 `sea_fcl` |
+| `FreightScenarioPanel` | 运费测算面板 | 左侧输入 + 右侧结果，支持 air_ddp / sea_lcl / sea_fcl |
 | `PackingForm` | 包装信息表单 | 长宽高、每箱件数、箱数/总体积、毛重；自动算 CBM |
 | `HsMatcher` | HS 匹配器 | 品名输入即匹配；显示精确/近似、税率、从量税、SLSI 提示；支持手动覆盖 |
 | `HsMatchCard` | HS 结果卡 | 展示 `✓ 精确匹配：HS ... | 关税 ...`，可展开税率明细 |
-| `FreightBreakdown` | 运费明细 | 整柜 USD→CNY、有效 ¥/m³、单件体积、单件运费 |
+| `FreightBreakdown` | 运费明细 | 按空运/LCL/FCL 显示计费量、费率、附加费、单件/整批分摊及报价有效期 |
 | `TaxCascade` | 税费级联表 | GD/Surcharge/PAL/CESS/Excise/VAT/SSCL/从量税 |
 | `UnitCostTable` | **单位费用明细** | 每件 FOB/运费/保险/各项税/到仓/总成本，可切换单件/整柜 |
 | `CostSplitCard` | 成本拆分 | 到仓成本 / 其他税费 / 总成本 |
 | `PricingReverse` | 倒推定价 | 分母、标准定价、包邮定价、`min(售价×5%, 封顶)`、盈亏平衡价、净毛利率 |
 | `PricingComparison` | 定价对比 | 标准 vs 包邮并列；显示包邮佣金与是否触顶 |
 | `ContainerCheck` | 柜容校验 | 超柜容提示（非阻断） |
+| `ScenarioComparison` | 方案对比 | 单件/整批成本、时效、税费包含范围、有效期、数据状态与可比性 |
 | `MissingFreightDataDialog` | **缺失数据补全弹窗** | 由 `missingFields` 驱动，仅渲染缺失项 |
 | `FreightEstimateHistory` | 历史快照 | 列表、查看、复用；分页 |
 | `HsCodeTable` | HS 主数据表 | 平台后台；分页、搜索、状态、来源标记 |
@@ -1331,7 +1383,7 @@ sequenceDiagram
 | **自动换算** | 长宽高 + 每箱件数 → 单件体积、CBM；毛重 + 每箱件数 → 单件毛重 |
 | **HS 自动匹配** | 按品名建议 HS，可覆盖 |
 | **包邮封顶提示** | 触顶时提示固定 ₨450 |
-| **口径可见** | 明确「到仓成本 = 采购价 + 海运费 + 关税」「总成本 = 到仓成本 + 其他税费」 |
+| **口径可见** | 明确“到仓成本（经营口径）=采购+国际物流+未含税费+约定清关/派送”；“经营总成本”再加平台/支付/营销/退货等；逐项展示含/不含与缺失 |
 | **独立可用** | 无候选、无商品也能完成一次完整测算 |
 | **包装可复用** | 可从 `packaging_specs` 选择，也可临时手工覆盖 |
 | **来源可见** | HS/税率/费率/包装显示来源（手工/Excel/API/Seed）与生效版本 |
@@ -1450,7 +1502,7 @@ flowchart LR
 
 | 消费方 | 触发时机 | 输入上下文 | 消费结果 | 写回 |
 |---|---|---|---|---|
-| AI 选品 | 候选成本测算 | `packaging_specs`、采购价、HS、目标毛利 | 运费/税费/到仓成本/建议售价 | `ai_candidate_costs.freightEstimateId` + 摘要 |
+| AI 选品 | 候选成本测算 | `packaging_specs`、采购价、HS、目标毛利、空运/LCL/FCL有效报价 | 三种方案各自单件/整批成本、税费边界、建议售价/利润与数据状态 | `ai_candidate_costs.freightEstimateId` + 各情景摘要/来源 |
 | 刊登 | 定价确认前 | `packaging_specs`、采购成本 | 建议售价、盈亏平衡价 | 刊登模块 |
 | 订单 | 下单/发货成本核算 | 实际箱规或历史快照 | 运费、税费 | 订单成本模块 |
 | 财务 | 月度复盘 | 时间范围 | 聚合运费/税费 | 财务模块 |
@@ -1513,6 +1565,22 @@ flowchart TD
   H --> I[影响候选评分/决策]
 ```
 
+### 9.3 两阶段交付流程
+
+```mermaid
+flowchart LR
+  A[阶段一：可交互 UED] --> B[用户试用三种运输方案与成本工作流]
+  B --> C{用户确认使用习惯/口径？}
+  C -- 否 --> D[调整页面、输入和说明后再走查]
+  D --> B
+  C -- 是 --> E[阶段二：锁定数据契约与权限]
+  E --> F[实现三种方式的服务端计算与来源版本快照]
+  F --> G[tRPC/domain/dataaccess + 组织隔离持久化]
+  G --> H[候选/成本消费方复用历史数据]
+```
+
+UED 验收时用户应能正确说明：单件与整批成本区别；DDP 报价是否已含税；LCL/FCL 的计费与分摊方式；哪些费用未包含；数据是示例/估算还是已核实；何时能保存复用。未通过时留在 UED 阶段，不开始生产 API 接线。
+
 ## 附录 A：字段映射对照（ship-fees HTML -> 设计）
 
 | HTML 概念 | 设计字段 | 说明 |
@@ -1530,8 +1598,8 @@ flowchart TD
 | GD/PAL/CESS/Excise/VAT/SSCL | `taxes.*` | 按顺序级联 |
 | 品名自动匹配 HS | `hsMatch.code` / `hsMatch.display` | `hs_match_rules` 顺序匹配，标注精确/近似 |
 | HS 税率/规则来源 | `hs_codes` / `hs_tariff_versions` / `hs_match_rules` | 数据库 active 版本；代码常量仅 seed |
-| 到仓成本 = 采购价+海运费+关税 | `perUnit.landedCost` | HTML 原文口径（单件） |
-| 总成本 = 到仓成本+其他税费 | `perUnit.totalCost` | 定价基数（单件） |
+| 到仓成本（经营口径） | `perUnit.landedCost` | 采购+空运DDP/LCL/FCL+未含进口税+明确约定的清关/派送；缺项标部分成本 |
+| 经营总成本 | `perUnit.totalCost` | landed + 售价侧经营费用；用于净利/定价，避免毛利/净利混淆 |
 | 平台佣金11%/包邮5%/回款3.5%/仓杂10% | `unitPricing.*` / `pricing.platformFeeBreakdown` | 包邮额外叠加 |
 | 包邮佣金 = min(售价×5%, 封顶) | `unitPricing.freeshipFee` / `pricing.freeshipCapped` | 触顶后固定值计入分子 |
 | 售价 = 总成本 ÷ (1-费用-毛利) | `unitPricing.standardPrice`、`pricing.denom` | **倒推**公式 |
@@ -1581,15 +1649,15 @@ flowchart TD
 | 项目 | 决策 | 状态 |
 |---|---|---|
 | **模块形态** | 新增 `packages/freight`（计算 + 参考数据 + 快照 + 导入 + 维护服务），宿主先放 `apps/shop`，平台后台在 `apps/web` | **已确认** |
-| **计价范围** | 仅 `sea_fcl`（Daraz SL） | **已确认** |
-| **计费重** | 仅 CBM 分摊，不做实重 vs 体积重 | **已确认** |
+| **计价范围** | UED 覆盖 `air_ddp` / `sea_lcl` / `sea_fcl`；业务启用前要求对应有效费率/报价与规则 | **已确认** |
+| **计费规则** | 按运输方式与有效承运商/货代报价区分：空运可按报价计费重、LCL 按报价 CBM/计费吨/最低收费、FCL 按柜价与装载分摊；不使用无来源的通用材积系数 | **已确认** |
 | **数据模型** | 新增 `freight_estimates` 快照 + `hs_codes` / `hs_tariff_versions` / `hs_match_rules` / `freight_config_versions` / `packaging_specs` / `import_batches` / `import_batch_items` | **已确认** |
 | **参考数据维护** | 平台后台维护全局 HS/税率/规则/费率/汇率/柜型；租户维护本组织包装规格 | **已确认** |
 | **数据来源** | 支持手工、Excel/CSV、API、seed；批次化校验/发布/回滚/审计 | **已确认** |
 | **解耦方式** | 运费模块不写消费方表；消费方通过 API 调用并自行写回 | **已确认** |
 | **AI 选品集成** | 消费方适配层调用 API；包装来自 `packaging_specs`；缺失数据弹窗补全后落库 | **已确认** |
-| **API 落地** | 本轮仅 UED + API 草案，不接 tRPC | **已确认** |
-| **口径** | 严格沿用「到仓成本 vs 总成本」 | **已确认** |
+| **API 落地** | 阶段一仅交互 UED；用户确认后阶段二接 tRPC/domain/dataaccess 与生产持久化 | **已确认** |
+| **口径** | 到仓成本（经营口径）=采购+国际物流+未含税费+约定清关/派送；经营总成本再加平台等售价侧费用。旧“采购+海运+GD”仅为中间拆分 | **已确认** |
 | **HS 联动** | 复用计算器的 HS_RULES/HS_TARIFF 思路，但迁移为数据库版本化维护；代码常量仅 seed/test | **已确认** |
 | **品名匹配** | 产品名称输入即匹配 HS；展示精确/近似与税率，可手动覆盖 | **已确认** |
 | **单位明细** | 默认每件逐项列示，再汇总整柜 | **已确认** |
@@ -1600,8 +1668,8 @@ flowchart TD
 
 ---
 
-**文档版本：** v2.5  
+**文档版本：** v2.6  
 **创建日期：** 2026-10-27  
 **最后更新：** 2026-10-28  
-**状态：** 设计稿（主链路已对齐；HS/参考数据维护已建模；目标毛利已确认按 40% 公式；服务端待 UI 效果确认后接入）  
-**变更：** 新增 HS 编码、税率版本、匹配规则、平台费率/汇率/柜型、包装规格、导入批次模型；补充来源/发布/回滚/权限与平台后台、租户包装维护 UI；运行时改为读取 active 版本，代码常量仅 seed/test；HTML 商品明确为回归样例；目标毛利确认按 40% 公式，HTML `0.365/0.315` 视为笔误
+**状态：** 设计稿（先实现可交互 UED 并确认用户习惯，再接业务 API/tRPC；覆盖 air_ddp/sea_lcl/sea_fcl；生产费率与来源必须经验证）  
+**变更：** 新增 HS 编码、税率版本、匹配规则、平台费率/汇率/柜型、包装规格、导入批次模型；补充来源/发布/回滚/权限与平台后台、租户包装维护 UI；运行时改为读取 active 版本，代码常量仅 seed/test；HTML 商品明确为回归样例；目标毛利确认按 40% 公式；交付更新为 UED 用户确认后再接 tRPC；UED 增加空运 DDP、海运 LCL/FCL 三情景及数据可比性/来源状态

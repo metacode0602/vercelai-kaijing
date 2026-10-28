@@ -95,6 +95,10 @@
 <div class="wrap">
 
   <div class="update-note">
+    <b>证据状态说明：</b>本报告为 UED 样例，不作为已核验的上架结论。前 20 商品、税率/SLSI判断及所有价格/运费数据，正式使用前须附可访问来源、采集/核对日期和适用条件；未附来源的痛点、供需、采购价、销量目标与利润均为“假设/示例”。示例数据不会默认进入生产 AI 评分或推荐。
+  </div>
+
+  <div class="update-note">
     🔧 <b>2026-07-18 更新：</b>① 关税工具修正——PAL 实际有 Gen 5% / SG 6% 两档（科伦坡港适用 SG 档），有效税率从 28.6% 修正为 <b>29.8%</b>；② 已抓取 Daraz SL "Hair dryer" 前 20 竞品实测数据，步骤2 由推测改为实测。
   </div>
 
@@ -104,16 +108,16 @@
     <div class="verdict">✅ 适合上架，三个硬性条件 + 一个实测利好</div>
     <ul>
       <li><b>品类门槛友好：</b>HS 8516.31 有效关税 <b>29.8%</b>（CID=Free，仅 PAL 5%/SG 6%+VAT 18%+SSCL 2.5%），且<b>不在 SLSI 强制认证清单内</b>。</li>
-      <li><b>🎯 实测蓝海验证：</b>Daraz SL 前 20 名吹风机<b>全部是普通款</b>（Nova/Geemy/Gemei），价格带 Rs.544–3,990，<b>整个 Rs.4,000–25,000 区间零竞品</b>，且<b>无任何高速吹风机</b>。切入 Rs.11,990–13,990 是直接占位蓝海。</li>
-      <li><b>采购必须压到 ¥80 左右（白牌高速11万转）：</b>中端（¥150）/高端（¥280）在 Rs.11,990–17,990 售价下<b>直接亏损</b>，只有白牌高速款跑得通（主推毛利 15.3%）。</li>
-      <li><b>必须走海运，空运只用于测款：</b>带电产品空运成本高（600g 约 ¥78/台），测款毛利仅 9.3%；海运 LCL 主推 15.3%，大货 FCL 达 <b>20.7%</b>。</li>
+      <li><b>待验证的市场机会：</b>本次记录称 Daraz SL 前 20 名未见高速吹风机，但这只是特定关键词/排序/采集时点的样本，不能证明 Rs.4,000–25,000 全市场无竞品或已有需求。请在决策前复查搜索、类目与站外替代品。</li>
+      <li><b>采购价与利润结论属于示例测算：</b>¥80、¥150、¥280 等采购价和利润结果依赖未附原始有效供应商报价及统一费用口径，不能当作已核实采购成本或确定亏盈线。</li>
+      <li><b>空运/LCL/FCL 均需同口径有效报价：</b>文中运费与毛利数字标为“示例估算”；在确认报价含税/清关/派送边界、计费规则、时效和有效期前，不得把物流建议表述为已验证的最优方案。</li>
     </ul>
   </div>
 
   <!-- 步骤1 -->
   <div class="section">
     <h2><span class="step">1</span>品类预筛：关税 + 合规 + 物流可行性</h2>
-    <p class="lead">方法论第一步：先查 HS 编码算关税 → 查 SLSI/TRCSL 合规 → 判断物流可行性。三者全过才进入下一阶段。</p>
+    <p class="lead">方法论第一步：先查 HS 编码算关税 → 查 SLSI/TRCSL 合规 → 判断物流可行性。本文税率和合规判断为报告所述数据，进入产品前须补可访问官方来源、适用地域/港口条件和核对日期；当前状态为待核实，不自动视为生产有效规则。</p>
 
     <h3>① 关税测算（来源：sl_tariff_lookup.py · Import Tariff Guide 14.01.2026.pdf · 已核对原始表格列映射）</h3>
     <table>
@@ -145,7 +149,7 @@
   <!-- 步骤2 -->
   <div class="section">
     <h2><span class="step">2</span>竞品全景：Daraz SL 实测前 20 名</h2>
-    <p class="lead">方法论第二步：收集 Daraz SL 前 20 竞品，分析价格带、品牌格局、卖点空白。以下为 <b>2026-07-18 实测抓取</b>的真实数据（链接：daraz.lk/catalog/?q=Hair+dryer）。</p>
+    <p class="lead">方法论第二步：收集 Daraz SL 前 20 竞品，分析价格带、品牌格局、卖点空白。以下为报告标记为 <b>2026-07-18 抓取的样例数据</b>；正式复用前需保存逐条商品链接/商品 ID、排序与筛选条件、采集时间及原始快照。单个关键词的前 20 名不代表整个市场。</p>
 
     <h3>实测价格带分布（前 20 名）</h3>
     <table>
@@ -171,14 +175,14 @@
     <h3>典型痛点假设（基于普通吹风机通病）</h3>
     <table>
       <tr><th>痛点</th><th>频率</th><th>严重度</th><th>可解决度</th><th>PPS</th><th>等级</th></tr>
-      <tr><td>干发太慢（风速低）</td><td>5</td><td>4</td><td>1.5</td><td><b>30.0</b></td><td><span class="tag red">S级</span></td></tr>
-      <tr><td>高温伤发、头发毛躁</td><td>4</td><td>5</td><td>1.3</td><td><b>26.0</b></td><td><span class="tag red">S级</span></td></tr>
-      <tr><td>噪音大刺耳</td><td>4</td><td>3</td><td>1.2</td><td>14.4</td><td><span class="tag amber">A级</span></td></tr>
-      <tr><td>机身重、手持累</td><td>3</td><td>3</td><td>1.2</td><td>10.8</td><td><span class="tag amber">A级</span></td></tr>
-      <tr><td>易过热自动断电</td><td>3</td><td>4</td><td>1.1</td><td>13.2</td><td><span class="tag amber">A级</span></td></tr>
-      <tr><td>线太短、够不着镜子</td><td>3</td><td>2</td><td>1.0</td><td>6.0</td><td><span class="tag blue">B级</span></td></tr>
+      <tr><td>干发太慢（风速低）</td><td>假设 5</td><td>假设 4</td><td>假设 1.5</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>高温伤发、头发毛躁</td><td>假设 4</td><td>假设 5</td><td>假设 1.3</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>噪音大刺耳</td><td>假设 4</td><td>假设 3</td><td>假设 1.2</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>机身重、手持累</td><td>假设 3</td><td>假设 3</td><td>假设 1.2</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>易过热自动断电</td><td>假设 3</td><td>假设 4</td><td>假设 1.1</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>线太短、够不着镜子</td><td>假设 3</td><td>假设 2</td><td>假设 1.0</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
     </table>
-    <div class="callout info">💡 <b>结论：</b>两个 S 级痛点——<b>"干发慢"</b>和<b>"伤发"</b>——恰好是高速吹风机的核心卖点（11万转高速电机 + 负离子护发 + 智能温控）。实测市场零高速竞品，痛点与升级款天然匹配，差异化逻辑成立。</div>
+    <div class="callout info">💡 <b>状态：假设/待验证，不计入实测 PPS。</b>本报告没有抓取并核验差评原文，“干发慢”“伤发”等频率与严重度是产品假设。需补充可追溯的评论链接/原文、星级和采集日期，再按统一 PPS 公式评分。方法论口径：频率(1–5) × 严重度(1–5) × 可解决度(0.5–1.5)；当前表中的得分仅作演示，不代表真实用户反馈。</div>
   </div>
 
   <!-- 步骤4 -->
@@ -198,7 +202,7 @@
   <!-- 步骤5 -->
   <div class="section">
     <h2><span class="step">5</span>物流决策：关税 29.8% 下的方案选择</h2>
-    <p class="lead">方法论第五步：关税 15-30% 区间，需算盈亏平衡点。带电产品 + 600g 重量，三方案对比如下：</p>
+  <p class="lead">方法论第五步：关税 15-30% 区间，需算盈亏平衡点。带电产品 + 600g 重量，以下运费均为待核实示例估算，不是当前有效报价：</p>
     <table>
       <tr><th>方案</th><th>运费(单台)</th><th>时效</th><th>关税处理</th><th>适用阶段</th><th>推荐度</th></tr>
       <tr><td>空运 DDP 带电专线</td><td>¥78 (¥130/kg)</td><td>5-7天</td><td>物流商包税优化</td><td>测款 100-200台</td><td><span class="tag amber">仅测款</span></td></tr>
@@ -211,7 +215,7 @@
   <!-- 步骤6 -->
   <div class="section">
     <h2><span class="step">6</span>利润测算：五情景盈亏模拟（关税 29.8%）</h2>
-    <p class="lead">方法论第六步：采购 + 物流 + 关税 + 平台费(11%+5%↑450+3.5%+3%) + 营销8% + 退货3% + 汇率3%。汇率 1 CNY = 49.6 LKR。</p>
+  <p class="lead">方法论第六步：旧版场景估算。采购、货代报价、平台/支付/仓库费、广告、退货和汇率均未附可复核的有效来源；表格只作 UED 演示，不代表准确利润。正式决策需逐项补录来源和包含/排除范围。</p>
     <table class="calc-table">
       <tr><th>情景</th><th>到岸成本(LKR)</th><th>平台+其他费(LKR)</th><th>售价(LKR)</th><th>利润(LKR)</th><th>毛利率</th></tr>
       <tr><td><b>①主推 白牌¥80+LCL</b></td><td>5,923</td><td>4,227</td><td>11,990</td><td>1,840</td><td><span class="tag green">15.3%</span></td></tr>
@@ -229,9 +233,9 @@
     <h2><span class="step">7</span>风险与合规排查</h2>
     <table>
       <tr><th>风险项</th><th>等级</th><th>说明 / 应对</th></tr>
-      <tr><td>电压适配</td><td><span class="tag green">低</span></td><td>斯里兰卡 230V/50Hz，国内 220V/50Hz 产品兼容，无需变压器</td></tr>
-      <tr><td>插头类型</td><td><span class="tag amber">中</span></td><td>斯里兰卡用英标(Type G) / 印度标(Type D)三方插头；出厂即换插头或附转换头</td></tr>
-      <tr><td>SLSI 认证</td><td><span class="tag green">低</span></td><td>8516.31 不在强制清单，无需 SLSI 认证</td></tr>
+      <tr><td>电压适配</td><td><span class="tag amber">待核实</span></td><td>报告中的电压兼容结论需以产品铭牌/供应商规格及目的地要求核实；来源与核对日期补齐前不作为已验证合规结论</td></tr>
+      <tr><td>插头类型</td><td><span class="tag amber">待核实</span></td><td>核实目标市场插座类型、产品插头及合法适配方式；不得仅凭一般描述认定可直接销售</td></tr>
+      <tr><td>SLSI 认证</td><td><span class="tag amber">待核实</span></td><td>8516.31 不在强制清单的说法需附官方清单/税则来源和核对日期；没有依据时不得显示“无需认证”</td></tr>
       <tr><td>安全认证</td><td><span class="tag amber">中</span></td><td>建议具备 CE/CB/ROHS，提升详情页信任度，规避海关查验滞留</td></tr>
       <tr><td>外观侵权</td><td><span class="tag red">高</span></td><td>严禁模仿 Dyson/ Dreame 外观；用中性白牌设计，避免风力网罩等标志性造型</td></tr>
       <tr><td>带电产品物流</td><td><span class="tag amber">中</span></td><td>空运须走带电专线(DDP)；海运无限制但需防潮包装</td></tr>
@@ -248,7 +252,7 @@
       <div class="score-item"><div class="num">9.0</div><div class="label">竞争强度</div><div class="stars">★★★★★</div></div>
       <div class="score-item"><div class="num">8.5</div><div class="label">合规风险</div><div class="stars">★★★★★</div></div>
     </div>
-    <p class="lead">综合评分 <b>8.4/10</b> · <b>强烈建议上架</b>。实测验证 Rs.4K–25K 为蓝海、零高速竞品，市场机会与竞争强度大幅提升（较初版 7.75 升至 8.4）。约束仍在采购成本控制（必须白牌高速）和物流方式（必须海运放量）。</p>
+    <p class="lead">综合评分 <b>8.4/10（演示评分，待证据核实）</b> · 当前结论：<b>建议继续验证，不建议据此直接大批备货/上架</b>。市场空档、痛点、售价接受度、供应商成本和运费均需补充原始证据。高分不等于结论可靠；合规状态单独使用“已核实/有风险/未核实/不适用”，竞争压力单独使用“低/中/高”。</p>
   </div>
 
   <!-- 行动建议 -->
@@ -257,22 +261,22 @@
     <div class="timeline">
       <div class="item">
         <div class="t">第 1 周 · 选型定样</div>
-        <div class="d">1688 锁定白牌高速款（11万转+负离子+恒温，采购 ¥70-90），确认英标插头/230V 适配，打样看质感。避开 Dyson/ Dreame 外观。竞品差评抓取待补（进商品页抓差评做精确 PPS）。</div>
+        <div class="d">获取并保存可核实的供应商报价/规格/MOQ/有效期，打样确认性能、插头和安全；补齐 Daraz 竞品及真实差评样本并逐条留存来源。当前所有示例采购价与规格均为待验证假设，不作采购承诺。</div>
       </div>
       <div class="item">
         <div class="t">第 2 周 · 空运测款</div>
-        <div class="d">空运 DDP 发货 100-200 台，定价 Rs.13,990（覆盖测款低毛利），主图突出"高速干发 vs 普通慢干"、"负离子护发 vs 毛躁"对比，强调与 Nova 普通款的代际差。</div>
+        <div class="d">只有在供应商样品、费用边界、法规和需求测试计划通过后，才由运营决定小批试卖数量与售价。100–200 台及 Rs.13,990 是旧样例假设，不是系统建议值。先比较同口径 DDP/LCL/FCL 真实报价。</div>
       </div>
       <div class="item">
         <div class="t">第 3-5 周 · 数据验证</div>
-        <div class="d">观察点击率/转化率/差评。若周销 &gt;50 台且评分 &gt;4.3，确认动销，启动海运 LCL 备货（定价回落 Rs.11,990 提竞争力，直接占位蓝海）。</div>
+        <div class="d">采集实际曝光、点击、转化、退款/退货、差评、成交价和投放费用，由运营预先设定可接受门槛。周销 &gt;50 台、评分 &gt;4.3 是示例目标，需业务确认后才可用于测试判断；达标后仍应评估资金与库存风险再备货。</div>
       </div>
       <div class="item">
         <div class="t">第 6 周起 · 放量转海运</div>
-        <div class="d">LCL 稳定后评估 FCL 整柜（2万+台），毛利从 15.3% 提升至 20.7%。同步开发耗材复购（替换滤网/风嘴）提升 LTV。</div>
+        <div class="d">仅在真实销售、有效运价、可用现金和库存周转数据支持时评估从 LCL 转 FCL。2 万台及 15.3%/20.7% 为旧示例估算，不是放量门槛或利润承诺；FCL 应显示柜容、未含费用及滞销资金风险。</div>
       </div>
     </div>
-    <div class="callout win">📌 <b>一句话总结：</b>高速吹风机是"合规友好 + 蓝海零竞品 + 利润靠控本"的优质品类。Daraz 实测确认 Rs.4K–25K 无竞品，切 Rs.11,990+ 高端带即占位。能压住 ¥80 白牌采购价、走海运、用高质感主图打出代际差，就是一门好生意。</div>
+    <div class="callout win">📌 <b>一句话总结：</b>当前报告提供了一个值得研究的方向，但证据不足以判定“蓝海”或“适合上架”。先核实竞品与差评、供应商报价、三种物流费用范围、HS/合规信息，再用可复算的完整成本与小批测试结果决定是否继续；示例数据不得直接当作备货或利润承诺。</div>
   </div>
 
   <footer>

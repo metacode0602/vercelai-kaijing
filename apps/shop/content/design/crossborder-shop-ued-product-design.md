@@ -500,7 +500,7 @@ apps/shop/app/.../（示意 · App Router）
 
 ### 5.7 成本计算工作台 `/console/costs`
 
-> **深化专篇（v1.5）**：公式、LK 税叠加顺序、LCL/FCL 临界、建议售价、计算器 UED 与分阶段见 **[`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)**。下表保留页级摘要；实现以专篇为准。
+> **深化专篇（v1.2）**：公式、LK 税叠加顺序、空运 DDP/LCL/FCL 对比、建议售价、计算器 UED 与分阶段见 **[`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)**。交付顺序为先做可交互 UED、用户确认后再接 tRPC/持久化；实现以专篇为准。
 
 | 项 | 内容 |
 |----|------|
@@ -509,7 +509,7 @@ apps/shop/app/.../（示意 · App Router）
 | 主要区块 | SKU/候选选择器；到仓成本构成卡；海运方案对比；定价建议；HS 编码参考 |
 | 关键交互 | 切换 SKU；编辑采购/运费输入（可先本地 state）；「应用到候选/商品」P1 |
 | 税项字段（LK 示例结构） | 采购成本、头程运费、**customs**、**PAL**、**CESS**、**VAT**、**SSCL**、合计到仓成本 |
-| 海运 | LCL / FCL 单价与时效、生产周期、船期缓冲、补货提前期（示例） |
+| 物流 | 空运 DDP / LCL / FCL 报价与时效、生产周期、船期缓冲、补货提前期；标明示例/估算/已核实状态及报价费用边界 |
 | 定价 | 平台佣金、支付费、仓库费、建议售价、目标毛利率阈值 |
 | 空态 | 无成本组件 → 引导录入或从选品带入 |
 | AI A/B/C | 税率/HS 提示 **C**；写入成本 **B**（若影响在售价） |

@@ -10,7 +10,8 @@
 | [crossborder-database-design.md](crossborder-database-design.md) | **生效** | 跨境运营域 Drizzle / PostgreSQL schema；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage |
 | [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
-| [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算模块（整柜 FCL）：按 Daraz SL 整柜逻辑设计；UED + API 草案；品名自动匹配 HS、单件费用明细、标准/包邮 `min(售价×5%,封顶)` 定价；HS/税率/规则/费率/汇率版本化维护与 Excel/API 导入；`freight_estimates` 快照与消费方解耦，AI 选品按需调用 |
+| [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算：先做可交互 UED 并确认使用习惯，再接业务 API/tRPC；覆盖空运 DDP、海运 LCL/FCL；按有效报价和规则计算、展示费用边界/数据来源/历史快照；HS/税率/规则/费率/汇率版本化维护与消费方解耦 |
+| [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
 
 ## 2. 模块内设计
 
