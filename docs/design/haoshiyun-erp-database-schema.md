@@ -1,0 +1,1151 @@
+# 好时运 ERP 跨境运营域：完整数据库表结构设计
+
+> 状态：**设计稿，待业务/IT确认后由 `drizzle-kit generate` 落库**
+> 日期：2026-10-28
+> 输入：`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（F01–F19、202 字段、R01–R12、PUR-001~003）
+> 借鉴：[Open Mercato](https://github.com/open-mercato/open-mercato) Core（MIT）—— `wms.movements` 事件账本、`workflows`/`business_rules` 审批、`audit_logs`、`sync_excel` 批次导入、`dictionaries`+别名；**不引入** MikroORM / REST factory / Enterprise 代码
+> 关联：[haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md)、[haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md)、[crossborder-database-design.md](crossborder-database-design.md)
+
+## 0. 设计原则
+
+1. **租户隔离**：业务表强制 `organization_id`（不用 OM 的 `tenant_id` 双键）；平台主数据（平台/国家/币种）为受控全局表。
+2. **内部 SKU 唯一主轴**：订单行、库存、采购、售后、成本、利润一律按 `variant_id`（内部 SKU）归集；Seller SKU 只存在于映射层（R04/R05/R08）。
+3. **共享库存池**：实物库存归属 `organization + warehouse + bin + variant`，**不归属 shop**；店铺通过 `shop_warehouses` 关联仓库，多站订单竞争同一池（R 五国共享）。
+4. **追加式交易事实**：库存流水、审批事件、审计事件、质检结果不可 UPDATE/DELETE；更正走反向单据（OM `movements` + R12）。
+5. **主档停用不删除**：`status` + `disabledAt`/`deletedAt` 软停用；编码永久唯一不复用（R06）。
+6. **金额规范**：`numeric(15,4)` 原币 + `currency` + 汇率快照引用；禁止跨币种直接 SUM。
+7. **枚举用 varchar + TS union**（AGENTS 约定），不用 PG enum。
+8. **幂等键**：所有平台同步写入与库存事件带 `idempotency_key`，重放不重复生效（Q06）。
+9. **演进不另建平行库**：在 `packages/db/src/commerce-schema.ts` 按域分节扩展；与现有 21 表冲突处给出迁移说明（§9）。
+10. **非通用电商 ERP**：无自营店面/购物车/CRM 会员/促销引擎；平台侧只有连接器、映射、结算拉取。
+
+### 0.1 借鉴 OM 的具体形状
+
+| OM 概念 | 本设计落点 |
+| --- | --- |
+| `wms.movements`（来源单、前后量、delta、幂等键） | `inventory_ledger` |
+| `wms.locations` | `commerce_warehouses` + `commerce_bins` |
+| `workflows` + `business_rules` | `approval_rules` + `approval_instances` + `approval_events` |
+| `audit_logs`（before/after JSONB） | `audit_events` |
+| `sync_excel`（批次 + 行错误 + 补偿） | `import_batches` + `import_rows` |
+| `dictionaries` + `dictionary_aliases` | `commerce_dictionaries` 三表 |
+| `dashboards` 指标元数据 | `report_metrics`（可选，P0 可用视图代替） |
+
+### 0.2 ER 总览
+
+```mermaid
+erDiagram
+  commerce_platforms ||--o{ platform_marketplaces : has
+  commerce_countries ||--o{ platform_marketplaces : hosts
+  commerce_warehouses ||--o{ commerce_bins : contains
+  commerce_warehouses ||--o{ shop_warehouses : linked
+  shops ||--o{ shop_warehouses : uses
+  shops ||--o{ listings : publishes
+  products ||--o{ product_variants : has
+  product_variants ||--o{ seller_sku_mappings : mapped
+  shops ||--o{ seller_sku_mappings : owns
+  suppliers ||--o{ supplier_skus : offers
+  product_variants ||--o{ supplier_skus : sourced
+  purchase_requests ||--o{ purchase_request_lines : contains
+  purchase_requests ||--o{ approval_instances : reviewed_by
+  purchase_orders ||--o{ purchase_order_lines : contains
+  purchase_orders ||--o{ purchase_receipts : received_via
+  purchase_receipts ||--o{ qc_inspections : inspected_by
+  product_variants ||--o{ inventory_balances : stocked
+  commerce_bins ||--o{ inventory_balances : holds
+  product_variants ||--o{ inventory_ledger : moves
+  commerce_bins ||--o{ inventory_ledger : located
+  orders ||--o{ order_lines : contains
+  order_lines ||--o{ inventory_reservations : reserves
+  orders ||--o{ packages : fulfilled_by
+  packages ||--o{ logistics_events : tracks
+  orders ||--o{ aftersale_orders : may_return
+  aftersale_orders ||--o{ qc_inspections : return_qc
+  orders ||--o{ order_fees : incurs
+  orders ||--o{ order_profit_snapshots : profits
+  settlements ||--o{ settlement_lines : detail
+  import_batches ||--o{ import_rows : rows
+```
+
+---
+
+## 1. 域 A：平台与主数据（F02/F06，S1）
+
+### 1.1 `commerce_platforms` — 平台受控主档（全局）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| code | varchar(32) UNIQUE | `daraz` / `lazada` / `shopee` / `tiktok_shop` |
+| name | text | |
+| adapter_key | varchar(64) | 对应 `packages/marketplace` adapter |
+| status | varchar(16) | `active` / `disabled` |
+| config | jsonb | connector 能力开关，不存业务规则 |
+| created_at / updated_at | timestamptz | |
+
+租户不可通过 CRUD 新造平台；平台接入由平台管理员配置 adapter。
+
+### 1.2 `commerce_countries` — 国家主档（全局）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| iso2 | varchar(2) UNIQUE | `LK` / `MY` / `PH` / `SG` / `TH` / `VN` |
+| name_zh / name_en | text | |
+| region_code | varchar(16) | |
+| default_timezone | varchar(64) | IANA |
+| default_currency_code | varchar(3) FK→currencies | |
+| status | varchar(16) | |
+
+### 1.3 `platform_marketplaces` — 平台×国家站点
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| platform_id | text FK | |
+| country_id | text FK | |
+| site_code | varchar(32) | 如 `LK`、`MY` |
+| display_name | text | 如「Daraz 斯里兰卡」 |
+| status | varchar(16) | |
+| supported_features | jsonb | 连接器能力位（订单/商品/结算 API 可用性） |
+| **UNIQUE** | | `(platform_id, site_code)` |
+
+### 1.4 `commerce_currencies` — 币种（全局）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| code | varchar(3) PK | ISO 4217 |
+| name / symbol | text | |
+| minor_unit | smallint | 0–4 |
+| status | varchar(16) | |
+
+汇率**不在**本表，见 §7 `fx_rates`。
+
+### 1.5 `commerce_warehouses` — 公司仓库（org）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| code | varchar(64) | 如 `WH-CN-XMN-001` |
+| name | text | |
+| type | varchar(32) | `self_operated` / `lgs` / `jsb` / `third_party` |
+| country_id | text FK | 所在国 |
+| timezone | varchar(64) | |
+| operating_currency | varchar(3) | |
+| address | jsonb | 结构化地址 |
+| status | varchar(16) | `active` / `disabled` |
+| **UNIQUE** | | `(organization_id, code)` |
+
+同一仓库可被多个店铺复用（跨境一盘货）。
+
+### 1.6 `commerce_bins` — 库位（org + warehouse）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| warehouse_id | text FK | |
+| code | varchar(64) | 如 `A-01-03` |
+| name | text | |
+| status | varchar(16) | `active` / `disabled` |
+| **UNIQUE** | | `(organization_id, warehouse_id, code)` — R07 同仓唯一 |
+
+**绑定约束（R07）**：一个启用库位在同一时刻最多绑定一个启用 SKU —— 由 `inventory_balances` 上的部分唯一索引保证（见 §5.1）：仅 `on_hand + reserved > 0` 的行参与"一库位一启用 SKU"校验时，可用应用层事务 + 可选 `CHECK`；强 DB 约束采用「每个 bin 至多一条 active 占用行」的替代方案见 Q10 确认项。
+
+### 1.7 `inventory_pools` — 库存池（可选抽象，org）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| code | varchar(64) | 如 `POOL-LAZADA-5C` |
+| name | text | |
+| warehouse_id | text FK | 首阶段一池一仓；一仓可服务多店 |
+| status | varchar(16) | |
+| **UNIQUE** | | `(organization_id, code)` |
+
+首阶段 Lazada 五站 + Daraz 共用 `WH-CN-XMN-001` 对应的默认池；余额仍以 warehouse+bin+sku 为物理事实，pool 用于逻辑分组与推送策略（Q09）。
+
+### 1.8 `shops` — 店铺主档（扩展现有表）
+
+在现有列基础上**新增**：
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| marketplace_id | text FK | → platform_marketplaces |
+| seller_id | text | 平台 Seller ID |
+| shop_code | varchar(64) | 内部店铺编码 |
+| default_warehouse_id | text FK | 默认出库仓（每店必填一个 active） |
+| inventory_pool_id | text FK | 可选，默认=默认仓所属池 |
+| fulfillment_mode | varchar(32) | `lgs` / `jsb` / `self_ship` / `mixed` |
+| owner_user_id | text | 店铺负责人（better-auth user） |
+| planned_launch_at / launched_at | timestamptz | |
+| **UNIQUE** | | `(organization_id, marketplace_id, seller_id)` |
+
+保留现有 `(organization_id, platform, external_shop_id)` 唯一键作为兼容；新写路径以 `marketplace_id` 为准。
+
+### 1.9 `shop_warehouses` — 店铺↔仓库 M2N
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| shop_id | text FK | |
+| warehouse_id | text FK | |
+| is_default_outbound | boolean | 每店 active 关联**恰一个** true |
+| status | varchar(16) | |
+| created_by / created_at | | |
+| **UNIQUE** | | `(shop_id, warehouse_id)` |
+
+复合 FK 或应用层校验双方同 org。创建店铺向导：平台→站点→店铺→选仓→指定默认出库仓。
+
+### 1.10 属性字典三表（F06）— 借鉴 OM dictionaries
+
+#### `commerce_dictionaries`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text NULL FK | NULL = 系统字典 |
+| key | varchar(64) | `color` / `size` / `brand` / `category` / `fulfillment_mode`… |
+| label | text | |
+| scope | varchar(16) | `system` / `org` |
+| is_system | boolean | 系统字典不可删 |
+| status | varchar(16) | |
+| **UNIQUE** | | `(organization_id, key)`（org NULL 时用 partial unique on key） |
+
+#### `commerce_dictionary_values`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| dictionary_id | text FK | |
+| code | varchar(64) | |
+| canonical_value | text | 规范值 |
+| label_zh / label_en | text | |
+| sort_order | integer | |
+| status | varchar(16) | 停用后表单不可选 |
+| metadata | jsonb | |
+| **UNIQUE** | | `(dictionary_id, code)` |
+
+#### `commerce_dictionary_aliases`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| dictionary_value_id | text FK | |
+| alias | text | 原始别名 |
+| normalized_alias | varchar(128) | lower/trim 后 |
+| locale | varchar(16) | |
+| **UNIQUE** | | `(dictionary_value_id, normalized_alias)`；同字典下 normalized 全局唯一由查询保证 |
+
+别名用于导入匹配与搜索，不作为业务主值。
+
+---
+
+## 2. 域 B：商品与供应商（F04/F05/F08，S2）
+
+### 2.1 `products` — SPU 主档（扩展现有表）
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| spu_code | varchar(32) | `HSY` + 6 位流水，如 `HSY000001`；**UNIQUE (organization_id, spu_code)**；序列生成、不复用（R01/R06） |
+| brand_dict_value_id | text FK | 关联字典规范值 |
+| category_dict_value_id | text FK | |
+| status | 保留并语义化 | `active` / `disabled`（只停用不删） |
+| legacy_codes | jsonb | 旧码对照（TEE-001 等，Q27/Q34） |
+| created_by | text | |
+
+生成策略：应用层事务内 `SELECT … FOR UPDATE` 组织级序列行，或独立 `commerce_spu_sequences(org, next_val)` 表；禁止随机 ID 兼作业务码。
+
+### 2.2 `product_variants` — 内部 SKU（扩展现有表）
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| sku_code | varchar(32) | SPU + 3 位流水，如 `HSY000001001`；**UNIQUE (organization_id, sku_code)**（R02） |
+| color_value_id / size_value_id | text FK | 字典值（可扩展为 attrs 表） |
+| status | varchar(16) | `active` / `disabled` |
+| barcode / weight_grams / length_mm / width_mm / height_m | 保留 | |
+| attrs | jsonb | 其余规格，常用维度提列 |
+
+兼容：现有 `sku` 列保留为展示/导入别名，新约束以 `sku_code` 为准。
+
+### 2.3 `commerce_sku_sequences` — 编码序列
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| organization_id | text PK | |
+| spu_next_val | integer | 默认 1 |
+| sku_next_val | integer | 按 SPU 内 3 位滚动，或组织全局流水 |
+| updated_at | timestamptz | |
+
+### 2.4 `suppliers` — 供应商（F08）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| code | varchar(64) | 内部编码 |
+| name | text | |
+| contact_name / contact_phone / contact_email | text | |
+| country_id | text FK | 可空 |
+| payment_terms | varchar(64) | 如 `T/T 30` |
+| lead_time_days | integer | 默认交期 |
+| rating | smallint | 1–5，可空 |
+| status | varchar(16) | |
+| notes | text | |
+| **UNIQUE** | | `(organization_id, code)` |
+
+### 2.5 `supplier_skus` — 供应商货号↔内部 SKU
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| supplier_id | text FK | |
+| variant_id | text FK | 内部 SKU |
+| supplier_sku | varchar(128) | 供应商货号 |
+| unit_price | numeric(15,4) | 参考采购价原币 |
+| currency | varchar(3) | |
+| moq | integer | |
+| lead_time_days | integer | 覆盖供应商默认 |
+| status | varchar(16) | |
+| **UNIQUE** | | `(organization_id, supplier_id, supplier_sku)` |
+| 建议 UNIQUE | | `(organization_id, variant_id, supplier_id)` — 一供应商对一 SKU 一条有效报价；多报价用历史表 |
+
+---
+
+## 3. 域 C：刊登与 Seller SKU 映射（F07，S2）
+
+### 3.1 `listings` — Listing 主档（扩展现有表）
+
+保留平台维度与 `external_item_id`；变体明细下沉到映射表（R05 拆分）。
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| marketplace_id | text FK | 站点级 |
+| listing_title | text | |
+| publish_state / status | 保留 | 平台态 + 内部态分离 |
+| primary_variant_id | text FK | 主变体（可空） |
+
+### 3.2 `seller_sku_mappings` — **专用映射表**（F07 核心，替代通用映射的变体维度）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| shop_id | text FK | |
+| listing_id | text FK | 所属 Listing（一 Listing 多变体） |
+| seller_sku | varchar(128) | 平台 Seller SKU |
+| variant_id | text FK | 内部 SKU；冲突/待定时可空 |
+| status | varchar(32) | `active` / `pending` / `conflict` / `disabled` |
+| source | varchar(16) | `manual` / `import` / `sync` |
+| synced_at | timestamptz | |
+| meta | jsonb | |
+| **UNIQUE** | | `(organization_id, shop_id, seller_sku)` — Q05 强约束 |
+| INDEX | | `(organization_id, variant_id)` — 一 SKU 多 Listing 允许 |
+
+与现有 `external_id_mappings` 关系：
+
+- 本表成为 **Seller SKU → 内部 SKU** 的唯一权威路径（R04/R05）。
+- `external_id_mappings` 保留给非 SKU 实体（order external id ↔ internal order 等）；其 `(shop, entity_type, internal_id)` 唯一键**放宽**为允许 1:N（§9 迁移）。
+
+### 3.3 `mapping_exceptions` — 映射异常队列
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| shop_id | text FK | |
+| kind | varchar(32) | `unmapped` / `conflict` / `disabled_variant` / `duplicate_seller_sku` |
+| payload | jsonb | 平台原始行 |
+| external_order_id / external_item_id | text | 关联对象 |
+| status | varchar(16) | `open` / `resolved` / `ignored` |
+| resolved_by / resolved_at | | |
+| resolution | jsonb | 处决结果（绑定的 variant 等） |
+| created_at | timestamptz | |
+| INDEX | | `(organization_id, shop_id, status, created_at)` |
+
+未映射/冲突订单行**必须**进本表且**禁止**自动占库。
+
+---
+
+## 4. 域 D：采购（F09，S3，OM 无对应 — 全新）
+
+### 4.1 `approval_rules` — 审批规则（借鉴 OM business_rules；PUR-001~003）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| code | varchar(32) | `PUR-001` … |
+| name | text | |
+| module | varchar(32) | `purchase` / `inventory_adjust` / … |
+| trigger | varchar(64) | `purchase_request_submit` |
+| rule | jsonb | 如 `{ "assignees": ["user_a","user_b"], "mode": "mutual_review", "forbid_self": true, "amount_thresholds": [...] }` |
+| priority | integer | |
+| status | varchar(16) | |
+| **UNIQUE** | | `(organization_id, code)` |
+
+示例：`PUR-001` 杨洁/黄发聪互审、禁止自审。
+
+### 4.2 `approval_instances` — 审批实例（单据级）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| module | varchar(32) | |
+| biz_type | varchar(32) | `purchase_request` / `stock_adjustment` / … |
+| biz_id | text | 业务单 ID |
+| rule_id | text FK | 命中的规则 |
+| status | varchar(32) | `pending` / `approved` / `rejected` / `cancelled` |
+| current_assignee_id | text | 当前处理人 |
+| payload_snapshot | jsonb | 提交时快照 |
+| submitted_by / submitted_at | | |
+| closed_by / closed_at | | |
+| **UNIQUE** | | `(organization_id, biz_type, biz_id)` — 一单一审批流 |
+
+### 4.3 `approval_events` — 审批事件（追加，R12）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| approval_instance_id | text FK | |
+| organization_id | text FK | |
+| action | varchar(32) | `submit` / `approve` / `reject` / `reassign` / `cancel` |
+| actor_id | text | |
+| comment | text | |
+| before_status / after_status | varchar(32) | |
+| created_at | timestamptz | |
+
+禁止 UPDATE/DELETE。自审在 service 层拒绝：`actor_id == submitted_by && rule.forbid_self`。
+
+### 4.4 `purchase_requests` — 采购申请（F09）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| request_no | varchar(32) | 内部单号，UNIQUE (org, request_no) |
+| supplier_id | text FK | |
+| warehouse_id | text FK | 预计入库仓 |
+| status | varchar(32) | `draft` / `pending_approval` / `approved` / `rejected` / `converted` / `cancelled` |
+| expected_arrival_at | date | |
+| currency | varchar(3) | |
+| total_amount | numeric(15,4) | 行汇总投影 |
+| remark | text | |
+| created_by / created_at / submitted_at | | |
+| approval_instance_id | text FK | |
+| converted_po_id | text | |
+
+### 4.5 `purchase_request_lines`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| purchase_request_id | text FK | |
+| organization_id | text FK | |
+| line_no | integer | |
+| variant_id | text FK | 内部 SKU |
+| supplier_sku_id | text FK | 可空 |
+| qty | integer NOT NULL | |
+| unit_price | numeric(15,4) | |
+| amount | numeric(15,4) | |
+| remark | text | |
+
+### 4.6 `purchase_orders` — 正式采购单
+
+仅 `status=approved` 的申请可转换（service 校验）。
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| po_no | varchar(32) UNIQUE (org, po_no) | |
+| purchase_request_id | text FK | |
+| supplier_id | text FK | |
+| warehouse_id | text FK | |
+| status | varchar(32) | `draft` / `sent` / `partial_received` / `received` / `closed` / `cancelled` |
+| currency | varchar(3) | |
+| total_amount | numeric(15,4) | |
+| expected_arrival_at | date | |
+| created_by / created_at / sent_at | | |
+
+### 4.7 `purchase_order_lines`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| purchase_order_id | text FK | |
+| organization_id | text FK | |
+| line_no | integer | |
+| variant_id | text FK | |
+| qty_ordered | integer | |
+| qty_received | integer | 默认 0，投影 |
+| qty_qc_passed | integer | 默认 0，投影 |
+| qty_stocked | integer | 默认 0，投影 |
+| unit_price | numeric(15,4) | 锁定价 |
+| amount | numeric(15,4) | |
+
+### 4.8 `purchase_receipts` — 到货收货单（分批，Q13）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| receipt_no | varchar(32) UNIQUE (org, receipt_no) | |
+| purchase_order_id | text FK | |
+| warehouse_id | text FK | |
+| status | varchar(32) | `draft` / `qc_pending` / `completed` / `cancelled` |
+| arrived_at | timestamptz | |
+| received_by | text | |
+| remark | text | |
+
+### 4.9 `purchase_receipt_lines`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| purchase_receipt_id | text FK | |
+| organization_id | text FK | |
+| po_line_id | text FK | |
+| variant_id | text FK | |
+| qty_arrived | integer | |
+| qty_pending_qc | integer | |
+| qty_passed | integer | |
+| qty_failed | integer | |
+| note | text | |
+
+### 4.10 `qc_inspections` — 质检单（采购入库 + 退货回库共用）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| qc_no | varchar(32) UNIQUE (org, qc_no) | |
+| source_type | varchar(32) | `purchase_receipt` / `aftersale_return` |
+| source_id | text | |
+| warehouse_id | text FK | |
+| status | varchar(32) | `pending` / `completed` / `cancelled` |
+| inspector_id | text | |
+| inspected_at | timestamptz | |
+| remark | text | |
+
+### 4.11 `qc_inspections_lines`（质检行，追加结果）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| qc_inspection_id | text FK | |
+| organization_id | text FK | |
+| variant_id | text FK | |
+| qty_inspected | integer | |
+| qty_passed | integer | 合格→可入库 |
+| qty_failed | integer | → 不可售/报损 |
+| fail_reason | text | |
+| target_bin_id | text FK | 建议上架库位 |
+
+**规则**：只有 `qty_passed` 进入可用库存（生成入库 `inventory_ledger`）；`qty_failed` 进不可售或报损流水。
+
+---
+
+## 5. 域 E：仓储与库存（F10/F11/F12，S3；借鉴 OM wms）
+
+### 5.1 `inventory_balances` — 库存余额（**重构现有表**）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| warehouse_id | text FK | **替代 shop_id 维度** |
+| bin_id | text FK NULL | 库位；汇总层可为 NULL（仓级虚拟位） |
+| variant_id | text FK | |
+| on_hand | integer NOT NULL DEFAULT 0 | 实物 |
+| reserved | integer NOT NULL DEFAULT 0 | 订单预留 |
+| qc_hold | integer DEFAULT 0 | 质检未决 |
+| damaged | integer DEFAULT 0 | 不可售 |
+| available | integer 生成列/应用投影 | `on_hand - reserved - qc_hold - damaged` |
+| version | integer | 乐观锁 |
+| updated_at | timestamptz | |
+| **UNIQUE** | | `(organization_id, warehouse_id, bin_id, variant_id)` |
+
+迁移：现有 `(shop_id, variant_id)` 行按下述规则折叠为默认仓余额（§9）。**店铺不再持有库存余额。**
+
+### 5.2 `inventory_ledger` — 库存流水（追加式，借鉴 OM movements）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| warehouse_id | text FK | |
+| bin_id | text FK NULL | |
+| variant_id | text FK | |
+| direction | varchar(8) | `in` / `out` / `move` / `adjust` |
+| event_type | varchar(32) | `purchase_stock_in` / `order_reserve` / `order_release` / `order_ship` / `return_stock_in` / `qc_fail_writeoff` / `manual_adjust` / `stocktake_diff` / `migration_opening` |
+| qty | integer | 有符号或配合 direction；约定 out 为正数存储 + direction |
+| on_hand_before / on_hand_after | integer | |
+| reserved_before / reserved_after | integer | |
+| source_type | varchar(32) | `purchase_receipt` / `order` / `aftersale` / `adjustment` / `migration` |
+| source_id | text | |
+| source_line_id | text | |
+| bin_to_id | text FK NULL | move 时目标位 |
+| reason | text | |
+| actor_id | text | 系统写用 `system` |
+| idempotency_key | varchar(128) | **UNIQUE (organization_id, idempotency_key)** — Q06 |
+| occurred_at | timestamptz | 业务发生时间 |
+| created_at | timestamptz | |
+| INDEX | | `(organization_id, variant_id, occurred_at)`、`(organization_id, warehouse_id, occurred_at)` |
+
+**禁止 UPDATE/DELETE**。余额是投影；UI 不得直改余额，只能通过触发流水的业务单据。修正用反向流水（`manual_adjust` 带 reason + 审批）。
+
+### 5.3 `inventory_reservations` — 订单预留明细
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| order_line_id | text FK | |
+| variant_id | text FK | |
+| warehouse_id | text FK | |
+| bin_id | text FK NULL | 可空（预留可先仓级） |
+| qty | integer | |
+| status | varchar(16) | `held` / `released` / `committed` |
+| held_at / released_at / committed_at | timestamptz | |
+| release_reason | varchar(32) | `cancelled` / `paid_timeout` / `aftersale` / `manual` |
+| ledger_hold_key / ledger_release_key / ledger_ship_key | text | 对应流水幂等键 |
+| **UNIQUE** | | `(organization_id, order_line_id, status)` 的 active 部分 — 每行同时最多一条 held |
+
+预留/释放/出库与对应 `inventory_ledger` **同事务**提交；并发用 `UPDATE inventory_balances SET reserved = reserved + $n WHERE … AND on_hand - reserved - qc_hold - damaged >= $n` 条件更新或行锁。
+
+### 5.4 `stock_adjustments` — 盘点/报损/手工调整单（Q11）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| adjustment_no | varchar(32) UNIQUE (org, no) | |
+| kind | varchar(32) | `stocktake` / `damage` / `manual_in` / `manual_out` / `recount` |
+| warehouse_id | text FK | |
+| status | varchar(32) | `draft` / `pending_approval` / `approved` / `rejected` / `posted` / `cancelled` |
+| reason | text NOT NULL | 强制原因 |
+| approval_instance_id | text FK | 阈值触发时 |
+| posted_ledger_batch_id | text | |
+| created_by / approved_by / posted_at | | |
+
+#### `stock_adjustment_lines`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| stock_adjustment_id | text FK | |
+| organization_id | text FK | |
+| variant_id | text FK | |
+| bin_id | text FK | |
+| qty_system | integer | 账面 |
+| qty_counted | integer | 实盘 |
+| qty_diff | integer | counted - system |
+| note | text | |
+
+过账时逐行生成 `inventory_ledger`（`event_type=stocktake_diff|manual_adjust`）。
+
+### 5.5 `stock_alerts` — 扩展
+
+| 变更 | 说明 |
+| --- | --- |
+| 去掉 `shop_id`，增加 `warehouse_id` / `variant_id` 唯一 | 预警挂在仓+SKU |
+| 增加 `threshold_out` / `threshold_in` | 缺货/积压双阈值 |
+| 增加 `status`: `open` / `acked` / `muted` | |
+
+---
+
+## 6. 域 F：订单与履约（F13/F14，S4）
+
+### 6.1 `orders` — 扩展现有表
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| marketplace_id | text FK | 站点 |
+| warehouse_id | text FK | 实际扣库仓（默认仓，可改） |
+| buyer_name_masked / buyer_phone_masked / shipping_address | jsonb/text | 脱敏收件信息 |
+| ship_by_at | timestamptz | 平台发货截止 |
+| cancel_reason | text | |
+| sync_batch_id | text | 关联导入/同步批次 |
+| **保留** | | `(shop_id, external_order_id)` 唯一 — 去重 |
+
+### 6.2 `order_lines` — 扩展现有表
+
+| 变更 | 说明 |
+| --- | --- |
+| `variant_id` 改为可空但业务必填（异常时可空） | 映射失败进异常队列 |
+| 新增 `seller_sku` varchar | 冗余便于追溯 |
+| 新增 `mapping_id` text FK | → seller_sku_mappings |
+| 新增 `warehouse_id` | 行级仓（混仓场景） |
+| 新增 `qty_cancelled` / `qty_shipped` | 进度投影 |
+| 唯一建议 | `(order_id, external_line_id)` 幂等 |
+
+### 6.3 `order_exceptions` — 订单异常
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| order_id / order_line_id | text | |
+| kind | varchar(32) | `unmapped_sku` / `insufficient_stock` / `duplicate` / `address_invalid` / `status_unknown` / `sync_conflict` |
+| severity | varchar(16) | `blocker` / `warn` |
+| payload | jsonb | |
+| status | varchar(16) | `open` / `resolved` / `ignored` |
+| resolved_by / resolved_at / resolution_note | | |
+| created_at | timestamptz | |
+
+`blocker` 未解决前不占库、不进入拣货。
+
+### 6.4 `packages` — 包裹（LGS/JSB）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| package_no | varchar(64) | 内部包裹号 UNIQUE (org, package_no) |
+| order_id | text FK | 一单一包起步；支持一单多包扩展 |
+| shop_id | text FK | |
+| warehouse_id | text FK | |
+| channel | varchar(32) | `lgs` / `jsb_th` / `self_ship` |
+| status | varchar(32) | `pending_pick` / `picked` / `packed` / `handed_over` / `in_transit` / `customs` / `delivered` / `exception` / `cancelled` |
+| carrier | varchar(64) | |
+| tracking_number | varchar(128) | |
+| external_package_id | varchar(128) | 平台/承运商单号 |
+| weight_gram / length_mm / width_mm / height_m | integer | 计费重 |
+| handed_over_at / shipped_at / delivered_at | timestamptz | |
+| jsb_batch_no | varchar(64) | TH JSB 批次，Q17 |
+| raw | jsonb | |
+| **UNIQUE** | | `(organization_id, package_no)`；`(shop_id, external_package_id)` partial |
+
+### 6.5 `package_items`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| package_id | text FK | |
+| organization_id | text FK | |
+| order_line_id | text FK | |
+| variant_id | text FK | |
+| qty | integer | |
+
+### 6.6 `logistics_events` — 轨迹（追加）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| package_id | text FK | |
+| event_type | varchar(32) | `picked` / `packed` / `handover` / `departed` / `arrived_hub` / `customs_clearance` / `out_for_delivery` / `delivered` / `failed_attempt` / `returned` |
+| description | text | |
+| location | text | |
+| source | varchar(16) | `api` / `manual` / `import` |
+| occurred_at | timestamptz | |
+| raw | jsonb | |
+| idempotency_key | varchar(128) UNIQUE (org, key) | |
+
+JSB 无 API 时（Q17）走人工批量导入，`source=import`。
+
+### 6.7 `fulfillment_batches` — LGS/JSB 交接批次
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| batch_no | varchar(64) | |
+| channel | varchar(32) | `lgs` / `jsb_th` |
+| warehouse_id | text FK | |
+| status | varchar(32) | `open` / `submitted` / `accepted` / `rejected` / `closed` |
+| package_count / total_weight_gram | integer | |
+| submitted_by / submitted_at | | |
+| platform_ack | jsonb | |
+| **UNIQUE** | | `(organization_id, batch_no)` |
+
+#### `fulfillment_batch_packages`
+
+`(batch_id, package_id)` UNIQUE。
+
+---
+
+## 7. 域 G：售后（F15，P1 但取消释放库存提为 P0 子集）
+
+### 7.1 `aftersale_orders` — 售后单
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| aftersale_no | varchar(32) UNIQUE (org, no) | |
+| order_id | text FK | |
+| order_line_id | text FK 可空 | |
+| shop_id | text FK | |
+| type | varchar(32) | `cancel` / `refund_only` / `return_refund` |
+| status | varchar(32) | `requested` / `approved` / `rejected` / `return_in_transit` / `return_received` / `qc_pending` / `qc_done` / `restocked` / `written_off` / `closed` |
+| platform_aftersale_id | varchar(128) | |
+| reason | text | |
+| qty | integer | |
+| refund_amount | numeric(15,4) | |
+| currency | varchar(3) | |
+| requested_at / closed_at | timestamptz | |
+| raw | jsonb | |
+| **UNIQUE** | | `(shop_id, platform_aftersale_id)` partial |
+
+### 7.2 `aftersale_return_items` — 退回实物
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| aftersale_order_id | text FK | |
+| organization_id | text FK | |
+| variant_id | text FK | |
+| qty_returned | integer | |
+| qty_passed | integer | 质检合格 → 入库流水 |
+| qty_failed | integer | → 报损 |
+| qc_inspection_id | text FK | |
+| restock_bin_id | text FK | |
+| restocked_ledger_key | text | |
+
+**硬规则**：退货实物在 `qc_done` 且生成合格入库流水之前，**不得**增加 `available`（Q18）。
+
+`type=cancel` 的售后在批准时触发 `order_release` 预留释放流水，不等待实物。
+
+---
+
+## 8. 域 H：成本、汇率、结算与利润（F16，S6）
+
+### 8.1 `fx_rates` — 汇率版本（Q15）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| base_currency | varchar(3) | |
+| quote_currency | varchar(3) | |
+| rate | numeric(18,8) | |
+| rate_date | date | |
+| source | varchar(32) | `manual` / `api` / `import` |
+| created_by / created_at | | |
+| **UNIQUE** | | `(base_currency, quote_currency, rate_date, source)` |
+
+消费方引用 `(base, quote, rate_date)`，订单/结算保存 `fx_rate_id` 快照，历史不覆盖。
+
+### 8.2 `cost_templates` + `cost_template_versions` — 标准成本模板（Q14）
+
+#### `cost_templates`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| name | text | |
+| scope | varchar(32) | `global` / `category` / `supplier` |
+| scope_ref_id | text | 可空 |
+| status | varchar(16) | |
+
+#### `cost_template_versions`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| template_id | text FK | |
+| organization_id | text FK | |
+| version_no | integer | |
+| components | jsonb | `[{ kind: "purchase|freight|duty|platform_fee|other", formula|amount, currency }]` |
+| method | varchar(32) | `weighted_average` / `fifo` / `last_purchase` — Q14 待选 |
+| effective_from / effective_to | timestamptz | |
+| approval_instance_id | text FK | 可空 |
+| created_by / created_at | | |
+| **UNIQUE** | | `(template_id, version_no)` |
+
+#### `sku_costs` — SKU 成本快照（版本化，不覆盖）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| variant_id | text FK | |
+| version_id | text FK | → cost_template_versions |
+| landed_unit_cost | numeric(15,4) | |
+| currency | varchar(3) | |
+| fx_rate_id | text FK | 折本位币 |
+| landed_unit_cost_base | numeric(15,4) | |
+| effective_from | timestamptz | |
+| source_purchase_line_id | text | 可追溯 |
+| created_by / created_at | | |
+| INDEX | | `(organization_id, variant_id, effective_from)` |
+
+历史订单利润计算时按 `effective_from` 取当时版本，不回写。
+
+### 8.3 `order_fees` — 订单费用事实（Q16）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| order_id / order_line_id | text | 可空（头费用/行费用） |
+| shop_id | text FK | |
+| fee_type | varchar(32) | `commission` / `shipping_subsidy` / `payment_fee` / `promotion` / `penalty` / `jsb_freight` / `tax_pal` / `tax_cess` / `tax_vat` / `tax_sscl` / `other` |
+| amount | numeric(15,4) | 原币，费用为正、扣款可负 |
+| currency | varchar(3) | |
+| fx_rate_id | text FK | |
+| amount_base | numeric(15,4) | |
+| source | varchar(16) | `api` / `import` / `manual` |
+| settlement_line_id | text FK | 可空，对账关联 |
+| occurred_at / created_at | | |
+| import_batch_id | text | |
+
+### 8.4 `settlements` / `settlement_lines` — 扩展
+
+| 变更 | 说明 |
+| --- | --- |
+| settlements 增加 `status`（`imported`/`matched`/`confirmed`）、`total_amount`、`fx_rate_id`、`import_batch_id` | |
+| settlement_lines 增加 `fee_type`、`order_id`、`variant_id`、`match_status` | 与 order_fees 对账 |
+
+### 8.5 `order_profit_snapshots` — 利润投影（可重算）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| order_id | text FK UNIQUE | 一单一快照（重算覆盖版本号） |
+| order_line_id | text FK 可空 | 行级可另表 |
+| calc_version | integer | |
+| gmv_base | numeric(15,4) | |
+| cost_base | numeric(15,4) | |
+| fee_total_base | numeric(15,4) | |
+| refund_base | numeric(15,4) | |
+| gross_profit_base / net_profit_base | numeric(15,4) | |
+| fx_policy | jsonb | 使用的汇率日期策略 |
+| calculated_at | timestamptz | |
+| INDEX | | `(organization_id, calculated_at)` |
+
+公式口径待 Q14/Q29/Q30 确认后固化在 domain service；本表只存结果与输入版本引用。
+
+---
+
+## 9. 域 I：系统、权限、审计、导入（F03/F18/F19，S1/S5）
+
+### 9.1 `erp_roles` + `erp_role_permissions` + `role_scopes` — 业务 RBAC（叠加 better-auth）
+
+better-auth org/member 不动；业务权限独立：
+
+#### `erp_roles`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| code | varchar(32) | `biz_admin` / `buyer` / `operator` / `finance` / `viewer` / `it_tech` |
+| name | text | |
+| is_system | boolean | |
+| status | varchar(16) | |
+| **UNIQUE** | | `(organization_id, code)` |
+
+#### `erp_role_permissions`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| role_id | text FK | |
+| permission | varchar(64) | `product.read` / `product.write` / `purchase.submit` / `purchase.approve` / `inventory.adjust` / `order.ship` / `finance.read` / `report.export` / `settings.manage` / `it.impersonate` … |
+| **UNIQUE** | | `(role_id, permission)` |
+
+#### `erp_member_roles`（成员↔角色，M2N）
+
+`(organization_id, user_id, role_id)` UNIQUE。蔡值=仅 `viewer`；外部 IT=`it_tech`（可停用技术账号，R11）。
+
+#### `erp_role_scopes` — 数据范围（Q23）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id / role_id / user_id | text | user 级覆盖可空 |
+| scope_type | varchar(16) | `all` / `platform` / `marketplace` / `shop` / `warehouse` |
+| scope_ref_id | text | marketplace_id / shop_id / warehouse_id |
+| actions | jsonb | 或拆行；P0 可用 `["read","write","approve","export"]` |
+
+服务端每个 tRPC 查询/写入同时校验：org 成员 + role permission + scope 命中。
+
+### 9.2 `audit_events` — 业务审计（借鉴 OM audit_logs，R12）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| actor_id | text | |
+| actor_type | varchar(16) | `user` / `system` / `api_key` |
+| module | varchar(32) | |
+| action | varchar(64) | `create` / `update` / `disable` / `approve` / `login` / `export` |
+| entity_type | varchar(32) | |
+| entity_id | text | |
+| before | jsonb | |
+| after | jsonb | |
+| request_id | text | |
+| ip / user_agent | text | 可空 |
+| created_at | timestamptz | |
+| INDEX | | `(organization_id, entity_type, entity_id, created_at)`、`(organization_id, created_at)` |
+
+追加存储；修正以反向业务单据 + 新审计行，不改历史。
+
+### 9.3 `import_batches` + `import_rows` — 导入迁移（借鉴 OM sync_excel，F19）
+
+#### `import_batches`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| batch_no | varchar(32) | |
+| kind | varchar(32) | `product_master` / `sku_master` / `supplier_sku` / `opening_stock` / `historical_order` / `settlement` / `fee` |
+| status | varchar(32) | `draft` / `validating` / `partial` / `committed` / `failed` / `rolled_back` |
+| dry_run | boolean | |
+| template_version | varchar(32) | |
+| file_name / file_storage_key | text | |
+| total_rows / success_rows / error_rows | integer | |
+| rollback_of_batch_id | text | 可空 |
+| created_by / validated_at / committed_at / rolled_back_at | | |
+
+#### `import_rows`
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| import_batch_id | text FK | |
+| organization_id | text FK | |
+| row_no | integer | |
+| raw | jsonb | 原始行 |
+| normalized | jsonb | 校验后 |
+| status | varchar(16) | `pending` / `valid` / `error` / `committed` / `rolled_back` |
+| error_code / error_message | text | |
+| entity_type / entity_id | text | 提交后回填 |
+| **UNIQUE** | | `(import_batch_id, row_no)` |
+
+回滚只撤销该批次 `entity_id` 集合产生的影响，且不触碰批次提交后并发产生的新流水（用时间窗 + 幂等键标记）。
+
+### 9.4 `report_metrics` — 指标元数据（可选，F17）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| code | varchar(32) UNIQUE | `gmv` / `order_count` / `stock_value` / `turnover_days` |
+| name | text | |
+| formula | text | 人读公式 |
+| dimensions | jsonb | `["date","platform","shop","warehouse","category","sku"]` |
+| currency_policy | varchar(32) | `source_only` / `base_fx_date` |
+| source | text | 表/视图说明 |
+| drilldown | varchar(32) | 下钻实体 |
+
+P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
+
+### 9.5 保留的集成表
+
+`integration_credentials` / `integration_states` / `integration_logs` 维持现结构；`integration_logs` 增加 `organization_id` 列（现仅有 shopId）以便跨店审计查询。
+
+---
+
+## 10. 现有表冲突与迁移说明
+
+| 现有表 | 冲突 | 迁移策略 |
+| --- | --- | --- |
+| `inventory_balances` | 唯一键 `(shop_id, variant_id)` vs 共享池 | 新表结构启用后：每 org 每 variant 汇总到 `default_warehouse_id` 虚拟 bin（`bin_id=NULL`）；写路径切换前做一次 opening migration（`event_type=migration_opening`）；旧列保留只读一个版本后删除 |
+| `external_id_mappings` | `(shop, entity_type, internal_id)` 唯一限制一 SKU 多 Listing | 变体维度改由 `seller_sku_mappings` 承担；本表仅保留 order/shop 等实体，唯一键改为 `(shop, entity_type, external_id)`，去掉 internal 侧唯一 |
+| `products` / `product_variants` | 无 HSY 编码 | 增列 + 回填序列；旧 `sku` 值写入 `legacy_codes`/alias |
+| `listings` | 变体与 Seller SKU 混在主档 | 变体明细迁到 `seller_sku_mappings`；`listings` 只留平台 item 级 |
+| `orders` / `order_lines` | 缺映射/预留关联 | 增列，不改唯一键 `(shop, external_order_id)` |
+| `cost_components` | 无版本 | 由 `cost_template_versions` + `sku_costs` 取代写路径；旧表只读归档 |
+| `stock_alerts` | 挂 shop | 改挂 warehouse+variant |
+| `pendingActions` | 与 approval_instances 职责重叠 | `pending_actions` 继续服务「平台推送确认」类；采购/调整审批走 `approval_*`；长期合并到统一待办视图 |
+
+生成迁移：`pnpm --filter @workspace/db db:generate`（**不手改** `packages/db/drizzle/`）。
+
+---
+
+## 11. 关键业务不变量（DB + Service 双层）
+
+| # | 不不变量 | 实现层 |
+| --- | --- | --- |
+| 1 | SPU/SKU 编码 org 内唯一且不复用 | UNIQUE + 序列表 + 禁 DELETE |
+| 2 | `(org, shop, seller_sku)` 唯一 | UNIQUE |
+| 3 | 未映射/冲突订单行不占库 | service：进 `order_exceptions`，不建 reservation |
+| 4 | `available = on_hand - reserved - qc_hold - damaged >= 0`（允许负库存则放宽，Q09） | 条件 UPDATE + CHECK |
+| 5 | 每 order_line 同时最多一条 `held` 预留 | partial UNIQUE |
+| 6 | 库存变更必有 ledger 行且幂等键唯一 | UNIQUE + 同事务 |
+| 7 | ledger / approval_events / audit_events / qc 结果不可 UPDATE/DELETE | 无 update API + DB 权限（应用角色只 INSERT） |
+| 8 | 采购申请未批准不得生成 PO/入库 | service + 状态机 |
+| 9 | 审批禁止自审 | service：actor == submitter && forbid_self → 拒绝 |
+| 10 | 退货未质检合格不得入可用库存 | QC → ledger 顺序强制 |
+| 11 | 历史订单利润引用当时 `sku_costs`/`fx_rates` 版本 | 快照 FK，不重算覆盖已确认报表 |
+| 12 | 导入回滚只影响本批次 | batch 标记 + 幂等键前缀 |
+
+---
+
+## 12. 表清单汇总
+
+| 域 | 表 | 状态 |
+| --- | --- | --- |
+| A 平台主数据 | commerce_platforms, commerce_countries, platform_marketplaces, commerce_currencies, commerce_warehouses, commerce_bins, inventory_pools, shops*, shop_warehouses, commerce_dictionaries, commerce_dictionary_values, commerce_dictionary_aliases | 新建 11 + 扩展 1 |
+| B 商品供应商 | products*, product_variants*, commerce_sku_sequences, suppliers, supplier_skus | 新建 3 + 扩展 2 |
+| C 刊登映射 | listings*, seller_sku_mappings, mapping_exceptions | 新建 2 + 扩展 1 |
+| D 采购审批 | approval_rules, approval_instances, approval_events, purchase_requests, purchase_request_lines, purchase_orders, purchase_order_lines, purchase_receipts, purchase_receipt_lines, qc_inspections, qc_inspections_lines | 全新建 11 |
+| E 仓储库存 | inventory_balances*, inventory_ledger, inventory_reservations, stock_adjustments, stock_adjustment_lines, stock_alerts* | 新建 4 + 重构 2 |
+| F 订单履约 | orders*, order_lines*, order_exceptions, packages, package_items, logistics_events, fulfillment_batches, fulfillment_batch_packages | 新建 6 + 扩展 2 |
+| G 售后 | aftersale_orders, aftersale_return_items | 全新建 2 |
+| H 成本财务 | fx_rates, cost_templates, cost_template_versions, sku_costs, order_fees, settlements*, settlement_lines*, order_profit_snapshots | 新建 5 + 扩展 3 |
+| I 系统 | erp_roles, erp_role_permissions, erp_member_roles, erp_role_scopes, audit_events, import_batches, import_rows, report_metrics, integration_*（保留） | 新建 8 + 微调 3 |
+
+`*` = 在现有表上扩展/重构。合计约 **55 张业务表**（不含 auth 基础表）。
+
+---
+
+## 13. 与需求追溯
+
+| 需求 | 主要表 |
+| --- | --- |
+| F01 工作台 | pendingActions + approval_instances + report_metrics + 视图 |
+| F02 平台店铺 | §1 全部 |
+| F03 人员权限 | erp_roles / permissions / scopes + better-auth |
+| F04/F05 商品 SKU | products / product_variants / sku_sequences |
+| F06 字典 | dictionaries 三表 |
+| F07 刊登映射 | listings / seller_sku_mappings / mapping_exceptions |
+| F08 供应商 | suppliers / supplier_skus |
+| F09 采购 | purchase_* + approval_* + qc_* |
+| F10–F12 仓储库存 | warehouses / bins / balances / ledger / reservations / adjustments |
+| F13/F14 订单履约 | orders / lines / exceptions / packages / logistics / fulfillment_batches |
+| F15 售后 | aftersale_* + qc_inspections + ledger 释放/回库 |
+| F16 成本利润 | fx_rates / cost_* / sku_costs / order_fees / settlements / profit_snapshots |
+| F17 报表 | report_metrics + 只读视图/聚合查询 |
+| F18 日志审计 | integration_logs / audit_events |
+| F19 导入 | import_batches / import_rows |
+
+---
+
+## 14. 待确认对 schema 的影响
+
+| Q 编号 | 影响 |
+| --- | --- |
+| Q07/Q08 锁库/释放状态节点 | 决定 order status → reservation 动作映射表（建议独立 `status_mappings` 配置行，不硬编码） |
+| Q09 是否允许负库存 | `inventory_balances` CHECK 与 available 计算 |
+| Q10 库位一 SKU 强约束实现 | 是否上 partial unique index |
+| Q11 调整审批阈值 | `approval_rules.rule.amount_thresholds` |
+| Q14 成本算法 | `cost_template_versions.method` 取值与 `sku_costs` 重算作业 |
+| Q16 平台费用 API | `order_fees.source` 哪些可 `api` |
+| Q17 JSB | `packages.channel=jsb_th` 是否有 API 字段 |
+| Q23 权限粒度 | `erp_role_scopes.scope_type` 维度集合 |
+| Q24 容量 | 分区策略：`inventory_ledger` / `audit_events` / `integration_logs` 按月分区（设计预留，首期不分区） |
+
+---
+
+## 15. 实施顺序（与 S1–S7 对齐）
+
+1. **S1**：域 A + 域 I 的 roles/scopes + 字典 —— 不依赖业务单据。
+2. **S2**：域 B + 域 C —— 编码序列与映射约束先行。
+3. **S3**：域 E + 域 D —— 库存 ledger 与采购互审闭环，**并发/幂等单测必写**。
+4. **S4**：域 F —— 同步 persist hooks + 预留事务 + 包裹。
+5. **S5**：audit + import + report_metrics + 待办聚合。
+6. **S6**：域 H + 域 G 完整售后。
+7. **S7**：多平台扩展仅加 marketplace 行 + adapter，不改核心表。
+
+每步：`db:generate` → dataaccess 事务 → tRPC router → 单测 → 页面去 mock。
