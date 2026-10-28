@@ -12,7 +12,7 @@
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
 | [haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md) | **初步设计，待业务/IT确认** | 好时运 ERP 需求 Excel（9 张表）覆盖分析、当前仓库证据、目标模型与分阶段整改方案 |
 | [haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md) | **调研结论，待业务/IT确认** | 好时运 ERP 需求 × Open Shop 现状 × Open Mercato 复用评估：推荐「概念参考 + 自研 Drizzle schema」，含差距表、三类复用建议与 S1–S7 优先级 |
-| [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) | **设计稿，待业务/IT确认后 db:generate** | 好时运 ERP 完整数据库表结构（约 55 表）：平台主数据、商品供应商、Seller SKU 映射、采购互审、共享库存流水（借鉴 OM wms）、订单履约 LGS/JSB、售后、成本汇率利润、RBAC/审计/导入；含现有表迁移与 12 条业务不变量 |
+| [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) | **设计稿，待业务/IT确认后 db:generate** | 好时运 ERP 完整数据库表结构（约 62 表）：平台主数据、商品供应商、Seller SKU 映射、采购互审、共享库存流水（借鉴 OM wms）、订单履约 LGS/JSB、售后、成本汇率利润、RBAC/审计/导入、评论口碑（product_reviews / 分析 / HTML 报告快照）；含现有表迁移与业务不变量 |
 | [haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md) | **UED 初版，待评审** | 平台/国家站点/仓库/币种主数据及可复用基础字典交互与数据库落地边界 |
 | [haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) | **D1 UED 原型，部分交互待深化** | 好时运 ERP 页面 IA 与交互状态：店铺多仓、商品、供应商、采购、库存、订单履约、售后、报表、导入、日志和权限 |
 | [haoshiyun-erp-target-function-matrix.md](haoshiyun-erp-target-function-matrix.md) | **目标功能基线，D1 原型** | 按 P0/P1 域追踪 D0 规格、D1 原型、D2 业务接入、D3 验收上线及后端依赖/验收证据 |

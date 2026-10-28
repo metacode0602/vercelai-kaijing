@@ -2,9 +2,9 @@
 
 > 状态：**设计稿，待业务/IT确认后由 `drizzle-kit generate` 落库**
 > 日期：2026-10-28
-> 输入：`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（F01–F19、202 字段、R01–R12、PUR-001~003）
+> 输入：`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（F01–F19、202 字段、R01–R12、PUR-001~003）；[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)（评论抓取/DomainReview/HTML 报告）；样例报告 `docs/design/comments/Daraz评价分析报告-3D打印机器人.html`
 > 借鉴：[Open Mercato](https://github.com/open-mercato/open-mercato) Core（MIT）—— `wms.movements` 事件账本、`workflows`/`business_rules` 审批、`audit_logs`、`sync_excel` 批次导入、`dictionaries`+别名；**不引入** MikroORM / REST factory / Enterprise 代码
-> 关联：[haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md)、[haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md)、[crossborder-database-design.md](crossborder-database-design.md)
+> 关联：[haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md)、[haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md)、[crossborder-database-design.md](crossborder-database-design.md)、[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)
 
 ## 0. 设计原则
 
@@ -16,7 +16,7 @@
 6. **金额规范**：`numeric(15,4)` 原币 + `currency` + 汇率快照引用；禁止跨币种直接 SUM。
 7. **枚举用 varchar + TS union**（AGENTS 约定），不用 PG enum。
 8. **幂等键**：所有平台同步写入与库存事件带 `idempotency_key`，重放不重复生效（Q06）。
-9. **演进不另建平行库**：在 `packages/db/src/commerce-schema.ts` 按域分节扩展；与现有 21 表冲突处给出迁移说明（§9）。
+9. **演进不另建平行库**：在 `packages/db/src/commerce-schema.ts` 按域分节扩展；与现有 21 表冲突处给出迁移说明（§11）。
 10. **非通用电商 ERP**：无自营店面/购物车/CRM 会员/促销引擎；平台侧只有连接器、映射、结算拉取。
 
 ### 0.1 借鉴 OM 的具体形状
@@ -65,6 +65,13 @@ erDiagram
   orders ||--o{ order_profit_snapshots : profits
   settlements ||--o{ settlement_lines : detail
   import_batches ||--o{ import_rows : rows
+  listings ||--o{ product_reviews : reviewed_on
+  shops ||--o{ product_reviews : receives
+  product_reviews ||--o{ product_review_media : has_media
+  product_reviews ||--o{ product_review_replies : replied
+  product_reviews ||--o{ product_review_analyses : analyzed
+  review_reports ||--o{ review_report_items : includes
+  product_reviews ||--o{ review_report_items : cited_in
 ```
 
 ---
@@ -999,7 +1006,7 @@ better-auth org/member 不动；业务权限独立：
 | id | text PK | |
 | organization_id | text FK | |
 | batch_no | varchar(32) | |
-| kind | varchar(32) | `product_master` / `sku_master` / `supplier_sku` / `opening_stock` / `historical_order` / `settlement` / `fee` |
+| kind | varchar(32) | `product_master` / `sku_master` / `supplier_sku` / `opening_stock` / `historical_order` / `settlement` / `fee` / `review_backfill` |
 | status | varchar(32) | `draft` / `validating` / `partial` / `committed` / `failed` / `rolled_back` |
 | dry_run | boolean | |
 | template_version | varchar(32) | |
@@ -1044,9 +1051,212 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 
 `integration_credentials` / `integration_states` / `integration_logs` 维持现结构；`integration_logs` 增加 `organization_id` 列（现仅有 shopId）以便跨店审计查询。
 
+`integration_states` **增加评论同步游标列**（与现有 4 组 `*_cursor + last_*_sync_at` 同模式）：
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| reviews_cursor | text | 可选；Daraz 公开评价接口按页拉取时可用 |
+| last_reviews_sync_at | timestamptz | |
+| reviews_synced_after | timestamptz | 增量窗口下界 |
+
+不建 item 级游标表：单商品评论为小集合，按页全量 + `(shop_id, external_review_id)` upsert 幂等即可。抓取运行明细可选走 `review_fetch_runs`（§10.6）或复用 `integration_logs(action='reviews.fetch')`。
+
+### 9.6 `import_batches.kind` 枚举扩展
+
+在 §9.3 枚举基础上追加：`review_backfill`（评论历史回灌）。`import_rows` 不存评论正文，只存校验/错误指针。
+
 ---
 
-## 10. 现有表冲突与迁移说明
+## 10. 域 J：评论与口碑（Review & Reputation，S5/S7）
+
+> 来源：[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)（API 优先 Lazop Review / AI 兜底 → DomainReview → HTML 报告）+ 样例报告 `Daraz评价分析报告-3D打印机器人.html`（26 条实抓 / 平台 32 条、KPI 六格、星级分布三列、高分差评、关键发现、正负中性分组）。
+> 下游：控制台商品详情「评论」区块（`product-reviews-section`）、AI 选品痛点证据 `evidence[].reviewId`（[AI选品实现方案](ai-candidates/AI选品实现方案.md)）。
+> 定位：**跨境电商多店铺口碑与选品证据**，非通用 UGC/评价社区；不建买家账号体系、不建站内评价回复社区流。
+
+### 10.1 `product_reviews` — 评论原文主档
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | cuid2 |
+| organization_id | text FK NOT NULL | 租户硬隔离 |
+| shop_id | text FK NOT NULL → shops | 幂等键成分；凭据/权限边界 |
+| marketplace_id | text FK 可空 | 站点（Daraz LK 等），启用 §1.8 后回填 |
+| listing_id | text FK 可空 → listings | 由 `(shop_id, external_item_id)` 解析回填 |
+| external_item_id | text NOT NULL | 平台 Item ID（样例 `593629355`） |
+| variant_id | text FK 可空 → product_variants | SKU 解析成功后回填；未映射为 NULL 不阻塞入库 |
+| seller_sku | varchar(128) 可空 | 平台原样 SKU 字符串 |
+| sku_attrs | jsonb 可空 | `{color:"Blue", size:"25cm"}` ← 报告 `SKU：Color:… Size:…` |
+| external_review_id | text NOT NULL | 平台 reviewId；缺失时 `hash:` + 稳定哈希 |
+| rating | smallint NOT NULL | 1–5，CHECK |
+| title | text 可空 | DomainReview 已有字段 |
+| content | text 可空 | 原文（僧伽罗语/僧式英语/乱码/空） |
+| content_zh | text 可空 | 当前生效中文（人工校对或 AI 翻译） |
+| content_lang | varchar(8) 可空 | `en` / `si` / `ta` / `und` |
+| review_at | timestamptz 可空 | 相对时间（`5 days ago`）归一化后 |
+| purchased_at | timestamptz 可空 | 报告「下单 …」 |
+| buyer_display_name | text 可空 | 已脱敏展示值 |
+| buyer_external_id | text 可空 | 同一买家多次评价识别 |
+| is_anonymous | varchar(8) DEFAULT `'false'` | 平台可能返回 |
+| external_order_id | text 可空 | API `order_info`；可关联 orders |
+| useful_count | integer DEFAULT 0 | 报告 👍 |
+| source | varchar(16) NOT NULL | `api` / `ai_scrape` / `manual` / `mixed` |
+| fetch_run_id | text FK 可空 → review_fetch_runs | 抓取批次溯源 |
+| status | varchar(16) DEFAULT `'active'` | `active` / `hidden` / `removed` |
+| raw | jsonb | 原始 payload |
+| fetched_at | timestamptz DEFAULT now | |
+| created_at / updated_at | timestamptz NOT NULL | |
+| **UNIQUE** | | `(shop_id, external_review_id)` → `product_reviews_shop_ext_uidx` |
+| INDEX | | `(shop_id, external_item_id, review_at DESC)`、`(organization_id, rating)`、`(variant_id)`、`(organization_id, source)` |
+
+去重与设计稿 §3.1「platform+itemId+reviewId/hash」一致，但落在 **shop 级**唯一键（同平台多卖家/多店不冲突，与 `orders(shop_id, external_order_id)` 先例对齐）。
+
+### 10.2 `product_review_media` — 评论媒体（图/视频）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id / review_id | text FK NOT NULL | |
+| media_type | varchar(8) NOT NULL | `image` / `video`（报告现只有图，视频预留） |
+| url | text NOT NULL | 报告用原始 URL 懒加载 |
+| storage_key | text 可空 | 需转存/防盗链时用 `@workspace/storage` |
+| width / height / size_bytes / sort_order | integer | |
+| raw | jsonb；created_at | |
+| **UNIQUE** | | `(review_id, url)` |
+| INDEX | | `(organization_id, media_type)` |
+
+带图 KPI：`COUNT(DISTINCT review_id) WHERE media_type='image'` → 报告「带图评价 16 条（28 张）」。
+
+### 10.3 `product_review_replies` — 卖家回复
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id / review_id | text FK | |
+| external_reply_id | text 可空 | 平台侧回复 ID |
+| content / content_zh | text | |
+| replied_at | timestamptz | |
+| replied_by | varchar(32) | `platform_seller` / `agent` / `operator_user` |
+| user_id | text 可空 | 本组织操作人 |
+| source | varchar(16) | `api` / `manual` / `ai_draft` |
+| status | varchar(16) | `draft` / `posted` / `failed` |
+| raw / created_at / updated_at | | |
+| **UNIQUE** | | `(review_id, external_reply_id)`；`external_reply_id IS NULL` 时 partial UNIQUE `(review_id)` |
+| INDEX | | `(organization_id, replied_at)` |
+
+回复走审核时扩 `pending_actions.kind='review_reply'`（幂等键复用），不把评论本体进待审队列。
+
+### 10.4 `product_review_analyses` — 分析结果（追加式）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id / review_id | text FK | |
+| kind | varchar(32) | `sentiment` / `translation` / `issue_tag` / `summary` |
+| sentiment | varchar(16) | `pos` / `neu` / `neg` / `void` ← 报告四色 tag |
+| is_high_rating_negative | varchar(8) DEFAULT `'false'` | 高分差评：`rating>=4 && sentiment=neg` → 报告 `tag.warn` |
+| issue_category | varchar(64) | 痛点归因：`material_quality` / `size_mislabel` / `missing_parts` / `color_deviation` / … |
+| issue_tags | jsonb `string[]` | 如 `["塑料质感","关节松紧"]` |
+| keywords | jsonb | 该评论命中词条 `[{term,lang,hit}]` |
+| note | text | 报告 `.note-l` 的一句话备注 |
+| confidence | numeric(5,4) | 规则/LLM 置信度 |
+| evidence_basis | varchar(16) | **`verified` / `estimated` / `assumption` / `unverified` / `stale`** — 对齐 AI 选品 evidence_status；补齐 HTML 报告缺失的「已核实 vs 推断」 |
+| analyzer_source | varchar(16) | `rule` / `llm` |
+| analyzer_version | varchar(32) | 如 `rule_v1` / `llm_2026-10` |
+| content_hash | text | 分析输入指纹 |
+| supersedes_id | text FK 可空 | 追加式替代指针 |
+| created_at | timestamptz | |
+| **UNIQUE** | | `(review_id, kind, analyzer_version, content_hash)` |
+| INDEX | | `(organization_id, issue_category, created_at)`、`(review_id, created_at)` |
+
+痛点频次 = 按 `issue_category` 分组计数，供报告「至少 N 条明确抱怨」类文案生成。本表不可 UPDATE/DELETE（不变量 #7 扩展）。
+
+### 10.5 `review_reports` — 报告 / 快照
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK | |
+| report_no | varchar(32) | 风格同 `import_batches.batch_no` |
+| kind | varchar(32) | `product` / `shop` / `candidate` / `category` |
+| scope | jsonb NOT NULL | `{listingIds[], externalItemIds[], variantIds[], shopIds[], candidateId?}` |
+| period_start / period_end | timestamptz | 报告期（样例跨度 2025-12-15 ~ 2026-09-07） |
+| listing_id / external_item_id | 可空 | 单品报告（当前样例形态） |
+| status | varchar(32) | `generating` / `ready` / `failed` / `archived` |
+| html_path | text | `docs/comments/<报告名>.html`（设计稿 §3.1/§8.3 目录约定） |
+| html_storage_key / json_key / csv_key | text 可空 | 对象存储与导出 |
+| kpi | jsonb | `{totalFetched, deduped, avgRating, platformTotal, platformAvg, pos, neu, neg, void, withImage, imageCount, highRatingNeg, trueNegativeRatePct, gapExplain}` |
+| rating_dist | jsonb | `[{star, platformCount, platformPct, actualCount}]` ← 报告三列口径 |
+| insights | jsonb | `{sellingPoints[], painPoints[], opportunities[], categoryJudgment}` ← 关键发现 |
+| source_mix | varchar(16) | `api` / `ai_scrape` / `mixed` |
+| review_sample_count | integer | |
+| analyzer_version / template_version | varchar(32) | 复现性 |
+| formula_notes | jsonb | **固化 KPI 口径**（如 avgRating 是否含 void、trueNegativeRate 公式）— 补 HTML「43% 未写公式」缺口 |
+| generated_at / fetched_at / created_by | | |
+| **UNIQUE** | | `(organization_id, report_no)` |
+| INDEX | | `(organization_id, generated_at DESC)`、`(organization_id, kind)` |
+
+### 10.6 `review_report_items` — 报告引用明细（可选但推荐）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id / report_id / review_id | text FK | |
+| section | varchar(32) | `kpi_sample` / `negative` / `neutral` / `all` / `insight_evidence` |
+| sort_order | integer | |
+| **UNIQUE** | | `(report_id, review_id, section)` |
+
+支撑「报告结论可点回原始评论」；AI 选品 `evidence[].reviewId` 存 `product_reviews.id`。
+
+### 10.7 `review_fetch_runs` — 抓取运行（可选）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id / shop_id | text FK | |
+| external_item_id | text | |
+| source | varchar(16) | `api` / `ai_scrape` |
+| endpoint | varchar(128) | 如 `my.daraz.lk/pdp/review/getReviewList` |
+| pages | integer | |
+| fetched_count / new_count / dup_count | integer | 报告「实抓 26 / 平台 32 / 差额」留痕 |
+| platform_total / platform_avg | integer / numeric(5,2) | 平台声明口径快照 |
+| error | text | |
+| started_at / finished_at | timestamptz | |
+
+### 10.8 评论域关联与不变量
+
+```text
+product_reviews
+ ├─ organization_id → organization
+ ├─ shop_id → shops（唯一键、凭据、权限）
+ ├─ (shop_id, external_item_id) → listings.external_item_id
+ │    └─ listings.product_id / variant_id → products / product_variants
+ ├─ variant_id ← seller_sku_mappings.seller_sku 解析（§3.2）
+ ├─ external_order_id → orders（可选；差评→售后联动）
+ ├─ fetch_run_id → review_fetch_runs / integration_logs
+ └─ 下游：product_candidates、AI 选品 evidence[].reviewId
+```
+
+| # | 不变量 | 实现层 |
+| --- | --- | --- |
+| J1 | `(shop_id, external_review_id)` 唯一，重抓 upsert 不重复 | UNIQUE |
+| J2 | 分析结果追加式，重跑用新 `analyzer_version`/`content_hash` + `supersedes_id` | UNIQUE + 无 UPDATE API |
+| J3 | 未映射 SKU 的评论可入库（`variant_id=NULL`），不阻塞抓取 | 可空 FK |
+| J4 | 报告 KPI 必须带 `formula_notes` 口径，禁止无公式推断值冒充实测 | service 校验 |
+| J5 | `evidence_basis` 必填于分析行；`assumption` 不得标 `verified` | service + CHECK |
+| J6 | 抓取遵守合规：只公开评价、记录 source/endpoint，不绕登录 | run 表 + 日志 |
+
+### 10.9 待确认（评论域）
+
+1. `content_zh`：主档当前生效列 + `kind='translation'` 留痕（推荐），还是只放分析表。
+2. `trueNegativeRatePct` 公式先定义再入库（杨洁/运营确认）。
+3. 卖家回复是否 AI 草稿 + 审核（决定独立表 vs 主档列，及 `pending_actions.kind`）。
+4. 媒体是否强制转存对象存储（`storage_key` 是否必填）。
+5. 评论同步默认频率与是否并入 `runMarketplaceSync` worker。
+
+
+---
+
+## 11. 现有表冲突与迁移说明
 
 | 现有表 | 冲突 | 迁移策略 |
 | --- | --- | --- |
@@ -1063,7 +1273,7 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 
 ---
 
-## 11. 关键业务不变量（DB + Service 双层）
+## 12. 关键业务不变量（DB + Service 双层）
 
 | # | 不不变量 | 实现层 |
 | --- | --- | --- |
@@ -1079,10 +1289,11 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 | 10 | 退货未质检合格不得入可用库存 | QC → ledger 顺序强制 |
 | 11 | 历史订单利润引用当时 `sku_costs`/`fx_rates` 版本 | 快照 FK，不重算覆盖已确认报表 |
 | 12 | 导入回滚只影响本批次 | batch 标记 + 幂等键前缀 |
+| J1–J6 | 评论域：shop 级唯一、分析追加式、未映射可入库、KPI 带公式、证据分级、合规抓取 | 见 §10.8 |
 
 ---
 
-## 12. 表清单汇总
+## 13. 表清单汇总
 
 | 域 | 表 | 状态 |
 | --- | --- | --- |
@@ -1094,13 +1305,14 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 | F 订单履约 | orders*, order_lines*, order_exceptions, packages, package_items, logistics_events, fulfillment_batches, fulfillment_batch_packages | 新建 6 + 扩展 2 |
 | G 售后 | aftersale_orders, aftersale_return_items | 全新建 2 |
 | H 成本财务 | fx_rates, cost_templates, cost_template_versions, sku_costs, order_fees, settlements*, settlement_lines*, order_profit_snapshots | 新建 5 + 扩展 3 |
-| I 系统 | erp_roles, erp_role_permissions, erp_member_roles, erp_role_scopes, audit_events, import_batches, import_rows, report_metrics, integration_*（保留） | 新建 8 + 微调 3 |
+| I 系统 | erp_roles, erp_role_permissions, erp_member_roles, erp_role_scopes, audit_events, import_batches, import_rows, report_metrics, integration_*（保留+reviews 游标） | 新建 8 + 微调 3 |
+| J 评论口碑 | product_reviews, product_review_media, product_review_replies, product_review_analyses, review_reports, review_report_items, review_fetch_runs | 全新建 7 |
 
-`*` = 在现有表上扩展/重构。合计约 **55 张业务表**（不含 auth 基础表）。
+`*` = 在现有表上扩展/重构。合计约 **62 张业务表**（不含 auth 基础表）。
 
 ---
 
-## 13. 与需求追溯
+## 14. 与需求追溯
 
 | 需求 | 主要表 |
 | --- | --- |
@@ -1119,10 +1331,12 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 | F17 报表 | report_metrics + 只读视图/聚合查询 |
 | F18 日志审计 | integration_logs / audit_events |
 | F19 导入 | import_batches / import_rows |
+| 评论抓取与报告 | §10 域 J 全部 + integration_states.reviews_* + import kind=review_backfill |
+| AI 选品（P2） | product_reviews + product_review_analyses + review_reports + product_candidates.evidence |
 
 ---
 
-## 14. 待确认对 schema 的影响
+## 15. 待确认对 schema 的影响
 
 | Q 编号 | 影响 |
 | --- | --- |
@@ -1134,18 +1348,19 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 | Q16 平台费用 API | `order_fees.source` 哪些可 `api` |
 | Q17 JSB | `packages.channel=jsb_th` 是否有 API 字段 |
 | Q23 权限粒度 | `erp_role_scopes.scope_type` 维度集合 |
-| Q24 容量 | 分区策略：`inventory_ledger` / `audit_events` / `integration_logs` 按月分区（设计预留，首期不分区） |
+| Q24 容量 | 分区策略：`inventory_ledger` / `audit_events` / `integration_logs` / `product_reviews` 按月分区（设计预留，首期不分区） |
+| 评论域 §10.9 | content_zh 归属、负面率公式、回复审核流、媒体转存、同步频率 |
 
 ---
 
-## 15. 实施顺序（与 S1–S7 对齐）
+## 16. 实施顺序（与 S1–S7 对齐）
 
 1. **S1**：域 A + 域 I 的 roles/scopes + 字典 —— 不依赖业务单据。
 2. **S2**：域 B + 域 C —— 编码序列与映射约束先行。
 3. **S3**：域 E + 域 D —— 库存 ledger 与采购互审闭环，**并发/幂等单测必写**。
 4. **S4**：域 F —— 同步 persist hooks + 预留事务 + 包裹。
-5. **S5**：audit + import + report_metrics + 待办聚合。
+5. **S5**：audit + import + report_metrics + 待办聚合；**域 J 最小闭环**（product_reviews + analyses + fetch 游标；报告可先 CLI 生成 HTML）。
 6. **S6**：域 H + 域 G 完整售后。
-7. **S7**：多平台扩展仅加 marketplace 行 + adapter，不改核心表。
+7. **S7**：多平台扩展仅加 marketplace 行 + adapter，不改核心表；评论补 media/replies/report_items/report 快照与 AI 选品串联。
 
 每步：`db:generate` → dataaccess 事务 → tRPC router → 单测 → 页面去 mock。
