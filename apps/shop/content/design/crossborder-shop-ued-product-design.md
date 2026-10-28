@@ -774,3 +774,12 @@ Skill / strategy 版本 · 发起人 · 输入数据同步时间
 ---
 
 **文档结束（v2.1）。跨境业务与 execution/OKF 索引模型见 `docs/design/crossborder-database-design.md`；成本计算器见 `cost-calculator-sl-landed-ued.md`。壳层按 §4 / §7.1 / §8：嵌套 `layout.tsx` + CopilotKit；禁止独立 AppShell。OKF adapter、MCP 和权限闭环需按实现阶段落地；本文 UED 不代表 mock 已接入生产数据。**
+
+## 附录：评论查看（租户端 UED）
+
+> 详细线框图与交互见：[comment-review-ued.md](comment-review-ued.md)  
+> 抓取方案见：[docs/design/comment-scraping-and-report-design.md](../../../../docs/design/comment-scraping-and-report-design.md)
+
+- 路由：`/console/reviews`（列表）/`/console/reviews/[itemId]`（详情）
+- 原则：后台抓取，前台只读；展示评论数据、分析摘要、HTML 报告入口
+- 组件：沿用 `@workspace/ui`、`ConsoleFilterBar`、`Table`、`Card`、`Badge`

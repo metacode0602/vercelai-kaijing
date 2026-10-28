@@ -16,6 +16,50 @@
 
 export type MockPlatform = "daraz" | "lazada" | "shopee" | "tiktok_shop"
 
+export type ReviewItem = {
+  reviewId: string
+  platform: 'daraz' | 'lazada' | 'tiktok_shop'
+  itemId: string
+  sku?: string
+  rating: number
+  title?: string
+  content?: string
+  contentZh?: string
+  buyerName?: string
+  createdAt?: string
+  purchasedAt?: string
+  images?: Array<{ url: string }>
+  tags?: string[]
+  sentiment?: 'pos' | 'neu' | 'neg' | 'void'
+  source: 'api' | 'ai_scrape' | 'mixed'
+}
+
+export type ProductReviewsData = {
+  product: {
+    itemId: string
+    sku: string
+    title: string
+    imageUrl?: string
+    platformUrl?: string
+  }
+  kpis: {
+    total: number
+    avg: number
+    pos: number
+    neu: number
+    neg: number
+    withImage: number
+  }
+  ratingDist: Array<{ star: 1 | 2 | 3 | 4 | 5; count: number; pct: number; actualCount: number }>
+  reviews: ReviewItem[]
+  meta: {
+    fetchedAt: string | null
+    source: 'api' | 'ai_scrape' | 'mixed' | null
+    totalFetched: number
+    deduped: number
+  }
+}
+
 export const MOCK_SHOPS = [
   {
     id: "b5ofcwj2mzauov29y08m0q99",
@@ -1264,7 +1308,97 @@ export function getShopById(id: string) {
 }
 
 export function getProductBySku(sku: string) {
-  return MOCK_PRODUCTS.find((p) => p.sku === sku)
+  return MOCK_PRODUCTS.find((p) => p.sku === sku) ?? null
+}
+
+export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
+  'TEE-001': {
+    product: {
+      itemId: '593629355',
+      sku: 'TEE-001',
+      title: 'DIY Luminous T13 Multi-Jointed Movable Shapeshift Robot 3D Printed Mannequin',
+      imageUrl: 'https://lk-live-21.slatic.net/kf/Sa899876a2a1a445b8eaf1abd6623ac8dO.png',
+      platformUrl: 'https://www.daraz.lk/products/diy-luminous-t13-multi-jointed-movable-shapeshift-robot-3d-printed-mannequin-lucky-robot-and-dog-action-figures-toys-kids-gifts-i593629355-s2725029270.html',
+    },
+    kpis: { total: 26, avg: 4.69, pos: 12, neu: 4, neg: 6, withImage: 16 },
+    ratingDist: [
+      { star: 5, count: 28, pct: 87.5, actualCount: 22 },
+      { star: 4, count: 1, pct: 3.1, actualCount: 1 },
+      { star: 3, count: 2, pct: 6.2, actualCount: 2 },
+      { star: 2, count: 1, pct: 3.1, actualCount: 1 },
+      { star: 1, count: 0, pct: 0, actualCount: 0 },
+    ],
+    reviews: [
+      {
+        reviewId: 'r1',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:Blue, Size:25cm',
+        rating: 5,
+        content: 'Do not buy this. The quality of the product is very poor. Not worth for the price.',
+        contentZh: '（5星但内容差评）别买。产品质量非常差，这个价格完全不值。',
+        buyerName: '******008',
+        createdAt: '25 May 2026',
+        images: [],
+        tags: ['高分差评'],
+        sentiment: 'neg',
+        source: 'api',
+      },
+      {
+        reviewId: 'r2',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:green, Size:25cm',
+        rating: 5,
+        content: 'Poor quality. Parts do not fit together. Waste of money.',
+        contentZh: '（5星但内容差评）谁都别买这个，根本装不起来，零件之间对不上，纯属浪费钱。',
+        buyerName: '0***5',
+        createdAt: '14 Mar 2026',
+        images: [{ url: 'https://lzd-u.slatic.net/673d9b56d688469bb78bbc76bd917cd8_740dabaf59894162bf99801b9dfc2ce7.jpg' }],
+        tags: ['高分差评'],
+        sentiment: 'neg',
+        source: 'api',
+      },
+      {
+        reviewId: 'r3',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:Yellow, Size:25cm',
+        rating: 5,
+        content: 'I ordered yellow but got orange. Good product but plastic quality is low.',
+        contentZh: '我下单的是黄色，发来的是橙色。东西本身确实不错，但塑料质感偏低。',
+        buyerName: '0***4',
+        createdAt: '27 Apr 2026',
+        images: [
+          { url: 'https://lzd-u.slatic.net/41479ebde8a04c559cd913045925a140_a9f34d9537264c6e8cd95688094824c0.jpg' },
+          { url: 'https://lzd-u.slatic.net/41479ebde8a04c559cd913045925a140_8b15a3e9c1f74fe2b23c92f1df8af639.jpg' },
+        ],
+        tags: [],
+        sentiment: 'neu',
+        source: 'api',
+      },
+      {
+        reviewId: 'r4',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:DEEP BLUE, Size:25cm',
+        rating: 5,
+        content: 'Good product. Material is smooth but size is smaller than described.',
+        contentZh: '东西不错，材质有点像橡胶，摸起来很顺滑。但是尺寸不对，标 25cm 实际大概只有 15cm。',
+        buyerName: 'Hijas',
+        createdAt: '07 Apr 2026',
+        images: [{ url: 'https://lzd-u.slatic.net/d586aba1f47044cf9e704bc7922d49b3_5045d8d965d843eab95ddbf4766fb3c1.jpg' }],
+        tags: [],
+        sentiment: 'neu',
+        source: 'api',
+      },
+    ],
+    meta: { fetchedAt: '2026-10-28T06:32:00Z', source: 'api', totalFetched: 26, deduped: 26 },
+  },
+}
+
+export function getProductReviewsBySku(sku: string): ProductReviewsData | null {
+  return MOCK_PRODUCT_REVIEWS[sku] ?? null
 }
 
 export function getOrderById(id: string) {

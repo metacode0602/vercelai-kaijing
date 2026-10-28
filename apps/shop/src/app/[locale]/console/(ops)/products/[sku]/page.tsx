@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { labelField, labelStatus } from '@/lib/console/labels'
+import { ProductReviewsSection } from '@/components/console/product-reviews-section'
 
 interface ProductDetailPageProps {
   params: Promise<{ sku: string }>
@@ -130,6 +131,8 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
           ))}
         </div>
       </DetailSection>
+
+      <ProductReviewsSection sku={sku} />
     </div>
   )
 }
