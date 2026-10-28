@@ -6,10 +6,10 @@
 
 ## 1. 设计目标
 
-- **后台抓取，前台只读**：抓取（API 优先 + AI 兜底）、去重、情感分析、翻译均在后台/工具链完成。前端仅消费已入库或静态产物（JSON/HTML）数据。
+- **后台抓取，前台可刷新**：抓取（API 优先 + AI 兜底）、去重、情感分析、翻译均可由后台进程或按需触发。用户在商品/SKU 详情页可**手动刷新**指定产品/SKU 的评论数据；刷新触发后台任务，优先走平台 API，API 不可用时自动降级到 AI 抓取。
 - **与现有壳层一致**：遵循 `(console)/layout.tsx` 嵌套布局、`@workspace/ui` + shadcn、FilterBar + DataTable、抽屉/Sheet 用法（§4/§5 of crossborder-shop-ued-product-design）。
-- **最小改动**：新增路由和页面，不破坏现有选品/商品/订单流程。
-- **可溯源**：标注数据来源（API/AI 混合）、抓取时间、实抓数 vs 平台数。
+- **最小改动**：在产品/SKU 详情页新增「评论」区块，同时保留独立 `/console/reviews` 页面（可选入口）。
+- **可溯源**：标注数据来源（API/AI 混合）、抓取时间、实抓数 vs 平台数、刷新状态（刷新中/成功/失败）。
 - **导出友好**：提供「查看 HTML 报告」入口（链接到 `docs/comments/*.html` 或后续托管路径）。
 
 ## 2. IA 与路由
@@ -33,16 +33,37 @@
 
 ### 2.2 路由设计
 ```text
-/[locale]/console/reviews                # 评论列表页（按商品聚合或直接列表）
-/[locale]/console/reviews/[itemId]      # 单品评论详情页（评分分布 + 全部评价 + 分析摘要）
+/[locale]/console/products/[sku]        # 产品/SKU 详情页（新增「评论」区块，支持手动刷新）
+/[locale]/console/reviews                # 评论列表页（按商品聚合或直接列表，可选）
+/[locale]/console/reviews/[itemId]      # 单品评论详情页（评分分布 + 全部评价 + 分析摘要，可选）
 /[locale]/console/reviews/reports       # HTML 报告列表（可选）或直接外链
 ```
 
-首版推荐 **列表页（按商品聚合） + 详情页（单品）**，最符合「用户需要看到评论数据」诉求。
+首版以 **产品/SKU 详情页「评论」区块** 为主入口，在详情页即可查看评论列表并手动刷新指定产品/SKU 的评论数据。`/console/reviews` 页面可作为后续扩展。
 
 ## 3. 页面规格
 
-### 3.1 评论列表页（`/console/reviews`）
+### 3.1 产品/SKU 详情页「评论」区块（主入口）
+
+**目标**：在 `apps/shop/src/app/[locale]/console/(ops)/products/[sku]/page.tsx` 新增「评论」区块。用户可直接查看该 SKU 关联商品的评论列表，并手动刷新指定产品/SKU 的评论数据。
+
+**区块设计**：
+| 区块 | 说明 |
+|---|---|
+| 区块标题 | 「评论」+ 副标题「商品评价数据（后台抓取）」 |
+| 操作区 | 「手动刷新」按钮（主按钮）。点击后显示加载态（刷新中），完成后更新列表和元数据。需显示上次刷新时间和来源（API/AI/混合）。 |
+| KPI 小卡片（可选） | 实抓数、平均分、正/中/负、带图数 |
+| 筛选 | 简化筛选：全部/正向/中性/负向、高分差评、仅带图、星级 |
+| 评论列表 | 卡片列表（星级、买家脱敏、SKU、原文、中文、图片、标签「高分差评」等） |
+| 空态 | 「暂无评论数据」+ 「手动刷新」CTA |
+| 报告入口 | 「查看 HTML 报告」（如有）新窗口打开 |
+
+**交互**：
+- **手动刷新**：调用 `reviews.refresh`（tRPC）或 API，传入 `platform`、`itemId`（从产品详情获取）、`sku`。后端按「API 优先，其次 AI 自动抓取」执行：先尝试 `MarketplaceConnector.listReviews`，失败或无数据则走 AI 抓取流程，去重后入库/缓存并返回最新数据。
+- **刷新状态**：按钮显示 `刷新中...` 并禁用，toast 提示「正在刷新评论数据（优先 API，必要时自动抓取）」，成功后刷新列表。
+- **数据关联**：优先使用 `product.listings[].externalId` 或 `product.externalItemId` 作为 `itemId`；如无则提示「该商品暂无平台 Item ID，无法刷新」。
+
+### 3.2 评论列表页（`/console/reviews`，可选扩展）
 
 **目标**：快速筛选有评论的商品，查看概览（评分、数量、正负向占比）。
 
@@ -67,7 +88,7 @@
 | 最后抓取 | 时间 | `YYYY-MM-DD HH:mm`，标注 `API`/`AI`/`混合` |
 | 操作 | 按钮组 | 「查看详情」主按钮、「HTML 报告」（新窗口） |
 
-### 3.2 单品评论详情页（`/console/reviews/[itemId]`）
+### 3.3 单品评论详情页（`/console/reviews/[itemId]`，可选扩展）
 
 **目标**：完整展示评论数据和分析摘要，涵盖 HTML 报告的核心内容但适配控制台布局。
 
@@ -103,7 +124,36 @@
 
 ## 4. 线框图（交互示意）
 
-### 4.1 列表页线框
+### 4.1 产品详情页「评论」区块线框（主入口）
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 面包屑：控制台 / 商品 / [商品标题]                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 商品详情页（已有区块：页头、KPI、商品与变体、刊登列表、AI 信号）              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 评论                                                                       │
+│ 副标题：商品评价数据（后台抓取）                          [手动刷新]       │
+│ 上次刷新：2026-10-28 14:32 · 来源：API 优先（混合）                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ KPI：[实抓 26] [平均 4.69] [正向 12] [中性 4] [负向 6] [带图 16]         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 筛选：[全部▼][星级▼][情感：全部▼][仅带图][高分差评]    [查看 HTML 报告]  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 评论列表                                                                      │
+│ ┌─────────────────────────────────────────────────────────────────────────┐ │
+│ │ ★★★★★ [负向] [高分差评]  25 May 2026  买家 ******008  SKU: Blue/25cm │ │
+│ │ 原文：Do not buy this...                                                  │ │
+│ │ 中文：（5星但内容差评）别买...                                             │ │
+│ │ 💡 明确劝退，质量差不值价                                                  │ │
+│ │ [图1] [图2]                                                              │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│ ...（更多卡片）                                                               │
+│ 空态（无数据）：暂无评论数据  [手动刷新（优先 API，其次 AI）]                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 列表页线框（可选扩展）
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -124,7 +174,7 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 详情页线框
+### 4.3 详情页线框（可选扩展）
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -163,21 +213,22 @@
 
 | 需求 | 使用组件 |
 |---|---|
-| 布局 | `Card`, `CardHeader`, `CardContent`（@workspace/ui） |
-| 筛选 | `ConsoleFilterBar`（现有） |
-| 表格 | `Table` 系列（现有） |
+| 布局 | `DetailSection`, `Card`, `CardHeader`, `CardContent`（@workspace/ui/console + @workspace/ui） |
+| 筛选 | 简化筛选（Select/Toggle）或复用 `ConsoleFilterBar` |
+| 表格/列表 | 列表用卡片（更适合评论长文本），必要时用 `Table` |
 | 徽标 | `Badge` |
-| 按钮 | `Button` |
+| 按钮 | `Button`（含 `loading` 状态） |
 | 抽屉/Sheet | `Sheet`（如需详情抽屉） |
-| 空态 | `ConsoleTableEmpty` |
+| 空态 | `ConsoleTableEmpty` 或自定义空态+CTA |
 | 链接 | `LocaleLink` |
+| Toast | `sonner`（如项目已有） |
 
 ## 6. 数据模型（前端视角）
 
 前端只需消费以下视图模型：
 
 ```typescript
-// 列表项（聚合）
+// 列表项（聚合，可选）
 interface ReviewItemSummary {
   platform: 'daraz'|'lazada'|'tiktok_shop'
   shopExternalId?: string
@@ -195,7 +246,17 @@ interface ReviewItemSummary {
   reportUrl?: string
 }
 
-// 详情
+// 产品详情页评论区块视图
+interface ProductReviewsView {
+  product: { itemId:string; sku:string; title:string; imageUrl?:string; platformUrl?:string }
+  kpis: { total:number; avg:number; pos:number; neu:number; neg:number; withImage:number }
+  ratingDist: Array<{star:1|2|3|4|5; count:number; pct:number; actualCount:number}>
+  reviews: DomainReview[]  // 复用 marketplace domain 类型
+  meta: { fetchedAt:string|null; source:'api'|'ai_scrape'|'mixed'|null; totalFetched:number; deduped:number; refreshing:boolean }
+  canRefresh: boolean
+}
+
+// 详情页（可选扩展）
 interface ReviewDetail {
   product: { itemId:string; title:string; imageUrl?:string; price?:string; shopName?:string; platformUrl?:string }
   kpis: { total:number; avg:number; pos:number; neu:number; neg:number; withImage:number }
@@ -204,42 +265,69 @@ interface ReviewDetail {
   reviews: DomainReview[]  // 复用 marketplace domain 类型
   meta: { fetchedAt:string; source:string; totalFetched:number; deduped:number }
 }
+
+// 刷新请求
+interface RefreshReviewsInput {
+  platform: 'daraz'|'lazada'|'tiktok_shop'
+  itemId: string
+  sku?: string
+  shopExternalId?: string
+  force?: boolean
+}
 ```
 
-数据来源：可先用静态 JSON（从工具链产出）或后续接 tRPC。
+数据来源：首版可先用静态 JSON（从工具链产出）放在 `apps/shop/src/lib/crossborder/reviews-mock.ts` 或通过 tRPC 获取。刷新接口 `reviews.refresh` 实现「API 优先，其次 AI 自动抓取」。
 
 ## 7. 实现建议
 
 ### 7.1 文件结构
 ```text
-apps/shop/src/app/[locale]/console/(ops)/reviews/
-├── page.tsx                    # 列表页
+apps/shop/src/app/[locale]/console/(ops)/products/[sku]/
+├── page.tsx                        # 产品详情页（新增评论区块）
+└── _components/
+    └── product-reviews-section.tsx # 评论区块（列表 + 刷新）
+
+apps/shop/src/app/[locale]/console/(ops)/reviews/  # 可选扩展
+├── page.tsx
 ├── [itemId]/
-│   └── page.tsx                # 详情页
+│   └── page.tsx
 └── _components/
     ├── review-kpis.tsx
     ├── review-rating-dist.tsx
     ├── review-card.tsx
     ├── review-filters.tsx
     └── review-insights.tsx
+
+apps/shop/src/lib/crossborder/
+└── reviews-mock.ts                 # Mock 数据（首版可用）
 ```
 
 ### 7.2 导航接入
-在控制台侧栏配置中新增「评论」项，指向 `/{locale}/console/reviews`，图标用 `MessageSquare` 或 `Star`（lucide-react）。
+首版**不强制**新增侧栏「评论」入口。主入口放在产品/SKU 详情页「评论」区块。后续如需独立页面再接入侧栏（`/{locale}/console/reviews`）。
 
 ### 7.3 权限
-租户端只读本组织相关数据（如关联店铺的商品）。平台运营后台可跨租户查看。
+租户端仅可查看/刷新本组织关联商品的评论。刷新操作需校验店铺归属。平台运营后台可跨租户查看。
 
-### 7.4 性能
-列表用服务端过滤（searchParams），详情页一次加载全部评论（样本通常 < 100 条），无需复杂分页。
+### 7.4 刷新机制（API 优先，其次 AI）
+- **触发**：前端点击「手动刷新」→ `reviews.refresh`（tRPC mutation）
+- **后端逻辑**：`api` 路径（优先）→ 尝试 `MarketplaceConnector.listReviews`；若失败、未实现或返回空且允许降级 → AI 抓取（HTML 解析）→ 规范化、去重、情感分析、翻译 → 持久化/缓存
+- **状态**：返回 `{status:'ok'|'partial'|'failed', source:'api'|'ai_scrape'|'mixed', count:number, meta:{...}}`
+- **防抖**：按钮禁用 + 加载态，避免重复点击
+- **幂等**：短时间内重复刷新可直接返回最新缓存
+
+### 7.5 性能
+产品详情页评论区块：默认加载已缓存数据，手动刷新才触发抓取。列表卡片渲染即可，样本通常 < 100 条。
 
 ## 8. 验证清单
 
-- [ ] 侧栏新增「评论」入口，路由可访问
-- [ ] 列表页按商品聚合正确显示统计
-- [ ] 详情页 KPI、评分分布、关键发现与样例结构一致
-- [ ] 评论卡片正确展示原文/中文、SKU、图片、高分差评标签
-- [ ] 「查看 HTML 报告」可跳转
+- [ ] 产品/SKU 详情页新增「评论」区块
+- [ ] 评论列表正常展示（星级、买家、SKU、原文、中文、图片、标签）
+- [ ] 「手动刷新」按钮可触发刷新，显示加载态和上次刷新信息
+- [ ] 刷新逻辑：API 优先，失败自动降级到 AI 抓取
+- [ ] 刷新后列表自动更新，来源标注正确（API/AI/混合）
+- [ ] KPI、筛选（情感/星级/带图/高分差评）正常工作
+- [ ] 「查看 HTML 报告」可跳转（如有）
+- [ ] 空态正确展示且可触发刷新
 - [ ] 响应式布局（桌面优先，平板可用）
 - [ ] 遵循现有 lint/typecheck 约定
 
@@ -247,15 +335,16 @@ apps/shop/src/app/[locale]/console/(ops)/reviews/
 
 后台抓取产出需满足：
 - `docs/comments/*.html`（人类可读报告）
-- JSON 数据（供前端消费，可放 `apps/shop/public/data/reviews/` 或通过 API 返回）
-- 元数据包含 `source`、`fetchedAt`、`platform`、`itemId`
+- JSON 数据（供前端消费，可放 `apps/shop/public/data/reviews/` 或通过 tRPC 返回）
+- 元数据包含 `source`、`fetchedAt`、`platform`、`itemId`、`totalFetched`、`deduped`
 
-前端仅展示，不触发抓取。
+前端在详情页展示并可手动触发刷新；刷新走后端任务（API 优先，其次 AI 自动抓取）。
 
 ## 10. 后续扩展
 
+- 独立「评论」列表页（`/console/reviews`）按商品聚合查看
 - 批量查看（多商品对比）
 - 按关键词搜索评论内容
 - 导出 CSV
 - 评论回复建议（AI）
-- 接入 tRPC 持久化
+- 接入 tRPC 持久化（评论表）
