@@ -9,6 +9,7 @@ import {
 } from '@/components/console/list'
 import { MOCK_FINANCE } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
@@ -39,6 +40,7 @@ export default function FinancePage() {
         <h2 className="text-xl font-semibold tracking-tight">财务中心</h2>
         <p className="text-sm text-muted-foreground">营收 / 成本 / 利润粗览 · 点击平台看结算明细</p>
       </div>
+      <UedPrototypeNotice>当前财务卡片为示例数值，不是已核验利润。订单成本算法、账单费用来源、汇率和折算规则待财务/业务确认。</UedPrototypeNotice>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: '总营收', value: active.revenue.toLocaleString() },

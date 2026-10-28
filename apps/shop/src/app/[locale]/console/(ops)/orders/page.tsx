@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { labelStatus, labeledOptions } from '@/lib/console/labels'
+import { Button } from '@workspace/ui/components/button'
 
 const activeShops = MOCK_SHOPS.filter((s) => s.status === 'active').length
 const pendingShip = MOCK_ORDER_LIST_ROWS.filter((o) =>
@@ -149,6 +150,11 @@ export default function OrdersPage() {
           </Table>
         )}
       </ConsoleListSection>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" asChild><LocaleLink href="/console/order-exceptions">查看映射异常</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/shipments">查看包裹与履约</LocaleLink></Button>
+        <span className="text-sm text-muted-foreground">示例订单状态不代表已触发库存锁定或正式扣减。</span>
+      </div>
     </div>
   )
 }

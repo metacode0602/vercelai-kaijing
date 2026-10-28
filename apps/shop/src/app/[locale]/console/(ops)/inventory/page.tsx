@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { labelStatus } from '@/lib/console/labels'
+import { Button } from '@workspace/ui/components/button'
 
 const ALERTS = [
   { value: 'critical', label: '紧急' },
@@ -147,6 +148,11 @@ export default function InventoryPage() {
           </Table>
         )}
       </ConsoleListSection>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" asChild><LocaleLink href="/console/inventory-ledger">查看库存流水</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/warehouse">仓库与库位</LocaleLink></Button>
+        <p className="self-center text-sm text-muted-foreground">当前库存页为示例预警视图；总账、库位和流水请使用对应原型页核对。</p>
+      </div>
     </div>
   )
 }

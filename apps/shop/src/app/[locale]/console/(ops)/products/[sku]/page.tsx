@@ -17,6 +17,9 @@ import {
 } from '@workspace/ui/components/table'
 import { labelField, labelStatus } from '@/lib/console/labels'
 import { ProductReviewsSection } from '@/components/console/product-reviews-section'
+import { Button } from '@workspace/ui/components/button'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { ERP_DEMO_SUPPLIERS } from '@/lib/crossborder/erp-ued-data'
 
 interface ProductDetailPageProps {
   params: Promise<{ sku: string }>
@@ -59,6 +62,13 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
           { label: '主价（首店）', value: `${product.listings[0]?.priceAmount.toFixed(2)} ${product.listings[0]?.priceCurrency}` },
         ]}
       />
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" asChild><LocaleLink href="/console/suppliers">供应商来源</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/mappings">Seller SKU 映射</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/inventory-ledger">库存流水</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/purchases">采购申请</LocaleLink></Button>
+      </div>
 
       <DetailFieldGrid
         title="商品与变体"
@@ -119,6 +129,13 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
               </TableRow>
             ))}
           </TableBody>
+        </Table>
+      </DetailSection>
+
+      <DetailSection title="供应商来源" description="报价为示例，新增采购申请时需复核生效价">
+        <Table>
+          <TableHeader><TableRow><TableHead>供应商</TableHead><TableHead>厂家款号</TableHead><TableHead>报价</TableHead><TableHead>交期</TableHead><TableHead>首选</TableHead></TableRow></TableHeader>
+          <TableBody>{ERP_DEMO_SUPPLIERS.filter((supplier) => supplier.sku === sku).map((supplier) => <TableRow key={supplier.code}><TableCell>{supplier.name}</TableCell><TableCell className="font-mono text-xs">{supplier.factoryCode}</TableCell><TableCell>{supplier.price} {supplier.currency}</TableCell><TableCell>{supplier.leadDays} 天</TableCell><TableCell>{supplier.preferred ? '是' : '否'}</TableCell></TableRow>)}</TableBody>
         </Table>
       </DetailSection>
 

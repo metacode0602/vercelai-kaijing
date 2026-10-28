@@ -37,11 +37,25 @@ import { Badge } from '@workspace/ui/components/badge'
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/dashboard': <LayoutDashboard className="size-4" />,
+  '/console/master-products': <Package className="size-4" />,
+  '/console/suppliers': <Package className="size-4" />,
+  '/console/mappings': <PackageSearch className="size-4" />,
+  '/console/warehouse': <Warehouse className="size-4" />,
+  '/console/purchases': <ShoppingCart className="size-4" />,
+  '/console/aftersales': <ShoppingCart className="size-4" />,
+  '/console/reports': <LayoutDashboard className="size-4" />,
+  '/console/imports': <Package className="size-4" />,
+  '/console/system-log': <Settings className="size-4" />,
+  '/console/access-control': <Settings className="size-4" />,
   '/console/candidates': <Sparkles className="size-4" />,
   '/console/pending': <ClipboardList className="size-4" />,
   '/console/products': <Package className="size-4" />,
   '/console/orders': <ShoppingCart className="size-4" />,
+  '/console/order-exceptions': <ShoppingCart className="size-4" />,
+  '/console/shipments': <Warehouse className="size-4" />,
   '/console/inventory': <Warehouse className="size-4" />,
+  '/console/inventory-ledger': <Warehouse className="size-4" />,
+  '/console/settings/platform-basics': <Settings className="size-4" />,
   '/console/costs': <Calculator className="size-4" />,
   '/console/finance': <Wallet className="size-4" />,
   '/console/settings': <Settings className="size-4" />,
@@ -99,8 +113,6 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
 
 export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const t = useTranslations('Console')
-  const mainItems = CONSOLE_NAV_GROUPS.flatMap((g) => g.items)
-
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -117,7 +129,14 @@ export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar
         <p className="px-3 pb-2 text-xs text-muted-foreground">{t('subtitle')}</p>
       </SidebarHeader>
       <SidebarContent>
-        <NavList items={mainItems} />
+        {CONSOLE_NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.groupKey}>
+            <SidebarGroupContent>
+              <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{t(group.labelKey)}</p>
+              <NavList items={group.items} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
         <div className="mt-auto">
           <NavList items={CONSOLE_FOOTER_NAV} />
         </div>
