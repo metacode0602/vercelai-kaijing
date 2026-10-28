@@ -132,7 +132,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             <div className="flex flex-col gap-3 text-sm">
               <p>履约模式：{order.platform === 'lazada' && order.shopName.includes('MY') ? 'LGS（示例）' : order.platform === 'lazada' ? '站点配置（待确认）' : '平台物流（示例）'}</p>
               <p className="text-muted-foreground">运单号：{order.trackingNumber ?? '未生成'} · 包裹号：{order.packageId ?? '未生成'}</p>
-              <Button variant="outline" asChild><LocaleLink href="/console/aftersales">查看 / 登记售后</LocaleLink></Button>
+              <div className="flex flex-wrap gap-2"><Button variant="outline" asChild><LocaleLink href="/console/shipments">查看包裹与物流</LocaleLink></Button><Button variant="outline" asChild><LocaleLink href="/console/aftersales">查看 / 登记售后</LocaleLink></Button></div>
             </div>
           </DetailSection>
         </div>

@@ -27,11 +27,11 @@ UI 存在或 DB 有相似表不等于 D2/D3。
 | 仓库库存 | 多仓/库位、一个库位一个启用 SKU、共享库存、库龄/告警 | D1 仓库/库位和库存视图 | warehouse/bin/binding/inventory pool/balance、汇总查询 | Q09-11、负库存策略 | 同 SKU 多店竞争同一 pool 不超卖；仓库共享但库存事实不重复 |
 | 库存流水 | 入库、预留、释放、出库、盘点、报损、退货；反向更正 | D1 流水/调整草稿 | 不可变 ledger、source key、balance projection、权限与审批 | Q07-11 | 任意余额可重放流水核对；重复同步/确认不会重复计量 |
 | 订单同步 | 拉单、幂等、内部状态映射、 Seller SKU 映射与异常处理 | D1 mock 列表/详情和订单异常阻断队列 | connector job、cursor、raw field retention、order/line unique、retry | Q02-08、Q31 | 同单重放无重复订单/库存事件；失败可查询重试 |
-| 物流履约 | 一单多包裹；MY/PH/SG/VN LGS；TH 自营仓→JSB→清关→官方尾程 | D1 订单详情摘要/设计 | package、shipment events、tracking history、JSB import/API adapter | Q03、Q17 | 按站点履约模式呈现状态；每事件来源、时间、操作者可追溯 |
+| 物流履约 | 一单多包裹；MY/PH/SG/VN LGS；TH 自营仓→JSB→清关→官方尾程 | D1 包裹列表、事件追加、订单详情互链 | package、shipment events、tracking history、JSB import/API adapter | Q03、Q17 | 按站点履约模式呈现状态；每事件来源、时间、操作者可追溯 |
 | 工作台 | 日期/平台/站点/店铺/履约/负责人/币种筛选；待办/预警/明细下钻 | D1 dashboard 示例筛选/入口 | 查询聚合、权限过滤、同步新鲜度、saved filters | Q29、币种本位规则 | 指标与明细同筛选一致；多币种不直接相加 |
 | 报表/导出 | 销售、库存、采购、周转、下钻和导出 | D1 reports 示例筛选/CSV | DB 分页/聚合、export job、权限审计 | Q24、Q29 | 汇总和源单一致；导出遵循同一 scope 和筛选 |
 | 角色权限 | 用户/角色/操作权限/平台国家店铺 scope；IT 技术权限分离 | D1 矩阵浏览/新增角色 | authorization service、scope resolver、server-side policy、audit | Q23、角色矩阵最终确认 | 越权 API 被拒绝；UI 隐藏与否不改变服务端拒绝结果 |
-| 数据迁移 | 模板、字段映射、预览校验、行级错误、批次回滚/补偿 | D1 导入批次/错误行示例 | file storage、import job、row result、idempotency、compensation | Q19/Q34 | 错误行不污染成功行；回滚不破坏后续业务事实 |
+| 数据迁移 | 模板、字段映射、预览校验、行级错误、批次回滚/补偿 | D1 导入批次及 Seller SKU 字段校验预览示例 | file storage、import job、row result、idempotency、compensation | Q19/Q34 | 错误行不污染成功行；回滚不破坏后续业务事实 |
 | 系统监控 | 每店同步任务、成功失败数、错误、重试、审计 diff | D1 日志/重试提示 | integration job/log schema、redaction、retry queue、audit log | Q03/Q04、Q21 | 失败非静默；人工重试有新任务和关联 request id |
 
 ## 2.1 Excel 页面字段分组核对

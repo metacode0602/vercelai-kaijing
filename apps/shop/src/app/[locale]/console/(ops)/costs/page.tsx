@@ -14,6 +14,7 @@ import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
+import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import {
   Table,
   TableBody,
@@ -53,6 +54,8 @@ export default function CostsPage() {
           当前税率、运价和计算输入为示例，未接真实报价或业务数据库。工作台包含空运 DDP、海运 LCL 和 FCL；费用范围不一致时不会自动标注最优方案。
         </AlertDescription>
       </Alert>
+
+      <UedPrototypeNotice>订单级净利润仍待采购批次成本、平台账单费用、汇率来源/日期及广告分摊口径确认；本页金额不可用于经营决策。</UedPrototypeNotice>
 
       <ConsoleFilterBar
         keyword={keyword}

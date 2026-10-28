@@ -27,6 +27,7 @@ export type ConsoleNavTitleKey =
   | 'nav.listings'
   | 'nav.orders'
   | 'nav.orderExceptions'
+  | 'nav.shipments'
   | 'nav.inventory'
   | 'nav.costs'
   | 'nav.finance'
@@ -82,6 +83,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/listings', titleKey: 'nav.listings' },
       { url: '/console/orders', titleKey: 'nav.orders' },
       { url: '/console/order-exceptions', titleKey: 'nav.orderExceptions' },
+      { url: '/console/shipments', titleKey: 'nav.shipments' },
       { url: '/console/aftersales', titleKey: 'nav.aftersales' },
     ],
   },

@@ -52,6 +52,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/products': <Package className="size-4" />,
   '/console/orders': <ShoppingCart className="size-4" />,
   '/console/order-exceptions': <ShoppingCart className="size-4" />,
+  '/console/shipments': <Warehouse className="size-4" />,
   '/console/inventory': <Warehouse className="size-4" />,
   '/console/inventory-ledger': <Warehouse className="size-4" />,
   '/console/settings/platform-basics': <Settings className="size-4" />,

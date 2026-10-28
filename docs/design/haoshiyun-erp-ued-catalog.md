@@ -207,6 +207,12 @@ UED 已扩展至 D1 原型层；目标 ERP 功能与 D0-D3 成熟度追踪见 [�
 | `/console/dashboard` | 日期/平台/站点过滤、状态提示、指标到报表入口 |
 | `/console/orders/[id]` | 库存节点待确认、映射检查、履约/包裹/售后入口 |
 | `/console/order-exceptions` | 未映射/停用 SKU 阻断队列、映射修复及重试识别状态演示 |
+| `/console/shipments` | LGS/TH-JSB包裹事件、运单信息与人工事件追加演示 |
+| `/console/orders` | 订单列表到异常队列/包裹履约的工作流入口 |
+| `/console/inventory/[sku]` | SKU 库存详情到流水、仓库库位、成本参考的互链 |
+| `/console/products/[sku]` | SKU 详情关联供应商、Seller SKU 映射、库存流水和采购入口 |
+| `/console/imports` | 行级错误示例、字段校验预览、可导入/冲突/需确认分组 |
+| `/console/costs` 与 `/console/finance` | 显示示例金额与利润算法/汇率待确认状态 |
 | `/console/inventory` | 预警视图及库存流水、仓库/库位互链 |
 
 现有 `/console/dashboard`、`/console/orders`、`/console/inventory`、`/console/listings`、`/console/products`、`/console/costs`、`/console/finance` 等 mock 页面继续作为其余原型入口。新的页面实现统一使用“示例数据”标识，不调用业务 API。

@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { labelField, labelStatus } from '@/lib/console/labels'
+import { Button } from '@workspace/ui/components/button'
 
 interface InventoryDetailPageProps {
   params: Promise<{ sku: string }>
@@ -62,6 +63,12 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
           </LocaleLink>
         }
       />
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" asChild><LocaleLink href="/console/inventory-ledger">查看库存流水</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/warehouse">查看仓库与库位</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/costs">查看成本参考</LocaleLink></Button>
+      </div>
 
       <DetailKpiRow
         items={[
