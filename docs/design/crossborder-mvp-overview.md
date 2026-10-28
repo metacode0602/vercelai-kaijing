@@ -104,8 +104,8 @@ packages/ui  共享组件
 
 | 阶段 | 内容 | tRPC |
 |------|------|------|
-| **P0（当前阶段）** | 设计 MD 入库；Drizzle 跨境 schema + 迁移草案；web/shop Demo 页（mock，不接业务 tRPC） | 不接 |
-| **P1（确认后）** | domain/dataaccess + tRPC routers；api OpenAPI 资源；MCP server | 接入 |
+| **P0（当前阶段）** | 设计 MD 入库；跨境 UED 与 mock Demo；选品/成本工作台可交互并让用户确认使用习惯（mock 不宣称持久化） | 不接 |
+| **P1（UED 确认后）** | domain/dataaccess + tRPC routers；真实来源/中间数据持久化与版本快照；api OpenAPI 资源；MCP server | 接入 |
 | **P2** | Daraz connector + worker | — |
 | **P3** | OpenWork 选品 Skill + 端到端 | — |
 | **P4（新增设计目标）** | 动态 Skill execution/OKF 索引与知识库 adapter；MCP 完整业务输入读写、组织角色/知识 ACL；Desktop 关联；候选→商品→listing→平台结果复盘 | 共用 domain |

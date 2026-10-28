@@ -88,10 +88,10 @@ AI 产出需分别存储原始证据引用、提取结果、置信度/人工复�
 
 | 模块 | 职责 | 说明 |
 |------|------|------|
-| **`apps/shop`** | 租户端UI + 业务入口 | 主要落地地。现有 `/console/candidates` 扩展为完整AI选品工作台（任务创建、进度、结果、分析报告）。按规范使用 `'use client'` 最小化，仅通过tRPC调用。 |
+| **`apps/shop`** | 租户端UI + 业务入口 | 阶段一先实现可交互 UED/示例数据；用户确认后阶段二接 tRPC/domain/dataaccess，提供组织隔离的持久化与候选工作台。|
 | **`apps/web`** | 平台运营后台 | 平台侧可增加跨租户选品任务监控（只读）、AI选品规则配置（HS库、费用模板）等，默认受限。MVP可先不实现。 |
 | **`apps/api`** | OpenAPI/MCP接入 | 若后续需对外暴露选品能力，共用domain服务，避免双套写路径。MVP可延后。 |
-| **`packages/db`** | 数据模型 | 新增AI选品相关表，严格遵循规范（`organization_id`、`numeric`金额、`timestamp withTimezone`、`varchar+union`枚举、`jsonb`扩展）。 |
+| **`packages/db`** | 数据模型 | 阶段二仅按现行跨境 schema/OKF 架构补齐业务所需索引、候选关联和成本快照；研究过程/知识正文不复制成固定七步数据库。 |
 | **`packages/marketplace`** | 平台数据接入 | 扩展Daraz适配器，增加竞品列表、商品详情、差评等数据获取能力（可复用现有LazOP基类）。 |
 | **`packages/auth`** | 权限 | 租户隔离沿用现有organization机制。 |
 | **`packages/ui`** | 组件库 | 使用shadcn/ui组件构建选品页面。 |
@@ -117,9 +117,9 @@ UI (apps/shop/src/app/[locale]/console/(ops)/ai-selection/*)
 
 > 注意：AGENTS.md 指出 `apps/shop` 当前以 mock 展示，尚未接入业务 tRPC。AI选品是自然的首批接入场景，需按此链路补全。
 
-## 4. 数据模型设计
+## 4. 数据模型设计（阶段二旧草案/概念示例，非生产表清单）
 
-需新增表结构，全部遵循项目规范。
+阶段二的数据结构须先对照 `crossborder-database-design.md`：复用 `product_candidates` 与 `skill_executions`/OKF 引用模式；不要照抄本节旧版“6张 AI 专属固定流程表”作为生产方案。成本/报价快照由独立运费域保存，AI 选品仅保存逻辑引用和消费方摘要。
 
 ### 4.1 枚举定义
 
@@ -407,7 +407,7 @@ export const aiSelectionReports = pgTable(
 
 > 注：`ai_selection_tasks.createdBy` 引用 `user.id`，需确认 `user` 表存在（auth-schema中应有）。
 
-## 5. 接口设计（tRPC）
+## 5. 接口设计（tRPC；阶段二草案，不在 UED 阶段实现）
 
 ### 5.1 Router结构
 
@@ -836,7 +836,9 @@ interface DarazDataProvider {
 | 复用 | 同一候选/品类可复用竞品、评论、供应商报价、包装和测算情景；改动输入时生成新版本，可对比前后结果 |
 | 人工决策 | AI 建议不直接上架/改价/下单；进入候选接受或刊登等高影响操作时沿用现有待审策略 |
 
-### 9.1 历史实施建议（需按以上两阶段重排）
+### 9.1 阶段二历史实施草案（需按现行架构重新设计）
+
+以下任务清单是初稿构想，并非已批准实现说明。特别是 AI 专属六张固定步骤表和 apps/shop 自建 tRPC 路由，仅可在 UED 验收后进行架构评审；生产实现优先遵循现行跨境数据库/OKF 与独立 `packages/freight` 方案。
 | 任务 | 文件/位置 | 说明 |
 |------|-----------|------|
 | **1.1 Schema设计** | `packages/db/src/ai-selection-schema.ts` | 新增上述6张表 + 枚举，扩展 `productCandidates` |
@@ -900,13 +902,20 @@ interface DarazDataProvider {
 - [ ] **权限控制**：protectedProcedure校验
 - [ ] **Next.js规范**：用App Router、`searchParams`分页筛选、不用`'use server'`、私有组件放`_components/`
 
-### 10.2 功能验证
-- [ ] **七步流程**：能完整跑通（至少用mock数据），各步骤产出写入对应表
-- [ ] **PPS计算**：验证公式 `frequency*severity*solvability` 正确
-- [ ] **关税计算**：用文档案例（8516.31，Daraz SL）验证有效税率≈29.8%
-- [ ] **利润测算**：复现文档表格中场景①（¥80+LCL，Rs.11,990→毛利率15.3%）的计算逻辑
-- [ ] **决策流**：GO/HOLD/NO-GO 更新生效，理由可记录
-- [ ] **分页**：大列表分页正常，无全量加载
+### 10.2 阶段一 UED 验证
+- [ ] 用户能走通候选/证据检查、缺数据提示、空运 DDP/LCL/FCL 成本比较、保存/复制演示情景和暂缓/继续验证决策
+- [ ] 所有演示数据（含吹风机案例）显著标“示例/假设/待核实”；示例分数不进入实测 PPS
+- [ ] PPS 展示统一使用 frequency(1-5) × severity(1-5) × solvability(0.5-1.5)，无来源评论不计算实测分
+- [ ] 成本页能说明单件/整批、到仓成本/经营总成本、报价含税与未含项目；DDP 已含税不重复计算
+- [ ] 三方案报价范围不一致时显示“暂不可比较”，不默认高亮“最佳”
+- [ ] 用户确认 Demo 保存状态不是数据库持久化
+
+### 10.3 阶段二业务验证（UED 通过后）
+- [ ] 组织隔离的输入/来源/竞品/评论引用/供应商报价/成本快照可以持久化、复用和版本比较
+- [ ] HS/关税/合规来源、运价报价、汇率、平台费率有来源和有效期；缺失时不静默套默认值
+- [ ] 空运 DDP/LCL/FCL 三种方式按各自已核实的计费规则服务端复算，历史快照可复现
+- [ ] AI 输出引用原始证据/计算快照，模型/版本/人工复核可追溯；Agent 建议不自动上架/下单
+- [ ] 列表分页和权限符合跨境架构；候选转商品/刊登遵循 pending action 策略
 
 ### 10.3 工程验证
 ```bash

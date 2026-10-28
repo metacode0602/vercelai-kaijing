@@ -99,7 +99,7 @@
   </div>
 
   <div class="update-note">
-    🔧 <b>2026-07-18 更新：</b>① 关税工具修正——PAL 实际有 Gen 5% / SG 6% 两档（科伦坡港适用 SG 档），有效税率从 28.6% 修正为 <b>29.8%</b>；② 已抓取 Daraz SL "Hair dryer" 前 20 竞品实测数据，步骤2 由推测改为实测。
+    🔧 <b>报告记录时间：2026-07-18。</b>原文声称参考 2026 关税指南并采集 Daraz 前 20 商品；当前附件未逐条保存官方原表/商品来源和采集条件，故这些信息在本产品中标记为“待复核样例”，不能直接作为已核实生产数据。
   </div>
 
   <!-- 核心结论 -->
@@ -107,7 +107,7 @@
     <h2>📌 核心结论</h2>
     <div class="verdict">✅ 适合上架，三个硬性条件 + 一个实测利好</div>
     <ul>
-      <li><b>品类门槛友好：</b>HS 8516.31 有效关税 <b>29.8%</b>（CID=Free，仅 PAL 5%/SG 6%+VAT 18%+SSCL 2.5%），且<b>不在 SLSI 强制认证清单内</b>。</li>
+      <li><b>关税/合规待复核：</b>报告引用 HS 8516.31 与 29.8% 示例税率，但须在产品决策前核对现行 HS 子目、PAL 适用区域、官方税率来源和 SLSI 清单版本；目前不作为已确认的生产税率/认证结论。</li>
       <li><b>待验证的市场机会：</b>本次记录称 Daraz SL 前 20 名未见高速吹风机，但这只是特定关键词/排序/采集时点的样本，不能证明 Rs.4,000–25,000 全市场无竞品或已有需求。请在决策前复查搜索、类目与站外替代品。</li>
       <li><b>采购价与利润结论属于示例测算：</b>¥80、¥150、¥280 等采购价和利润结果依赖未附原始有效供应商报价及统一费用口径，不能当作已核实采购成本或确定亏盈线。</li>
       <li><b>空运/LCL/FCL 均需同口径有效报价：</b>文中运费与毛利数字标为“示例估算”；在确认报价含税/清关/派送边界、计费规则、时效和有效期前，不得把物流建议表述为已验证的最优方案。</li>
@@ -122,10 +122,10 @@
     <h3>① 关税测算（来源：sl_tariff_lookup.py · Import Tariff Guide 14.01.2026.pdf · 已核对原始表格列映射）</h3>
     <table>
       <tr><th>HS 编码</th><th>产品</th><th>CID</th><th>PAL</th><th>VAT</th><th>SSCL</th><th>有效税率</th></tr>
-      <tr><td><b>8516.31</b></td><td>Hair dryers（电吹风）</td><td><span class="tag green">Free 0%</span></td><td>5% / <b>6%(SG)</b></td><td>18%</td><td>2.5%</td><td><b>29.8%</b></td></tr>
+      <tr><td><b>8516.31</b></td><td>Hair dryers（报告所列）</td><td><span class="tag amber">需核实</span></td><td>5% / 6%(SG) · 需核实</td><td>需核实</td><td>需核实</td><td><b>29.8% 示例*</b></td></tr>
       <tr><td colspan="7" style="color:var(--muted);font-size:13px;">对比同章节：8516.79 电水壶 59% · 8516.60 空气炸锅 65% → 吹风机关税明显更低。⚠️ PAL 有 Gen/SG 两档，科伦坡港（西部省）进口适用 SG 6%，已保守计入。</td></tr>
     </table>
-    <div class="callout info">💡 <b>关键洞察：</b>吹风机 CID（Customs Import Duty）= Free，税负主要来自 PAL(6%)+VAT(18%)+SSCL(2.5%)。29.8% 落在方法论"15-30% 需算盈亏平衡点"区间，不构成门槛。</div>
+    <div class="callout info">💡 <b>待复核洞察：</b>报告所列 CID/PAL/VAT/SSCL 与 29.8% 仅为引用示例。必须核对现行官方税则、港口/适用区域、级联税基及从量/附加税，再用于成本计算；未核实前不应据此说“不构成门槛”。</div>
 
     <h3>② 合规认证（来源：slsi_gazette.pdf · 122项强制清单）</h3>
     <table>
@@ -205,11 +205,11 @@
   <p class="lead">方法论第五步：关税 15-30% 区间，需算盈亏平衡点。带电产品 + 600g 重量，以下运费均为待核实示例估算，不是当前有效报价：</p>
     <table>
       <tr><th>方案</th><th>运费(单台)</th><th>时效</th><th>关税处理</th><th>适用阶段</th><th>推荐度</th></tr>
-      <tr><td>空运 DDP 带电专线</td><td>¥78 (¥130/kg)</td><td>5-7天</td><td>物流商包税优化</td><td>测款 100-200台</td><td><span class="tag amber">仅测款</span></td></tr>
-      <tr><td>海运 LCL 拼柜</td><td>¥12</td><td>15-25天</td><td>自交 29.8%</td><td>主推放量</td><td><span class="tag green">推荐</span></td></tr>
-      <tr><td>海运 FCL 整柜</td><td>¥2 (分摊)</td><td>15-25天</td><td>自交 29.8%</td><td>大货 2万+台</td><td><span class="tag green">利润最优</span></td></tr>
+      <tr><td>空运 DDP 带电专线（示例）</td><td>¥78 (¥130/kg)*</td><td>5-7天*</td><td>报价称包税；税项拆分待核实</td><td>由用户决定测试量</td><td><span class="tag amber">待报价核实</span></td></tr>
+      <tr><td>海运 LCL 拼柜（示例）</td><td>¥12*</td><td>15-25天*</td><td>进口税费另计（税率待核实）</td><td>按有效报价比较</td><td><span class="tag amber">待报价核实</span></td></tr>
+      <tr><td>海运 FCL 整柜（示例）</td><td>¥2 分摊*</td><td>15-25天*</td><td>进口税费另计（税率待核实）</td><td>先校验柜容/资金风险</td><td><span class="tag amber">待报价核实</span></td></tr>
     </table>
-    <div class="callout info">💡 <b>决策逻辑：</b>29.8% 关税不高，DDP 的关税优化优势有限；吹风机重量 600g 让空运成本敏感。因此<b>测款用空运快速验证 → 动销确认后立刻转海运 LCL</b>，量大再上 FCL 进一步摊薄运费。</div>
+    <div class="callout info">💡 <b>决策逻辑（待数据）：</b>目前三种方案的金额和时效均是示例，费用范围也不一致，不能比较优劣。补齐真实报价、计费规则、DDP 含税边界、附加费、时效和有效期后，再按完整到仓成本与现金/库存风险比较。</div>
   </div>
 
   <!-- 步骤6 -->
@@ -217,15 +217,15 @@
     <h2><span class="step">6</span>利润测算：五情景盈亏模拟（关税 29.8%）</h2>
   <p class="lead">方法论第六步：旧版场景估算。采购、货代报价、平台/支付/仓库费、广告、退货和汇率均未附可复核的有效来源；表格只作 UED 演示，不代表准确利润。正式决策需逐项补录来源和包含/排除范围。</p>
     <table class="calc-table">
-      <tr><th>情景</th><th>到岸成本(LKR)</th><th>平台+其他费(LKR)</th><th>售价(LKR)</th><th>利润(LKR)</th><th>毛利率</th></tr>
+      <tr><th>情景（样例）</th><th>报告称成本(LKR)</th><th>报告称平台+其他费(LKR)</th><th>样例售价(LKR)</th><th>样例利润(LKR)</th><th>报告称毛利率*</th></tr>
       <tr><td><b>①主推 白牌¥80+LCL</b></td><td>5,923</td><td>4,227</td><td>11,990</td><td>1,840</td><td><span class="tag green">15.3%</span></td></tr>
       <tr><td>②测款 白牌¥80+空运DDP</td><td>7,837</td><td>4,857</td><td>13,990</td><td>1,296</td><td><span class="tag amber">9.3%</span></td></tr>
-      <tr><td>③中端¥150+LCL</td><td>10,430</td><td>4,542</td><td>12,990</td><td>-1,982</td><td><span class="tag red">-15.3%</span></td></tr>
-      <tr><td>④高端¥280+LCL</td><td>18,799</td><td>6,117</td><td>17,990</td><td>-6,926</td><td><span class="tag red">-38.5%</span></td></tr>
-      <tr><td><b>⑤大货 白牌¥80+FCL</b></td><td>5,279</td><td>4,227</td><td>11,990</td><td>2,484</td><td><span class="tag green">20.7%</span></td></tr>
+      <tr><td>③中端¥150+LCL（示例）</td><td>10,430</td><td>4,542</td><td>12,990</td><td>-1,982</td><td><span class="tag red">-15.3%*</span></td></tr>
+      <tr><td>④高端¥280+LCL（示例）</td><td>18,799</td><td>6,117</td><td>17,990</td><td>-6,926</td><td><span class="tag red">-38.5%*</span></td></tr>
+      <tr><td><b>⑤大货 白牌¥80+FCL（示例）</b></td><td>5,279</td><td>4,227</td><td>11,990</td><td>2,484</td><td><span class="tag green">20.7%*</span></td></tr>
     </table>
-    <div class="callout danger">⚠️ <b>红线预警：</b>情景③④证明——<b>采购价超过 ¥100 必亏</b>。高速吹风机差异化靠"卖点溢价"不靠"堆料"，必须选白牌高速方案（11万转+负离子，¥70-90），而非中端/高端代工。</div>
-    <div class="callout info">💡 <b>最优路径：</b>情景①（海运LCL，毛利15.3%）作为日常主推；验证动销后转情景⑤（FCL大货，毛利20.7%）。空运测款（情景②）仅用于 100-200 台快速试错，接受 9.3% 低毛利。</div>
+    <div class="callout danger">⚠️ <b>当前不可得出确定红线：</b>情景③④是基于示例输入的计算，不足以证明“采购价超过 ¥100 必亏”。正式使用时须保存供应商报价、物流报价/包含项、税率版本、平台费率和完整计算公式，再由运营设定可接受利润门槛。</div>
+    <div class="callout info">💡 <b>当前无已验证的最优路径：</b>情景金额和利润率仅用于交互展示。正式系统须基于同一币种、同一费用范围和有效报价复算；未提供的平台/运营费用标为缺项，结果不得称为确定净利。</div>
   </div>
 
   <!-- 步骤7 -->
@@ -245,12 +245,12 @@
 
   <!-- 选品评分卡 -->
   <div class="section">
-    <h2>📊 选品评分卡</h2>
+  <h2>📊 选品评分卡（示例评分，不构成结论）</h2>
     <div class="scorecard">
-      <div class="score-item"><div class="num">9.0</div><div class="label">市场机会</div><div class="stars">★★★★★</div></div>
-      <div class="score-item"><div class="num">7.0</div><div class="label">利润空间</div><div class="stars">★★★★☆</div></div>
-      <div class="score-item"><div class="num">9.0</div><div class="label">竞争强度</div><div class="stars">★★★★★</div></div>
-      <div class="score-item"><div class="num">8.5</div><div class="label">合规风险</div><div class="stars">★★★★★</div></div>
+      <div class="score-item"><div class="num">9.0*</div><div class="label">市场机会（演示）</div><div class="stars">待核实</div></div>
+      <div class="score-item"><div class="num">7.0*</div><div class="label">利润空间（估算）</div><div class="stars">待报价/费用核实</div></div>
+      <div class="score-item"><div class="num">—</div><div class="label">竞争压力</div><div class="stars">待补全市场样本</div></div>
+      <div class="score-item"><div class="num">—</div><div class="label">合规状态</div><div class="stars">未核实</div></div>
     </div>
     <p class="lead">综合评分 <b>8.4/10（演示评分，待证据核实）</b> · 当前结论：<b>建议继续验证，不建议据此直接大批备货/上架</b>。市场空档、痛点、售价接受度、供应商成本和运费均需补充原始证据。高分不等于结论可靠；合规状态单独使用“已核实/有风险/未核实/不适用”，竞争压力单独使用“低/中/高”。</p>
   </div>
@@ -280,7 +280,7 @@
   </div>
 
   <footer>
-    本报告基于官方 2026 关税指南、SLSI 公报及 Daraz SL 实测竞品生成 · 利润测算含平台费/营销/退货/汇率预留<br>
+    本报告的税率/合规和竞品数据需补来源与核对日期；利润数据为示例估算，不作为上架承诺<br>
     关税工具已修正 PAL SG 档（29.8%）· 生成时间：2026-07-18 · 选品方法论 V2.0
   </footer>
 
