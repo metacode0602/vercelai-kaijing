@@ -134,6 +134,8 @@ erDiagram
 
 已补齐剩余 ERP 页面组的信息架构、主要页面内容、状态、操作与待确认点，见 [`haoshiyun-erp-ued-catalog.md`](./haoshiyun-erp-ued-catalog.md)。主数据、供应商、Seller SKU 映射、采购、库存流水调整、售后、报表、导入、日志、角色权限以及店铺多仓向导已实现为客户端示例交互；订单履约异常详情、完整平台状态流程、SKU 规格矩阵批量生成、实文件导入校验等仍是原型规格/待后续细化，不代表业务服务已实现。
 
+ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另见 [`haoshiyun-erp-target-function-matrix.md`](./haoshiyun-erp-target-function-matrix.md)。目标覆盖不应以“菜单/页面存在”作为完成标准。
+
 ### 4.1 关键约束
 
 1. **编码**：SPU `HSY` + 6 位序号；SKU 由 SPU + 3 位序号构成。编号在数据库事务/序列中生成且不可复用；迁移旧码保存 legacy code，不覆盖外部 Seller SKU。

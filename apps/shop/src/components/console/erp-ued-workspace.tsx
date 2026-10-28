@@ -38,7 +38,7 @@ export function UedWorkspace<T>(props: {
     const headers = props.columns.map((column) => column.label)
     const body = rows.map((row) => props.columns.map((column) => {
       const record = row as Record<string, unknown>
-      const value = column.render ? record[String(column.key)] : record[String(column.key)]
+      const value = record[String(column.key)]
       return String(value ?? '').replaceAll('"', '""')
     }))
     const csv = [headers, ...body].map((line) => line.map((value) => `"${value}"`).join(',')).join('\n')
