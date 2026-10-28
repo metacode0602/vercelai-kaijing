@@ -1285,10 +1285,10 @@ export function getProductBySku(sku: string) {
 }
 
 export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
-  'SKU-T13-001': {
+  'TEE-001': {
     product: {
       itemId: '593629355',
-      sku: 'SKU-T13-001',
+      sku: 'TEE-001',
       title: 'DIY Luminous T13 Multi-Jointed Movable Shapeshift Robot 3D Printed Mannequin',
       imageUrl: 'https://lk-live-21.slatic.net/kf/Sa899876a2a1a445b8eaf1abd6623ac8dO.png',
       platformUrl: 'https://www.daraz.lk/products/diy-luminous-t13-multi-jointed-movable-shapeshift-robot-3d-printed-mannequin-lucky-robot-and-dog-action-figures-toys-kids-gifts-i593629355-s2725029270.html',
