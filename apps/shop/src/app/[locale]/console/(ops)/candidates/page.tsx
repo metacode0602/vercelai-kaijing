@@ -19,10 +19,15 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { labelStatus, labeledOptions } from '@/lib/console/labels'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
-const STATUSES = [...new Set(MOCK_CANDIDATES.map((r) => r.status))]
-const GO = [...new Set(MOCK_CANDIDATES.map((r) => r.goNoGo))]
-const CATEGORIES = [...new Set(MOCK_CANDIDATES.map((r) => r.categoryHint))]
+const DECISION_OPTIONS = [
+  { value: 'all', label: '全部决策' },
+  ...[...new Set(MOCK_CANDIDATES.map((row) => row.goNoGo))].map((value) => ({ value: String(value), label: labelStatus(String(value)) })),
+] satisfies { value: string; label: string }[]
+
+const STATUSES = [...new Set(MOCK_CANDIDATES.map((r) => r.status))] as string[]
+const CATEGORIES = [...new Set(MOCK_CANDIDATES.map((r) => r.categoryHint))] as string[]
 
 export default function CandidatesPage() {
   const [keyword, setKeyword] = React.useState('')
@@ -42,8 +47,15 @@ export default function CandidatesPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">AI 选品</h2>
-        <p className="text-sm text-muted-foreground">候选列表 · 点击进入通过/搁置详情</p>
+        <p className="text-sm text-muted-foreground">候选列表 · 查看证据、数据状态和成本情景后再决定下一步</p>
       </div>
+
+      <Alert>
+        <AlertTitle>UED 演示数据</AlertTitle>
+        <AlertDescription>
+          页面中的市场、评分和成本均为示例或估算，尚未连接真实数据，也不会保存到业务数据库。不要将示例结论当成采购或上架建议。
+        </AlertDescription>
+      </Alert>
 
       <ConsoleFilterBar
         keyword={keyword}
@@ -62,7 +74,7 @@ export default function CandidatesPage() {
             label: '决策',
             value: goNoGo,
             onChange: setGoNoGo,
-            options: labeledOptions(GO),
+            options: DECISION_OPTIONS,
           },
           {
             id: 'category',
@@ -83,10 +95,11 @@ export default function CandidatesPage() {
               <TableRow>
                 <TableHead>产品</TableHead>
                 <TableHead>类目</TableHead>
-                <TableHead>到仓成本</TableHead>
-                <TableHead>建议售价</TableHead>
-                <TableHead>净利率</TableHead>
-                <TableHead>潜力</TableHead>
+                <TableHead>到仓成本（估算）</TableHead>
+                <TableHead>建议售价（估算）</TableHead>
+                <TableHead>经营净利率（估算）</TableHead>
+                <TableHead>证据状态</TableHead>
+                <TableHead>潜力（示例）</TableHead>
                 <TableHead>决策</TableHead>
                 <TableHead>状态</TableHead>
               </TableRow>
@@ -111,8 +124,9 @@ export default function CandidatesPage() {
                   <TableCell className="tabular-nums">
                     {row.suggestPrice.toFixed(2)} {row.currency}
                   </TableCell>
-                  <TableCell className="tabular-nums">{row.marginPct}%</TableCell>
-                  <TableCell className="tabular-nums">{row.score}</TableCell>
+                  <TableCell className="tabular-nums">{row.marginPct}% <span className="text-muted-foreground">估算</span></TableCell>
+                  <TableCell><Badge variant="outline">{row.evidenceLabel}</Badge></TableCell>
+                  <TableCell className="tabular-nums">{row.score.toFixed(2)} <span className="text-muted-foreground">演示分</span></TableCell>
                   <TableCell>
                     <Badge variant={row.goNoGo === 'GO' ? 'default' : 'secondary'}>{labelStatus(row.goNoGo)}</Badge>
                   </TableCell>

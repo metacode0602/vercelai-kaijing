@@ -12,6 +12,7 @@ import {
 import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
 import {
   Table,
@@ -40,11 +41,18 @@ export default function CostsPage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">成本计算</h2>
           <p className="text-sm text-muted-foreground">
-            到仓成本 · 斯里兰卡税项结构 · 打开测算工作台
+            到仓成本（示例） · 斯里兰卡税项结构 · 打开测算工作台
           </p>
         </div>
         <CostCalculatorEntry label="成本测算" />
       </div>
+
+      <Alert>
+        <AlertTitle>UED 演示工作台</AlertTitle>
+        <AlertDescription>
+          当前税率、运价和计算输入为示例，未接真实报价或业务数据库。工作台包含空运 DDP、海运 LCL 和 FCL；费用范围不一致时不会自动标注最优方案。
+        </AlertDescription>
+      </Alert>
 
       <ConsoleFilterBar
         keyword={keyword}
@@ -61,7 +69,7 @@ export default function CostsPage() {
         ]}
       />
 
-      <ConsoleListSection title="到仓成本" description={`共 ${rows.length} 条 · 点击 SKU 看详情`}>
+      <ConsoleListSection title="成本记录（示例）" description={`共 ${rows.length} 条 · 点击 SKU 看详情`}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (

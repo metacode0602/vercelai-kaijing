@@ -67,6 +67,8 @@ function presetToInput(preset: MockCostCalcPreset, overrides?: Partial<CostCalcu
     cartonHcm: preset.cartonHcm,
     unitsPerCarton: preset.unitsPerCarton,
     kgPerCarton: preset.kgPerCarton,
+    airVolumetricDivisor: 6000,
+    airQuoteIncludesTax: true,
     freightMode: 'LCL',
     tariffProfileId: preset.tariffProfileId,
     clearanceMiscTotal: preset.clearanceMiscTotal,
@@ -102,7 +104,7 @@ function applyBridgeAction(
       break
     case 'set_freight':
       next = { ...prev, freightMode: action.mode }
-      hint = `已切换海运模式为 ${action.mode}`
+      hint = `已切换运输方案为 ${action.mode}`
       break
     case 'set_margin':
       next = { ...prev, targetNetMarginPct: action.pct }
@@ -114,7 +116,7 @@ function applyBridgeAction(
       break
     case 'compare_lcl_fcl':
       next = { ...prev, freightMode: prev.freightMode === 'LCL' ? 'FCL20' : 'LCL' }
-      hint = '已切换 LCL / FCL 以便对比；右侧对比表始终展示三种模式'
+      hint = '已切换 LCL / FCL；右侧展示空运 DDP、LCL、FCL 示例运费，费用口径不同不可直接判优'
       break
     case 'compute':
       hint = '已按当前输入重新测算'
@@ -266,10 +268,11 @@ export function CostCalculatorWorkbench({
         <Calculator className="size-4 text-primary" />
         <span>
           {input.title} · 税率表 {result?.meta.tariffTableVersion ?? 'v2026.10-mock'} · 汇率{' '}
-          {result?.meta.fxRateDate ?? '2026-10-21'} · 估算·需报关/法务复核
+          {result?.meta.fxRateDate ?? '2026-10-21'} · 示例计算·需报关/法务复核
         </span>
         <Badge variant="secondary">示例</Badge>
         <Badge variant="outline">待复核</Badge>
+        <Badge variant="secondary">仅演示 · 未保存到业务数据库</Badge>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">{formPanel}</div>
@@ -312,11 +315,14 @@ function CostCalculatorFormPanel({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">输入（少打字 · 预设优先）</CardTitle>
-        <CardDescription className="text-xs">
-          从示例 SKU 选择即可预填 FOB / 箱规 / HS 档
-        </CardDescription>
+          <CardDescription className="text-xs">
+            从示例 SKU 选择即可预填 FOB / 箱规 / HS 档；可操作计算仅供 UED 验证
+          </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+          示例报价和税率未核实。更改输入可看到演示计算结果，但不会保存到业务数据库；目前三种方案的费用范围不同，系统不会自动推荐最优方案。
+        </div>
         <div className="space-y-1.5">
           <Label>货号 SKU</Label>
           <Select
@@ -339,12 +345,12 @@ function CostCalculatorFormPanel({
         </div>
 
         <div className="space-y-1.5">
-          <Label>海运模式</Label>
+          <Label>运输情景</Label>
           <ToggleGroup
             type="single"
             value={input.freightMode}
             onValueChange={(v) => {
-              if (v === 'LCL' || v === 'FCL20' || v === 'FCL40') {
+              if (v === 'AIR_DDP' || v === 'LCL' || v === 'FCL20' || v === 'FCL40') {
                 setInput((s) => ({ ...s, freightMode: v as FreightMode }))
               }
             }}
@@ -353,16 +359,26 @@ function CostCalculatorFormPanel({
             spacing={0}
             className="flex flex-wrap"
           >
+            <ToggleGroupItem value="AIR_DDP" className="px-3 text-xs">
+              空运 DDP
+            </ToggleGroupItem>
             <ToggleGroupItem value="LCL" className="px-3 text-xs">
-              LCL 拼柜
+              海运 LCL
             </ToggleGroupItem>
             <ToggleGroupItem value="FCL20" className="px-3 text-xs">
-              FCL 20&apos;
+              海运 FCL 20&apos;
             </ToggleGroupItem>
             <ToggleGroupItem value="FCL40" className="px-3 text-xs">
-              FCL 40&apos;
+              海运 FCL 40&apos;
             </ToggleGroupItem>
           </ToggleGroup>
+          <div className="rounded-md border bg-muted/30 p-2 text-[11px] text-muted-foreground">
+            {input.freightMode === 'AIR_DDP'
+              ? '空运 DDP（示例）：按实重/材积重较高者、示例最低收费计算。此示例报价称含税，但来源及清关/派送范围未核实。'
+              : input.freightMode === 'LCL'
+                ? '海运 LCL（示例）：按 CBM/计费吨取高并加示例附加费；不含进口税费。'
+                : '海运 FCL（示例）：按整柜价及 THC 分摊；不含进口税费，需检查柜容。'}
+          </div>
         </div>
 
         <div className="space-y-1.5">
@@ -459,6 +475,19 @@ function CostCalculatorFormPanel({
           </div>
         </div>
 
+        {input.freightMode === 'AIR_DDP' ? (
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="air-divisor">材积系数（示例，必须以货代报价为准）</Label>
+              <Input id="air-divisor" type="number" min={1} step={1} value={input.airVolumetricDivisor} onChange={(event) => setInput((s) => ({ ...s, airVolumetricDivisor: Math.max(1, Number(event.target.value) || 1) }))} />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={input.airQuoteIncludesTax} onChange={(event) => setInput((s) => ({ ...s, airQuoteIncludesTax: event.target.checked }))} />
+              示例 DDP 报价称已含进口税（仅演示开关，须核对真实报价范围）
+            </label>
+          </div>
+        ) : null}
+
         <p className="text-[11px] text-muted-foreground">
           箱规已预填：{input.cartonLcm}×{input.cartonWcm}×{input.cartonHcm} cm ·{' '}
           {input.unitsPerCarton} 件/箱 · 头程 {input.firstMileTotal} USD · 清关杂费{' '}
@@ -518,22 +547,22 @@ function CostCalculatorResultsPanel({
   return (
     <>
       <div className="grid grid-cols-2 gap-2">
-        <Kpi label="到仓 / 件" value={formatUsd(result.landedUnit, 2)} />
+        <Kpi label="到仓成本 / 件（示例）" value={formatUsd(result.landedUnit, 2)} hint="运价/税率未核实" />
         <Kpi
           label="建议售价"
           value={result.suggestPrice != null ? formatUsd(result.suggestPrice) : '—'}
           hint={result.suggestPriceError ?? undefined}
         />
         <Kpi
-          label="净利率"
+          label="经营净利率（估算）"
           value={result.netMarginPct != null ? `${result.netMarginPct}%` : '—'}
         />
-        <Kpi label="海运模式" value={input.freightMode} />
+        <Kpi label="运输情景" value={input.freightMode} />
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">到仓成本瀑布</CardTitle>
+          <CardTitle className="text-sm">费用瀑布（示例）</CardTitle>
           <CardDescription className="text-xs">
             单件 → 合计 · CIF {formatUsd(result.tax.cifTotalUsd)}（
             {result.tax.cifTotalLkr.toLocaleString()} LKR）
@@ -564,7 +593,7 @@ function CostCalculatorResultsPanel({
                 </TableRow>
               ))}
               <TableRow className="bg-muted/40 font-medium">
-                <TableCell className="text-xs">到仓合计 landed</TableCell>
+                <TableCell className="text-xs">到仓成本合计 landed（示例口径）</TableCell>
                 <TableCell className="text-right tabular-nums text-xs">
                   {result.landedUnit.toFixed(3)}
                 </TableCell>
@@ -579,43 +608,47 @@ function CostCalculatorResultsPanel({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">LCL vs FCL 对比</CardTitle>
-          <CardDescription className="text-xs">{result.comparison.noteZh}</CardDescription>
+          <CardTitle className="text-sm">空运 DDP / 海运 LCL / 海运 FCL 对比（示例报价）</CardTitle>
+          <CardDescription className="text-xs">{result.comparison.noteZh} {result.comparison.nonComparableReason}</CardDescription>
         </CardHeader>
+        <CardContent className="pt-0 text-xs text-muted-foreground">
+          空运 DDP 计费重示例 {result.chargeableWeightKg.toFixed(2)} kg · {result.freightIncludesTax ? '当前情景将税项设为已包含，避免重复计算' : '当前情景不假设运价含税'}。该切换仅用于演示，不代表已有货代报价。
+          {result.comparison.exceedsFcl20 || result.comparison.exceedsFcl40 ? ` 当前体积 ${result.cbmTotal.toFixed(2)} CBM 超过示例柜容，FCL 金额已按${result.comparison.fcl20Containers}个20尺柜 / ${result.comparison.fcl40Containers}个40尺柜估算。` : ''}
+          {' '}表内 FCL20/FCL40 金额均按整批多柜数量计算；未含其他港口/清关费用。
+        </CardContent>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>模式</TableHead>
-                <TableHead className="text-right">运费合计</TableHead>
+                <TableHead className="text-right">示例运费合计</TableHead>
                 <TableHead className="text-right">/件</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(
                 [
-                  ['LCL', result.comparison.lclOceanTotal],
-                  ['FCL20', result.comparison.fcl20OceanTotal],
-                  ['FCL40', result.comparison.fcl40OceanTotal],
+                  ['AIR_DDP', result.comparison.airDdpTotal, result.comparison.airDdpUnit],
+                  ['LCL', result.comparison.lclOceanTotal, result.comparison.lclOceanUnit],
+                  ['FCL20', result.comparison.fcl20OceanTotal, result.comparison.fcl20OceanUnit],
+                  ['FCL40', result.comparison.fcl40OceanTotal, result.comparison.fcl40OceanUnit],
                 ] as const
-              ).map(([mode, total]) => (
+              ).map(([mode, total, perUnit]) => (
                 <TableRow
                   key={mode}
-                  className={cn(mode === result.comparison.preferred && 'bg-primary/5')}
+                  className={cn(result.comparison.comparable && mode === result.comparison.preferred && 'bg-primary/5')}
                 >
                   <TableCell className="text-xs font-medium">
-                    {mode}
-                    {mode === result.comparison.preferred ? (
-                      <Badge variant="secondary" className="ml-2 text-[10px]">
-                        更优
-                      </Badge>
-                    ) : null}
+                    {mode === 'AIR_DDP' ? '空运 DDP' : mode === 'LCL' ? '海运 LCL' : mode === 'FCL20' ? '海运 FCL 20尺' : '海运 FCL 40尺'}
+                    {mode === 'AIR_DDP' ? <Badge variant="outline" className="ml-2 text-[10px]">示例称含税</Badge> : <Badge variant="outline" className="ml-2 text-[10px]">税费另计</Badge>}
+                    {mode === 'FCL20' && result.comparison.exceedsFcl20 ? <Badge variant="secondary" className="ml-2 text-[10px]">{result.comparison.fcl20Containers} 柜</Badge> : null}
+                    {mode === 'FCL40' && result.comparison.exceedsFcl40 ? <Badge variant="secondary" className="ml-2 text-[10px]">{result.comparison.fcl40Containers} 柜</Badge> : null}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs">
                     {total.toFixed(2)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs">
-                    {(total / result.input.units).toFixed(3)}
+                    {perUnit.toFixed(3)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -626,7 +659,7 @@ function CostCalculatorResultsPanel({
 
       {result.grossMarginOnLandedPct != null ? (
         <p className="text-[11px] text-muted-foreground">
-          毛利率（相对 landed、未扣平台费）{result.grossMarginOnLandedPct}% · 净利率（经营主口径）
+          毛利率（相对到仓成本、未扣平台费）{result.grossMarginOnLandedPct}% · 经营净利率（估算）
           {result.netMarginPct}% · CBM {result.cbmTotal.toFixed(3)} · {result.cartons} 箱
         </p>
       ) : null}

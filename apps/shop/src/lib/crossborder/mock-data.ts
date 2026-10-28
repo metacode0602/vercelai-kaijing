@@ -148,6 +148,13 @@ export const MOCK_CANDIDATES = [
     goNoGo: "GO",
     recommendedShops: ["b5ofcwj2mzauov29y08m0q99"],
     aiSignals: ["高搜索意图", "低退货类目", "可拼柜"],
+    evidenceStatus: "assumption" as const,
+    evidenceLabel: "示例数据 · 待核实",
+    evidenceSources: [
+      { label: "市场需求", status: "assumption", detail: "示例内容，未附原始搜索数据" },
+      { label: "运费/税率", status: "estimated", detail: "使用演示输入，需复核有效报价和税率" },
+    ],
+    reviewReason: "市场需求和报价数据尚未提供可核验来源。",
   },
   {
     id: "c2",
@@ -171,6 +178,13 @@ export const MOCK_CANDIDATES = [
     goNoGo: "CONDITIONAL",
     recommendedShops: ["b5ofcwj2mzauov29y08m0q99", "s8v7xkqw0asyz4zhswxwzdd3"],
     aiSignals: ["竞品价差 8%", "需样品质检", "HS 8544 提示"],
+    evidenceStatus: "estimated" as const,
+    evidenceLabel: "估算 · 待补证",
+    evidenceSources: [
+      { label: "竞品价差", status: "assumption", detail: "演示差异，需补竞品链接和采集时间" },
+      { label: "成本", status: "estimated", detail: "需核实供应商报价、物流和平台费用" },
+    ],
+    reviewReason: "请确认产品兼容性、样品质量，并补充竞品和采购报价证据。",
   },
   {
     id: "c3",
@@ -194,10 +208,20 @@ export const MOCK_CANDIDATES = [
     goNoGo: "HOLD",
     recommendedShops: ["b5ofcwj2mzauov29y08m0q99"],
     aiSignals: ["库龄≥90d", "建议闪购", "暂缓加订"],
+    evidenceStatus: "assumption" as const,
+    evidenceLabel: "示例数据 · 待核实",
+    evidenceSources: [
+      { label: "库存风险", status: "assumption", detail: "示例库存信号，并非实时店铺数据" },
+      { label: "利润", status: "estimated", detail: "示例成本口径，需核实实际费用" },
+    ],
+    reviewReason: "当前库存和销售数据为示例，不应据此下补货或促销决策。",
   },
 ] as const
 
 export type MockCandidate = (typeof MOCK_CANDIDATES)[number]
+
+/** Demo-only candidate review state. This does not write to a backend. */
+export const MOCK_CANDIDATE_REVIEW_STATE: Record<string, { decision: string; reason: string }> = {}
 
 export const MOCK_PENDING = [
   {
@@ -1150,6 +1174,7 @@ export const MOCK_COST_CALC_PRESETS = [
     cartonWcm: 40,
     cartonHcm: 35,
     kgPerCarton: 12,
+    airVolumetricDivisor: 6000,
     firstMileTotal: 80,
     clearanceMiscTotal: 45,
     tariffProfileId: "apparel" as const,
@@ -1169,6 +1194,7 @@ export const MOCK_COST_CALC_PRESETS = [
     cartonWcm: 35,
     cartonHcm: 30,
     kgPerCarton: 10,
+    airVolumetricDivisor: 6000,
     firstMileTotal: 95,
     clearanceMiscTotal: 55,
     tariffProfileId: "electronics" as const,
@@ -1188,6 +1214,7 @@ export const MOCK_COST_CALC_PRESETS = [
     cartonWcm: 25,
     cartonHcm: 25,
     kgPerCarton: 14,
+    airVolumetricDivisor: 6000,
     firstMileTotal: 70,
     clearanceMiscTotal: 40,
     tariffProfileId: "home_sports" as const,

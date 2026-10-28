@@ -35,6 +35,7 @@ export default async function CostRecalculatePage({ params }: CostRecalculatePag
           <Badge variant="outline">待复核</Badge>
         </div>
         <p className="text-sm text-muted-foreground">{cost.title}</p>
+        <p className="text-xs text-muted-foreground">页面计算使用示例费率/报价；输入可交互调整，但演示结果不会写入业务数据库。</p>
       </div>
 
       <CostCalculatorWorkbench variant="page" initialSku={cost.sku} />

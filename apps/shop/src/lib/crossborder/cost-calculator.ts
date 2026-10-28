@@ -15,7 +15,7 @@ export const FX_RATE_DATE = '2026-10-21'
 /** Illustrative USD→LKR; not a live FX feed. */
 export const FX_USD_LKR = 300
 
-export type FreightMode = 'LCL' | 'FCL20' | 'FCL40'
+export type FreightMode = 'AIR_DDP' | 'LCL' | 'FCL20' | 'FCL40'
 
 export type TariffProfileId = 'apparel' | 'electronics' | 'home_sports'
 
@@ -74,6 +74,10 @@ export const TARIFF_PROFILES: Record<TariffProfileId, TariffRates> = {
 }
 
 export const FREIGHT_RATES = {
+  /** Illustrative DDP quote only; no source quote is connected in this UED. */
+  airDdpUsdPerKg: 13,
+  airDdpMinChargeUsd: 25,
+  airDdpVolumetricDivisor: 6000,
   lclUsdPerCbm: 120,
   lclUsdPerTon: 180,
   lclSurchargeUsd: 35,
@@ -103,6 +107,10 @@ export type CostCalculatorInput = {
   unitsPerCarton: number
   /** Gross kg per carton (optional; used for LCL ton quote) */
   kgPerCarton: number
+  /** Carrier quote's volumetric divisor; demo value only, not a default rule. */
+  airVolumetricDivisor: number
+  /** Estimated gross package volume in cm³ for AIR DDP chargeable weight. */
+  airQuoteIncludesTax: boolean
   freightMode: FreightMode
   tariffProfileId: TariffProfileId
   clearanceMiscTotal: number
@@ -143,6 +151,10 @@ export type CostCalculatorResult = {
   cbmTotal: number
   oceanFreightTotal: number
   oceanFreightUnit: number
+  chargeableWeightKg: number
+  selectedFreightTotal: number
+  selectedFreightUnit: number
+  freightIncludesTax: boolean
   tax: TaxBreakdown
   waterfall: WaterfallLine[]
   landedUnit: number
@@ -152,10 +164,21 @@ export type CostCalculatorResult = {
   grossMarginOnLandedPct: number | null
   suggestPriceError: string | null
   comparison: {
+    airDdpTotal: number
+    airDdpUnit: number
     lclOceanTotal: number
+    lclOceanUnit: number
     fcl20OceanTotal: number
+    fcl20OceanUnit: number
     fcl40OceanTotal: number
-    preferred: FreightMode
+    fcl40OceanUnit: number
+    preferred: FreightMode | null
+    comparable: boolean
+    nonComparableReason: string
+    fcl20Containers: number
+    fcl40Containers: number
+    exceedsFcl20: boolean
+    exceedsFcl40: boolean
     fclBetterFromUnitsApprox: number | null
     noteZh: string
   }
@@ -191,8 +214,24 @@ export function computeOceanFreight(
     const byTon = chargeableTon * r.lclUsdPerTon
     return Math.max(byCbm, byTon) + r.lclSurchargeUsd
   }
-  if (mode === 'FCL20') return r.fcl20Usd + r.thcUsd
-  return r.fcl40Usd + r.thcUsd
+  if (mode === 'FCL20') return Math.ceil(cbmTotal / r.fcl20UsableCbm) * (r.fcl20Usd + r.thcUsd)
+  return Math.ceil(cbmTotal / r.fcl40UsableCbm) * (r.fcl40Usd + r.thcUsd)
+}
+
+/** Demo-only DDP quote calculation. Divisor/rate/minimum must come from a real quote in production. */
+export function computeAirDdpFreight(
+  actualWeightKg: number,
+  volumeCbm: number,
+  volumetricDivisor: number,
+): { total: number; chargeableWeightKg: number } {
+  const divisor = Math.max(1, volumetricDivisor)
+  const volumetricWeightKg = (volumeCbm * 1_000_000) / divisor
+  const chargeableWeightKg = Math.max(actualWeightKg, volumetricWeightKg)
+  const total = Math.max(
+    FREIGHT_RATES.airDdpMinChargeUsd,
+    chargeableWeightKg * FREIGHT_RATES.airDdpUsdPerKg,
+  )
+  return { total: round2(total), chargeableWeightKg: round2(chargeableWeightKg) }
 }
 
 /**
@@ -253,23 +292,35 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   const kgTotal = input.kgPerCarton * cartons
   const chargeableTon = kgTotal / 1000
 
-  const oceanFreightTotal = computeOceanFreight(input.freightMode, cbmTotal, chargeableTon)
-  const oceanFreightUnit = oceanFreightTotal / units
+  const oceanFreightTotal = input.freightMode === 'AIR_DDP'
+    ? 0
+    : computeOceanFreight(input.freightMode, cbmTotal, chargeableTon)
+  const airDdp = computeAirDdpFreight(
+    kgTotal,
+    cbmTotal,
+    input.airVolumetricDivisor || FREIGHT_RATES.airDdpVolumetricDivisor,
+  )
+  const fcl20Containers = Math.max(1, Math.ceil(cbmTotal / FREIGHT_RATES.fcl20UsableCbm))
+  const fcl40Containers = Math.max(1, Math.ceil(cbmTotal / FREIGHT_RATES.fcl40UsableCbm))
+  const selectedFreightTotal = input.freightMode === 'AIR_DDP' ? airDdp.total : oceanFreightTotal
+  const selectedFreightUnit = selectedFreightTotal / units
+  const freightIncludesTax = input.freightMode === 'AIR_DDP' && input.airQuoteIncludesTax
 
   const fobTotal = input.fobUnit * units
   const insurance = input.insuranceTotal
   const firstMileInCif = input.firstMileInCif ? input.firstMileTotal : 0
-  const cifTotal =
-    fobTotal + insurance + oceanFreightTotal + firstMileInCif
+  const cifTotal = fobTotal + insurance + (input.freightMode === 'AIR_DDP' ? 0 : selectedFreightTotal) + firstMileInCif
 
   const rates = TARIFF_PROFILES[input.tariffProfileId]
-  const tax = computeLkTaxStack(cifTotal, rates)
+  const tax = freightIncludesTax
+    ? computeLkTaxStack(0, rates)
+    : computeLkTaxStack(cifTotal, rates)
 
   const landedTotal =
     fobTotal +
     input.firstMileTotal +
-    oceanFreightTotal +
-    tax.taxTotal +
+    selectedFreightTotal +
+    (freightIncludesTax ? 0 : tax.taxTotal) +
     input.clearanceMiscTotal
   const landedUnit = landedTotal / units
 
@@ -313,10 +364,10 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
     },
     {
       id: 'ocean',
-      labelZh: `海运分摊（${input.freightMode}）`,
-      labelEn: 'ocean_freight_allocated',
-      unitUsd: round4(oceanFreightUnit),
-      totalUsd: round2(oceanFreightTotal),
+      labelZh: `国际物流分摊（${input.freightMode}）`,
+      labelEn: 'international_freight_allocated',
+      unitUsd: round4(selectedFreightUnit),
+      totalUsd: round2(selectedFreightTotal),
     },
     {
       id: 'customs',
@@ -365,14 +416,8 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   const lclOcean = computeOceanFreight('LCL', cbmTotal, chargeableTon)
   const fcl20Ocean = computeOceanFreight('FCL20', cbmTotal, chargeableTon)
   const fcl40Ocean = computeOceanFreight('FCL40', cbmTotal, chargeableTon)
-
-  const candidates: { mode: FreightMode; total: number }[] = [
-    { mode: 'LCL', total: lclOcean },
-    { mode: 'FCL20', total: fcl20Ocean },
-    { mode: 'FCL40', total: fcl40Ocean },
-  ]
-  candidates.sort((a, b) => a.total - b.total)
-  const preferred = candidates[0]!.mode
+  // DDP quote and sea rates have different included cost boundaries; never auto-pick a winner.
+  const preferred: FreightMode | null = null
 
   // Approx units where FCL20 beats LCL for this SKU's CBM/unit
   const cbmPerUnit = cbmTotal / units
@@ -388,17 +433,19 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   }
 
   const noteZh =
-    preferred === 'LCL'
-      ? `当前批量下 LCL 运费更低；约 ${fclBetterFromUnitsApprox ?? '—'} 件后 FCL 20' 可能更优（示意）。`
-      : `当前批量下 ${preferred} 运费更优（示意 · 合柜时需按 CBM 权重重算）。`
+    '方案费用范围不同：空运 DDP 示例含税打包，海运示例未含进口税。当前仅比较演示物流报价，不可据此判定完整成本最优方案。'
 
   return {
     input: { ...input, units },
     cartons,
     cbmPerCarton: round4(cbmPc),
     cbmTotal: round4(cbmTotal),
-    oceanFreightTotal: round2(oceanFreightTotal),
-    oceanFreightUnit: round4(oceanFreightUnit),
+    oceanFreightTotal: round2(selectedFreightTotal),
+    oceanFreightUnit: round4(selectedFreightUnit),
+    chargeableWeightKg: airDdp.chargeableWeightKg,
+    selectedFreightTotal: round2(selectedFreightTotal),
+    selectedFreightUnit: round4(selectedFreightUnit),
+    freightIncludesTax,
     tax,
     waterfall,
     landedUnit: round4(landedUnit),
@@ -408,10 +455,21 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
     grossMarginOnLandedPct,
     suggestPriceError,
     comparison: {
+      airDdpTotal: airDdp.total,
+      airDdpUnit: round4(airDdp.total / units),
       lclOceanTotal: round2(lclOcean),
+      lclOceanUnit: round4(lclOcean / units),
       fcl20OceanTotal: round2(fcl20Ocean),
+      fcl20OceanUnit: round4(fcl20Ocean / units),
       fcl40OceanTotal: round2(fcl40Ocean),
+      fcl40OceanUnit: round4(fcl40Ocean / units),
       preferred,
+      comparable: false,
+      nonComparableReason: 'DDP 示例报价含税，LCL/FCL 示例报价未含税，且来源/有效期未核实。',
+      fcl20Containers,
+      fcl40Containers,
+      exceedsFcl20: cbmTotal > FREIGHT_RATES.fcl20UsableCbm,
+      exceedsFcl40: cbmTotal > FREIGHT_RATES.fcl40UsableCbm,
       fclBetterFromUnitsApprox,
       noteZh,
     },
@@ -436,8 +494,8 @@ export function getFormulaDocs(rates: TariffRates): {
     titleZh: '计算规则与公式',
     lines: [
       {
-        zh: `CIF v = FOB合计 + 保险 + 海运分摊（头程默认不入 CIF）`,
-        en: 'cif = fob_total + insurance + ocean_freight_allocated',
+        zh: `计税输入为演示口径：FOB + 保险 + 海运分摊；DDP 报价含税开关打开时不重复计入进口税（须以真实报价核实）`,
+        en: 'demo_cif = fob_total + insurance + sea_freight; DDP included tax is not added twice',
       },
       {
         zh: `Customs Duty d = v × ${pct(rates.customs)}（税基 CIF）`,
@@ -460,15 +518,15 @@ export function getFormulaDocs(rates: TariffRates): {
         en: `vat = base × ${rates.vat}; sscl = base × ${rates.sscl}`,
       },
       {
-        zh: `到仓/件 = (FOB + 头程 + 海运 + 税合计 + 清关杂费) / 件数`,
-        en: 'landed_unit = (fob + first_mile + ocean + tax_total + misc) / units',
+        zh: `经营到仓成本/件 = (FOB + 国际物流 + 未含进口税费 + 清关杂费) / 件数；DDP 含税报价不重复加税`,
+        en: 'landed_unit = (fob + freight + non_included_tax + clearance_misc) / units',
       },
       {
         zh: `建议售价 P* = (到仓/件 + 尾程) / (1 − 佣金% − 支付% − 广告% − 目标净利率)`,
         en: 'P* = (landed + last_mile) / (1 − f − m)',
       },
       {
-        zh: `税率表 ${TARIFF_TABLE_VERSION} · 运价 ${FREIGHT_RATE_VERSION} · 汇率日 ${FX_RATE_DATE}（1 USD = ${FX_USD_LKR} LKR）· HS 示意 ${rates.hsHint}`,
+        zh: `税率表 ${TARIFF_TABLE_VERSION} · 运价 ${FREIGHT_RATE_VERSION} · 汇率日 ${FX_RATE_DATE}（1 USD = ${FX_USD_LKR} LKR）· HS 示意 ${rates.hsHint} · DDP ${FREIGHT_RATES.airDdpUsdPerKg} USD/kg 示例，含税范围待核实`,
         en: `tariff ${TARIFF_TABLE_VERSION}; freight ${FREIGHT_RATE_VERSION}; fx ${FX_RATE_DATE}`,
       },
     ],
