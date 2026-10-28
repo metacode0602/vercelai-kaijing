@@ -1285,7 +1285,7 @@ export function getProductBySku(sku: string) {
 }
 
 export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
-  SKU-T13-001: {
+  'SKU-T13-001': {
     product: {
       itemId: '593629355',
       sku: 'SKU-T13-001',
@@ -1308,7 +1308,7 @@ export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
         itemId: '593629355',
         sku: 'Color:Blue, Size:25cm',
         rating: 5,
-        content: 'Do not buy this . the quality of the product is very poor . not worth for the price',
+        content: 'Do not buy this. The quality of the product is very poor. Not worth for the price.',
         contentZh: '（5星但内容差评）别买。产品质量非常差，这个价格完全不值。',
         buyerName: '******008',
         createdAt: '25 May 2026',
@@ -1323,7 +1323,7 @@ export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
         itemId: '593629355',
         sku: 'Color:green, Size:25cm',
         rating: 5,
-        content: 'එකෙක්වත් ගන්න එපා මේවා,සෙට් කරන්න බෑ,එකක්ට එකක් සෙට් වෙන්නේ නෑ,අපරාදේ සල්ලි',
+        content: 'Poor quality. Parts do not fit together. Waste of money.',
         contentZh: '（5星但内容差评）谁都别买这个，根本装不起来，零件之间对不上，纯属浪费钱。',
         buyerName: '0***5',
         createdAt: '14 Mar 2026',
@@ -1338,7 +1338,7 @@ export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
         itemId: '593629355',
         sku: 'Color:Yellow, Size:25cm',
         rating: 5,
-        content: "i've ordered a yellow one but came a orange one.this is literally good.but the quality of the plastic is low",
+        content: 'I ordered yellow but got orange. Good product but plastic quality is low.',
         contentZh: '我下单的是黄色，发来的是橙色。东西本身确实不错，但塑料质感偏低。',
         buyerName: '0***4',
         createdAt: '27 Apr 2026',
@@ -1356,7 +1356,7 @@ export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
         itemId: '593629355',
         sku: 'Color:DEEP BLUE, Size:25cm',
         rating: 5,
-        content: "good product its like a rubbery material turns smooth its not 25 cm its like 15 cm",
+        content: 'Good product. Material is smooth but size is smaller than described.',
         contentZh: '东西不错，材质有点像橡胶，摸起来很顺滑。但是尺寸不对，标 25cm 实际大概只有 15cm。',
         buyerName: 'Hijas',
         createdAt: '07 Apr 2026',

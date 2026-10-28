@@ -75,16 +75,14 @@ export function ProductReviewsSection({ sku }: { sku: string }) {
     )
   }
 
+  const desc = `商品评价数据（后台抓取） · 上次刷新：${data.meta.fetchedAt ? new Date(data.meta.fetchedAt).toLocaleString() : '—'} · 来源：${
+    data.meta.source === 'api' ? 'API' : data.meta.source === 'ai_scrape' ? 'AI' : data.meta.source === 'mixed' ? 'API 优先（混合）' : '—'
+  }`
   return (
     <DetailSection
       title="评论"
-      description={
-        <span>
-          商品评价数据（后台抓取） · 上次刷新：{data.meta.fetchedAt ? new Date(data.meta.fetchedAt).toLocaleString() : '—'} · 来源：
-          {data.meta.source === 'api' ? 'API' : data.meta.source === 'ai_scrape' ? 'AI' : data.meta.source === 'mixed' ? 'API 优先（混合）' : '—'}
-        </span>
-      }
-      actions={
+      description={desc}
+      action={
         <div className="flex items-center gap-2">
           {data.product.platformUrl && (
             <Button variant="outline" size="sm" asChild>
