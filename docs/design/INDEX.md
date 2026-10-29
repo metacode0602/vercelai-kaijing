@@ -16,6 +16,7 @@
 | [haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md) | **UED 初版，待评审** | 平台/国家站点/仓库/币种主数据及可复用基础字典交互与数据库落地边界 |
 | [haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) | **D1 UED 原型，部分交互待深化** | 好时运 ERP 页面 IA 与交互状态：店铺多仓、商品、供应商、采购、库存、订单履约、售后、报表、导入、日志和权限 |
 | [haoshiyun-erp-target-function-matrix.md](haoshiyun-erp-target-function-matrix.md) | **目标功能基线，D1 原型** | 按 P0/P1 域追踪 D0 规格、D1 原型、D2 业务接入、D3 验收上线及后端依赖/验收证据 |
+| [haoshiyun-erp-console-menu-ia.md](haoshiyun-erp-console-menu-ia.md) | **IA 设计稿** | 控制台左侧菜单合并稿（Excel 菜单蓝图 × 现有导航）：9 组 33 页线框、功能明细、域 A–K 全表展示路径、设置区 Tab 与旧路由迁移 |
 | [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算：先做可交互 UED 并确认使用习惯，再接业务 API/tRPC；覆盖空运 DDP、海运 LCL/FCL；按有效报价和规则计算、展示费用边界/数据来源/历史快照；HS/税率/规则/费率/汇率版本化维护与消费方解耦 |
 | [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
 | [comment-scraping-and-report-design.md](comment-scraping-and-report-design.md) | **设计稿** | 评论抓取与入口设计：API 优先（Lazop Review）、AI 辅助兜底，统一 DomainReview，生成 HTML 报告（涵盖 KPI/评分分布/关键发现/负向中性/全部评价；规划输出目录 `docs/comments/`，样例在 `docs/design/comments/`） |
