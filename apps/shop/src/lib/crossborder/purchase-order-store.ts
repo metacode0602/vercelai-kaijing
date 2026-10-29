@@ -253,6 +253,60 @@ export function addPurchaseOrderLine(
   return updated
 }
 
+
+export type ConvertFromRequestLineInput = {
+  sku: string
+  qtyOrdered: number
+  unitPrice: number
+}
+
+export type ConvertFromRequestInput = CreatePurchaseOrderHeaderInput & {
+  lines: ConvertFromRequestLineInput[]
+}
+
+/**
+ * 由已批准采购申请生成正式采购单（header + lines）。
+ * 对齐 schema：仅 approved 申请可转换；原型在批准动作中一次性写入
+ * purchase_orders + purchase_order_lines，状态为草稿供复核后下发。
+ */
+export function createPurchaseOrderFromApprovedRequest(
+  orders: PurchaseOrder[],
+  input: ConvertFromRequestInput,
+): PurchaseOrder {
+  const poNo = nextPoNo(orders)
+  const lines: PurchaseOrderLine[] = input.lines.map((line, index) => {
+    const qtyOrdered = Math.max(1, Math.floor(line.qtyOrdered) || 1)
+    const unitPrice = Math.max(0, Number(line.unitPrice) || 0)
+    const lineNo = index + 1
+    return {
+      id: `POL-${poNo.replace(/^PO-/, '')}-${String(lineNo).padStart(2, '0')}`,
+      lineNo,
+      sku: line.sku,
+      qtyOrdered,
+      qtyReceived: 0,
+      qtyQcPassed: 0,
+      qtyStocked: 0,
+      unitPrice,
+      amount: Number((qtyOrdered * unitPrice).toFixed(4)),
+    }
+  })
+  const created: PurchaseOrder = {
+    id: poNo,
+    poNo,
+    sourceRequest: input.sourceRequest.trim() || '—',
+    supplier: input.supplier,
+    warehouse: input.warehouse,
+    currency: input.currency || 'CNY',
+    totalAmount: recomputeTotal(lines),
+    expectedAt: input.expectedAt,
+    status: '草稿',
+    createdAt: new Date().toISOString().slice(0, 10),
+    lines,
+  }
+  store.set([created, ...orders])
+  return created
+}
+
 export function updatePurchaseOrderStatus(
   orders: PurchaseOrder[],
   poId: string,

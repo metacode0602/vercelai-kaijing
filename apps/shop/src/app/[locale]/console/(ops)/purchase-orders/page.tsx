@@ -9,16 +9,21 @@ import {
   usePurchaseOrders,
   type PurchaseOrderStatus,
 } from '@/lib/crossborder/purchase-order-store'
+import { usePurchaseRequests } from '@/lib/crossborder/purchase-request-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
 const SUPPLIER_OPTIONS = ['厦门优品服饰有限公司', '泉州联创数码配件厂']
 const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
-const REQUEST_OPTIONS = ['PR-2026-0012', 'PR-2026-0011', 'PR-2026-0009', 'PR-2026-0004', '—']
 
 export default function PurchaseOrdersPage() {
   const orders = usePurchaseOrders()
+  const purchaseRequests = usePurchaseRequests()
+  const REQUEST_OPTIONS = React.useMemo(() => {
+    const nos = purchaseRequests.map((item) => item.requestNo)
+    return [...nos, '—']
+  }, [purchaseRequests])
   const rows = React.useMemo(() => orders.map(toListRow), [orders])
   const router = useLocaleRouter()
   const [open, setOpen] = React.useState(false)

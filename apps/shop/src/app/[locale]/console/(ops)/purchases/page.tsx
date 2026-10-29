@@ -1,40 +1,134 @@
 'use client'
 
+/**
+ * 兼容旧入口「采购管理」：与采购申请共用同一 store 与两步创建流程。
+ * 主路径请使用 /console/purchase-requests 与 /console/purchase-approvals。
+ */
+
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { ERP_DEMO_PURCHASES, type DemoPurchase } from '@/lib/crossborder/erp-ued-data'
+import {
+  countByStatus,
+  createPurchaseRequestHeader,
+  toListRow,
+  usePurchaseRequests,
+} from '@/lib/crossborder/purchase-request-store'
+import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
+const SUPPLIER_OPTIONS = ['厦门优品服饰有限公司', '泉州联创数码配件厂']
+const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
+const REASON_OPTIONS = ['备货', '补货', '订单采购']
+
+function statusVariant(status: string) {
+  if (status === '待审核') return 'outline' as const
+  if (status === '已驳回' || status === '已取消') return 'destructive' as const
+  if (status === '已转采购单' || status === '已批准') return 'secondary' as const
+  return 'outline' as const
+}
+
 export default function PurchasesPage() {
-  const [rows, setRows] = React.useState<DemoPurchase[]>(ERP_DEMO_PURCHASES)
+  const requests = usePurchaseRequests()
+  const rows = React.useMemo(() => requests.map(toListRow), [requests])
+  const counts = React.useMemo(() => countByStatus(requests), [requests])
+  const router = useLocaleRouter()
   const [open, setOpen] = React.useState(false)
-  const [selected, setSelected] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState('')
-  const active = rows.find((row) => row.id === selected)
-  function act(id: string, status: DemoPurchase['status']) {
-    setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row))
-    setNotice(`${id} 状态已更新为「${status}」（本次原型会话）。`)
-  }
-  const editor = open ? <UedDialog title="新建采购申请" description="提交后进入审核；此原型不创建正式采购单。" fields={[
-        { key: 'reason', label: '采购原因', options: ['备货', '补货', '订单采购'], required: true },
-        { key: 'sku', label: '内部 SKU', options: ['HSY000001001', 'HSY000001002', 'HSY000002001'], required: true },
-        { key: 'quantity', label: '申请数量', type: 'number', required: true },
-        { key: 'supplier', label: '供应商', options: ['厦门优品服饰有限公司', '泉州联创数码配件厂'], required: true },
-        { key: 'unitPrice', label: '采购单价', type: 'number', required: true },
+
+  const editor = open ? (
+    <UedDialog
+      title="新建采购申请 · 主信息"
+      description="与「采购申请」相同：先保存 purchase_requests 主信息，再在详情添加明细；批准后才生成采购单。"
+      fields={[
+        { key: 'reason', label: '采购原因', options: REASON_OPTIONS, required: true },
+        { key: 'supplier', label: '供应商', options: SUPPLIER_OPTIONS, required: true },
+        { key: 'warehouse', label: '预计入库仓', options: WAREHOUSE_OPTIONS, required: true },
         { key: 'currency', label: '币种', options: ['CNY', 'USD'], required: true },
-        { key: 'expectedAt', label: '预计到货日期', type: 'date', required: true },
-        { key: 'warehouse', label: '收货仓库', options: ['WH-CN-XMN-001'], required: true },
-        { key: 'priority', label: '优先级', options: ['普通', '紧急'], required: true },
+        { key: 'expectedAt', label: '期望到货', type: 'date', required: true },
         { key: 'remark', label: '申请说明', type: 'textarea', fullWidth: true },
-      ]} onClose={() => setOpen(false)} onSave={() => { setRows((current) => [{ id: `PR-2026-${String(current.length + 13).padStart(4, '0')}`, applicant: '当前用户', sku: 'HSY000001001', quantity: 20, supplier: '厦门优品服饰有限公司', unitPrice: 28, currency: 'CNY', warehouse: 'WH-CN-XMN-001', reason: '补货', status: '待审核', approver: '杨洁 / 黄发聪', received: 0, passed: 0 }, ...current]); setOpen(false); setNotice('采购申请已加入本次原型会话。') }} /> : null
-  return <>{editor}<UedWorkspace title="采购管理" description="申请、互审、采购单、分批收货与质检入库分段记录。" rows={rows} detailHref={(row) => `/console/purchases/${encodeURIComponent(row.id)}`} searchKeys={['id', 'applicant', 'sku', 'supplier', 'status', 'approver']} addLabel="新建采购申请" onAdd={() => setOpen(true)} columns={[
-    { key: 'id', label: '申请 / 采购单号' }, { key: 'applicant', label: '申请人' }, { key: 'sku', label: '内部 SKU' }, { key: 'quantity', label: '申请数量' }, { key: 'supplier', label: '供应商' }, { key: 'unitPrice', label: '单价', render: (row) => `${row.unitPrice} ${row.currency}` }, { key: 'warehouse', label: '收货仓库' }, { key: 'approver', label: '审核人' }, { key: 'status', label: '状态', render: (row) => <Badge variant={row.status === '待审核' ? 'outline' : 'secondary'}>{row.status}</Badge> }, { key: 'received', label: '到货 / 合格', render: (row) => `${row.received} / ${row.passed}` },
-  ]}>
-    <UedPrototypeNotice>审批规则：普通员工由杨洁或黄发聪审核；杨洁申请由黄发聪审核、黄发聪申请由杨洁审核；禁止自审。通过后才生成正式采购单。</UedPrototypeNotice>
-    {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-    <div className="flex flex-wrap gap-2">{rows.filter((row) => row.status === '待审核').map((row) => <React.Fragment key={row.id}><Button variant="outline" size="sm" onClick={() => { setSelected(row.id); act(row.id, '已审核') }}>审核通过 · {row.id}</Button><Button variant="ghost" size="sm" onClick={() => act(row.id, '已驳回')}>驳回</Button></React.Fragment>)}</div>
-    <div className="flex flex-wrap gap-2">{rows.filter((row) => ['已审核', '部分收货', '待收货'].includes(row.status)).map((row) => <React.Fragment key={`receipt-${row.id}`}><Button variant="outline" size="sm" onClick={() => { setSelected(row.id); act(row.id, '待质检') }}>登记到货 · {row.id}</Button><Button variant="outline" size="sm" onClick={() => { act(row.id, '已入库') }}>确认质检并入库</Button></React.Fragment>)}</div>
-    {active ? <p className="text-sm text-muted-foreground">已选 {active.id} · 采购 {active.quantity} · 到货 {active.received} · 合格 {active.passed}。状态节点为演示，不触发真实库存流水。</p> : null}
-  </UedWorkspace></>
+      ]}
+      onClose={() => setOpen(false)}
+      onSave={(values) => {
+        const created = createPurchaseRequestHeader(requests, {
+          reason: values.reason || REASON_OPTIONS[0]!,
+          supplier: values.supplier || SUPPLIER_OPTIONS[0]!,
+          warehouse: values.warehouse || WAREHOUSE_OPTIONS[0]!,
+          currency: values.currency || 'CNY',
+          expectedAt: values.expectedAt || new Date().toISOString().slice(0, 10),
+          remark: values.remark,
+        })
+        setOpen(false)
+        router.push(`/console/purchase-requests/${encodeURIComponent(created.id)}`)
+      }}
+      saveLabel="保存主信息并继续"
+    />
+  ) : null
+
+  return (
+    <>
+      {editor}
+      <UedWorkspace
+        title="采购管理"
+        description="兼容入口：申请创建 → 明细 → 审核转采购单。完整页面见「采购申请 / 采购审核 / 采购单」。"
+        rows={rows}
+        detailHref={(row) => `/console/purchase-requests/${encodeURIComponent(row.id)}`}
+        searchKeys={['id', 'requestNo', 'applicant', 'firstSku', 'supplier', 'status']}
+        searchPlaceholder="搜索申请号、SKU 或供应商"
+        filters={[
+          { label: '状态', options: ['草稿', '待审核', '已驳回', '已转采购单', '已取消'] },
+        ]}
+        addLabel="新建采购申请"
+        onAdd={() => setOpen(true)}
+        columns={[
+          { key: 'requestNo', label: '申请单号' },
+          { key: 'applicant', label: '申请人' },
+          {
+            key: 'firstSku',
+            label: '首行 SKU',
+            render: (row) => (row.lineCount > 0 ? row.firstSku : '待添加'),
+          },
+          {
+            key: 'totalQty',
+            label: '申请数量',
+            render: (row) => String(row.totalQty),
+          },
+          { key: 'supplier', label: '供应商' },
+          {
+            key: 'totalAmount',
+            label: '金额',
+            render: (row) => `${row.totalAmount} ${row.currency}`,
+          },
+          { key: 'approver', label: '审核人' },
+          {
+            key: 'status',
+            label: '状态',
+            render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge>,
+          },
+          {
+            key: 'convertedPoId',
+            label: '采购单',
+            render: (row) => row.convertedPoId || '—',
+          },
+        ]}
+      >
+        <UedPrototypeNotice>
+          本页与「采购申请」共用会话数据。流程：创建主信息 → 详情加明细 → 提交审核 → 采购审核批准后生成
+          purchase_orders / purchase_order_lines。收货与质检请到「到货质检入库 / 采购单」。
+        </UedPrototypeNotice>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">待审核 {counts.待审核}</Badge>
+          <Badge variant="secondary">已转采购单 {counts.已转采购单}</Badge>
+          <Button size="sm" variant="outline" onClick={() => router.push('/console/purchase-requests')}>
+            采购申请
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => router.push('/console/purchase-approvals')}>
+            采购审核
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => router.push('/console/purchase-orders')}>
+            采购单
+          </Button>
+        </div>
+      </UedWorkspace>
+    </>
+  )
 }

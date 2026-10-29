@@ -1,13 +1,19 @@
 'use client'
 
 import * as React from 'react'
-import { notFound } from 'next/navigation'
-import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
-import { ERP_DEMO_PURCHASES } from '@/lib/crossborder/erp-ued-data'
+import { useLocaleRouter } from '@/lib/i18n/navigation'
+import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 
-export default function PurchaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+/** 旧「采购管理」详情入口：统一跳转到采购申请详情（两步 UED）。 */
+export default function PurchasesDetailRedirect({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const row = ERP_DEMO_PURCHASES.find((item) => item.id === id)
-  if (!row) notFound()
-  return <UedRecordDetail backHref="/console/purchases" moduleTitle="采购管理" module="purchases" row={row as unknown as Record<string, unknown>} />
+  const router = useLocaleRouter()
+  React.useEffect(() => {
+    router.replace(`/console/purchase-requests/${encodeURIComponent(id)}`)
+  }, [id, router])
+  return (
+    <p className="mx-auto max-w-7xl p-6 text-sm text-muted-foreground">
+      正在跳转到采购申请详情…
+    </p>
+  )
 }
