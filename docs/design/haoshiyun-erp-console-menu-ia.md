@@ -27,6 +27,7 @@
 | D3 | 页面粒度 | **按 Excel 拆独立二级路由**：采购 4 页、售后 2 页、商品 SPU/SKU 2 页、财务 2 页、发货 3 页 |
 | D4 | 域 J/K 入口 | 评论口碑（J）→ 商品中心「商品评论」；运费测算（K）→ 成本财务「运费测算」 |
 | D5 | 属性字典 | 商品中心主入口（新 `/console/dictionaries` 路由）+ **设置区原 Tab 保留**（双侧可达，同一页面） |
+| D6 | 旧路由处置 | **一律删除不建 redirect**；功能不一致的合并页与拆分页**双路由并存**并标记 `[并存]`（§5.3：删 4 条、并存 5 条） |
 
 ### 1.3 设计原则
 
@@ -393,50 +394,63 @@
 
 ### 5.2 旧导航 → 新导航（`console-nav.ts` 改造点）
 
-| 现有项 | 去向 |
-|---|---|
-| workbench/dashboard、pending、candidates | 保留（pending 文案改「我的待办」，范围扩大） |
-| masterData/master-products | 保留为「商品库SPU」；SKU 拆出 → master-skus |
-| masterData/suppliers | → 采购中心·供应商管理；映射部分拆出 → supplier-skus |
-| masterData/mappings | → 刊登中心·变体映射 |
-| masterData/warehouse | → 仓库中心 |
-| procurement/purchases | 拆为 4 页 → 采购中心（旧路由 redirect） |
-| procurement/inventory-ledger | → 仓库中心（剥离调整） |
-| procurement/inventory | → 仓库中心·库存预警 |
-| fulfillment/products（商品与刊登合并页） | **退役**：商品部分 → 商品中心，刊登部分 → 刊登中心（redirect 过渡） |
-| fulfillment/listings、order-exceptions、orders | 分组改挂（URL 不变的保留） |
-| fulfillment/shipments | 拆为 picking / logistics-lgs / logistics-jsb |
-| fulfillment/aftersales | 拆为 aftersale-cancels / aftersale-returns |
-| analytics/costs、finance | costs 保留；finance 拆 settlements / profits；freight 新增 |
-| analytics/reports | 保留为报表中心 |
-| administration/imports、system-log、access-control | → 设置区 3 Tab（内容迁移 + 旧路由 redirect） |
-| `groupKey` 联合类型 | `workbench`\|`products`\|`listings`\|`procurement`\|`warehouse`\|`fulfillment`\|`aftersales`\|`finance`\|`reports` |
-| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 imports、integration-log 两项（10 Tab） |
-| 图标映射 NAV_ICONS | 按新组补 lucide 图标（如 Boxes/Factory/Truck/BadgePercent/ChartNoAxesCombined） |
+**旧路由处置原则（确认后更新）**：旧路由**一律删除**（不建 redirect）；仅当旧页功能与新页**不一致**（合并/单页视图无法被拆分页 1:1 替代）时，**保留旧路由与新路由并存**，并在下表与 §5.3 标记 `[并存]`——并存路由不在新菜单展示，仅直达可达，收敛（下线）时机待并存页使用反馈后确认。
 
-### 5.3 旧路由 redirect 清单
+| 现有项 | 去向 | 处置 |
+|---|---|---|
+| workbench/dashboard、pending、candidates | 保留（pending 文案改「我的待办」，范围扩大） | 原路由沿用 |
+| masterData/master-products | 保留为「商品库SPU」；SKU 拆出 → master-skus | 原路由沿用（页内拆 Tab→路由） |
+| masterData/suppliers | → 采购中心·供应商管理；映射部分拆出 → supplier-skus | 原路由沿用（映射内容迁出） |
+| masterData/mappings | → 刊登中心·变体映射 | 原路由沿用（仅换组） |
+| masterData/warehouse | → 仓库中心 | 原路由沿用（仅换组） |
+| procurement/purchases | 拆为采购中心 4 页 | **`[并存]`** 单页全流程状态流 ≠ 4 拆页 1:1 |
+| procurement/inventory-ledger | → 仓库中心（剥离调整） | 原路由沿用（调整内容迁 stock-adjustments；ledger 页保留流水+入口） |
+| procurement/inventory | → 仓库中心·库存预警 | 原路由沿用（仅换组） |
+| fulfillment/products（商品与刊登合并页） | 商品部分 → 商品中心，刊登部分 → 刊登中心 | **`[并存]`** 合并视图 ≠ 拆分页 1:1（含子路由 `[sku]`） |
+| fulfillment/listings、order-exceptions、orders | 分组改挂 | 原路由沿用 |
+| fulfillment/shipments | 拆为 picking / logistics-lgs / logistics-jsb | **`[并存]`** 全物流合页 ≠ 3 拆页 1:1 |
+| fulfillment/aftersales | 拆为 aftersale-cancels / aftersale-returns | **`[并存]`** 取消+退货合页 ≠ 2 拆页 1:1 |
+| analytics/costs、reports | 原路由沿用（换组；reports 扩 Tab） | 原路由沿用 |
+| analytics/finance | 拆为 settlements / profits | **`[并存]`** 财务中心合页 ≠ 2 拆页 1:1 |
+| administration/imports | → 设置·数据导入 | **删除**（功能一致，仅换壳） |
+| administration/system-log | → 设置·接口日志 | **删除**（功能一致，仅换壳） |
+| administration/access-control | → 设置·角色权限（settings/erp-access 同页 re-export） | **删除**（同页二入口合一） |
+| settings/dictionaries | → 商品中心·`/console/dictionaries`（同页换壳） | **删除**旧路由；设置 Tab 变导航链接 |
+| `groupKey` 联合类型 | `workbench`\|`products`\|`listings`\|`procurement`\|`warehouse`\|`fulfillment`\|`aftersales`\|`finance`\|`reports` | — |
+| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 imports、integration-log 两项（10 Tab） | — |
+| 图标映射 NAV_ICONS | 按新组补 lucide 图标（如 Boxes/Factory/Truck/BadgePercent/ChartNoAxesCombined） | — |
 
-| 旧 | 新 |
+### 5.3 旧路由处置清单
+
+**① 删除（功能一致的纯迁移/换壳，4 条）——路由与菜单入口一并移除，访问 404：**
+
+| 旧路由 | 对应新路由 |
 |---|---|
-| /console/products | /console/master-products（SKU 视图 → master-skus） |
-| /console/products/[sku] | /console/master-skus/[sku] |
-| /console/purchases | /console/purchase-requests |
-| /console/shipments | /console/picking |
-| /console/aftersales | /console/aftersale-cancels |
-| /console/finance | /console/settlements |
 | /console/imports | /console/settings/imports |
 | /console/system-log | /console/settings/integration-log |
-| /console/access-control、settings/erp-access | /console/settings/erp-access（统一） |
-| /console/settings/dictionaries | /console/dictionaries（主入口；设置 Tab 亦指此） |
+| /console/access-control | /console/settings/erp-access（原 re-export 同页） |
+| /console/settings/dictionaries | /console/dictionaries（设置 Tab 链接跳转，非路由别名） |
+
+**② `[并存]` 保留（功能不一致，旧合页与新拆页同时存在，5 条）——旧路由不在菜单展示、直达到达；设计标记收敛待定：**
+
+| 旧路由（并存，不在菜单） | 新路由（新菜单） | 功能差异标记 |
+|---|---|---|
+| /console/products（+`[sku]`） | /console/master-products、/console/master-skus、/console/listings | 合并「商品与刊登」列表视图 vs 商品中心/刊登中心拆分页；并存期间合并视图作跨域总览用 |
+| /console/purchases | /console/purchase-requests、/console/purchase-approvals、/console/purchase-orders、/console/purchase-receipts | 单页申请→审核→下单→收货质检状态流 vs 4 拆页；并存期间作采购全流程驾驶舱 |
+| /console/shipments | /console/picking、/console/logistics-lgs、/console/logistics-jsb | 包裹+全物流一页 vs 作业/LGS/JSB 拆页 |
+| /console/aftersales | /console/aftersale-cancels、/console/aftersale-returns | 取消退款+退货质检合页 vs 2 拆页 |
+| /console/finance | /console/settlements、/console/profits | 财务中心（结算+利润）合页 vs 2 拆页 |
+
+**③ 不变（URL 原样，仅分组改挂，10+ 条）**：dashboard / pending / candidates / master-products / suppliers / mappings / warehouse / inventory / inventory-ledger / listings / orders / order-exceptions / costs / reports；设置区现有 8 Tab 路径均不变。
 
 ---
 
 ## 6. 实施与验收要点
 
-1. **D1 原型页复用**：33 个二级页中 24+ 已有 D1 原型；拆分页（采购 4、售后 2、发货 3、财务 2、SKU）从现单页拆 Tab 为路由，UedWorkspace 状态按页切分。
+1. **D1 原型页复用**：33 个二级页中 24+ 已有 D1 原型；拆分页（采购 4、售后 2、发货 3、财务 2、SKU）从现单页拆 Tab 为路由，UedWorkspace 状态按页切分；`[并存]` 5 条旧合页原样保留（不在新菜单挂载）。
 2. **导航先行**：`console-nav.ts` 分组/类型扩展 + `console-sidebar.tsx` 图标 + i18n titleKey 是最高优先级改造，可独立验收（菜单与路由一一对应、badge 通）。
-3. **设置区**：仅增 2 Tab（数据导入/接口日志），布局交互零改动；`erp-access` 统一入口后清理 re-export。
-4. **验收标准**：① 菜单结构与本文 §2 逐项一致；② §4 表清单抽查每表可从菜单到达；③ 旧路由 redirect 全通；④ 设置区三交互模式（向导/水平Tab/左右栏）不回归；⑤ 权限用例（杨洁/仓库/外部IT/蔡值只读）按各页权限列验证。
+3. **设置区**：仅增 2 Tab（数据导入/接口日志），布局交互零改动；`(ops)/access-control` 删除后，`settings/erp-access` 由 re-export 改为正向持有页面实现（源组件上提共享）。
+4. **验收标准**：① 菜单结构与本文 §2 逐项一致；② §4 表清单抽查每表可从菜单到达；③ 删除的 4 条旧路由不可访问（404），并存的 5 条旧路由与新拆页同时可用且菜单不展示旧入口；④ 设置区三交互模式（向导/水平Tab/左右栏）不回归；⑤ 权限用例（杨洁/仓库/外部IT/蔡值只读）按各页权限列验证。
 5. **不改**：Profile 区、Copilot/知识执行入口（crossborder UED 既有决议）、落地页营销导航。
 
 ## 7. 待确认事项（不阻塞本文）
