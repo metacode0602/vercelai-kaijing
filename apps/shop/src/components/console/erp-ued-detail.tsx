@@ -7,13 +7,21 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailRelatedList,
+  DetailRelatedTables,
   DetailSection,
+  legacyGroupsToSections,
+  parentsToFields,
   type DetailRelatedGroup,
+  type DetailRelatedInfo,
   type DetailRelatedItem,
 } from '@/components/console/detail'
 import { UedDialog, type UedDialogField } from '@/components/console/erp-ued-workspace'
 import { UED_RECORD_LABELS } from '@/lib/crossborder/erp-ued-labels'
+import {
+  buildPrimaryPricingFields,
+  buildUedRelatedInfo,
+  resolveSkuFromRow,
+} from '@/lib/console/related-info'
 import { getCostBySku, getOrderById } from '@/lib/crossborder/mock-data'
 import {
   ERP_DEMO_AFTERSALES,
@@ -418,9 +426,11 @@ export function UedRecordDetail({
   titleKeys = ['id', 'name', 'title', 'dimension', 'code', 'sku', 'spu', 'role'],
   timelineKey,
   related,
+  relatedInfo,
   notice,
   description,
   extra,
+  showPrimaryPricing,
 }: {
   backHref: string
   moduleTitle: string
@@ -430,10 +440,15 @@ export function UedRecordDetail({
   idKey?: string
   titleKeys?: string[]
   timelineKey?: string
+  /** @deprecated Prefer relatedInfo (parents in 主数据 + child tables). */
   related?: RelatedGroup[]
+  /** Classified related-info: parents → 主数据 links; sections → tables. */
+  relatedInfo?: DetailRelatedInfo
   notice?: string
   description?: string
   extra?: React.ReactNode
+  /** Force show/hide 主定价信息; default auto for SKU-centric modules. */
+  showPrimaryPricing?: boolean
 }) {
   const [current, setCurrent] = React.useState<UedRecord>(row)
   const [editing, setEditing] = React.useState(false)
@@ -446,9 +461,26 @@ export function UedRecordDetail({
     .filter(Boolean)
     .join(' · ')
 
+  const classified =
+    relatedInfo ??
+    (module && ['master-products', 'master-skus', 'supplier-skus', 'mappings'].includes(module)
+      ? buildUedRelatedInfo(module, current)
+      : undefined)
+
+  // Scalar keys replaced by navigable parent fields in 主数据 (avoid duplicate plain text).
+  const parentReplacedKeys = new Set<string>()
+  if (classified?.parents?.length) {
+    if (module === 'master-skus') parentReplacedKeys.add('spu')
+    if (module === 'supplier-skus') {
+      parentReplacedKeys.add('sku')
+      parentReplacedKeys.add('supplier')
+    }
+    if (module === 'mappings') parentReplacedKeys.add('internalSku')
+  }
+
   const fieldKeys = Object.keys(current).filter((key) => {
     const value = current[key]
-    return isScalar(value) && key !== timelineKey
+    return isScalar(value) && key !== timelineKey && !parentReplacedKeys.has(key)
   })
   const { primary: primaryKeys, supporting: supportingKeys } = splitFieldKeys(fieldKeys)
 
@@ -464,13 +496,31 @@ export function UedRecordDetail({
       mono: key === idKey || key.endsWith('Id') || key === 'sku' || key === 'spu' || key === 'sellerSku' || key === 'code',
     }))
 
-  const primaryFields = toFields(primaryKeys)
+  const parentFields = parentsToFields(classified?.parents)
+  const primaryFields = [...toFields(primaryKeys), ...parentFields]
   const supportingFields = toFields(supportingKeys)
   const kpiItems = buildKpiItems(current, labelMap)
-  const arrayTables = collectArrayTables(current, labelMap, timelineKey)
+
+  // When classified related-info owns variants / listings, skip raw array dump for those keys.
+  const skipArrayKeys =
+    module === 'master-products' || module === 'master-skus'
+      ? new Set(['variants'])
+      : new Set<string>()
+  const arrayTables = collectArrayTables(current, labelMap, timelineKey).filter(
+    (table) => !skipArrayKeys.has(table.key),
+  )
 
   const timeline = timelineKey && Array.isArray(current[timelineKey]) ? (current[timelineKey] as unknown[]).map(String) : []
-  const relatedGroups = related ?? buildRelated(current)
+  const relatedGroups = related ?? (!classified ? buildRelated(current) : [])
+  const relatedSections =
+    classified?.sections ??
+    (relatedGroups.length > 0 ? legacyGroupsToSections(relatedGroups) : [])
+
+  const skuForPricing = resolveSkuFromRow(current)
+  const pricingAuto =
+    showPrimaryPricing ??
+    (module === 'master-skus' || module === 'supplier-skus' || module === 'mappings')
+  const primaryPricing = pricingAuto ? buildPrimaryPricingFields(skuForPricing) : null
 
   const editFields: UedDialogField[] = fieldKeys.map((key) => {
     const value = current[key]
@@ -596,13 +646,17 @@ export function UedRecordDetail({
         </DetailSection>
       ) : null}
 
-      {relatedGroups.length > 0 ? (
-        <DetailSection
-          title="关联信息"
-          description="与当前记录相关的业务对象与上下游单据，按关联类型平铺展示"
-        >
-          <DetailRelatedList groups={relatedGroups} />
-        </DetailSection>
+      {primaryPricing ? (
+        <DetailFieldGrid
+          title={primaryPricing.title}
+          description={primaryPricing.description}
+          fields={primaryPricing.fields}
+          columns={3}
+        />
+      ) : null}
+
+      {relatedSections.length > 0 ? (
+        <DetailRelatedTables sections={relatedSections} />
       ) : null}
 
       {saved ? <p role="status" className="text-sm text-muted-foreground">{saved}</p> : null}

@@ -186,3 +186,178 @@ export const ERP_DEMO_ROLES = [
   { role: '运营助理', person: '兰雨晨', scope: '授权范围', permissions: '协助操作 / 申请采购', note: '范围需确认' },
   { role: '外部 IT', person: '开发人员', scope: '技术排查', permissions: '技术配置', note: '不得默认拥有业务操作权' },
 ]
+
+/** Demo listing rows for master/SKU/mapping related-info tables (mock). */
+export type DemoListing = {
+  id: string
+  spu: string
+  sku: string
+  shop: string
+  platform: string
+  site: string
+  sellerSku: string
+  title: string
+  /** 售价 */
+  sellPrice: number
+  currency: string
+  status: string
+  stockOnHand: number
+  updatedAt: string
+  note?: string
+}
+
+/**
+ * Mock 刊登列表 — bridges ERP master SKUs (HSY*) to console listing detail pages
+ * where an ops listing already exists (e.g. lst-tee-daraz). Rows marked as 示例数据.
+ */
+export const ERP_DEMO_LISTINGS: DemoListing[] = [
+  {
+    id: 'lst-tee-daraz',
+    spu: 'HSY000001',
+    sku: 'HSY000001001',
+    shop: 'Daraz LK · Demo',
+    platform: 'Daraz',
+    site: 'LK',
+    sellerSku: 'DZ-TEE-001',
+    title: 'Oversized Cotton Tee · Black L',
+    sellPrice: 12.5,
+    currency: 'USD',
+    status: '草稿',
+    stockOnHand: 12,
+    updatedAt: '2026-10-20',
+    note: '示例数据 · 对齐 ops listing lst-tee-daraz',
+  },
+  {
+    id: 'lst-tee-lazada',
+    spu: 'HSY000001',
+    sku: 'HSY000001001',
+    shop: 'Lazada MY · Sandbox',
+    platform: 'Lazada',
+    site: 'MY',
+    sellerSku: 'TEE-BLK-L',
+    title: 'Oversized Cotton Tee',
+    sellPrice: 55.0,
+    currency: 'MYR',
+    status: '待审',
+    stockOnHand: 0,
+    updatedAt: '2026-10-19',
+    note: '示例数据 · 对齐 mapping Lazada MY::TEE-BLK-L',
+  },
+  {
+    id: 'lst-tee-white-daraz',
+    spu: 'HSY000001',
+    sku: 'HSY000001002',
+    shop: 'Daraz LK · Demo',
+    platform: 'Daraz',
+    site: 'LK',
+    sellerSku: 'DZ-TEE-001-WH',
+    title: 'Oversized Cotton Tee · White L',
+    sellPrice: 12.9,
+    currency: 'USD',
+    status: '在售',
+    stockOnHand: 8,
+    updatedAt: '2026-10-18',
+    note: '示例数据 · 白色 SKU 演示刊登',
+  },
+  {
+    id: 'lst-hub-daraz',
+    spu: 'HSY000002',
+    sku: 'HSY000002001',
+    shop: 'Daraz LK · Demo',
+    platform: 'Daraz',
+    site: 'LK',
+    sellerSku: 'DZ-HUB-01',
+    title: 'USB-C Hub 7-in-1 PD 100W',
+    sellPrice: 24.0,
+    currency: 'USD',
+    status: '在售',
+    stockOnHand: 80,
+    updatedAt: '2026-10-19',
+    note: '示例数据 · 对齐 ops listing lst-hub-daraz',
+  },
+]
+
+/** Demo 主定价 for internal SKUs (mock). */
+export type DemoSkuPricing = {
+  sku: string
+  currency: string
+  /** 采购 / 到仓成本参考 */
+  costPrice: number
+  /** 主定价（基准售价） */
+  basePrice: number
+  /** 建议售价 */
+  suggestPrice: number
+  targetMarginPct: number
+  effective: string
+  source: string
+}
+
+export const ERP_DEMO_SKU_PRICING: DemoSkuPricing[] = [
+  {
+    sku: 'HSY000001001',
+    currency: 'USD',
+    costPrice: 5.98,
+    basePrice: 12.5,
+    suggestPrice: 12.5,
+    targetMarginPct: 35,
+    effective: '2026-10-01',
+    source: '示例主定价 · mock',
+  },
+  {
+    sku: 'HSY000001002',
+    currency: 'USD',
+    costPrice: 6.1,
+    basePrice: 12.9,
+    suggestPrice: 12.9,
+    targetMarginPct: 34,
+    effective: '2026-10-01',
+    source: '示例主定价 · mock',
+  },
+  {
+    sku: 'HSY000001003',
+    currency: 'USD',
+    costPrice: 6.2,
+    basePrice: 13.5,
+    suggestPrice: 13.5,
+    targetMarginPct: 33,
+    effective: '2026-10-15',
+    source: '示例主定价 · mock · 待确认 SKU',
+  },
+  {
+    sku: 'HSY000002001',
+    currency: 'USD',
+    costPrice: 13.15,
+    basePrice: 24.0,
+    suggestPrice: 24.0,
+    targetMarginPct: 32,
+    effective: '2026-09-15',
+    source: '示例主定价 · mock',
+  },
+]
+
+export function getDemoListingsBySpu(spu: string) {
+  return ERP_DEMO_LISTINGS.filter((item) => item.spu === spu)
+}
+
+export function getDemoListingsBySku(sku: string) {
+  return ERP_DEMO_LISTINGS.filter((item) => item.sku === sku)
+}
+
+export function getDemoListingsBySellerSku(shop: string, sellerSku: string) {
+  return ERP_DEMO_LISTINGS.filter(
+    (item) =>
+      (item.shop.startsWith(shop) || item.shop.includes(shop)) && item.sellerSku === sellerSku,
+  )
+}
+
+export function getDemoSkuPricing(sku: string) {
+  return ERP_DEMO_SKU_PRICING.find((item) => item.sku === sku) ?? null
+}
+
+export function findProductBySku(sku: string) {
+  return ERP_DEMO_PRODUCTS.find((product) => product.variants.some((variant) => variant.code === sku)) ?? null
+}
+
+export function findSupplierMasterByName(name: string) {
+  return ERP_DEMO_SUPPLIER_MASTERS.find((item) => item.name === name) ?? null
+}

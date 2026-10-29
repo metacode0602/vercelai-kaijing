@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 
 export type DetailField = {
   label: string
@@ -9,11 +9,13 @@ export type DetailField = {
 
 export function DetailFieldGrid({
   title,
+  description,
   fields,
   columns = 3,
   action,
 }: {
   title?: string
+  description?: string
   fields: DetailField[]
   columns?: 2 | 3 | 4
   action?: ReactNode
@@ -29,7 +31,10 @@ export function DetailFieldGrid({
     <Card>
       {title ? (
         <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-2">
-          <CardTitle className="text-base">{title}</CardTitle>
+          <div className="space-y-1">
+            <CardTitle className="text-base">{title}</CardTitle>
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
           {action}
         </CardHeader>
       ) : null}

@@ -63,7 +63,7 @@ export function ProductReviewsSection({ sku }: { sku: string }) {
 
   if (!data) {
     return (
-      <DetailSection title="评论" description="商品评价数据（后台抓取）">
+      <DetailSection title="评论列表" description="商品评价数据（后台抓取）">
         <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
           <p className="text-sm text-muted-foreground">暂无评论数据</p>
           <Button onClick={handleRefresh} disabled={refreshing} size="sm">
@@ -80,7 +80,7 @@ export function ProductReviewsSection({ sku }: { sku: string }) {
   }`
   return (
     <DetailSection
-      title="评论"
+      title="评论列表"
       description={desc}
       action={
         <div className="flex items-center gap-2">

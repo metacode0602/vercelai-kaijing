@@ -27,6 +27,7 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { labelField, labelStatus } from '@/lib/console/labels'
+import { ProductReviewsSection } from '@/components/console/product-reviews-section'
 
 interface ListingDetailPageProps {
   params: Promise<{ id: string }>
@@ -218,7 +219,7 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
                 <TableHead>店铺</TableHead>
                 <TableHead>平台</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>价格</TableHead>
+                <TableHead>售价</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -246,6 +247,8 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
           </Table>
         </DetailSection>
       ) : null}
+
+      <ProductReviewsSection sku={listing.sku} />
 
       <DetailSection title="平台原稿" description="图片 / 描述等原始字段">
         <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
