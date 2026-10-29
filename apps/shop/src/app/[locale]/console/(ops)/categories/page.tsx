@@ -88,7 +88,7 @@ export default function CategoriesPage() {
   return (
     <>
       {editor}
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">品类树</h1>

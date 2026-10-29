@@ -59,7 +59,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
 
   if (!order) {
     return (
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/purchase-orders"
           title={mounted ? '未找到采购单' : '加载采购单…'}
@@ -87,7 +87,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbs
         items={[{ label: '采购单', href: '/console/purchase-orders' }, { label: current.poNo }]}
       />

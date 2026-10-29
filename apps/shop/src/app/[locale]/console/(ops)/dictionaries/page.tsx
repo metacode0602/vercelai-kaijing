@@ -85,7 +85,7 @@ export default function DictionariesPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1"><h1 className="text-xl font-semibold tracking-tight">基础数据字典</h1><p className="text-sm text-muted-foreground">一次维护，商品、店铺和仓库配置共用标准值</p></div>
         <Button onClick={() => setDialog('category')}><Plus data-icon="inline-start" />新增字典</Button>

@@ -12,7 +12,7 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
 
   if (!row) {
     return (
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <DetailPageHeader backHref="/console/carriers" title="未找到承运商" description={`承运商编码 ${id} 不存在或已被删除。`} />
         <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">请返回列表重新选择。</p>
       </div>
