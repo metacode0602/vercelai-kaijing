@@ -316,7 +316,7 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 function collectArrayTables(row: UedRecord, labelMap: Record<string, string>, timelineKey?: string) {
   const tables: { key: string; title: string; columns: string[]; rows: Record<string, unknown>[] }[] = []
   for (const [key, value] of Object.entries(row)) {
-    if (key === timelineKey || !Array.isArray(value) || value.length === 0) continue
+    if (key === timelineKey || IMAGE_KEYS.has(key) || !Array.isArray(value) || value.length === 0) continue
     if (value.every((item) => isObjectRecord(item))) {
       const rows = value as Record<string, unknown>[]
       const columns = Array.from(
