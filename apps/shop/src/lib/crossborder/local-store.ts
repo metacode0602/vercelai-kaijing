@@ -40,7 +40,7 @@ export function createDemoStore<T>(storageKey: string, initial: T) {
     snapshot = next
     hydrated = true
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(storageKey, JSON.stringify(next)))
+      window.localStorage.setItem(storageKey, JSON.stringify(next))
     }
     for (const listener of listeners) listener()
   }
