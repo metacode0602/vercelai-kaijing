@@ -50,6 +50,7 @@ type RelatedItem = DetailRelatedItem
 type RelatedGroup = DetailRelatedGroup
 
 const STATUS_KEYS = new Set(['status', 'result', 'qc', 'mappingStatus', 'platformSync', 'listingStatus'])
+const IMAGE_KEYS = new Set(['coverImage', 'images', 'gallery', 'imageUrl'])
 
 function isScalar(value: unknown): value is string | number | boolean {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
@@ -480,7 +481,7 @@ export function UedRecordDetail({
 
   const fieldKeys = Object.keys(current).filter((key) => {
     const value = current[key]
-    return isScalar(value) && key !== timelineKey && !parentReplacedKeys.has(key)
+    return isScalar(value) && key !== timelineKey && !parentReplacedKeys.has(key) && !IMAGE_KEYS.has(key)
   })
   const { primary: primaryKeys, supporting: supportingKeys } = splitFieldKeys(fieldKeys)
 

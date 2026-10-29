@@ -6,12 +6,16 @@ import {
   ArrowUpFromLine,
   Boxes,
   Calculator,
+  Circle,
   ClipboardCheck,
   ClipboardList,
   Container,
   FileText,
+  FolderTree,
   LayoutDashboard,
+  Map,
   Package,
+  PackageOpen,
   PackageSearch,
   RefreshCw,
   Scale,
@@ -58,6 +62,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/pending': <ClipboardList className="size-4" />,
   '/console/candidates': <Sparkles className="size-4" />,
   '/console/master-products': <Package className="size-4" />,
+  '/console/categories': <FolderTree className="size-4" />,
   '/console/master-skus': <Tags className="size-4" />,
   '/console/supplier-skus': <PackageSearch className="size-4" />,
   '/console/dictionaries': <Tags className="size-4" />,
@@ -72,6 +77,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/suppliers': <Package className="size-4" />,
   '/console/inventory-balances': <Boxes className="size-4" />,
   '/console/warehouse': <Warehouse className="size-4" />,
+  '/console/warehouse-zones': <Map className="size-4" />,
   '/console/stock-inbounds': <ArrowDownToLine className="size-4" />,
   '/console/stock-outbounds': <ArrowUpFromLine className="size-4" />,
   '/console/inventory-ledger': <Warehouse className="size-4" />,
@@ -87,10 +93,21 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/costs': <Calculator className="size-4" />,
   '/console/settlements': <Wallet className="size-4" />,
   '/console/profits': <TrendingUp className="size-4" />,
+  '/console/carriers': <Truck className="size-4" />,
+  '/console/carton-specs': <PackageOpen className="size-4" />,
   '/console/freight': <Container className="size-4" />,
   '/console/reports': <LayoutDashboard className="size-4" />,
+  '/console/products': <Package className="size-4" />,
+  '/console/purchases': <ShoppingCart className="size-4" />,
+  '/console/shipments': <Truck className="size-4" />,
+  '/console/aftersales': <Undo2 className="size-4" />,
+  '/console/finance': <Wallet className="size-4" />,
   '/console/settings/platform-basics': <Settings className="size-4" />,
   '/console/settings': <Settings className="size-4" />,
+}
+
+function getNavIcon(url: string) {
+  return NAV_ICONS[url] ?? <Circle className="size-4" />
 }
 
 const BADGE_VALUES: Record<NonNullable<ConsoleNavItemConfig['badgeKey']>, number> = {
@@ -131,7 +148,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
                   isActive={isActive(pathname, item.url, exact)}
                 >
                   <LocaleLink href={item.url}>
-                    {NAV_ICONS[item.url]}
+                    {getNavIcon(item.url)}
                     <span>{t(item.titleKey)}</span>
                   </LocaleLink>
                 </SidebarMenuButton>

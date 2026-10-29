@@ -14,6 +14,8 @@
  *   Shopee SG: gw9fqrrft8zrmvri020o73mb  (preview only; no connector yet)
  */
 
+import { DEMO_IMAGES } from './demo-images'
+
 export type MockPlatform = "daraz" | "lazada" | "shopee" | "tiktok_shop"
 
 export type ReviewItem = {
@@ -303,6 +305,7 @@ export const MOCK_PRODUCTS = [
     categoryHint: "Apparel > Men > T-Shirts",
     barcode: "8901001001001",
     attrs: { color: "Black", size: "L" },
+    coverImage: DEMO_IMAGES.teeBlack,
     images: [
       { url: "https://cdn.example.com/tee-001-main.jpg", sort: 0 },
       { url: "https://cdn.example.com/tee-001-back.jpg", sort: 1 },
@@ -403,6 +406,7 @@ export const MOCK_PRODUCTS = [
     categoryHint: "Electronics > Computer Accessories",
     barcode: "8901001002002",
     attrs: { ports: "7", pd: "100W" },
+    coverImage: DEMO_IMAGES.hub,
     images: [{ url: "https://cdn.example.com/hub-01.jpg", sort: 0 }],
     weightGrams: 95,
     lengthMm: 110,
@@ -475,6 +479,7 @@ export const MOCK_PRODUCTS = [
     categoryHint: "Sports > Yoga",
     barcode: "8901001003003",
     attrs: { thickness: "6mm", material: "TPE" },
+    coverImage: DEMO_IMAGES.mat,
     images: [{ url: "https://cdn.example.com/mat-02.jpg", sort: 0 }],
     weightGrams: 1100,
     lengthMm: 1830,
@@ -546,6 +551,8 @@ export const MOCK_PRODUCT_LIST_ROWS = MOCK_PRODUCTS.map((p) => {
     id: p.id,
     sku: p.sku,
     title: p.title,
+    coverImage: p.coverImage,
+    images: p.images.map((image) => image.url),
     shop: primary.shopName,
     shopId: primary.shopId,
     platform: primary.platform,

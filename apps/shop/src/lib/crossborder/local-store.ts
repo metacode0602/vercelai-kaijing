@@ -40,7 +40,11 @@ export function createDemoStore<T>(storageKey: string, initial: T) {
     snapshot = next
     hydrated = true
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(storageKey, JSON.stringify(next))
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(next))
+      } catch (cause) {
+        console.warn(`Failed to persist demo store ${storageKey}`, cause)
+      }
     }
     for (const listener of listeners) listener()
   }

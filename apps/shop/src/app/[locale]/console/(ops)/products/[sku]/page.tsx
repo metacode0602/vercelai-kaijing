@@ -19,6 +19,7 @@ import {
 } from '@workspace/ui/components/table'
 import { labelField, labelStatus } from '@/lib/console/labels'
 import { ProductReviewsSection } from '@/components/console/product-reviews-section'
+import { ProductImageEditor } from '@/components/console/product-images'
 import { Button } from '@workspace/ui/components/button'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { ERP_DEMO_SUPPLIERS } from '@/lib/crossborder/erp-ued-data'
@@ -79,6 +80,11 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
           { label: '失败刊登', value: String(failedCount), hint: failedCount ? '需处理' : undefined },
           { label: '主价（首店）', value: `${product.listings[0]?.priceAmount.toFixed(2)} ${product.listings[0]?.priceCurrency}` },
         ]}
+      />
+
+      <ProductImageEditor
+        imageKey={`product:${product.sku}`}
+        fallback={{ cover: product.coverImage, images: product.images.map((image) => image.url) }}
       />
 
       <div className="flex flex-wrap gap-2">

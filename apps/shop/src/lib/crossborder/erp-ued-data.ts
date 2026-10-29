@@ -1,3 +1,5 @@
+import { DEMO_IMAGES } from './demo-images'
+
 export type DemoStatus = '待确认' | '启用' | '停用' | '待审核' | '已审核' | '已驳回' | '待收货' | '部分收货' | '待质检' | '已入库' | '异常'
 
 export type DemoProduct = {
@@ -10,6 +12,8 @@ export type DemoProduct = {
   skuCount: number
   material: string
   style: string
+  coverImage?: string
+  images?: string[]
   variants: DemoSku[]
 }
 
@@ -21,6 +25,8 @@ export type DemoSku = {
   barcode: string
   weight: number
   status: DemoStatus
+  coverImage?: string
+  images?: string[]
 }
 
 export type DemoSupplier = {
@@ -114,13 +120,13 @@ export type DemoImport = {
 }
 
 export const ERP_DEMO_PRODUCTS: DemoProduct[] = [
-  { spu: 'HSY000001', name: 'Oversized Cotton Tee', brand: 'HELLO COSMOS', category: '服装 / 上衣 / T恤', owner: '李萍', status: '启用', skuCount: 3, material: '纯棉', style: '落肩宽松', variants: [
-    { code: 'HSY000001001', color: '黑色', size: 'L', pack: '单件', barcode: '8901001001001', weight: 220, status: '启用' },
-    { code: 'HSY000001002', color: '白色', size: 'L', pack: '单件', barcode: '8901001001002', weight: 218, status: '启用' },
-    { code: 'HSY000001003', color: '深灰色', size: 'XL', pack: '单件', barcode: '8901001001003', weight: 226, status: '待确认' },
+  { spu: 'HSY000001', name: 'Oversized Cotton Tee', brand: 'HELLO COSMOS', category: '服装 / 上衣 / T恤', owner: '李萍', status: '启用', skuCount: 3, material: '纯棉', style: '落肩宽松', coverImage: DEMO_IMAGES.teeBlack, images: [DEMO_IMAGES.teeBlack, DEMO_IMAGES.teeWhite, DEMO_IMAGES.teeGrey], variants: [
+    { code: 'HSY000001001', color: '黑色', size: 'L', pack: '单件', barcode: '8901001001001', weight: 220, status: '启用', coverImage: DEMO_IMAGES.teeBlack, images: [DEMO_IMAGES.teeBlack, DEMO_IMAGES.teeWhite] },
+    { code: 'HSY000001002', color: '白色', size: 'L', pack: '单件', barcode: '8901001001002', weight: 218, status: '启用', coverImage: DEMO_IMAGES.teeWhite, images: [DEMO_IMAGES.teeWhite, DEMO_IMAGES.teeGrey] },
+    { code: 'HSY000001003', color: '深灰色', size: 'XL', pack: '单件', barcode: '8901001001003', weight: 226, status: '待确认', coverImage: DEMO_IMAGES.teeGrey, images: [DEMO_IMAGES.teeGrey] },
   ] },
-  { spu: 'HSY000002', name: 'USB-C Hub 7-in-1', brand: 'LinkForge', category: '数码 / 电脑配件', owner: '张鑫德', status: '启用', skuCount: 1, material: '铝合金', style: '7口扩展坞', variants: [
-    { code: 'HSY000002001', color: '灰色', size: '标准', pack: '单件', barcode: '8901001002002', weight: 95, status: '启用' },
+  { spu: 'HSY000002', name: 'USB-C Hub 7-in-1', brand: 'LinkForge', category: '数码 / 电脑配件', owner: '张鑫德', status: '启用', skuCount: 1, material: '铝合金', style: '7口扩展坞', coverImage: DEMO_IMAGES.hub, images: [DEMO_IMAGES.hub], variants: [
+    { code: 'HSY000002001', color: '灰色', size: '标准', pack: '单件', barcode: '8901001002002', weight: 95, status: '启用', coverImage: DEMO_IMAGES.hub, images: [DEMO_IMAGES.hub] },
   ] },
 ]
 

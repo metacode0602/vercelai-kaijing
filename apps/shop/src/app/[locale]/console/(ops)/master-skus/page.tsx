@@ -2,10 +2,12 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { ProductCoverCell, ProductImagePanel } from '@/components/console/product-images'
 import { ERP_DEMO_PRODUCTS } from '@/lib/crossborder/erp-ued-data'
 import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
 
 type SkuRow = {
   id: string
@@ -18,6 +20,8 @@ type SkuRow = {
   barcode: string
   weight: number
   status: string
+  coverImage?: string
+  images?: string[]
 }
 
 export const DEMO_SKUS: SkuRow[] = ERP_DEMO_PRODUCTS.flatMap((product) =>
@@ -32,6 +36,8 @@ export const DEMO_SKUS: SkuRow[] = ERP_DEMO_PRODUCTS.flatMap((product) =>
     barcode: variant.barcode || '待补充',
     weight: variant.weight,
     status: variant.status,
+    coverImage: variant.coverImage ?? product.coverImage,
+    images: variant.images ?? product.images ?? [],
   })),
 )
 
@@ -41,10 +47,12 @@ export default function MasterSkusPage() {
   const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const [selectedSku, setSelectedSku] = React.useState(DEMO_SKUS[0]?.sku ?? '')
+  const selected = rows.find((row) => row.sku === selectedSku) ?? rows[0]
   const editor = open ? (
     <UedDialog
       title="生成内部 SKU"
-      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成，保存为本次原型会话。"
+      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成；创建后可在页面上方上传图片。"
       fields={[
         { key: 'spu', label: '所属 SPU', options: ERP_DEMO_PRODUCTS.map((product) => `${product.spu} · ${product.name}`), required: true },
         { key: 'color', label: '颜色', options: ['黑色', '白色', '深灰色', '蓝色', '红色'], required: true },
@@ -76,6 +84,7 @@ export default function MasterSkusPage() {
             status: values.status || '待确认',
           },
         ])
+        setSelectedSku(sku)
         setOpen(false)
         setNotice(`${sku} 已生成（原型会话）；实际编号规则由后端校验去重与流水号。`)
       }}
@@ -94,6 +103,7 @@ export default function MasterSkusPage() {
         addLabel="生成内部 SKU"
         onAdd={() => setOpen(true)}
         columns={[
+          { key: 'cover', label: '封面', render: (row) => <ProductCoverCell imageKey={`sku:${row.sku}`} fallback={{ cover: row.coverImage, images: row.images ?? [] }} alt={row.name} /> },
           { key: 'sku', label: '内部 SKU' },
           { key: 'spu', label: '所属 SPU' },
           { key: 'name', label: '商品名称' },
@@ -108,6 +118,22 @@ export default function MasterSkusPage() {
         <UedPrototypeNotice>
           SKU 与 SPU 编号不可编辑、不可复用；停用保留历史。颜色与尺码从属性字典标准值选择，服装尺码不允许自造值。条码缺失的 SKU 不允许刊登。
         </UedPrototypeNotice>
+        {selected ? (
+          <div className="rounded-lg border p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="font-medium">{selected.sku} · SKU 图片</h2>
+                <p className="mt-1 text-sm text-muted-foreground">封面图用于 SKU 列表展示；截图可多张维护。</p>
+              </div>
+              <NativeSelect value={selected.sku} onChange={(event) => setSelectedSku(event.target.value)} className="w-56">
+                {rows.map((row) => (
+                  <NativeSelectOption key={row.sku} value={row.sku}>{row.sku} · {row.color} {row.size}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <ProductImagePanel key={selected.sku} imageKey={`sku:${selected.sku}`} fallback={{ cover: selected.coverImage, images: selected.images ?? [] }} label="SKU 图片" description="维护该 SKU 的封面与细节截图。" />
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           {rows.filter((row) => row.status === '待确认').map((row) => (
             <Button key={row.sku} variant="outline" size="sm" onClick={() => setNotice(`${row.sku}：补全条码并确认后才可被刊登与采购引用。`)}>待确认 · {row.sku}</Button>

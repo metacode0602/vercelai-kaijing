@@ -8,6 +8,7 @@ import {
   matchesKeyword,
 } from '@/components/console/list'
 import { MOCK_PRODUCT_LIST_ROWS } from '@/lib/crossborder/mock-data'
+import { ProductCoverCell } from '@/components/console/product-images'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import {
@@ -91,6 +92,7 @@ export default function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">封面</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>标题</TableHead>
                 <TableHead>主店</TableHead>
@@ -105,6 +107,9 @@ export default function ProductsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.sku}>
+                  <TableCell>
+                    <ProductCoverCell imageKey={`product:${row.sku}`} fallback={{ cover: row.coverImage, images: row.images }} alt={row.title} />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">
                     <LocaleLink
                       href={`/console/products/${row.sku}`}

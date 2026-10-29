@@ -1,6 +1,22 @@
 'use client'
 
-import { ArrowLeft } from 'lucide-react'
+import * as React from 'react'
+import {
+  ArrowLeft,
+  Bell,
+  Circle,
+  FileSpreadsheet,
+  KeyRound,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Store,
+  Tags,
+  Upload,
+  User,
+  Users,
+} from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
 import {
@@ -16,6 +32,27 @@ import {
 import { Button } from '@workspace/ui/components/button'
 
 type SectionItem = { url: string; titleKey: string }
+
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  '/console/settings/shops': <Store className="size-4" />,
+  '/console/settings/credentials': <KeyRound className="size-4" />,
+  '/console/settings/platform-basics': <SlidersHorizontal className="size-4" />,
+  '/console/dictionaries': <Tags className="size-4" />,
+  '/console/settings/dictionaries': <Tags className="size-4" />,
+  '/console/settings/imports': <Upload className="size-4" />,
+  '/console/settings/import-templates': <FileSpreadsheet className="size-4" />,
+  '/console/settings/integration-log': <ScrollText className="size-4" />,
+  '/console/settings/erp-access': <ShieldCheck className="size-4" />,
+  '/console/settings/members': <Users className="size-4" />,
+  '/console/settings/notifications': <Bell className="size-4" />,
+  '/console/settings/preferences': <Settings className="size-4" />,
+  '/console/profile/account': <User className="size-4" />,
+  '/console/profile/preferences': <Settings className="size-4" />,
+}
+
+function getSectionIcon(url: string) {
+  return SECTION_ICONS[url] ?? <Circle className="size-4" />
+}
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
@@ -52,7 +89,8 @@ export function SectionSidebar({
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                     <LocaleLink href={item.url}>
-                      {t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.imports' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences')}
+                      {getSectionIcon(item.url)}
+                      <span>{t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
                     </LocaleLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
