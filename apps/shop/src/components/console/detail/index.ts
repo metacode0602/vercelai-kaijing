@@ -3,4 +3,10 @@ export { DetailFieldGrid, type DetailField } from './detail-field-grid'
 export { DetailKpiRow } from './detail-kpi-row'
 export { StatusTimeline, type TimelineStep } from './status-timeline'
 export { DetailSection } from './detail-section'
+export {
+  DetailRelatedList,
+  type DetailRelatedGroup,
+  type DetailRelatedItem,
+} from './detail-related-list'
+export { EditableDetailFields, type EditableDetailField } from './editable-detail-fields'
 export { ConsoleBreadcrumbs, type ConsoleBreadcrumbItem } from './console-breadcrumbs'

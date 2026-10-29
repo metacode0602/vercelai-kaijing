@@ -7,13 +7,17 @@ import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { Textarea } from '@workspace/ui/components/textarea'
+import { INITIAL_DICTIONARIES } from '@/lib/crossborder/platform-basics-data'
 import {
-  INITIAL_DICTIONARIES,
-} from '@/lib/crossborder/platform-basics-data'
+  addDictionaryCategory,
+  addDictionaryValue,
+  setDictionaryValueActive,
+  updateDictionaryValue,
+  useDictionaries,
+} from '@/lib/crossborder/dictionary-store'
 
 export default function DictionariesPage() {
-  const [categories, setCategories] = React.useState(INITIAL_DICTIONARIES)
-  const [inactiveValues, setInactiveValues] = React.useState<Record<string, string[]>>({})
+  const { categories, inactiveValues } = useDictionaries()
   const [selectedKey, setSelectedKey] = React.useState(INITIAL_DICTIONARIES[0]?.key ?? '')
   const [query, setQuery] = React.useState('')
   const [dialog, setDialog] = React.useState<'category' | 'value' | 'edit-value' | null>(null)
@@ -36,7 +40,7 @@ export default function DictionariesPage() {
       return
     }
     const item = { key, label: categoryName.trim(), description: categoryDescription.trim() || '可被多个业务模块复用', shared: true, values: [] }
-    setCategories((current) => [...current, item])
+    addDictionaryCategory(item)
     setSelectedKey(key)
     setDialog(null)
     setCategoryName('')
@@ -54,13 +58,12 @@ export default function DictionariesPage() {
       return
     }
     if (dialog === 'edit-value') {
-      setCategories((current) => current.map((item) => item.key === selected.key ? { ...item, values: item.values.map((value) => value === editingValue ? valueName.trim() : value) } : item))
-      setInactiveValues((current) => ({ ...current, [selected.key]: (current[selected.key] ?? []).map((value) => value === editingValue ? valueName.trim() : value) }))
+      updateDictionaryValue(selected.key, editingValue, valueName.trim())
     } else if (selected.values.some((value) => value.toLowerCase() === valueName.trim().toLowerCase())) {
       setNotice('该标准值已存在，请编辑现有值或补充为别名。')
       return
     } else {
-      setCategories((current) => current.map((item) => item.key === selected.key ? { ...item, values: [...item.values, valueName.trim()] } : item))
+      addDictionaryValue(selected.key, valueName.trim())
     }
     setDialog(null)
     setValueName('')
@@ -71,8 +74,14 @@ export default function DictionariesPage() {
 
   function deactivateValue(value: string) {
     if (!selected) return
-    setInactiveValues((current) => ({ ...current, [selected.key]: [...(current[selected.key] ?? []), value] }))
+    setDictionaryValueActive(selected.key, value, false)
     setNotice('该值已停用，不再出现在原型选择项中；历史记录保留。')
+  }
+
+  function activateValue(value: string) {
+    if (!selected) return
+    setDictionaryValueActive(selected.key, value, true)
+    setNotice('该值已重新启用。')
   }
 
   return (
@@ -97,7 +106,7 @@ export default function DictionariesPage() {
           <div className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b px-5 py-2 text-xs font-medium text-muted-foreground"><span>标准名称</span><span>历史别名</span><span className="text-right">操作</span></div>
           <div className="flex flex-col">
             {activeValues.map((value) => <div key={value} className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b px-5 py-3 text-sm last:border-0"><span className="font-medium">{value}</span><span className="truncate text-muted-foreground" title={value === '深灰色' ? '深灰、深灰色' : '—'}>{value === '深灰色' ? '深灰、深灰色' : '—'}</span><div className="flex justify-end gap-1"><Button variant="ghost" size="sm" onClick={() => { setEditingValue(value); setValueName(value); setAliases(value === '深灰色' ? '深灰' : ''); setDialog('edit-value') }}>编辑</Button><Button variant="ghost" size="sm" onClick={() => deactivateValue(value)}>停用</Button></div></div>)}
-            {(inactiveValues[selected.key] ?? []).map((value) => <div key={`inactive-${value}`} className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b bg-muted/20 px-5 py-3 text-sm last:border-0"><span className="text-muted-foreground line-through">{value}</span><span className="truncate text-muted-foreground">停用</span><Button variant="ghost" size="sm" onClick={() => setInactiveValues((current) => ({ ...current, [selected.key]: current[selected.key]?.filter((entry) => entry !== value) ?? [] }))}>启用</Button></div>)}
+            {(inactiveValues[selected.key] ?? []).map((value) => <div key={`inactive-${value}`} className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b bg-muted/20 px-5 py-3 text-sm last:border-0"><span className="text-muted-foreground line-through">{value}</span><span className="truncate text-muted-foreground">停用</span><Button variant="ghost" size="sm" onClick={() => activateValue(value)}>启用</Button></div>)}
             {activeValues.length === 0 ? <div className="flex flex-col items-center gap-2 px-5 py-16 text-center"><p className="font-medium">此字典还没有启用的标准值</p><p className="text-sm text-muted-foreground">新增标准值后，关联表单即可直接复用。</p><Button variant="outline" size="sm" onClick={() => setDialog('value')}><Plus data-icon="inline-start" />新增标准值</Button></div> : null}
           </div>
           <div className="mt-auto flex items-start gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground"><ChevronRight className="mt-0.5 size-4 shrink-0" /><p>历史别名用于旧数据导入与搜索；业务录入只选择标准名称。已被业务记录引用的值应停用保留，不应物理删除。</p></div>

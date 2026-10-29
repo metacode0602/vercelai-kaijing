@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { getShopById } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
@@ -68,22 +68,22 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
         ]}
       />
 
-      <DetailFieldGrid
+      <EditableDetailFields
         title="店铺信息"
         fields={[
-          { label: labelField('id'), value: shop.id, mono: true },
-          { label: labelField('slug'), value: shop.slug, mono: true },
-          { label: labelField('externalShopId'), value: shop.externalShopId, mono: true },
-          { label: labelField('platform'), value: shop.platform },
-          { label: labelField('region'), value: shop.region },
-          { label: labelField('marketplaceCountry'), value: shop.marketplaceCountry },
-          { label: labelField('timezone'), value: shop.timezone },
-          { label: labelField('sellerName'), value: shop.sellerName },
-          { label: labelField('currency'), value: shop.currency },
-          { label: labelField('status'), value: labelStatus(shop.status) },
-          { label: labelField('authExpiresAt'), value: shop.authExpiresAt ?? '—' },
-          { label: labelField('lastSyncAt'), value: shop.lastSyncAt },
-          { label: labelField('meta'), value: JSON.stringify(shop.meta) },
+          { key: 'id', label: labelField('id'), value: shop.id, mono: true, readOnly: true, required: true },
+          { key: 'slug', label: labelField('slug'), value: shop.slug, mono: true },
+          { key: 'externalShopId', label: labelField('externalShopId'), value: shop.externalShopId, mono: true },
+          { key: 'platform', label: labelField('platform'), value: shop.platform },
+          { key: 'region', label: labelField('region'), value: shop.region },
+          { key: 'marketplaceCountry', label: labelField('marketplaceCountry'), value: shop.marketplaceCountry },
+          { key: 'timezone', label: labelField('timezone'), value: shop.timezone },
+          { key: 'sellerName', label: labelField('sellerName'), value: shop.sellerName },
+          { key: 'currency', label: labelField('currency'), value: shop.currency },
+          { key: 'status', label: labelField('status'), value: labelStatus(shop.status) },
+          { key: 'authExpiresAt', label: labelField('authExpiresAt'), value: shop.authExpiresAt ?? '—' },
+          { key: 'lastSyncAt', label: labelField('lastSyncAt'), value: shop.lastSyncAt },
+          { key: 'meta', label: labelField('meta'), value: JSON.stringify(shop.meta) },
         ]}
       />
 

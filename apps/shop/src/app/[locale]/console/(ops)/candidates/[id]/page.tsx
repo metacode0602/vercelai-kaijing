@@ -3,10 +3,10 @@
 import * as React from 'react'
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { getCandidateById, getShopById } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -87,16 +87,16 @@ export default function CandidateDetailPage({ params }: CandidateDetailPageProps
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <DetailFieldGrid
+        <EditableDetailFields
           title="候选字段"
           columns={2}
           fields={[
-            { label: labelField('id'), value: candidate.id, mono: true },
-            { label: labelField('categoryHint'), value: candidate.categoryHint },
-            { label: '竞争压力', value: `${candidate.competition} · 待核实` },
-            { label: '风险状态', value: candidate.risk },
-            { label: labelField('url'), value: candidate.url, mono: true },
-            { label: '推荐店铺', value: shops },
+            { key: 'id', label: labelField('id'), value: candidate.id, mono: true, readOnly: true, required: true },
+            { key: 'categoryHint', label: labelField('categoryHint'), value: candidate.categoryHint },
+            { key: 'competition', label: '竞争压力', value: `${candidate.competition} · 待核实` },
+            { key: 'risk', label: '风险状态', value: candidate.risk },
+            { key: 'url', label: labelField('url'), value: candidate.url, mono: true },
+            { key: 'recommendedShops', label: '推荐店铺', value: shops },
           ]}
         />
 

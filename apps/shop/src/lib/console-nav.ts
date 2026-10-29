@@ -1,47 +1,77 @@
 /**
  * Crossborder console IA, grouped by business workflow.
  * GPU legacy nav is kept in legacy-gpu-console-nav.ts (hidden from default shell).
+ * @see docs/design/haoshiyun-erp-console-menu-ia.md §2
  */
 
 export type ConsoleNavTitleKey =
   | 'nav.dashboard'
   | 'nav.workbench'
-  | 'nav.masterProducts'
-  | 'nav.masterData'
-  | 'nav.suppliers'
-  | 'nav.warehouse'
-  | 'nav.purchases'
-  | 'nav.mappings'
-  | 'nav.inventoryLedger'
-  | 'nav.aftersales'
-  | 'nav.reports'
-  | 'nav.costs'
-  | 'nav.finance'
-  | 'nav.imports'
-  | 'nav.systemLog'
-  | 'nav.accessControl'
-  | 'nav.settings'
   | 'nav.candidates'
   | 'nav.pending'
-  | 'nav.products'
+  | 'nav.productCenter'
+  | 'nav.masterProducts'
+  | 'nav.masterSkus'
+  | 'nav.supplierSkus'
+  | 'nav.dictionaries'
+  | 'nav.reviews'
+  | 'nav.listingCenter'
   | 'nav.listings'
+  | 'nav.mappings'
+  | 'nav.syncTasks'
+  | 'nav.procurementCenter'
+  | 'nav.purchaseRequests'
+  | 'nav.purchaseApprovals'
+  | 'nav.purchaseOrders'
+  | 'nav.purchaseReceipts'
+  | 'nav.suppliers'
+  | 'nav.warehouseCenter'
+  | 'nav.inventoryBalances'
+  | 'nav.warehouse'
+  | 'nav.stockInbounds'
+  | 'nav.stockOutbounds'
+  | 'nav.inventoryLedger'
+  | 'nav.stockAdjustments'
+  | 'nav.inventoryOverview'
+  | 'nav.orderFulfillment'
   | 'nav.orders'
   | 'nav.orderExceptions'
-  | 'nav.shipments'
-  | 'nav.inventory'
+  | 'nav.picking'
+  | 'nav.logisticsLgs'
+  | 'nav.logisticsJsb'
+  | 'nav.aftersaleCenter'
+  | 'nav.aftersaleCancels'
+  | 'nav.aftersaleReturns'
+  | 'nav.costFinance'
   | 'nav.costs'
-  | 'nav.finance'
+  | 'nav.settlements'
+  | 'nav.profits'
+  | 'nav.freight'
+  | 'nav.reports'
   | 'nav.settings'
-  | 'nav.inventoryOverview'
+  | 'nav.products'
+  | 'nav.purchases'
+  | 'nav.shipments'
+  | 'nav.aftersales'
+  | 'nav.finance'
 
 export type ConsoleNavItemConfig = {
   url: string
   titleKey: ConsoleNavTitleKey
-  badgeKey?: 'pendingCount' | 'inventoryAlerts'
+  badgeKey?: 'pendingCount' | 'inventoryAlerts' | 'approvalPending' | 'orderExceptions'
 }
 
 export type ConsoleNavGroupConfig = {
-  groupKey: 'workbench' | 'masterData' | 'procurement' | 'fulfillment' | 'analytics' | 'administration'
+  groupKey:
+    | 'workbench'
+    | 'products'
+    | 'listings'
+    | 'procurement'
+    | 'warehouse'
+    | 'fulfillment'
+    | 'aftersales'
+    | 'finance'
+    | 'reports'
   labelKey: ConsoleNavTitleKey
   items: ConsoleNavItemConfig[]
 }
@@ -52,59 +82,100 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     labelKey: 'nav.workbench',
     items: [
       { url: '/console/dashboard', titleKey: 'nav.dashboard' },
-      { url: '/console/candidates', titleKey: 'nav.candidates' },
       { url: '/console/pending', titleKey: 'nav.pending', badgeKey: 'pendingCount' },
+      { url: '/console/candidates', titleKey: 'nav.candidates' },
     ],
   },
   {
-    groupKey: 'masterData',
-    labelKey: 'nav.masterData',
+    groupKey: 'products',
+    labelKey: 'nav.productCenter',
     items: [
       { url: '/console/master-products', titleKey: 'nav.masterProducts' },
-      { url: '/console/suppliers', titleKey: 'nav.suppliers' },
+      { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
+      { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
+      { url: '/console/dictionaries', titleKey: 'nav.dictionaries' },
+      { url: '/console/reviews', titleKey: 'nav.reviews' },
+    ],
+  },
+  {
+    groupKey: 'listings',
+    labelKey: 'nav.listingCenter',
+    items: [
+      { url: '/console/listings', titleKey: 'nav.listings' },
       { url: '/console/mappings', titleKey: 'nav.mappings' },
-      { url: '/console/warehouse', titleKey: 'nav.warehouse' },
+      { url: '/console/sync-tasks', titleKey: 'nav.syncTasks' },
     ],
   },
   {
     groupKey: 'procurement',
-    labelKey: 'nav.purchases',
+    labelKey: 'nav.procurementCenter',
     items: [
-      { url: '/console/purchases', titleKey: 'nav.purchases' },
+      { url: '/console/purchase-requests', titleKey: 'nav.purchaseRequests' },
+      { url: '/console/purchase-approvals', titleKey: 'nav.purchaseApprovals', badgeKey: 'approvalPending' },
+      { url: '/console/purchase-orders', titleKey: 'nav.purchaseOrders' },
+      { url: '/console/purchase-receipts', titleKey: 'nav.purchaseReceipts' },
+      { url: '/console/suppliers', titleKey: 'nav.suppliers' },
+    ],
+  },
+  {
+    groupKey: 'warehouse',
+    labelKey: 'nav.warehouseCenter',
+    items: [
+      { url: '/console/inventory-balances', titleKey: 'nav.inventoryBalances' },
+      { url: '/console/warehouse', titleKey: 'nav.warehouse' },
+      { url: '/console/stock-inbounds', titleKey: 'nav.stockInbounds' },
+      { url: '/console/stock-outbounds', titleKey: 'nav.stockOutbounds' },
       { url: '/console/inventory-ledger', titleKey: 'nav.inventoryLedger' },
+      { url: '/console/stock-adjustments', titleKey: 'nav.stockAdjustments' },
       { url: '/console/inventory', titleKey: 'nav.inventoryOverview', badgeKey: 'inventoryAlerts' },
     ],
   },
   {
     groupKey: 'fulfillment',
-    labelKey: 'nav.orders',
+    labelKey: 'nav.orderFulfillment',
     items: [
-      { url: '/console/products', titleKey: 'nav.products' },
-      { url: '/console/listings', titleKey: 'nav.listings' },
       { url: '/console/orders', titleKey: 'nav.orders' },
-      { url: '/console/order-exceptions', titleKey: 'nav.orderExceptions' },
-      { url: '/console/shipments', titleKey: 'nav.shipments' },
-      { url: '/console/aftersales', titleKey: 'nav.aftersales' },
+      { url: '/console/order-exceptions', titleKey: 'nav.orderExceptions', badgeKey: 'orderExceptions' },
+      { url: '/console/picking', titleKey: 'nav.picking' },
+      { url: '/console/logistics-lgs', titleKey: 'nav.logisticsLgs' },
+      { url: '/console/logistics-jsb', titleKey: 'nav.logisticsJsb' },
     ],
   },
   {
-    groupKey: 'analytics',
-    labelKey: 'nav.reports',
+    groupKey: 'aftersales',
+    labelKey: 'nav.aftersaleCenter',
     items: [
-      { url: '/console/reports', titleKey: 'nav.reports' },
+      { url: '/console/aftersale-cancels', titleKey: 'nav.aftersaleCancels' },
+      { url: '/console/aftersale-returns', titleKey: 'nav.aftersaleReturns' },
+    ],
+  },
+  {
+    groupKey: 'finance',
+    labelKey: 'nav.costFinance',
+    items: [
       { url: '/console/costs', titleKey: 'nav.costs' },
-      { url: '/console/finance', titleKey: 'nav.finance' },
+      { url: '/console/settlements', titleKey: 'nav.settlements' },
+      { url: '/console/profits', titleKey: 'nav.profits' },
+      { url: '/console/freight', titleKey: 'nav.freight' },
     ],
   },
   {
-    groupKey: 'administration',
-    labelKey: 'nav.settings',
-    items: [
-      { url: '/console/imports', titleKey: 'nav.imports' },
-      { url: '/console/system-log', titleKey: 'nav.systemLog' },
-      { url: '/console/access-control', titleKey: 'nav.accessControl' },
-    ],
+    groupKey: 'reports',
+    labelKey: 'nav.reports',
+    items: [{ url: '/console/reports', titleKey: 'nav.reports' }],
   },
+]
+
+/**
+ * D6 并存路由：功能与拆分页不完全一致，保留旧路由可直达，但不在主侧栏展示。
+ * @see docs/design/haoshiyun-erp-console-menu-ia.md §5.3
+ */
+export const COEXIST_NAV: ConsoleNavItemConfig[] = [
+  { url: '/console/products', titleKey: 'nav.products' },
+  { url: '/console/purchases', titleKey: 'nav.purchases' },
+  { url: '/console/shipments', titleKey: 'nav.shipments' },
+  { url: '/console/aftersales', titleKey: 'nav.aftersales' },
+  { url: '/console/finance', titleKey: 'nav.finance' },
 ]
 
 export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
@@ -113,12 +184,14 @@ export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
 
 export const SETTINGS_NAV = [
   { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
-  { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
-  { url: '/console/settings/dictionaries', titleKey: 'settings.dictionaries' as const },
-  { url: '/console/settings/erp-access', titleKey: 'settings.erpAccess' as const },
   { url: '/console/settings/credentials', titleKey: 'settings.credentials' as const },
-  { url: '/console/settings/notifications', titleKey: 'settings.notifications' as const },
+  { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
+  { url: '/console/dictionaries', titleKey: 'settings.dictionaries' as const },
+  { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
+  { url: '/console/settings/integration-log', titleKey: 'settings.integrationLog' as const },
+  { url: '/console/settings/erp-access', titleKey: 'settings.erpAccess' as const },
   { url: '/console/settings/members', titleKey: 'settings.members' as const },
+  { url: '/console/settings/notifications', titleKey: 'settings.notifications' as const },
   { url: '/console/settings/preferences', titleKey: 'settings.preferences' as const },
 ] as const
 
@@ -128,7 +201,11 @@ export const PROFILE_NAV = [
 ] as const
 
 export function getAllConsoleNavItems(): ConsoleNavItemConfig[] {
-  return [...CONSOLE_NAV_GROUPS.flatMap((group) => group.items), ...CONSOLE_FOOTER_NAV]
+  return [
+    ...CONSOLE_NAV_GROUPS.flatMap((group) => group.items),
+    ...COEXIST_NAV,
+    ...CONSOLE_FOOTER_NAV,
+  ]
 }
 
 export function findBestMatchingNavItem(pathname: string): ConsoleNavItemConfig | undefined {

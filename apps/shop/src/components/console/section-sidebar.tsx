@@ -52,7 +52,7 @@ export function SectionSidebar({
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                     <LocaleLink href={item.url}>
-                      {t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.erpAccess' | 'nav.masterData' | 'nav.masterProducts' | 'nav.suppliers' | 'nav.warehouse' | 'nav.purchases' | 'nav.mappings' | 'nav.inventoryLedger' | 'nav.aftersales' | 'nav.reports' | 'nav.costs' | 'nav.finance' | 'nav.settings' | 'nav.imports' | 'nav.systemLog' | 'nav.accessControl' | 'nav.inventoryOverview' | 'nav.orderExceptions' | 'nav.shipments')}
+                      {t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.imports' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences')}
                     </LocaleLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

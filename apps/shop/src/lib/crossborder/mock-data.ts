@@ -1297,6 +1297,8 @@ export const MOCK_DASHBOARD_TODOS = [
 
 export const MOCK_PENDING_COUNT = MOCK_PENDING.filter((p) => p.status === "pending").length
 export const MOCK_INVENTORY_ALERT_COUNT = MOCK_INVENTORY_LIST_ROWS.filter((i) => i.alert).length
+export const MOCK_APPROVAL_PENDING_COUNT = 2
+export const MOCK_ORDER_EXCEPTION_COUNT = 4
 
 
 export function getListingById(id: string) {

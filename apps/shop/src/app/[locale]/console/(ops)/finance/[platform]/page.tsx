@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { getFinanceByPlatform } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
@@ -52,22 +52,24 @@ export default async function FinanceDetailPage({ params }: FinanceDetailPagePro
 
       {row.settlement ? (
         <>
-          <DetailFieldGrid
+          <EditableDetailFields
             title="结算单"
             fields={[
-              { label: labelField('id'), value: row.settlement.id, mono: true },
+              { key: 'id', label: labelField('id'), value: row.settlement.id, mono: true, readOnly: true, required: true },
               {
+                key: 'externalSettlementId',
                 label: labelField('externalSettlementId'),
                 value: row.settlement.externalSettlementId,
                 mono: true,
               },
-              { label: labelField('shop'), value: row.settlement.shopName },
+              { key: 'shop', label: labelField('shop'), value: row.settlement.shopName },
               {
+                key: 'period',
                 label: labelField('period'),
                 value: `${row.settlement.periodStart} → ${row.settlement.periodEnd}`,
               },
-              { label: labelField('currency'), value: row.settlement.currency },
-              { label: '平台费用（粗）', value: row.fees.toLocaleString() },
+              { key: 'currency', label: labelField('currency'), value: row.settlement.currency },
+              { key: 'fees', label: '平台费用（粗）', value: row.fees.toLocaleString(), type: 'number' },
             ]}
           />
           <DetailSection title="结算明细" description="订单净额与费用拆分（示例）">

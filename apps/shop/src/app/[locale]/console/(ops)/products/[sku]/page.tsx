@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { getProductBySku } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
@@ -70,23 +70,24 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
         <Button variant="outline" asChild><LocaleLink href="/console/purchases">采购申请</LocaleLink></Button>
       </div>
 
-      <DetailFieldGrid
+      <EditableDetailFields
         title="商品与变体"
         fields={[
-          { label: labelField('product.id'), value: product.id, mono: true },
-          { label: labelField('variant.sku'), value: product.sku, mono: true },
-          { label: labelField('variantId'), value: product.variantId, mono: true },
-          { label: labelField('barcode'), value: product.barcode ?? '—', mono: true },
-          { label: labelField('status'), value: labelStatus(product.status) },
-          { label: labelField('source'), value: labelStatus(product.source) },
-          { label: labelField('updatedAt'), value: product.updatedAt },
+          { key: 'productId', label: labelField('product.id'), value: product.id, mono: true, readOnly: true, required: true },
+          { key: 'sku', label: labelField('variant.sku'), value: product.sku, mono: true, readOnly: true },
+          { key: 'variantId', label: labelField('variantId'), value: product.variantId, mono: true },
+          { key: 'barcode', label: labelField('barcode'), value: product.barcode ?? '—', mono: true },
+          { key: 'status', label: labelField('status'), value: labelStatus(product.status) },
+          { key: 'source', label: labelField('source'), value: labelStatus(product.source) },
+          { key: 'updatedAt', label: labelField('updatedAt'), value: product.updatedAt },
           {
+            key: 'attrs',
             label: labelField('attrs'),
             value: Object.entries(product.attrs)
               .map(([k, v]) => `${k}=${v}`)
               .join(', '),
           },
-          { label: labelField('payload.description'), value: product.description },
+          { key: 'description', label: labelField('payload.description'), value: product.description },
         ]}
       />
 

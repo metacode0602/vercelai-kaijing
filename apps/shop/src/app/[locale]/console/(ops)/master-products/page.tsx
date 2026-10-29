@@ -18,8 +18,17 @@ export default function MasterProductsPage() {
   const [selectedSpu, setSelectedSpu] = React.useState(ERP_DEMO_PRODUCTS[0]?.spu ?? '')
   const [notice, setNotice] = React.useState('')
   const selected = products.find((item) => item.spu === selectedSpu)
-  const editor = open ? <UedDialog title="新建商品 SPU" description="系统按 HSY + 六位流水号生成编码。" fields={[{ label: '内部商品名称' }, { label: '品牌', options: ['HELLO COSMOS', 'LinkForge', '其他'] }, { label: '多级品类', options: ['服装 / 上衣 / T恤', '数码 / 电脑配件', '家居'] }, { label: '材质' }, { label: '款式 / 版型' }, { label: '商品负责人', options: ['杨洁', '李萍', '张鑫德', '蔡利达'] }]} onClose={() => setOpen(false)} onSave={() => { const number = products.length + 1; const spu = `HSY${String(number).padStart(6, '0')}`; setProducts((current) => [...current, { spu, name: '新商品（示例）', brand: 'HELLO COSMOS', category: '待分类', owner: '当前用户', status: '待确认', skuCount: 0, material: '待补充', style: '待补充', variants: [] }]); setSelectedSpu(spu); setOpen(false); setNotice(`${spu} 已加入本次原型会话。`) }} /> : null
-  return <>{editor}<UedWorkspace title="商品 SPU / SKU" description="公司统一款式主档下维护真实交付规格；平台 Seller SKU 独立映射。" rows={products} searchKeys={['spu', 'name', 'brand', 'category', 'owner', 'status']} addLabel="新建 SPU" onAdd={() => setOpen(true)} columns={[
+  const editor = open ? <UedDialog title="新建商品 SPU" description="系统按 HSY + 六位流水号生成编码。" fields={[
+        { key: 'name', label: '内部商品名称', required: true },
+        { key: 'brand', label: '品牌', options: ['HELLO COSMOS', 'LinkForge', '其他'], required: true },
+        { key: 'category', label: '多级品类', options: ['服装 / 上衣 / T恤', '数码 / 电脑配件', '家居'], required: true },
+        { key: 'material', label: '材质', required: true },
+        { key: 'style', label: '款式 / 版型', required: true },
+        { key: 'owner', label: '商品负责人', options: ['杨洁', '李萍', '张鑫德', '蔡利达'], required: true },
+        { key: 'launchDate', label: '计划上市日期', type: 'date' },
+        { key: 'description', label: '商品描述', type: 'textarea', fullWidth: true, placeholder: '卖点、适用场景与包装说明' },
+      ]} onClose={() => setOpen(false)} onSave={() => { const number = products.length + 1; const spu = `HSY${String(number).padStart(6, '0')}`; setProducts((current) => [...current, { spu, name: '新商品（示例）', brand: 'HELLO COSMOS', category: '待分类', owner: '当前用户', status: '待确认', skuCount: 0, material: '待补充', style: '待补充', variants: [] }]); setSelectedSpu(spu); setOpen(false); setNotice(`${spu} 已加入本次原型会话。`) }} /> : null
+  return <>{editor}<UedWorkspace title="商品 SPU / SKU" description="公司统一款式主档下维护真实交付规格；平台 Seller SKU 独立映射。" rows={products} detailHref={(row) => `/console/master-products/${encodeURIComponent(row.spu)}`} searchKeys={['spu', 'name', 'brand', 'category', 'owner', 'status']} addLabel="新建 SPU" onAdd={() => setOpen(true)} columns={[
     { key: 'spu', label: 'SPU' }, { key: 'name', label: '商品名称' }, { key: 'brand', label: '品牌' }, { key: 'category', label: '品类' }, { key: 'material', label: '材质' }, { key: 'style', label: '款式 / 版型' }, { key: 'owner', label: '负责人' }, { key: 'skuCount', label: 'SKU 数' }, { key: 'status', label: '状态', render: (row) => <Badge variant="secondary">{row.status}</Badge> },
   ]}>
     <UedPrototypeNotice>SPU/SKU 编号不可编辑、不可复用；停用保留历史。服装颜色和尺码从标准字典选择。此页示例值不是生产商品资料。</UedPrototypeNotice>

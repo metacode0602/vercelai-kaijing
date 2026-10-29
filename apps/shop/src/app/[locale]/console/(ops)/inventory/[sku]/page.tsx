@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { getInventoryBySku } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -79,13 +79,13 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
         ]}
       />
 
-      <DetailFieldGrid
+      <EditableDetailFields
         title="变体引用"
         fields={[
-          { label: labelField('sku'), value: item.sku, mono: true },
-          { label: labelField('variantId'), value: item.variantId, mono: true },
-          { label: labelField('ageDays'), value: `${item.ageDays} 天` },
-          { label: labelField('reorderSignal'), value: labelStatus(item.reorderSignal) },
+          { key: 'sku', label: labelField('sku'), value: item.sku, mono: true, readOnly: true, required: true },
+          { key: 'variantId', label: labelField('variantId'), value: item.variantId, mono: true },
+          { key: 'ageDays', label: labelField('ageDays'), value: `${item.ageDays} 天`, type: 'number' },
+          { key: 'reorderSignal', label: labelField('reorderSignal'), value: labelStatus(item.reorderSignal) },
         ]}
       />
 

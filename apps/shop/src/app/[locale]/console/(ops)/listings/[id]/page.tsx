@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { getListingById } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -53,25 +53,25 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
         ]}
       />
 
-      <DetailFieldGrid
+      <EditableDetailFields
         title="刊登详情"
         fields={[
-          { label: labelField('id'), value: listing.id, mono: true },
-          { label: labelField('shopId'), value: listing.shopId, mono: true },
-          { label: labelField('shopName'), value: listing.shopName },
-          { label: labelField('platform'), value: listing.platform },
-          { label: labelField('externalItemId'), value: listing.externalItemId ?? '—', mono: true },
-          { label: labelField('platformSku'), value: listing.platformSku, mono: true },
-          { label: labelField('brandExternalId'), value: listing.brandExternalId ?? '—', mono: true },
-          { label: labelField('brandName'), value: listing.brandName ?? '—' },
-          { label: labelField('categoryExternalId'), value: listing.categoryExternalId, mono: true },
-          { label: labelField('categoryPath'), value: listing.categoryPath ?? '—' },
-          { label: labelField('publishState'), value: labelStatus(listing.publishState) },
-          { label: labelField('status'), value: labelStatus(listing.status) },
-          { label: labelField('submittedAt'), value: listing.submittedAt ?? '—' },
-          { label: labelField('liveAt'), value: listing.liveAt ?? '—' },
-          { label: labelField('updatedAt'), value: listing.updatedAt },
-          { label: labelField('lastError'), value: listing.lastError ?? '—' },
+          { key: 'id', label: labelField('id'), value: listing.id, mono: true, readOnly: true, required: true },
+          { key: 'shopId', label: labelField('shopId'), value: listing.shopId, mono: true },
+          { key: 'shopName', label: labelField('shopName'), value: listing.shopName },
+          { key: 'platform', label: labelField('platform'), value: listing.platform },
+          { key: 'externalItemId', label: labelField('externalItemId'), value: listing.externalItemId ?? '—', mono: true },
+          { key: 'platformSku', label: labelField('platformSku'), value: listing.platformSku, mono: true },
+          { key: 'brandExternalId', label: labelField('brandExternalId'), value: listing.brandExternalId ?? '—', mono: true },
+          { key: 'brandName', label: labelField('brandName'), value: listing.brandName ?? '—' },
+          { key: 'categoryExternalId', label: labelField('categoryExternalId'), value: listing.categoryExternalId, mono: true },
+          { key: 'categoryPath', label: labelField('categoryPath'), value: listing.categoryPath ?? '—' },
+          { key: 'publishState', label: labelField('publishState'), value: labelStatus(listing.publishState) },
+          { key: 'status', label: labelField('status'), value: labelStatus(listing.status) },
+          { key: 'submittedAt', label: labelField('submittedAt'), value: listing.submittedAt ?? '—' },
+          { key: 'liveAt', label: labelField('liveAt'), value: listing.liveAt ?? '—' },
+          { key: 'updatedAt', label: labelField('updatedAt'), value: listing.updatedAt },
+          { key: 'lastError', label: labelField('lastError'), value: listing.lastError ?? '—' },
         ]}
       />
 

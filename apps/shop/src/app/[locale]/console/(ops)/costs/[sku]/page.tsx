@@ -2,10 +2,10 @@ import { notFound } from 'next/navigation'
 import { Calculator } from 'lucide-react'
 import {
   ConsoleBreadcrumbs,
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
 } from '@/components/console/detail'
 import { costLandedTotal, getCostBySku } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -87,18 +87,18 @@ export default async function CostDetailPage({ params }: CostDetailPageProps) {
         ]}
       />
 
-      <DetailFieldGrid
+      <EditableDetailFields
         title="斯里兰卡税项结构（展示层）"
         columns={4}
         fields={[
-          { label: labelField('purchase'), value: cost.purchase.toFixed(2) },
-          { label: labelField('freight'), value: cost.freight.toFixed(2) },
-          { label: labelField('customs'), value: cost.customs.toFixed(2) },
-          { label: labelField('PAL'), value: cost.pal.toFixed(2) },
-          { label: labelField('CESS'), value: cost.cess.toFixed(2) },
-          { label: labelField('VAT'), value: cost.vat.toFixed(2) },
-          { label: labelField('SSCL'), value: cost.sscl.toFixed(2) },
-          { label: labelField('landed'), value: landed.toFixed(2) },
+          { key: 'purchase', label: labelField('purchase'), value: cost.purchase.toFixed(2), type: 'number' },
+          { key: 'freight', label: labelField('freight'), value: cost.freight.toFixed(2), type: 'number' },
+          { key: 'customs', label: labelField('customs'), value: cost.customs.toFixed(2), type: 'number' },
+          { key: 'pal', label: labelField('PAL'), value: cost.pal.toFixed(2), type: 'number' },
+          { key: 'cess', label: labelField('CESS'), value: cost.cess.toFixed(2), type: 'number' },
+          { key: 'vat', label: labelField('VAT'), value: cost.vat.toFixed(2), type: 'number' },
+          { key: 'sscl', label: labelField('SSCL'), value: cost.sscl.toFixed(2), type: 'number' },
+          { key: 'landed', label: labelField('landed'), value: landed.toFixed(2), type: 'number', readOnly: true },
         ]}
       />
 

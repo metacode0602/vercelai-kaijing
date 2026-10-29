@@ -37,6 +37,17 @@ export type DemoSupplier = {
   status: DemoStatus
 }
 
+export type DemoSupplierMaster = {
+  code: string
+  name: string
+  contact: string
+  phone: string
+  email: string
+  settlement: string
+  status: DemoStatus
+  note: string
+}
+
 export type DemoMapping = {
   shop: string
   platform: string
@@ -116,6 +127,12 @@ export const ERP_DEMO_PRODUCTS: DemoProduct[] = [
 export const ERP_DEMO_SUPPLIERS: DemoSupplier[] = [
   { code: 'SUP-0001', name: '厦门优品服饰有限公司', contact: '陈先生', phone: '138****1022', sku: 'HSY000001001', factoryCode: 'TEE-001-BK-L', price: 28, currency: 'CNY', leadDays: 12, preferred: true, status: '启用' },
   { code: 'SUP-0002', name: '泉州联创数码配件厂', contact: '林女士', phone: '159****8841', sku: 'HSY000002001', factoryCode: 'HUB-01', price: 62, currency: 'CNY', leadDays: 18, preferred: true, status: '启用' },
+]
+
+export const ERP_DEMO_SUPPLIER_MASTERS: DemoSupplierMaster[] = [
+  { code: 'SUP-0001', name: '厦门优品服饰有限公司', contact: '陈先生', phone: '138****1022', email: 'chen@xmyoupin.example', settlement: '月结 30 天', status: '启用', note: 'T恤类主力供应商' },
+  { code: 'SUP-0002', name: '泉州联创数码配件厂', contact: '林女士', phone: '159****8841', email: 'lin@qzliangchuang.example', settlement: '月结 15 天', status: '启用', note: '数码配件供应商' },
+  { code: 'SUP-0003', name: '汕头华彩印务', contact: '待补充', phone: '—', email: '—', settlement: '现结', status: '停用', note: '包装印刷备选供应商' },
 ]
 
 export const ERP_DEMO_MAPPINGS: DemoMapping[] = [

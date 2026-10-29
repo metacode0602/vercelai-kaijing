@@ -11,10 +11,12 @@ export function DetailFieldGrid({
   title,
   fields,
   columns = 3,
+  action,
 }: {
   title?: string
   fields: DetailField[]
   columns?: 2 | 3 | 4
+  action?: ReactNode
 }) {
   const colClass =
     columns === 2
@@ -26,8 +28,9 @@ export function DetailFieldGrid({
   return (
     <Card>
       {title ? (
-        <CardHeader className="pb-2">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-2">
           <CardTitle className="text-base">{title}</CardTitle>
+          {action}
         </CardHeader>
       ) : null}
       <CardContent className={title ? undefined : 'pt-6'}>
@@ -38,8 +41,8 @@ export function DetailFieldGrid({
               <dd
                 className={
                   field.mono
-                    ? 'truncate font-mono text-sm'
-                    : 'truncate text-sm font-medium tabular-nums'
+                    ? 'break-all font-mono text-sm'
+                    : 'break-words text-sm font-medium tabular-nums'
                 }
               >
                 {field.value ?? '—'}

@@ -35,7 +35,7 @@
 - **每表有路径**：表 → 列表页 / 详情页 / 设置 Tab（线表随详情、配置表进设置），见 §4 全量映射。
 - **设置区保持现状**：SectionSidebar 垂直 Tab + 三种既有交互（shops 向导 / platform-basics 水平 Tab / dictionaries 左右两栏）不改；仅按 D2 增补 Tab。
 - **沿用导航数据结构**：`ConsoleNavGroupConfig` / `ConsoleNavItemConfig`（url + titleKey + badgeKey），扩展 `groupKey` 联合与图标映射即可，不改渲染层形态。
-- **旧路由平滑迁移**：合并/拆分产生的旧路径建 redirect（§5.3），D1 原型内容复用。
+- **旧路由处置**：功能一致的旧路径一律删除不建 redirect；功能不一致的双路由并存（§5.3），D1 原型内容复用。
 
 ---
 
@@ -104,7 +104,7 @@
 └──────────────────────┘
 ```
 
-分组数 9、二级项 33；badge 沿用 `pendingCount` / `inventoryAlerts`（示例值，D2 接真数据）。P2 项（AI选品）常显不隐藏——权限不足时置灰而非移除。
+分组数 9、二级项 35；badge 沿用 `pendingCount` / `inventoryAlerts`，新增 `approvalPending`（采购审核）/ `orderExceptions`（订单异常）示例计数（D2 接真数据）。P2 项（AI选品）常显不隐藏——权限不足时置灰而非移除。
 
 ### 2.2 内容区（(ops) 壳，现状不变）
 
@@ -143,7 +143,7 @@
 └──────────────────────┘  └────────────────────────────────────┘
 ```
 
-- 现有 8 Tab 保留；**新增**「数据导入」「接口日志」2 个 Tab（D2：主侧栏 `administration` 组的 `/console/imports`、`/console/system-log` 内容迁入，旧路由 redirect）。
+- 现有 8 Tab 保留；**新增**「数据导入」「接口日志」2 个 Tab（D2：主侧栏 `administration` 组的 `/console/imports`、`/console/system-log` 内容迁入，D6 旧路由删除）。
 - 「角色权限」Tab 沿用现有 `settings/erp-access`（re-export 角色矩阵）；「组织成员」负责账号启停，与角色权限合并覆盖 Excel「人员角色权限」。
 - 「平台店铺与授权」= 现有「店铺连接」+「平台凭证」两 Tab（店铺主档向导 / OAuth 凭据），不合并以保持现状交互。
 - 「基础数据字典」Tab 保留（D5）：与商品中心「商品评论」外的属性字典入口同页。

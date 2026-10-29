@@ -8,7 +8,7 @@ import { Button } from '@workspace/ui/components/button'
 
 type ExceptionRow = { id: string; shop: string; order: string; sellerSku: string; internalSku: string; reason: string; status: string; updatedAt: string }
 
-const initialRows: ExceptionRow[] = [
+export const initialRows: ExceptionRow[] = [
   { id: 'EX-2026-0012', shop: 'Daraz LK', order: 'DZ-10031', sellerSku: 'TEE-OLD-BLACK', internalSku: '—', reason: '未映射', status: '阻断扣库', updatedAt: '2026-10-28 09:31' },
   { id: 'EX-2026-0011', shop: 'Lazada MY', order: 'LZ-2201', sellerSku: 'TEE-BLK-L', internalSku: 'HSY000001001（停用）', reason: '映射 SKU 停用', status: '阻断扣库', updatedAt: '2026-10-28 09:20' },
 ]
@@ -16,7 +16,7 @@ const initialRows: ExceptionRow[] = [
 export default function OrderExceptionsPage() {
   const [rows, setRows] = React.useState(initialRows)
   const [notice, setNotice] = React.useState('')
-  return <UedWorkspace title="订单映射异常" description="映射异常订单行在修复前不进入库存占用。" rows={rows} searchKeys={['id', 'shop', 'order', 'sellerSku', 'internalSku', 'reason', 'status']} searchPlaceholder="搜索订单号、Seller SKU 或原因" columns={[
+  return <UedWorkspace title="订单映射异常" description="映射异常订单行在修复前不进入库存占用。" rows={rows} detailHref={(row) => `/console/order-exceptions/${encodeURIComponent(row.id)}`} searchKeys={['id', 'shop', 'order', 'sellerSku', 'internalSku', 'reason', 'status']} searchPlaceholder="搜索订单号、Seller SKU 或原因" columns={[
     { key: 'id', label: '异常号' }, { key: 'shop', label: '店铺' }, { key: 'order', label: '平台订单号' }, { key: 'sellerSku', label: 'Seller SKU' }, { key: 'internalSku', label: '内部 SKU' }, { key: 'reason', label: '阻断原因' }, { key: 'status', label: '处理状态', render: (row) => <Badge variant="destructive">{row.status}</Badge> }, { key: 'updatedAt', label: '更新时间' },
   ]}>
     <UedPrototypeNotice>支持未映射、重复映射、SKU 停用、店铺授权失效和字段校验失败。修复后必须显式重试；不得静默扣库。</UedPrototypeNotice>

@@ -12,8 +12,16 @@ export default function ImportsPage() {
   const [open, setOpen] = React.useState(false)
   const [preview, setPreview] = React.useState(false)
   const [notice, setNotice] = React.useState('')
-  const editor = open ? <UedDialog title="创建导入批次" description="原型模拟模板类型与数据校验，不会上传文件或写入数据库。" fields={[{ label: '导入类型', options: ['仓库 / 库位', '商品 / SKU', 'Seller SKU 映射', '期初库存', '历史订单'] }, { label: '来源文件名' }, { label: '重复记录处理', options: ['阻止冲突行', '仅更新允许字段'] }]} onClose={() => setOpen(false)} onSave={() => { setRows((current) => [{ id: `IMP-2026-${String(current.length + 22).padStart(4, '0')}`, file: 'new_import.xlsx', kind: '期初库存', createdAt: '刚刚', success: 0, errors: 0, status: '待确认', rollback: '未执行' }, ...current]); setOpen(false); setNotice('导入批次草稿已建立；尚未上传或处理真实文件。') }} /> : null
-  return <>{editor}<UedWorkspace title="数据导入与迁移" description="模板校验、逐行错误、批次追溯与受控回滚。" rows={rows} searchKeys={['id', 'file', 'kind', 'status']} addLabel="新建导入" onAdd={() => setOpen(true)} columns={[
+  const editor = open ? <UedDialog title="创建导入批次" description="原型模拟模板类型与数据校验，不会上传文件或写入数据库。" fields={[
+        { key: 'kind', label: '导入类型', options: ['仓库 / 库位', '商品 / SKU', 'Seller SKU 映射', '期初库存', '历史订单'], required: true },
+        { key: 'file', label: '来源文件名', required: true, placeholder: '如 seller_sku_mapping_oct.xlsx' },
+        { key: 'templateVersion', label: '模板版本', options: ['v2026-10', 'v2026-09'], required: true },
+        { key: 'duplicate', label: '重复记录处理', options: ['阻止冲突行', '仅更新允许字段'], required: true },
+        { key: 'rollback', label: '回滚策略', options: ['允许回滚', '仅补偿'], required: true },
+        { key: 'operator', label: '操作人', required: true },
+        { key: 'remark', label: '导入说明', type: 'textarea', fullWidth: true },
+      ]} onClose={() => setOpen(false)} onSave={() => { setRows((current) => [{ id: `IMP-2026-${String(current.length + 22).padStart(4, '0')}`, file: 'new_import.xlsx', kind: '期初库存', createdAt: '刚刚', success: 0, errors: 0, status: '待确认', rollback: '未执行' }, ...current]); setOpen(false); setNotice('导入批次草稿已建立；尚未上传或处理真实文件。') }} /> : null
+  return <>{editor}<UedWorkspace title="数据导入与迁移" description="模板校验、逐行错误、批次追溯与受控回滚。" rows={rows} detailHref={(row) => `/console/settings/imports/${encodeURIComponent(row.id)}`} searchKeys={['id', 'file', 'kind', 'status']} addLabel="新建导入" onAdd={() => setOpen(true)} columns={[
     { key: 'id', label: '批次号' }, { key: 'file', label: '来源文件' }, { key: 'kind', label: '数据类型' }, { key: 'createdAt', label: '创建时间' }, { key: 'success', label: '成功行' }, { key: 'errors', label: '错误行' }, { key: 'status', label: '状态', render: (row) => <Badge variant={row.status === '异常' ? 'destructive' : 'secondary'}>{row.status}</Badge> }, { key: 'rollback', label: '回滚能力' },
   ]}>
     <UedPrototypeNotice>导入错误行与正确行隔离；涉及后续业务流水的批次不可物理删除，需走补偿。库存中的文字值或“无进货”状态必须显式确认。</UedPrototypeNotice>

@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import {
-  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
+  EditableDetailFields,
   StatusTimeline,
 } from '@/components/console/detail'
 import { getOrderById } from '@/lib/crossborder/mock-data'
@@ -63,19 +63,19 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <div className="space-y-4">
-          <DetailFieldGrid
+          <EditableDetailFields
             title="订单信息"
             fields={[
-              { label: labelField('id'), value: order.id, mono: true },
-              { label: labelField('externalOrderId'), value: order.externalOrderId, mono: true },
-              { label: labelField('shopId'), value: order.shopId, mono: true },
-              { label: labelField('platform'), value: order.platform },
-              { label: labelField('status'), value: labelStatus(order.status) },
-              { label: labelField('placedAt'), value: order.placedAt },
-              { label: labelField('paidAt'), value: order.paidAt ?? '—' },
-              { label: labelField('currency / totalAmount'), value: `${order.totalAmount.toFixed(2)} ${order.currency}` },
-              { label: labelField('raw.buyerNameMask'), value: order.buyerNameMask },
-              { label: labelField('raw.shipping'), value: order.shippingSummary },
+              { key: 'id', label: labelField('id'), value: order.id, mono: true, readOnly: true, required: true },
+              { key: 'externalOrderId', label: labelField('externalOrderId'), value: order.externalOrderId, mono: true },
+              { key: 'shopId', label: labelField('shopId'), value: order.shopId, mono: true },
+              { key: 'platform', label: labelField('platform'), value: order.platform },
+              { key: 'status', label: labelField('status'), value: labelStatus(order.status) },
+              { key: 'placedAt', label: labelField('placedAt'), value: order.placedAt },
+              { key: 'paidAt', label: labelField('paidAt'), value: order.paidAt ?? '—' },
+              { key: 'amount', label: labelField('currency / totalAmount'), value: `${order.totalAmount.toFixed(2)} ${order.currency}` },
+              { key: 'buyerNameMask', label: labelField('raw.buyerNameMask'), value: order.buyerNameMask },
+              { key: 'shipping', label: labelField('raw.shipping'), value: order.shippingSummary },
             ]}
           />
 
