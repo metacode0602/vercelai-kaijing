@@ -84,6 +84,7 @@ export function UedDialog(props: {
   onSave: (values: Record<string, string>) => void
   saveLabel?: string
   initialValues?: Record<string, string>
+  children?: React.ReactNode
 }) {
   const [values, setValues] = React.useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
@@ -121,6 +122,7 @@ export function UedDialog(props: {
                 </div>
               )
             })}
+            {props.children ? <div className="flex flex-col gap-4 sm:col-span-2">{props.children}</div> : null}
           </div>
           <footer className="flex items-center justify-between gap-2 border-t p-4">
             <p className="text-xs text-muted-foreground">带 <span className="text-destructive">*</span> 为必填字段；示例保存不写入数据库。</p>

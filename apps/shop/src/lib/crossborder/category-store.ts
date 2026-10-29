@@ -10,6 +10,8 @@ export type CategoryNode = {
   sort: number
   status: '启用' | '停用'
   note: string
+  coverImage?: string
+  screenshots?: string[]
 }
 
 export const DEMO_CATEGORIES: CategoryNode[] = [

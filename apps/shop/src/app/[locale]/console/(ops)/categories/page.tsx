@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Plus } from 'lucide-react'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { ProductCover, ProductImageField } from '@/components/console/product-images'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
@@ -14,6 +15,7 @@ import {
   useCategories,
   type CategoryNode,
 } from '@/lib/crossborder/category-store'
+import type { DemoImageSet } from '@/lib/crossborder/product-image-store'
 
 function flatten(rows: CategoryNode[], parentId: string | null = null): CategoryNode[] {
   return rows
@@ -30,7 +32,13 @@ function descendants(rows: CategoryNode[], id: string): string[] {
 export default function CategoriesPage() {
   const rows = useCategories()
   const [dialog, setDialog] = React.useState<{ mode: 'create' | 'edit'; row?: CategoryNode; parentId: string | null } | null>(null)
+  const [images, setImages] = React.useState<DemoImageSet>({ images: [] })
   const [notice, setNotice] = React.useState('')
+
+  function openDialog(next: { mode: 'create' | 'edit'; row?: CategoryNode; parentId: string | null }) {
+    setImages({ cover: next.row?.coverImage, images: next.row?.screenshots ?? [] })
+    setDialog(next)
+  }
 
   const ordered = flatten(rows)
   const blocked = dialog?.row ? new Set([dialog.row.id, ...descendants(rows, dialog.row.id)]) : new Set<string>()
@@ -71,6 +79,8 @@ export default function CategoriesPage() {
           sort: Number(values.sort || 0),
           status: values.status === '停用' ? '停用' as const : '启用' as const,
           note: values.note ?? '',
+          coverImage: images.cover,
+          screenshots: images.images,
         }
         if (dialog.mode === 'edit' && dialog.row) {
           updateCategory(rows, dialog.row.id, patch)
@@ -82,7 +92,14 @@ export default function CategoriesPage() {
         setDialog(null)
       }}
       saveLabel="保存品类"
-    />
+    >
+      <ProductImageField
+        value={images}
+        onChange={setImages}
+        label="品类图片"
+        description="封面图用于品类列表展示；截图可上传多张，用于品类素材归档。"
+      />
+    </UedDialog>
   ) : null
 
   return (
@@ -94,7 +111,7 @@ export default function CategoriesPage() {
             <h1 className="text-xl font-semibold tracking-tight">品类树</h1>
             <p className="mt-1 text-sm text-muted-foreground">多级品类主数据；商品 SPU 和刊登共用同一棵树。</p>
           </div>
-          <Button onClick={() => setDialog({ mode: 'create', parentId: null })}>
+          <Button onClick={() => openDialog({ mode: 'create', parentId: null })}>
             <Plus data-icon="inline-start" />
             新增一级品类
           </Button>
@@ -113,6 +130,7 @@ export default function CategoriesPage() {
                 <TableHead>上级</TableHead>
                 <TableHead>排序</TableHead>
                 <TableHead>状态</TableHead>
+                <TableHead>封面</TableHead>
                 <TableHead className="w-56 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -136,10 +154,13 @@ export default function CategoriesPage() {
                     <TableCell>
                       <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
                     </TableCell>
+                    <TableCell>
+                      <ProductCover src={row.coverImage ?? row.screenshots?.[0]} alt={`${row.name} 封面`} className="size-8" />
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setDialog({ mode: 'create', parentId: row.id })}>新增子类</Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDialog({ mode: 'edit', row, parentId: row.parentId })}>编辑</Button>
+                        <Button variant="ghost" size="sm" onClick={() => openDialog({ mode: 'create', parentId: row.id })}>新增子类</Button>
+                        <Button variant="ghost" size="sm" onClick={() => openDialog({ mode: 'edit', row, parentId: row.parentId })}>编辑</Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -157,7 +178,7 @@ export default function CategoriesPage() {
               })}
               {ordered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">还没有品类，先新增一级品类。</TableCell>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">还没有品类，先新增一级品类。</TableCell>
                 </TableRow>
               ) : null}
             </TableBody>
