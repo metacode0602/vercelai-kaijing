@@ -1172,6 +1172,13 @@ export type DashboardTrendPoint = {
   day: string
   orders: number
   revenue: number
+  units: number
+  aov: number
+  refundRate: number
+  grossProfit: number
+  grossMargin: number
+  netProfit: number
+  netMargin: number
 }
 
 /** Deterministic mock series ending 2026-10-21 (box-local demo date). */
@@ -1184,11 +1191,29 @@ function buildDashboardTrend(days: number): DashboardTrendPoint[] {
     const dd = String(t.getUTCDate()).padStart(2, "0")
     // Stable pseudo-random from day index
     const n = days - i
-    const wave = Math.sin(n / 3.2) * 6 + Math.cos(n / 5.1) * 4
-    const weekend = t.getUTCDay() === 0 || t.getUTCDay() === 6 ? -4 : 2
-    const orders = Math.max(8, Math.round(22 + wave + weekend + (n % 7) - 2))
-    const revenue = Math.round(orders * (58 + (n % 5) * 3 + Math.abs(wave) * 2))
-    points.push({ day: `${mm}-${dd}`, orders, revenue })
+    const wave = Math.sin(n / 3.2) * 26 + Math.cos(n / 5.1) * 18
+    const weekend = t.getUTCDay() === 0 || t.getUTCDay() === 6 ? -24 : 12
+    const orders = Math.max(150, Math.round(260 + wave + weekend + (n % 7) * 6 - 18))
+    const aov = Math.round(690 + Math.sin(n / 4.7) * 28 + (n % 5) * 4)
+    const revenue = orders * aov
+    const units = Math.round(orders * (1.55 + (n % 4) * 0.06))
+    const refundRate = Number((2.8 + Math.abs(Math.sin(n / 4.3)) * 1.8).toFixed(1))
+    const grossMargin = Number((26 + Math.sin(n / 6) * 2.2 + (n % 3) * 0.2).toFixed(1))
+    const netMargin = Number((grossMargin - (11 + Math.cos(n / 5) * 1.2)).toFixed(1))
+    const grossProfit = Math.round((revenue * grossMargin) / 100)
+    const netProfit = Math.round((revenue * netMargin) / 100)
+    points.push({
+      day: `${mm}-${dd}`,
+      orders,
+      revenue,
+      units,
+      aov,
+      refundRate,
+      grossProfit,
+      grossMargin,
+      netProfit,
+      netMargin,
+    })
   }
   return points
 }
@@ -1204,6 +1229,78 @@ export const MOCK_DASHBOARD_TREND = MOCK_DASHBOARD_TREND_BY_RANGE[7]
 
 export function getDashboardTrend(range: DashboardTrendRange = 7): DashboardTrendPoint[] {
   return MOCK_DASHBOARD_TREND_BY_RANGE[range]
+}
+
+export type DashboardSummary = {
+  revenue: number
+  orders: number
+  units: number
+  aov: number
+  refundRate: number
+  grossProfit: number
+  grossMargin: number
+  netProfit: number
+  netMargin: number
+}
+
+export function getDashboardSummary(range: DashboardTrendRange = 7): DashboardSummary {
+  const points = getDashboardTrend(range)
+  const revenue = points.reduce((sum, point) => sum + point.revenue, 0)
+  const orders = points.reduce((sum, point) => sum + point.orders, 0)
+  const units = points.reduce((sum, point) => sum + point.units, 0)
+  const grossProfit = points.reduce((sum, point) => sum + point.grossProfit, 0)
+  const netProfit = points.reduce((sum, point) => sum + point.netProfit, 0)
+  const refundRate =
+    points.reduce((sum, point) => sum + point.refundRate, 0) / Math.max(points.length, 1)
+
+  return {
+    revenue,
+    orders,
+    units,
+    aov: Math.round(revenue / Math.max(orders, 1)),
+    refundRate: Number(refundRate.toFixed(1)),
+    grossProfit,
+    grossMargin: Number(((grossProfit / Math.max(revenue, 1)) * 100).toFixed(1)),
+    netProfit,
+    netMargin: Number(((netProfit / Math.max(revenue, 1)) * 100).toFixed(1)),
+  }
+}
+
+export const MOCK_DASHBOARD_KPI_DELTAS = {
+  revenue: { value: "+8.2%", tone: "positive" as const },
+  orders: { value: "+6.1%", tone: "positive" as const },
+  units: { value: "+5.4%", tone: "positive" as const },
+  aov: { value: "+2.0%", tone: "positive" as const },
+  refundRate: { value: "-0.4pp", tone: "positive" as const },
+  grossProfit: { value: "+9.1%", tone: "positive" as const },
+  netProfit: { value: "+5.1%", tone: "positive" as const },
+}
+
+export const MOCK_DASHBOARD_PLATFORM_MIX = [
+  { platform: "Daraz LK", share: 82 },
+  { platform: "Daraz MY", share: 12 },
+  { platform: "未开通 / 其他", share: 6 },
+] as const
+
+export const MOCK_DASHBOARD_INVENTORY = {
+  totalStock: 8420,
+  turnoverDays: 28.6,
+  shortageSkuCount: 6,
+  inTransitUnits: 2300,
+  categories: [
+    { category: "服饰", stock: 3200, inTransit: 900, turnoverDays: 32 },
+    { category: "3C 配件", stock: 2100, inTransit: 600, turnoverDays: 24 },
+    { category: "家居", stock: 1800, inTransit: 450, turnoverDays: 30 },
+    { category: "运动户外", stock: 1320, inTransit: 350, turnoverDays: 21 },
+  ],
+  shortages: [
+    { sku: "TEE-001", title: "Oversized Cotton Tee", gap: 8, eta: "2026-11-03" },
+    { sku: "HUB-01", title: "USB-C Hub 7-in-1", gap: 14, eta: "2026-11-05" },
+    { sku: "MAT-02", title: "Yoga Mat Pro", gap: 6, eta: "2026-11-02" },
+    { sku: "BAG-03", title: "Canvas Tote Bag", gap: 21, eta: "2026-11-08" },
+    { sku: "LMP-04", title: "LED Desk Lamp", gap: 5, eta: "2026-11-06" },
+    { sku: "SOK-05", title: "Cotton Crew Socks", gap: 32, eta: "2026-11-10" },
+  ],
 }
 
 /** SKU presets for landed-cost calculator Demo（箱规 / HS / 默认批量） */
@@ -1275,13 +1372,6 @@ export type MockCostCalcPreset = (typeof MOCK_COST_CALC_PRESETS)[number]
 export function getCostCalcPreset(sku: string) {
   return MOCK_COST_CALC_PRESETS.find((p) => p.sku === sku) ?? MOCK_COST_CALC_PRESETS[0]!
 }
-
-export const MOCK_DASHBOARD_KPIS = [
-  { label: "GMV（近 7 天）", value: "11,280 USD", delta: "+8.2% 示例" },
-  { label: "订单数", value: "186", delta: "+14 示例" },
-  { label: "净利润", value: "4,720 USD", delta: "+5.1% 示例" },
-  { label: "在售 SKU", value: "42", delta: "+3 示例" },
-]
 
 export const MOCK_DASHBOARD_ALERTS = [
   { type: "库存", message: "TEE-001 低于阈值（12 / 20）", href: "/console/inventory/TEE-001" },
