@@ -78,6 +78,7 @@ export const INITIAL_DICTIONARIES: DictionaryCategory[] = [
   { key: 'product_category', label: '商品品类', description: '支持父子级分类，商品/SPU 共用；多级品类在「品类树」维护', shared: true, values: ['服装', '家居', '配饰', '数码/电脑配件', '美妆个护', '户外运动'] },
   { key: 'product_color', label: '颜色', description: '商品规格标准色；别名可归一到标准值', shared: true, values: ['黑色', '白色', '深灰色', '蓝色', '红色'] },
   { key: 'product_size', label: '尺码', description: '商品规格标准尺码', shared: true, values: ['M', 'L', 'XL', '2XL', '3XL', '4XL'] },
+  { key: 'product_pack', label: '包装规格', description: '商品售卖单元（单件/两件装/礼盒）；箱规单独维护并引用此值', shared: true, values: ['单件', '两件装', '礼盒'] },
   { key: 'fulfillment_mode', label: '履约模式', description: '店铺可选；决定包裹状态流程', shared: true, values: ['LGS', 'JSB 灰清'] },
   { key: 'warehouse_type', label: '仓库类型', description: '仓库主档使用', shared: true, values: ['自营仓', '3PL 仓', '供应商仓'] },
   { key: 'purchase_reason', label: '采购原因', description: '采购申请和采购单共用；按单据类型限制可选值', shared: true, values: ['常规补货', '新品首单', '活动备货', '缺货补单', '样品采购'] },

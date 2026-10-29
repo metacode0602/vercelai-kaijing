@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { ERP_DEMO_PRODUCTS } from '@/lib/crossborder/erp-ued-data'
+import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
@@ -36,6 +37,8 @@ export const DEMO_SKUS: SkuRow[] = ERP_DEMO_PRODUCTS.flatMap((product) =>
 
 export default function MasterSkusPage() {
   const [rows, setRows] = React.useState<SkuRow[]>(DEMO_SKUS)
+  const dictionaries = useDictionaries()
+  const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
   const editor = open ? (
@@ -46,15 +49,16 @@ export default function MasterSkusPage() {
         { key: 'spu', label: '所属 SPU', options: ERP_DEMO_PRODUCTS.map((product) => `${product.spu} · ${product.name}`), required: true },
         { key: 'color', label: '颜色', options: ['黑色', '白色', '深灰色', '蓝色', '红色'], required: true },
         { key: 'size', label: '尺码', options: ['M', 'L', 'XL', '2XL', '3XL', '标准'], required: true },
-        { key: 'pack', label: '包装规格', options: ['单件', '两件装', '礼盒'], required: true },
+        { key: 'pack', label: '包装规格', options: packOptions.length ? packOptions : ['单件'], required: true },
         { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，后续可补录' },
         { key: 'weight', label: '重量（g）', type: 'number', required: true },
         { key: 'status', label: '状态', options: ['待确认', '启用', '停用'], required: true },
         { key: 'remark', label: '规格备注', type: 'textarea', fullWidth: true },
       ]}
       onClose={() => setOpen(false)}
-      onSave={() => {
-        const spu = ERP_DEMO_PRODUCTS[0]?.spu ?? 'HSY000001'
+      onSave={(values) => {
+        const product = ERP_DEMO_PRODUCTS.find((item) => `${item.spu} · ${item.name}` === values.spu) ?? ERP_DEMO_PRODUCTS[0]
+        const spu = product?.spu ?? 'HSY000001'
         const nextNo = rows.filter((row) => row.spu === spu).length + 1
         const sku = `${spu}${String(nextNo).padStart(3, '0')}`
         setRows((current) => [
@@ -63,13 +67,13 @@ export default function MasterSkusPage() {
             id: sku,
             sku,
             spu,
-            name: ERP_DEMO_PRODUCTS[0]?.name ?? '—',
-            color: '黑色',
-            size: 'L',
-            pack: '单件',
-            barcode: '待补充',
-            weight: 220,
-            status: '待确认',
+            name: product?.name ?? '—',
+            color: values.color || '黑色',
+            size: values.size || 'L',
+            pack: values.pack || packOptions[0] || '单件',
+            barcode: values.barcode || '待补充',
+            weight: Number(values.weight) || 220,
+            status: values.status || '待确认',
           },
         ])
         setOpen(false)

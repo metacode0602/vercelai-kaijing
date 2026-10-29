@@ -149,8 +149,10 @@
       "workbench": "Workbench",
       "masterData": "Master data",
       "masterProducts": "Products & SKUs",
+      "categories": "Category tree",
       "suppliers": "Suppliers",
       "warehouse": "Warehouses & bins",
+      "warehouseZones": "Warehouse zones",
       "purchases": "Purchasing",
       "mappings": "Seller SKU mapping",
       "inventoryLedger": "Inventory ledger",
@@ -198,7 +200,9 @@
       "costFinance": "Cost & finance",
       "settlements": "Settlements",
       "profits": "Order & SKU profit",
-      "freight": "Freight estimation"
+      "freight": "Freight estimation",
+      "carriers": "Carriers",
+      "cartonSpecs": "Carton specs"
     },
     "usage": {
       "title": "Usage",
@@ -326,7 +330,12 @@
       "finance": "Finance",
       "settings": "Settings",
       "profile": "Profile",
-      "listings": "Listings"
+      "listings": "Listings",
+      "categories": "Category tree",
+      "warehouseZones": "Warehouse zones",
+      "carriers": "Carriers",
+      "cartonSpecs": "Carton specs",
+      "importTemplates": "Import templates"
     },
     "comingSoon": {
       "billing": {
@@ -356,6 +365,7 @@
       "platformBasics": "Platform basics",
       "dictionaries": "Data dictionaries",
       "imports": "Data imports",
+      "importTemplates": "Import templates",
       "integrationLog": "API logs",
       "erpAccess": "Roles & data scope",
       "credentials": "Credentials",

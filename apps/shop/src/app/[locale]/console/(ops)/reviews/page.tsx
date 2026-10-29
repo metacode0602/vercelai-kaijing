@@ -6,6 +6,8 @@ import { MOCK_PRODUCT_REVIEWS, getProductReviewsBySku } from '@/lib/crossborder/
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 
 const demo = getProductReviewsBySku('TEE-001') ?? Object.values(MOCK_PRODUCT_REVIEWS)[0]!
 
@@ -38,6 +40,8 @@ const sentimentVariant = (value: string) =>
 
 export default function ReviewsPage() {
   const [notice, setNotice] = React.useState('')
+  const dictionaryState = useDictionaries()
+  const sentimentOptions = activeDictionaryValues(dictionaryState, 'review_sentiment')
   return (
     <UedWorkspace
       title="商品评论"
@@ -45,7 +49,7 @@ export default function ReviewsPage() {
       rows={DEMO_REVIEWS} detailHref={(row) => `/console/reviews/${encodeURIComponent(row.id)}`}
       searchKeys={['id', 'sentiment', 'content', 'contentZh', 'buyer', 'source']}
       searchPlaceholder="搜索评论内容、买家或情感"
-      filters={[{ label: '情感', options: ['正面', '中性', '负面'] }]}
+      filters={[{ label: '情感', options: sentimentOptions.length > 0 ? sentimentOptions : ['正面', '中性', '负面'] }]}
       columns={[
         { key: 'id', label: '评论 ID' },
         { key: 'rating', label: '评分', render: (row) => `${row.rating} ★` },
@@ -81,6 +85,7 @@ export default function ReviewsPage() {
         <Button variant="outline" size="sm" onClick={() => setNotice('抓取运行已排队（原型）；下次运行按 review_fetch_runs 调度配置执行。')}>立即抓取</Button>
         <Button variant="outline" size="sm" onClick={() => setNotice('分析报告示例：负面集中在「尺寸偏小」与「色差」2 个关键发现，关联 5 条评论。')}>查看分析报告</Button>
         <Button variant="outline" size="sm" onClick={() => setNotice('高分差评视图：评分 ≥4 但情感为负面，共 2 条（示例）。')}>高分差评</Button>
+        <Button variant="outline" size="sm" asChild><LocaleLink href="/console/dictionaries">管理情感标签</LocaleLink></Button>
       </div>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </UedWorkspace>

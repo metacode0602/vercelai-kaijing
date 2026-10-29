@@ -21,7 +21,7 @@ import {
 
 type Tab = 'platforms' | 'countries' | 'warehouses' | 'currencies'
 type RecordValue = PlatformRecord | CountryRecord | WarehouseRecord | CurrencyRecord
-type FieldSpec = { key: string; label: string; placeholder?: string; type?: 'text' | 'number' | 'select'; options?: string[] }
+type FieldSpec = { key: string; label: string; placeholder?: string; type?: 'text' | 'number' | 'select'; options?: string[]; readOnly?: boolean; hint?: string }
 
 const tabs: { key: Tab; label: string }[] = [
   { key: 'platforms', label: '平台' },
@@ -42,7 +42,7 @@ const fieldSpecs: Record<Tab, FieldSpec[]> = {
     { key: 'code', label: '平台代码', placeholder: '如 lazada' },
     { key: 'name', label: '平台名称', placeholder: '如 Lazada' },
     { key: 'countries', label: '支持站点', placeholder: '国家代码用逗号分隔，如 MY, PH, SG' },
-    { key: 'apiReady', label: '接入状态', type: 'select', options: ['Configuration required', 'Connected', 'Planned'] },
+    { key: 'apiReady', label: '接入状态', type: 'select', options: ['Configuration required', 'Connected', 'Planned'], readOnly: true, hint: '由平台运营维护，租户只读' },
   ],
   countries: [
     { key: 'code', label: '国家代码', placeholder: 'ISO 3166-1，如 MY' },
@@ -189,6 +189,7 @@ export default function PlatformBasicsPage() {
           <p>平台 → 国家站点 → 店铺：店铺选择平台后，只展示该平台支持的站点。</p>
           <p>国家 → 默认币种与时区：创建店铺或仓库时自动带出，可按业务覆盖。</p>
           <p>停用代替删除：已被店铺、商品或单据引用的基础资料保留历史并停止新选用。</p>
+          <p>平台接入状态由平台运营维护，租户只读；租户不能自行修改 Connected / Planned。</p>
         </div>
       </details>
 
@@ -203,7 +204,7 @@ export default function PlatformBasicsPage() {
                 {fieldSpecs[dialog.tab].map((field) => (
                   <div key={field.key} className="flex flex-col gap-2">
                     <Label htmlFor={`record-${field.key}`}>{field.label}</Label>
-                    {field.type === 'select' ? <NativeSelect id={`record-${field.key}`} value={values[field.key] ?? ''} onChange={(event) => {
+                    {field.type === 'select' ? <NativeSelect id={`record-${field.key}`} value={values[field.key] ?? ''} disabled={field.readOnly} onChange={(event) => {
                       const value = event.target.value
                       setValues((current) => {
                         if (dialog.tab === 'countries' && field.key === 'defaultCurrency') return { ...current, defaultCurrency: value }
@@ -213,7 +214,8 @@ export default function PlatformBasicsPage() {
                         }
                         return { ...current, [field.key]: value }
                       })
-                    }}><NativeSelectOption value="">请选择</NativeSelectOption>{field.options?.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect> : <Input id={`record-${field.key}`} type={field.type ?? 'text'} placeholder={field.placeholder} value={values[field.key] ?? ''} required={field.key !== 'symbol'} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
+                    }}><NativeSelectOption value="">请选择</NativeSelectOption>{field.options?.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect> : <Input id={`record-${field.key}`} type={field.type ?? 'text'} placeholder={field.placeholder} value={values[field.key] ?? ''} disabled={field.readOnly} required={field.key !== 'symbol'} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
+                    {field.hint ? <p className="text-xs text-muted-foreground">{field.hint}</p> : null}
                     {dialog.tab === 'warehouses' && field.key === 'country' ? <p className="text-xs text-muted-foreground">选择国家后自动带出时区和核算币种。</p> : null}
                     {dialog.tab === 'warehouses' && field.key === 'shops' ? <p className="text-xs text-muted-foreground">一个仓库可供多个店铺选择；店铺也可关联多个仓库。</p> : null}
                   </div>

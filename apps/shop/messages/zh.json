@@ -167,8 +167,10 @@
       "workbench": "工作台",
       "masterData": "基础资料",
       "masterProducts": "商品 SPU / SKU",
+      "categories": "品类树",
       "suppliers": "供应商",
       "warehouse": "仓库与库位",
+      "warehouseZones": "库区管理",
       "purchases": "采购管理",
       "mappings": "Seller SKU 映射",
       "inventoryLedger": "库存流水",
@@ -216,7 +218,9 @@
       "costFinance": "成本财务",
       "settlements": "平台结算对账",
       "profits": "订单与SKU利润",
-      "freight": "运费测算"
+      "freight": "运费测算",
+      "carriers": "承运商管理",
+      "cartonSpecs": "箱规管理"
     },
     "usage": {
       "title": "用量",
@@ -344,7 +348,12 @@
       "finance": "财务中心",
       "settings": "设置",
       "profile": "个人资料",
-      "listings": "刊登"
+      "listings": "刊登",
+      "categories": "品类树",
+      "warehouseZones": "库区管理",
+      "carriers": "承运商管理",
+      "cartonSpecs": "箱规管理",
+      "importTemplates": "导入模板"
     },
     "comingSoon": {
       "billing": {
@@ -374,6 +383,7 @@
       "platformBasics": "平台基础资料",
       "dictionaries": "基础数据字典",
       "imports": "数据导入",
+      "importTemplates": "导入模板",
       "integrationLog": "接口日志",
       "erpAccess": "角色与数据范围",
       "credentials": "平台凭证",

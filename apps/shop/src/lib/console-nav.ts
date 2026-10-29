@@ -11,6 +11,7 @@ export type ConsoleNavTitleKey =
   | 'nav.pending'
   | 'nav.productCenter'
   | 'nav.masterProducts'
+  | 'nav.categories'
   | 'nav.masterSkus'
   | 'nav.supplierSkus'
   | 'nav.dictionaries'
@@ -28,6 +29,7 @@ export type ConsoleNavTitleKey =
   | 'nav.warehouseCenter'
   | 'nav.inventoryBalances'
   | 'nav.warehouse'
+  | 'nav.warehouseZones'
   | 'nav.stockInbounds'
   | 'nav.stockOutbounds'
   | 'nav.inventoryLedger'
@@ -47,6 +49,8 @@ export type ConsoleNavTitleKey =
   | 'nav.settlements'
   | 'nav.profits'
   | 'nav.freight'
+  | 'nav.carriers'
+  | 'nav.cartonSpecs'
   | 'nav.reports'
   | 'nav.settings'
   | 'nav.products'
@@ -91,6 +95,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     labelKey: 'nav.productCenter',
     items: [
       { url: '/console/master-products', titleKey: 'nav.masterProducts' },
+      { url: '/console/categories', titleKey: 'nav.categories' },
       { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
       { url: '/console/dictionaries', titleKey: 'nav.dictionaries' },
@@ -123,6 +128,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     items: [
       { url: '/console/inventory-balances', titleKey: 'nav.inventoryBalances' },
       { url: '/console/warehouse', titleKey: 'nav.warehouse' },
+      { url: '/console/warehouse-zones', titleKey: 'nav.warehouseZones' },
       { url: '/console/stock-inbounds', titleKey: 'nav.stockInbounds' },
       { url: '/console/stock-outbounds', titleKey: 'nav.stockOutbounds' },
       { url: '/console/inventory-ledger', titleKey: 'nav.inventoryLedger' },
@@ -156,6 +162,8 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/costs', titleKey: 'nav.costs' },
       { url: '/console/settlements', titleKey: 'nav.settlements' },
       { url: '/console/profits', titleKey: 'nav.profits' },
+      { url: '/console/carriers', titleKey: 'nav.carriers' },
+      { url: '/console/carton-specs', titleKey: 'nav.cartonSpecs' },
       { url: '/console/freight', titleKey: 'nav.freight' },
     ],
   },
@@ -188,6 +196,7 @@ export const SETTINGS_NAV = [
   { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
   { url: '/console/dictionaries', titleKey: 'settings.dictionaries' as const },
   { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
+  { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },
   { url: '/console/settings/integration-log', titleKey: 'settings.integrationLog' as const },
   { url: '/console/settings/erp-access', titleKey: 'settings.erpAccess' as const },
   { url: '/console/settings/members', titleKey: 'settings.members' as const },

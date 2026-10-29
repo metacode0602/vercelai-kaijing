@@ -9,6 +9,7 @@ import { Badge } from '@workspace/ui/components/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { LocaleLink } from '@/lib/i18n/navigation'
 
 type ScenarioKey = 'air_ddp' | 'sea_lcl' | 'sea_fcl'
 
@@ -76,7 +77,7 @@ export default function FreightPage() {
           <h1 className="text-xl font-semibold tracking-tight">运费测算</h1>
           <p className="mt-1 text-sm text-muted-foreground">按情景（空运 DDP / 海运拼箱 / 海运整柜）比较报价与牌价，匹配 HS 税率后采纳估算快照。</p>
         </div>
-        <Badge variant="outline">示例数据</Badge>
+        <div className="flex items-center gap-2"><Badge variant="outline">示例数据</Badge><Button variant="outline" size="sm" asChild><LocaleLink href="/console/carriers">管理承运商</LocaleLink></Button></div>
       </header>
 
       <UedPrototypeNotice>
@@ -174,7 +175,7 @@ export default function FreightPage() {
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => setNotice('HS 税率维护（平台参考数据）：3926.90 手机壳 · LK 15% · MY 0%（示例）。')}>维护 HS 税率</Button>
         <Button variant="outline" size="sm" onClick={() => setNotice('承运商与线路维护：顺丰国际 / DHL / 中外运 · CN-XMN → LK-CMB（示例）。')}>维护承运商 / 线路</Button>
-        <Button variant="outline" size="sm" onClick={() => setNotice('箱规维护：20GP 33 m³ / 40HQ 68 m³ · 装载率示例。')}>维护箱规</Button>
+        <Button variant="outline" size="sm" asChild><LocaleLink href="/console/carton-specs">维护箱规</LocaleLink></Button>
         <Button variant="outline" size="sm" onClick={() => setNotice('已导出当前情景报价（原型动作，无文件下载）。')}>导出报价比较</Button>
       </div>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

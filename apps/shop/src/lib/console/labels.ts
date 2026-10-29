@@ -64,6 +64,7 @@ const STATUS_LABELS: Record<string, string> = {
   owner: '所有者',
   member: '成员',
   admin: '管理员',
+  viewer: '只读',
 
   // cost components
   purchase: '采购',
