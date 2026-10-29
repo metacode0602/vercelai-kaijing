@@ -19,7 +19,7 @@ export function UedWorkspace<T>(props: {
   columns: UedColumn<T>[]
   searchKeys?: Array<keyof T | string>
   searchPlaceholder?: string
-  filters?: Array<{ label: string; options: string[] }>
+  filters?: Array<{ label: string; options: string[]; key?: string }>
   onAdd?: () => void
   addLabel?: string
   onExport?: () => void
@@ -30,10 +30,12 @@ export function UedWorkspace<T>(props: {
   const [query, setQuery] = React.useState('')
   const [filter, setFilter] = React.useState('全部')
   const searchKeys = props.searchKeys ?? ['id', 'code', 'spu', 'sku', 'name', 'status']
+  const filterKey = props.filters?.[0]?.key ?? 'status'
   const rows = props.rows.filter((row) => {
     const record = row as Record<string, unknown>
     const searchable = searchKeys.map((key) => String(record[String(key)] ?? '')).join(' ').toLowerCase()
-    return searchable.includes(query.toLowerCase()) && (filter === '全部' || String(record.status ?? '') === filter)
+    const statusValue = String(record[filterKey] ?? record.status ?? '')
+    return searchable.includes(query.toLowerCase()) && (filter === '全部' || statusValue === filter)
   })
 
   function exportDemoRows() {

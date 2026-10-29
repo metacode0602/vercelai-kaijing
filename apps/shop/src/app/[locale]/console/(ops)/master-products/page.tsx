@@ -1,17 +1,19 @@
 'use client'
 
 import * as React from 'react'
-import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
-import { ERP_DEMO_PRODUCTS, type DemoProduct } from '@/lib/crossborder/erp-ued-data'
+import { createProduct, useProducts } from '@/lib/crossborder/product-store'
 import { Badge } from '@workspace/ui/components/badge'
 import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 import { activeCategoryPaths, useCategories } from '@/lib/crossborder/category-store'
 import { useMembers } from '@/lib/crossborder/member-store'
+import { useLocaleRouter } from '@/lib/i18n/navigation'
 
 export default function MasterProductsPage() {
-  const [products, setProducts] = React.useState<DemoProduct[]>(ERP_DEMO_PRODUCTS)
+  const products = useProducts()
+  const router = useLocaleRouter()
   const dictionaryState = useDictionaries()
   const categories = useCategories()
   const members = useMembers()
@@ -19,6 +21,7 @@ export default function MasterProductsPage() {
   const categoryOptions = activeCategoryPaths(categories)
   const ownerOptions = members.filter((member) => member.status === '启用').map((member) => member.name)
   const [open, setOpen] = React.useState(false)
+  const [notice, setNotice] = React.useState('')
 
   const kpiItems = React.useMemo(() => {
     const enabled = products.filter((item) => item.status === '启用').length
@@ -35,7 +38,7 @@ export default function MasterProductsPage() {
   const editor = open ? (
     <UedDialog
       title="新建商品 SPU"
-      description="系统按 HSY + 六位流水号生成编码；创建后可在详情页继续维护规格。"
+      description="先维护主信息；系统按 HSY + 六位流水号生成编码。创建后进入详情添加 SKU 规格行并上传图片。"
       fields={[
         { key: 'name', label: '内部商品名称', required: true },
         {
@@ -69,24 +72,18 @@ export default function MasterProductsPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
-        const number = products.length + 1
-        const spu = `HSY${String(number).padStart(6, '0')}`
-        setProducts((current) => [
-          ...current,
-          {
-            spu,
-            name: values.name || '新商品（示例）',
-            brand: values.brand || brandOptions[0] || 'HELLO COSMOS',
-            category: values.category || categoryOptions[0] || '待分类',
-            owner: values.owner || ownerOptions[0] || '当前用户',
-            status: '待确认',
-            skuCount: 0,
-            material: values.material || '待补充',
-            style: values.style || '待补充',
-            variants: [],
-          },
-        ])
+        const created = createProduct({
+          name: values.name || '新商品',
+          brand: values.brand || brandOptions[0] || 'HELLO COSMOS',
+          category: values.category || categoryOptions[0] || '待分类',
+          owner: values.owner || ownerOptions[0] || '当前用户',
+          material: values.material || '待补充',
+          style: values.style || '待补充',
+          status: '待确认',
+        })
         setOpen(false)
+        setNotice(`${created.spu} 已创建；请在详情页添加 SKU 规格并上传封面图。`)
+        router.push(`/console/master-products/${encodeURIComponent(created.spu)}`)
       }}
     />
   ) : null
@@ -96,7 +93,7 @@ export default function MasterProductsPage() {
       {editor}
       <UedWorkspace
         title="商品 SPU / SKU"
-        description="公司统一款式主档下维护真实交付规格；平台 Seller SKU 独立映射。"
+        description="公司统一款式主档下维护真实交付规格；平台 Seller SKU 独立映射。先建 SPU，再在详情加 SKU 行。"
         rows={products}
         detailHref={(row) => `/console/master-products/${encodeURIComponent(row.spu)}`}
         searchKeys={['spu', 'name', 'brand', 'category', 'owner', 'status']}
@@ -131,6 +128,10 @@ export default function MasterProductsPage() {
         ]}
       >
         <DetailKpiRow items={kpiItems} />
+        <UedPrototypeNotice>
+          SPU 编码生成后不可修改、不可复用。详情页维护 SKU 规格行、图片与关联映射 / 刊登；停用保留历史单据引用。
+        </UedPrototypeNotice>
+        {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>
   )

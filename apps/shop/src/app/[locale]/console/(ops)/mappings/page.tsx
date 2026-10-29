@@ -2,30 +2,141 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { ERP_DEMO_MAPPINGS, type DemoMapping } from '@/lib/crossborder/erp-ued-data'
+import { DetailKpiRow } from '@/components/console/detail'
+import { createMapping, mappingRouteId, useMappings } from '@/lib/crossborder/mapping-store'
+import { skuCodeOptions, useProducts } from '@/lib/crossborder/product-store'
 import { Badge } from '@workspace/ui/components/badge'
 
 export default function MappingsPage() {
-  const [rows, setRows] = React.useState<DemoMapping[]>(ERP_DEMO_MAPPINGS)
+  const rows = useMappings()
+  const products = useProducts()
+  const skuOptions = React.useMemo(() => skuCodeOptions(products), [products])
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
-  const editor = open ? <UedDialog title="新增 Seller SKU 映射" description="每条平台变体只映射一个内部 SKU。" fields={[
-        { key: 'shop', label: '店铺', options: ['Lazada MY', 'Lazada PH', 'Daraz LK'], required: true, helper: '店铺 + Seller SKU 必须唯一' },
+
+  const kpiItems = React.useMemo(() => {
+    const enabled = rows.filter((item) => item.mappingStatus === '启用').length
+    const pending = rows.filter((item) => item.mappingStatus === '待确认').length
+    const abnormal = rows.filter((item) => item.mappingStatus === '异常').length
+    const unmapped = rows.filter((item) => !item.internalSku || item.internalSku === '—').length
+    return [
+      { label: '映射数', value: String(rows.length), hint: '当前原型会话' },
+      { label: '启用', value: String(enabled) },
+      { label: '待确认', value: String(pending) },
+      { label: '异常 / 未映射', value: String(abnormal + unmapped), hint: '异常订单不占库' },
+    ]
+  }, [rows])
+
+  const editor = open ? (
+    <UedDialog
+      title="新增 Seller SKU 映射"
+      description="每条平台变体只映射一个内部 SKU；店铺 + Seller SKU 必须唯一。"
+      fields={[
+        {
+          key: 'shop',
+          label: '店铺',
+          options: ['Lazada MY', 'Lazada PH', 'Daraz LK'],
+          required: true,
+          helper: '店铺 + Seller SKU 必须唯一',
+        },
         { key: 'platform', label: '平台', options: ['Lazada', 'Daraz', 'TikTok'], required: true },
-        { key: 'site', label: '站点', options: ['MY', 'PH', 'LK', 'TH', 'SG', 'VN'], required: true },
+        {
+          key: 'site',
+          label: '站点',
+          options: ['MY', 'PH', 'LK', 'TH', 'SG', 'VN'],
+          required: true,
+        },
         { key: 'itemId', label: 'Item ID', required: true },
         { key: 'sellerSku', label: 'Seller SKU', required: true },
-        { key: 'internalSku', label: '内部 SKU', options: ['HSY000001001', 'HSY000001002', 'HSY000002001'], required: true },
+        {
+          key: 'internalSku',
+          label: '内部 SKU',
+          options: skuOptions.length ? skuOptions : ['HSY000001001'],
+          required: true,
+        },
         { key: 'color', label: '平台颜色', required: true },
         { key: 'size', label: '平台尺码', required: true },
-        { key: 'listingStatus', label: '上架状态', options: ['在线', '下架', '草稿'], required: true },
-        { key: 'mappingStatus', label: '映射状态', options: ['待确认', '启用', '异常'], required: true },
+        {
+          key: 'listingStatus',
+          label: '上架状态',
+          options: ['在线', '下架', '草稿', '待同步'],
+          required: true,
+        },
+        {
+          key: 'mappingStatus',
+          label: '映射状态',
+          options: ['待确认', '启用', '异常'],
+          required: true,
+        },
         { key: 'remark', label: '备注', type: 'textarea', fullWidth: true },
-      ]} onClose={() => setOpen(false)} onSave={() => { setRows((current) => [...current, { shop: 'Lazada MY', platform: 'Lazada', site: 'MY', itemId: '待同步', sellerSku: `DEMO-${current.length + 1}`, internalSku: 'HSY000001001', color: 'Black', size: 'L', listingStatus: '待同步', mappingStatus: '待确认' }]); setOpen(false); setNotice('映射已加入本次原型会话；生产保存时会校验唯一性。') }} /> : null
-  return <>{editor}<UedWorkspace title="Seller SKU 映射" description="逐变体将店铺 Seller SKU 绑定到唯一内部 SKU。" rows={rows} detailHref={(row) => `/console/mappings/${encodeURIComponent(`${row.shop}::${row.sellerSku}`)}`} searchKeys={['shop', 'platform', 'site', 'sellerSku', 'internalSku', 'itemId']} searchPlaceholder="搜索店铺、Seller SKU 或内部 SKU" addLabel="新增映射" onAdd={() => setOpen(true)} columns={[
-    { key: 'shop', label: '店铺' }, { key: 'platform', label: '平台 / 站点', render: (row) => `${row.platform} / ${row.site}` }, { key: 'itemId', label: 'Item ID' }, { key: 'sellerSku', label: 'Seller SKU' }, { key: 'internalSku', label: '内部 SKU' }, { key: 'color', label: '平台颜色' }, { key: 'size', label: '平台尺码' }, { key: 'listingStatus', label: '上架状态' }, { key: 'mappingStatus', label: '映射状态', render: (row) => <Badge variant={row.mappingStatus === '异常' ? 'destructive' : 'secondary'}>{row.mappingStatus}</Badge> },
-  ]}>
-    <UedPrototypeNotice>店铺 + Seller SKU 必须唯一；未映射、重复映射或 SKU 停用时，订单进入异常队列且不占库存。</UedPrototypeNotice>
-    {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-  </UedWorkspace></>
+      ]}
+      onClose={() => setOpen(false)}
+      onSave={(values) => {
+        const created = createMapping({
+          shop: values.shop || 'Lazada MY',
+          platform: values.platform || 'Lazada',
+          site: values.site || 'MY',
+          itemId: values.itemId || '待同步',
+          sellerSku: values.sellerSku || `DEMO-${rows.length + 1}`,
+          internalSku: values.internalSku || skuOptions[0] || 'HSY000001001',
+          color: values.color || 'Black',
+          size: values.size || 'L',
+          listingStatus: values.listingStatus || '待同步',
+          mappingStatus: (values.mappingStatus as '待确认' | '启用' | '异常') || '待确认',
+        })
+        setOpen(false)
+        setNotice(
+          `${created.shop} · ${created.sellerSku} 已写入原型会话；生产保存时会校验唯一性与 SKU 启用态。`,
+        )
+      }}
+    />
+  ) : null
+
+  return (
+    <>
+      {editor}
+      <UedWorkspace
+        title="Seller SKU 映射"
+        description="逐变体将店铺 Seller SKU 绑定到唯一内部 SKU。未映射 / 冲突 / 停用 SKU 的订单进异常队列且不占库存。"
+        rows={rows}
+        detailHref={(row) => `/console/mappings/${encodeURIComponent(mappingRouteId(row))}`}
+        searchKeys={['shop', 'platform', 'site', 'sellerSku', 'internalSku', 'itemId']}
+        searchPlaceholder="搜索店铺、Seller SKU 或内部 SKU"
+        filters={[
+          { label: '映射状态', options: ['启用', '待确认', '异常'], key: 'mappingStatus' },
+        ]}
+        addLabel="新增映射"
+        onAdd={() => setOpen(true)}
+        columns={[
+          { key: 'shop', label: '店铺' },
+          {
+            key: 'platform',
+            label: '平台 / 站点',
+            render: (row) => `${row.platform} / ${row.site}`,
+          },
+          { key: 'itemId', label: 'Item ID' },
+          { key: 'sellerSku', label: 'Seller SKU' },
+          { key: 'internalSku', label: '内部 SKU' },
+          { key: 'color', label: '平台颜色' },
+          { key: 'size', label: '平台尺码' },
+          { key: 'listingStatus', label: '上架状态' },
+          {
+            key: 'mappingStatus',
+            label: '映射状态',
+            render: (row) => (
+              <Badge variant={row.mappingStatus === '异常' ? 'destructive' : 'secondary'}>
+                {row.mappingStatus}
+              </Badge>
+            ),
+          },
+        ]}
+      >
+        <DetailKpiRow items={kpiItems} />
+        <UedPrototypeNotice>
+          店铺 + Seller SKU 必须唯一；未映射、重复映射或 SKU 停用时，订单进入异常队列且不占库存。详情页自动带出内部 SKU、刊登与库存。
+        </UedPrototypeNotice>
+        {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+      </UedWorkspace>
+    </>
+  )
 }

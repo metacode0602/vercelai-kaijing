@@ -28,6 +28,7 @@ import {
 } from '@workspace/ui/components/table'
 import { labelField, labelStatus } from '@/lib/console/labels'
 import { ProductReviewsSection } from '@/components/console/product-reviews-section'
+import { ListingImagesSection } from '@/components/console/listing-images-section'
 
 interface ListingDetailPageProps {
   params: Promise<{ id: string }>
@@ -72,7 +73,7 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" asChild>
-              <LocaleLink href={`/console/products/${listing.sku}`}>查看商品</LocaleLink>
+              <LocaleLink href={`/console/master-skus/${listing.sku}`}>查看商品</LocaleLink>
             </Button>
             {cost ? (
               <Button size="sm" variant="outline" asChild>
@@ -100,6 +101,12 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
           { label: '仓', value: listing.warehouseCode ?? '—' },
           { label: '物流渠道', value: listing.logisticsChannel ?? '—' },
         ]}
+      />
+
+      <ListingImagesSection
+        listingId={listing.id}
+        cover={product?.coverImage}
+        images={product?.images?.map((image) => image.url)}
       />
 
       <EditableDetailFields
@@ -136,7 +143,7 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
           <p>
             SKU{' '}
             <LocaleLink
-              href={`/console/products/${listing.sku}`}
+              href={`/console/master-skus/${listing.sku}`}
               className="font-mono underline-offset-2 hover:underline"
             >
               {listing.sku}

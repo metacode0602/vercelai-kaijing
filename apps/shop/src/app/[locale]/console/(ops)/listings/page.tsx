@@ -7,7 +7,9 @@ import {
   ConsoleTableEmpty,
   matchesKeyword,
 } from '@/components/console/list'
-import { MOCK_LISTING_LIST_ROWS } from '@/lib/crossborder/mock-data'
+import { DetailKpiRow } from '@/components/console/detail'
+import { ProductCoverCell } from '@/components/console/product-images'
+import { getProductBySku, MOCK_LISTING_LIST_ROWS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import {
@@ -65,9 +67,31 @@ export default function ListingsPage() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight">刊登</h2>
         <p className="text-sm text-muted-foreground">
-          平台商品刊登 · 品牌 / 类目 / 库存 / 物流 / 发布状态
+          平台商品刊登 · 品牌 / 类目 / 库存 / 物流 / 发布状态。封面图来自关联商品；详情可维护刊登截图。
         </p>
       </div>
+
+      <DetailKpiRow
+        items={[
+          { label: '刊登数', value: String(MOCK_LISTING_LIST_ROWS.length) },
+          {
+            label: '在售',
+            value: String(MOCK_LISTING_LIST_ROWS.filter((r) => r.status === 'live').length),
+          },
+          {
+            label: '草稿 / 待审',
+            value: String(
+              MOCK_LISTING_LIST_ROWS.filter((r) =>
+                r.status === 'draft' || r.status === 'pending_review',
+              ).length,
+            ),
+          },
+          {
+            label: '失败',
+            value: String(MOCK_LISTING_LIST_ROWS.filter((r) => r.status === 'failed').length),
+          },
+        ]}
+      />
 
       <ConsoleFilterBar
         keyword={keyword}
@@ -115,6 +139,7 @@ export default function ListingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>封面</TableHead>
                 <TableHead>标题</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>店铺</TableHead>
@@ -130,8 +155,20 @@ export default function ListingsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const product = getProductBySku(row.sku)
+                return (
                 <TableRow key={row.id}>
+                  <TableCell>
+                    <ProductCoverCell
+                      imageKey={`listing:${row.id}`}
+                      fallback={{
+                        cover: product?.coverImage,
+                        images: product?.images?.map((image) => image.url) ?? [],
+                      }}
+                      alt={row.title}
+                    />
+                  </TableCell>
                   <TableCell className="max-w-[200px] font-medium">
                     <LocaleLink
                       href={`/console/listings/${row.id}`}
@@ -164,7 +201,7 @@ export default function ListingsPage() {
                   </TableCell>
                   <TableCell className="font-mono text-xs">{row.externalItemId}</TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
         )}
