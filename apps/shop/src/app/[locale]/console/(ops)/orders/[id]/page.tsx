@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import {
+  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
@@ -39,6 +40,9 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
   return (
     <div className="space-y-4">
+      <ConsoleBreadcrumbs
+        items={[{ label: '订单', href: '/console/orders' }, { label: order.externalOrderId }]}
+      />
       <DetailPageHeader
         backHref="/console/orders"
         title={order.externalOrderId}

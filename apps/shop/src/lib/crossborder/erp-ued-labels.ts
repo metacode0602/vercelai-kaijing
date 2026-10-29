@@ -107,6 +107,7 @@ export const UED_RECORD_LABELS: Record<string, Record<string, string>> = {
     skuCount: 'SKU 数',
     material: '材质',
     style: '款式 / 版型',
+    variants: 'SKU 规格',
   },
   'master-skus': {
     id: 'SKU 记录',

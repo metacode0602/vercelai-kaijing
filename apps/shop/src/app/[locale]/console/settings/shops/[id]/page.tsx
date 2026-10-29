@@ -1,11 +1,13 @@
 import { notFound } from 'next/navigation'
 import {
+  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
   EditableDetailFields,
 } from '@/components/console/detail'
 import { getShopById } from '@/lib/crossborder/mock-data'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { labelField, labelStatus } from '@/lib/console/labels'
@@ -35,6 +37,9 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
 
   return (
     <div className="space-y-4">
+      <ConsoleBreadcrumbs
+        items={[{ label: '店铺', href: '/console/settings/shops' }, { label: shop.name }]}
+      />
       <DetailPageHeader
         backHref="/console/settings/shops"
         backLabel="返回店铺列表"
@@ -58,6 +63,13 @@ export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
           )
         }
       />
+
+      <Alert>
+        <AlertTitle>UED 示例店铺 · 凭证已脱敏</AlertTitle>
+        <AlertDescription>
+          授权状态与连接信息为演示数据。OAuth 跳转仅用于原型联调，不会保存真实密钥到本页。
+        </AlertDescription>
+      </Alert>
 
       <DetailKpiRow
         items={[

@@ -3,7 +3,9 @@
 import * as React from 'react'
 import { Pencil } from 'lucide-react'
 import {
+  ConsoleBreadcrumbs,
   DetailFieldGrid,
+  DetailKpiRow,
   DetailPageHeader,
   DetailRelatedList,
   DetailSection,
@@ -22,8 +24,17 @@ import {
   ERP_DEMO_PURCHASES,
   ERP_DEMO_SUPPLIERS,
 } from '@/lib/crossborder/erp-ued-data'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@workspace/ui/components/table'
 
 export type UedRecord = Record<string, unknown>
 
@@ -269,6 +280,126 @@ function statusVariant(value: string) {
   return 'default' as const
 }
 
+const PRIMARY_FIELD_KEYS = new Set([
+  'id', 'code', 'sku', 'spu', 'name', 'title', 'status', 'type', 'order', 'shop',
+  'supplier', 'warehouse', 'platform', 'site', 'quantity', 'unitPrice', 'price',
+  'currency', 'tracking', 'packageId', 'sellerSku', 'internalSku', 'dimension',
+  'role', 'person', 'period', 'mode', 'carrier', 'applicant', 'approver',
+])
+
+const KPI_PRIORITY_KEYS = [
+  'status', 'quantity', 'qty', 'onHand', 'available', 'reserved', 'damaged',
+  'unitPrice', 'price', 'refund', 'revenue', 'cost', 'profit', 'margin',
+  'billAmount', 'diffAmount', 'packages', 'items', 'arrived', 'qcPass',
+  'received', 'passed', 'leadDays', 'weight', 'rating', 'retries', 'progress',
+  'skuCount', 'success', 'errors', 'before', 'delta', 'after', 'fee',
+]
+
+function labelFor(key: string, labelMap: Record<string, string>) {
+  return labelMap[key] ?? humanize(key)
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function collectArrayTables(row: UedRecord, labelMap: Record<string, string>, timelineKey?: string) {
+  const tables: { key: string; title: string; columns: string[]; rows: Record<string, unknown>[] }[] = []
+  for (const [key, value] of Object.entries(row)) {
+    if (key === timelineKey || !Array.isArray(value) || value.length === 0) continue
+    if (value.every((item) => isObjectRecord(item))) {
+      const rows = value as Record<string, unknown>[]
+      const columns = Array.from(
+        rows.reduce((set, item) => {
+          for (const col of Object.keys(item)) {
+            if (isScalar(item[col])) set.add(col)
+          }
+          return set
+        }, new Set<string>()),
+      )
+      if (columns.length === 0) continue
+      tables.push({
+        key,
+        title: labelFor(key, labelMap),
+        columns,
+        rows,
+      })
+    } else if (value.every((item) => isScalar(item))) {
+      tables.push({
+        key,
+        title: labelFor(key, labelMap),
+        columns: ['value'],
+        rows: value.map((item) => ({ value: item as string | number | boolean })),
+      })
+    }
+  }
+  return tables
+}
+
+function buildKpiItems(
+  row: UedRecord,
+  labelMap: Record<string, string>,
+): { label: string; value: string; hint?: string }[] {
+  const items: { label: string; value: string; hint?: string }[] = []
+  const used = new Set<string>()
+
+  for (const key of KPI_PRIORITY_KEYS) {
+    if (items.length >= 4) break
+    if (!(key in row) || used.has(key)) continue
+    const value = row[key]
+    if (!isScalar(value)) continue
+    used.add(key)
+    if (key === 'status' || STATUS_KEYS.has(key)) {
+      items.push({ label: labelFor(key, labelMap), value: String(value) })
+      continue
+    }
+    if (typeof value === 'number') {
+      const currency = typeof row.currency === 'string' ? row.currency : undefined
+      const withCurrency =
+        currency && /price|amount|refund|revenue|cost|profit|fee|bill|diff/i.test(key)
+          ? `${value} ${currency}`
+          : String(value)
+      items.push({ label: labelFor(key, labelMap), value: withCurrency })
+      continue
+    }
+    items.push({ label: labelFor(key, labelMap), value: formatScalar(value) })
+  }
+
+  if (items.length < 4) {
+    for (const [key, value] of Object.entries(row)) {
+      if (items.length >= 4) break
+      if (used.has(key) || !isScalar(value) || typeof value !== 'number') continue
+      used.add(key)
+      items.push({ label: labelFor(key, labelMap), value: String(value) })
+    }
+  }
+
+  if (items.length < 4) {
+    for (const key of ['shop', 'warehouse', 'supplier', 'platform', 'site', 'mode', 'carrier']) {
+      if (items.length >= 4) break
+      if (used.has(key) || !(key in row)) continue
+      const value = row[key]
+      if (!isScalar(value)) continue
+      used.add(key)
+      items.push({ label: labelFor(key, labelMap), value: formatScalar(value) })
+    }
+  }
+
+  return items
+}
+
+function splitFieldKeys(keys: string[]) {
+  const primary = keys.filter((key) => PRIMARY_FIELD_KEYS.has(key))
+  const supporting = keys.filter((key) => !PRIMARY_FIELD_KEYS.has(key))
+  if (primary.length === 0) {
+    return { primary: keys.slice(0, Math.min(8, keys.length)), supporting: keys.slice(8) }
+  }
+  if (supporting.length === 0 && primary.length > 8) {
+    return { primary: primary.slice(0, 8), supporting: primary.slice(8) }
+  }
+  return { primary, supporting }
+}
+
 export function decodeRouteParam(value: string): string {
   try {
     return decodeURIComponent(value)
@@ -319,16 +450,24 @@ export function UedRecordDetail({
     const value = current[key]
     return isScalar(value) && key !== timelineKey
   })
-  const fields = fieldKeys.map((key) => ({
-    label: labelMap[key] ?? humanize(key),
-    value:
-      STATUS_KEYS.has(key) && typeof current[key] === 'string' ? (
-        <Badge variant={statusVariant(current[key] as string)}>{String(current[key])}</Badge>
-      ) : (
-        formatScalar(current[key] as string | number | boolean)
-      ),
-    mono: key === idKey || key.endsWith('Id') || key === 'sku' || key === 'spu' || key === 'sellerSku',
-  }))
+  const { primary: primaryKeys, supporting: supportingKeys } = splitFieldKeys(fieldKeys)
+
+  const toFields = (keys: string[]) =>
+    keys.map((key) => ({
+      label: labelFor(key, labelMap),
+      value:
+        STATUS_KEYS.has(key) && typeof current[key] === 'string' ? (
+          <Badge variant={statusVariant(current[key] as string)}>{String(current[key])}</Badge>
+        ) : (
+          formatScalar(current[key] as string | number | boolean)
+        ),
+      mono: key === idKey || key.endsWith('Id') || key === 'sku' || key === 'spu' || key === 'sellerSku' || key === 'code',
+    }))
+
+  const primaryFields = toFields(primaryKeys)
+  const supportingFields = toFields(supportingKeys)
+  const kpiItems = buildKpiItems(current, labelMap)
+  const arrayTables = collectArrayTables(current, labelMap, timelineKey)
 
   const timeline = timelineKey && Array.isArray(current[timelineKey]) ? (current[timelineKey] as unknown[]).map(String) : []
   const relatedGroups = related ?? buildRelated(current)
@@ -337,7 +476,7 @@ export function UedRecordDetail({
     const value = current[key]
     return {
       key,
-      label: labelMap[key] ?? humanize(key),
+      label: labelFor(key, labelMap),
       defaultValue: typeof value === 'boolean' ? (value ? '是' : '否') : String(value ?? ''),
       options: typeof value === 'boolean' ? ['是', '否'] : undefined,
       type: typeof value === 'number' ? 'number' : /date|at$/i.test(key) && /^\d{4}-\d{2}-\d{2}/.test(String(value)) ? 'date' : 'text',
@@ -348,9 +487,17 @@ export function UedRecordDetail({
   })
 
   const noticeText = notice ?? '示例数据：仅在当前原型会话内查看与修改，不会写入业务数据库。'
+  const breadcrumbCurrent = String(title)
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <ConsoleBreadcrumbs
+        items={[
+          { label: moduleTitle, href: backHref },
+          { label: breadcrumbCurrent },
+        ]}
+      />
+
       <DetailPageHeader
         backHref={backHref}
         title={title}
@@ -363,15 +510,7 @@ export function UedRecordDetail({
             ) : null}
           </>
         }
-      />
-
-      <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{noticeText}</p>
-
-      <DetailFieldGrid
-        title="记录信息"
-        fields={fields}
-        columns={3}
-        action={
+        actions={
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             <Pencil data-icon="inline-start" />
             编辑详情
@@ -379,7 +518,71 @@ export function UedRecordDetail({
         }
       />
 
+      <Alert>
+        <AlertTitle>UED 示例详情 · 非生产数据</AlertTitle>
+        <AlertDescription>{noticeText}</AlertDescription>
+      </Alert>
+
+      {kpiItems.length > 0 ? <DetailKpiRow items={kpiItems} /> : null}
+
+      <DetailFieldGrid
+        title="主数据"
+        fields={primaryFields}
+        columns={primaryFields.length >= 7 ? 4 : 3}
+        action={
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+            <Pencil data-icon="inline-start" />
+            编辑
+          </Button>
+        }
+      />
+
+      {supportingFields.length > 0 ? (
+        <DetailFieldGrid title="补充信息" fields={supportingFields} columns={3} />
+      ) : null}
+
       {extra}
+
+      {arrayTables.map((table) => (
+        <DetailSection
+          key={table.key}
+          title={table.title}
+          description="记录内嵌的明细行（示例）"
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {table.columns.map((column) => (
+                  <TableHead key={column}>{labelFor(column, labelMap)}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {table.rows.map((row, index) => (
+                <TableRow key={`${table.key}-${index}`}>
+                  {table.columns.map((column) => {
+                    const cell = row[column]
+                    return (
+                      <TableCell
+                        key={column}
+                        className={
+                          column === 'sku' || column === 'code' || column.endsWith('Id')
+                            ? 'font-mono text-xs'
+                            : typeof cell === 'number'
+                              ? 'tabular-nums'
+                              : undefined
+                        }
+                      >
+                        {isScalar(cell) ? formatScalar(cell) : '—'}
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DetailSection>
+      ))}
 
       {timeline.length > 0 ? (
         <DetailSection title="状态时间线" description="按时间顺序保留各节点与操作记录">

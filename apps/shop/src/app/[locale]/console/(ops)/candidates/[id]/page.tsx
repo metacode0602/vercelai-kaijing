@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { notFound } from 'next/navigation'
 import {
+  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
@@ -52,6 +53,9 @@ export default function CandidateDetailPage({ params }: CandidateDetailPageProps
 
   return (
     <div className="space-y-4">
+      <ConsoleBreadcrumbs
+        items={[{ label: '选品候选', href: '/console/candidates' }, { label: candidate.title }]}
+      />
       <DetailPageHeader
         backHref="/console/candidates"
         title={candidate.title}

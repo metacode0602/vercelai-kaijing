@@ -1,11 +1,13 @@
 import { notFound } from 'next/navigation'
 import {
+  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
   EditableDetailFields,
 } from '@/components/console/detail'
 import { getFinanceByPlatform } from '@/lib/crossborder/mock-data'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import {
   Table,
@@ -28,6 +30,9 @@ export default async function FinanceDetailPage({ params }: FinanceDetailPagePro
 
   return (
     <div className="space-y-4">
+      <ConsoleBreadcrumbs
+        items={[{ label: '财务', href: '/console/finance' }, { label: row.platform }]}
+      />
       <DetailPageHeader
         backHref="/console/finance"
         title={`${row.platform} · 财务`}
@@ -40,6 +45,13 @@ export default async function FinanceDetailPage({ params }: FinanceDetailPagePro
           )
         }
       />
+
+      <Alert>
+        <AlertTitle>UED 示例财务 · 非真实结算</AlertTitle>
+        <AlertDescription>
+          营收、成本、利润与结算明细均为演示数据，口径未与平台账单核对。
+        </AlertDescription>
+      </Alert>
 
       <DetailKpiRow
         items={[

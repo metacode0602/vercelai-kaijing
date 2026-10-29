@@ -1,11 +1,13 @@
 import { notFound } from 'next/navigation'
 import {
+  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
   EditableDetailFields,
 } from '@/components/console/detail'
-import { getProductBySku } from '@/lib/crossborder/mock-data'
+import { costLandedTotal, getCostBySku, getInventoryBySku, getProductBySku } from '@/lib/crossborder/mock-data'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import {
   Table,
@@ -39,9 +41,18 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
 
   const liveCount = product.listings.filter((l) => l.status === 'live').length
   const failedCount = product.listings.filter((l) => l.status === 'failed').length
+  const inventory = getInventoryBySku(sku)
+  const cost = getCostBySku(sku)
+  const landed = cost ? costLandedTotal(cost) : null
+  const inventoryOnHand = inventory
+    ? inventory.shopBalances.reduce((sum, balance) => sum + balance.onHand, 0)
+    : null
 
   return (
     <div className="space-y-6">
+      <ConsoleBreadcrumbs
+        items={[{ label: '商品', href: '/console/products' }, { label: product.sku }]}
+      />
       <DetailPageHeader
         backHref="/console/products"
         title={product.title}
@@ -53,6 +64,13 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
           </>
         }
       />
+
+      <Alert>
+        <AlertTitle>UED 示例商品 · 非生产主档</AlertTitle>
+        <AlertDescription>
+          刊登状态、价格与 AI 信号均为演示数据。编辑字段仅保存在当前原型会话，不会写入业务数据库或触发平台同步。
+        </AlertDescription>
+      </Alert>
 
       <DetailKpiRow
         items={[
@@ -147,6 +165,50 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
               {signal}
             </Badge>
           ))}
+        </div>
+      </DetailSection>
+
+      <DetailSection title="库存与成本参考" description="同 SKU 的库存信号与到仓成本（示例）">
+        <div className="grid gap-3 text-sm md:grid-cols-2">
+          <div className="rounded-md border p-3">
+            <p className="font-medium">库存</p>
+            {inventory && inventoryOnHand != null ? (
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                <p>
+                  多店在库合计 {inventoryOnHand} · 信号 {labelStatus(inventory.reorderSignal)}
+                </p>
+                <p>{inventory.suggestion}</p>
+                <LocaleLink
+                  href={`/console/inventory/${sku}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  打开库存详情
+                </LocaleLink>
+              </div>
+            ) : (
+              <p className="mt-1 text-muted-foreground">暂无库存示例</p>
+            )}
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="font-medium">成本</p>
+            {cost && landed != null ? (
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                <p>
+                  到仓 {landed.toFixed(2)} {cost.currency} · 建议售价 {cost.suggestPrice.toFixed(2)}{' '}
+                  {cost.currency}
+                </p>
+                <p>目标毛利率 {cost.targetMarginPct}%</p>
+                <LocaleLink
+                  href={`/console/costs/${sku}`}
+                  className="underline-offset-2 hover:underline"
+                >
+                  打开成本详情
+                </LocaleLink>
+              </div>
+            ) : (
+              <p className="mt-1 text-muted-foreground">暂无成本示例</p>
+            )}
+          </div>
         </div>
       </DetailSection>
 

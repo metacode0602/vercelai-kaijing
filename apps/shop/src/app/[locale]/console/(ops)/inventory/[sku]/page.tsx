@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import {
+  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
@@ -7,6 +8,7 @@ import {
 } from '@/components/console/detail'
 import { getInventoryBySku } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import {
   Table,
@@ -34,6 +36,9 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
 
   return (
     <div className="space-y-4">
+      <ConsoleBreadcrumbs
+        items={[{ label: '库存', href: '/console/inventory' }, { label: item.sku }]}
+      />
       <DetailPageHeader
         backHref="/console/inventory"
         title={`${item.sku} · 库存`}
@@ -63,6 +68,13 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
           </LocaleLink>
         }
       />
+
+      <Alert>
+        <AlertTitle>UED 示例库存 · 非实时仓存</AlertTitle>
+        <AlertDescription>
+          多店余额、库龄与补货建议均为演示数据，不能作为实际出库或采购依据。
+        </AlertDescription>
+      </Alert>
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" asChild><LocaleLink href="/console/inventory-ledger">查看库存流水</LocaleLink></Button>
