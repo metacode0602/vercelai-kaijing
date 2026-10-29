@@ -123,10 +123,13 @@ export function DetailRelatedTables({ sections }: { sections: DetailRelatedSecti
                     <TableRow key={`${section.title}-${index}`}>
                       {section.columns.map((column) => {
                         const raw = row[column.key]
-                        const cellHref =
-                          (column.hrefKey && typeof row[column.hrefKey] === 'string'
+                        const cellHref = column.hrefKey
+                          ? typeof row[column.hrefKey] === 'string'
                             ? (row[column.hrefKey] as string)
-                            : undefined) ?? (column.key === 'id' || column.key === 'sku' ? rowHref : undefined)
+                            : undefined
+                          : column.key === 'id' || column.key === 'sku'
+                            ? rowHref
+                            : undefined
                         const content = formatCell(raw)
                         return (
                           <TableCell

@@ -6,10 +6,13 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
+  DetailRelatedTables,
   DetailSection,
+  parentsToFields,
 } from '@/components/console/detail'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { buildPurchaseOrderRelatedInfo } from '@/lib/console/related-info'
 import {
   addPurchaseOrderLine,
   updatePurchaseOrderHeader,
@@ -17,6 +20,7 @@ import {
   usePurchaseOrders,
   type PurchaseOrderStatus,
 } from '@/lib/crossborder/purchase-order-store'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -74,6 +78,8 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
 
   const current = order
   const canEditLines = current.status === '草稿' || current.status === '已下发'
+  const related = buildPurchaseOrderRelatedInfo(current)
+  const parentFields = parentsToFields(related.parents)
 
   function advance(status: PurchaseOrderStatus) {
     updatePurchaseOrderStatus(orders, current.id, status)
@@ -143,9 +149,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         description="purchase_orders：供应商、仓库、币种、预计到货等表头字段"
         fields={[
           { label: '采购单号', value: current.poNo, mono: true },
-          { label: '来源申请', value: current.sourceRequest, mono: true },
-          { label: '供应商', value: current.supplier },
-          { label: '收货仓库', value: current.warehouse, mono: true },
+          ...parentFields,
           { label: '币种', value: current.currency },
           { label: '合计金额', value: `${current.totalAmount} ${current.currency}` },
           { label: '预计到货', value: current.expectedAt },
@@ -203,7 +207,14 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
               {current.lines.map((line) => (
                 <TableRow key={line.id}>
                   <TableCell className="tabular-nums">{line.lineNo}</TableCell>
-                  <TableCell className="font-mono text-xs">{line.sku}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <LocaleLink
+                      href={`/console/master-skus/${encodeURIComponent(line.sku)}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {line.sku}
+                    </LocaleLink>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{line.qtyOrdered}</TableCell>
                   <TableCell className="text-right tabular-nums">{line.qtyReceived}</TableCell>
                   <TableCell className="text-right tabular-nums">{line.qtyQcPassed}</TableCell>
@@ -220,6 +231,10 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           </Table>
         )}
       </DetailSection>
+
+      {related.sections && related.sections.length > 0 ? (
+        <DetailRelatedTables sections={related.sections} />
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {current.status === '草稿' ? (

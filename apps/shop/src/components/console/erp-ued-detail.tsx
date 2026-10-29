@@ -20,6 +20,7 @@ import { UED_RECORD_LABELS } from '@/lib/crossborder/erp-ued-labels'
 import {
   buildPrimaryPricingFields,
   buildUedRelatedInfo,
+  RELATED_PARENT_REPLACED_KEYS,
   resolveSkuFromRow,
 } from '@/lib/console/related-info'
 import { getCostBySku, getOrderById } from '@/lib/crossborder/mock-data'
@@ -462,22 +463,18 @@ export function UedRecordDetail({
     .filter(Boolean)
     .join(' · ')
 
+  const builtRelated = module ? buildUedRelatedInfo(module, current) : undefined
   const classified =
     relatedInfo ??
-    (module && ['master-products', 'master-skus', 'supplier-skus', 'mappings'].includes(module)
-      ? buildUedRelatedInfo(module, current)
+    (builtRelated &&
+    ((builtRelated.parents?.length ?? 0) > 0 || (builtRelated.sections?.length ?? 0) > 0)
+      ? builtRelated
       : undefined)
 
   // Scalar keys replaced by navigable parent fields in 主数据 (avoid duplicate plain text).
-  const parentReplacedKeys = new Set<string>()
-  if (classified?.parents?.length) {
-    if (module === 'master-skus') parentReplacedKeys.add('spu')
-    if (module === 'supplier-skus') {
-      parentReplacedKeys.add('sku')
-      parentReplacedKeys.add('supplier')
-    }
-    if (module === 'mappings') parentReplacedKeys.add('internalSku')
-  }
+  const parentReplacedKeys = new Set<string>(
+    classified?.parents?.length && module ? (RELATED_PARENT_REPLACED_KEYS[module] ?? []) : [],
+  )
 
   const fieldKeys = Object.keys(current).filter((key) => {
     const value = current[key]
