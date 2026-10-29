@@ -7,7 +7,7 @@
 | 版本 | **v1.2** |
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop` |
-| 关联 | `crossborder-shop-ued-product-design.md`（§5.7 成本页总览；本文为深化专篇）、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)（`cost_components`）、[`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md) |
+| 关联 | `crossborder-shop-ued-product-design.md`（§5.7 成本页总览；本文为深化专篇）、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)（现状基线）、[`haoshiyun-erp-database-schema.md`](../../../../docs/design/haoshiyun-erp-database-schema.md)（权威 schema：§8 域 H 成本 / §11 域 K 运费）、[`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md) |
 | 实现现状 | 控制台 mock：`/console/costs`、`/console/costs/[sku]`；先实现可交互 UED，用户确认后再接业务 tRPC |
 | 门禁 | 设计稿；先交付可交互 UED 并确认用户习惯，再接业务 API/tRPC 和持久化 |
 
@@ -94,7 +94,7 @@ Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shope
 |------|-----------|------|
 | 货值 | `fob_unit` / `fob_total` | 采购 FOB；币种默认 USD，可兑 LKR |
 | 保险 | `insurance` | 可选；常按货值 %；计入 CIF |
-| 国际运费分摊 | `freight_allocated` | air_ddp / LCL / FCL 各自保存计费规则与报价快照 |
+| 国际运费分摊 | `freight_allocated` | 运费 mode 用权威枚举 `air_ddp` / `sea_lcl` / `sea_fcl`；柜型细分（20GP/40GP/40HQ）走 `container_type`，各方案保存计费规则与报价快照 |
 | 头程（国内段） | `first_mile` | 工厂→起运港；可并入 freight 或单独 |
 | CIF | `cif` | 通常 `FOB + Insurance + Ocean`（到港）；**税基 v** |
 | 税项 | `customs` / `pal` / `cess` / `vat` / `sscl` | 见 §5 |
@@ -106,18 +106,17 @@ Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shope
 | 目标净利率 | `target_net_margin_pct` | → `suggest_price` |
 | 版本 | `tariff_table_version`、`freight_rate_version`、`fx_rate_date` | |
 
-### 4.2 与现有 schema 对齐
+### 4.2 与权威 schema 对齐（域 H）
 
-`cost_components`（已有）：`component ∈ purchase | freight | duty | other`，`amount`，`currency`，`note`，`effective_from`。
+**落库写路径以权威 [haoshiyun-erp-database-schema.md](../../../../docs/design/haoshiyun-erp-database-schema.md) §12 为准**：`cost_components` 已裁定为**只读归档**；测算/标准成本写 `cost_template_versions` + `sku_costs`（可带 `freight_estimate_id` 逻辑引用运费快照），实际发生费用写 `order_fees`，复盘利润入 `order_profit_snapshots`。
 
-| 计算项 | 建议落库 component | note 约定（P0/P1） |
-|--------|-------------------|-------------------|
-| FOB/采购 | `purchase` | `FOB` |
-| 头程 + 海运分摊 | `freight` | `first_mile` / `LCL` / `FCL20` / `FCL40` |
-| Customs Duty | `duty` | `customs` |
-| PAL / CESS / VAT / SSCL / 杂费 | `other` | 对应英文税码或 `clearance_misc` |
+| 计算项 | 目标落库表 | 说明 |
+|--------|-----------|------|
+| FOB/采购 + 物流/税项组件 | `sku_costs` / `cost_template_versions.components` jsonb | 组件含 `freight` 时可引用 `freight_estimates` |
+| 测算快照（报价/情景） | `freight_estimates`（域 K） | 手工快照或由引擎按 quote 填充 |
+| 实际发生费用 | `order_fees` | 结算/回单对账后写入，不写测算值 |
 
-列表层可继续用扁平字段（与现 mock 一致）：`purchase, freight, customs, pal, cess, vat, sscl`。**不在本文改表**；P2 若税项频繁查询再议 jsonb / 子表。
+列表层可继续用扁平字段（与现 mock 一致）：`purchase, freight, customs, pal, cess, vat, sscl`。P2 若税项频繁查询再议 jsonb / 子表；旧 mock 数据对齐 `cost_components` 仅作过渡兼容。
 
 ### 4.3 计算流水线（端到端）
 
@@ -182,6 +181,8 @@ flowchart LR
 | \(\mathrm{SCL}\) | Special Commodity Levy（按量；部分品类**替代**常规税叠，见开放问题） |
 
 ### 5.2 官方计算顺序（摘要）
+
+> **开放口径提示：** 本文税叠含 **+10%/15% CIF uplift**（官方公式摘要）；[freight-estimation-design.md](../../../../docs/design/freight-estimation-design.md) §3.3 为无 uplift 级联版。两版**尚未统一**，待报关行确认后将结果写入权威 `hs_tariff_versions.uplift_rule`（见 schema K7 / §11.11#4）。验收前以报关行确认口径为准。
 
 对一般进口（非 SCL 替代路径）：
 

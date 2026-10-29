@@ -77,7 +77,7 @@
 
 | 层 | 现状 |
 | --- | --- |
-| DB | `packages/db/src/commerce-schema.ts` 21 张表（店铺/商品/变体/刊登/映射/订单/库存余额/成本/结算/待办/候选/同步日志）+ 迁移 0005–0007 |
+| DB | `packages/db/src/commerce-schema.ts` 19 张业务表（店铺/商品/变体/刊登/映射/订单/库存余额/成本/结算/待办/候选/同步日志）+ 迁移 0005–0007 |
 | tRPC | 仅注册 `apiKeys` router；`dataaccess/`、`mappers/` 目录不存在 |
 | 租户端 | `apps/shop` console 页面齐全，但业务数据来自 `mock-data.ts`（1442 行）与 `erp-ued-data.ts`（171 行 UED 示例） |
 | 运营后台 | `apps/web` 三页全 mock |
@@ -87,7 +87,7 @@
 
 ### 3.2 关键差距（需求 P0 视角）
 
-**缺失实体**：仓库、库位、库位绑定、库存流水、供应商、供应商-SKU 映射、采购申请/审批/采购单/收货/质检、包裹与物流事件、售后单、属性字典、业务角色/权限范围、导入批次/错误行、审计事件、成本版本/汇率。
+**缺失实体**（代码层面）：仓库、库位、库位绑定、库存流水、供应商、供应商-SKU 映射、采购申请/审批/采购单/收货/质检、包裹与物流事件、售后单、属性字典、业务角色/权限范围、导入批次/错误行、审计事件、成本版本/汇率。**上述实体的目标数据模型已由 [haoshiyun-erp-database-schema.md](./haoshiyun-erp-database-schema.md) 完成设计**（域 A–K），代码未实现。
 
 **两处 schema 语义冲突（必须先修）**：
 
@@ -216,7 +216,7 @@ Excel"待IT确认"35 项全部留白，复用评估中以下项直接影响 sche
 | 需求 Excel | `apps/shop/content/design/好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx` |
 | 仓内差距分析 | `docs/design/haoshiyun-erp-gap-analysis-and-remediation.md` 等 3 篇好时运文档 |
 | 阶段口径 | `docs/design/crossborder-mvp-overview.md` §6 |
-| Schema | `packages/db/src/commerce-schema.ts`（21 表）、迁移 `packages/db/drizzle/0005–0007` |
+| Schema | `packages/db/src/commerce-schema.ts`（19 张业务表）、迁移 `packages/db/drizzle/0005–0007` |
 | tRPC | `apps/web/src/lib/server/routers/index.ts`（仅 apiKeys） |
 | 页面数据源 | `apps/shop/src/lib/crossborder/{mock-data.ts, erp-ued-data.ts, platform-basics-data.ts}` |
 | 真实业务写 | `apps/shop/src/lib/marketplace/persist-credentials.ts`、OAuth route |

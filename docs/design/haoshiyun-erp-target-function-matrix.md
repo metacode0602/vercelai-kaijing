@@ -20,7 +20,7 @@ UI 存在或 DB 有相似表不等于 D2/D3。
 |---|---|---|---|---|---|
 | 店铺/平台 | 平台、站点、店铺 CRUD；站点默认币种时区；多仓关联、唯一默认出库仓；授权健康 | D1 店铺向导、平台基础资料 | platform/country/site、shop、shop_warehouses、凭据密文、授权/同步状态、变更日志 | Q01-04、Q22-24 | 站点过滤正确；每店 active 仓关联恰一个默认仓；失效授权可见且恢复有审计 |
 | 主数据 | SPU、SKU、属性字典、供应商/SKU来源、编码不可复用 | D1 商品/供应商原型 | 编码生成器、字典/别名、supplier/source price、停用策略、历史审计 | Q27、材质/款式判定口径 | 重复实际规格预警；编号并发不重号；停用记录不能新用但历史可读 |
-| Listing 映射 | 同店 Seller SKU 唯一；一 Listing 多变体；内部 SKU 一对多 Listing | D1 映射列表/新增 | listing_variant mapping、DB 唯一约束、平台原始值、冲突队列、导入 | Q03、Q05、Q28、Q34 | 重复冲突 DB 阻止；每变体唯一匹配；未映射订单不占库存 |
+| Listing 映射 | 同店 Seller SKU 唯一；一 Listing 多变体；内部 SKU 一对多 Listing | D1 映射列表/新增 | `seller_sku_mappings` / `mapping_exceptions`（权威表名）、平台原始值、冲突队列、导入 | Q03、Q05、Q28、Q34 | 重复冲突 DB 阻止；每变体唯一匹配；未映射订单不占库存 |
 | 供应商 | 多供应商来源、厂家款号、币种报价历史、唯一首选 | D1 供应商来源原型 | supplier、supplier_sku、有效期价格、状态与权限 | 币种/报价生效期细则 | 同 SKU 可有多个供应来源且最多一个首选；历史 PO 价格不可变 |
 | 采购审批 | 申请、自动分配审核人、互审/禁自审、审批意见与日志 | D1 申请/审批动作演示 | purchase_request/lines、approval event、policy evaluation、状态机、审计 | Q12 人员账号最终核对 | 三类发起人按 PUR 规则；申请人不能审核；未审不可生成 PO |
 | 收货质检 | PO、分批到货、QC 分级、合格数量入库 | D1 状态流演示 | PO/receipt/QC/stock ledger 原子事务、附件/凭证引用 | Q13、Q10 | 到货/质检/合格入库数量独立核对；重复确认幂等 |
@@ -77,7 +77,7 @@ UI 存在或 DB 有相似表不等于 D2/D3。
 本次完成的是 D1 交互覆盖扩展，不是 ERP 生产就绪。达到目标功能仍需按阶段落地：
 
 1. 业务确认关键口径（审批矩阵、库存事件节点、仓库负库存、费用/汇率等）。
-2. 将平台/站点/店铺/多仓/字典、商品、供应商、采购、库存流水的 UED 映射到 DB schema 和 domain service。
+2. 将平台/站点/店铺/多仓/字典、商品、供应商、采购、库存流水的 UED 映射到 [haoshiyun-erp-database-schema.md](./haoshiyun-erp-database-schema.md)（目标 schema 已设计）并实现 domain service。
 3. 先打通采购入库和共享库存账本；再接订单幂等、Seller SKU 映射、履约和异常恢复。
 4. 实现多租户 RBAC/审计/导入服务；逐页用真实 API 替换 mock，并用完整测试订单验收。
 5. 平台连接器、费用来源、汇率/利润口径、容量/备份和上线责任人通过 IT/业务验收后才可标记 D3。

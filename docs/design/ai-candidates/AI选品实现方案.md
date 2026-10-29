@@ -59,7 +59,7 @@ UED 阶段可以执行前端确定性计算以验证交互，但结果必须显�
 | 指标 | 计算方式 | 用途 |
 |------|---------|------|
 | **PPS（痛点优先级）** | `频率(1-5) × 严重度(1-5) × 可解决度(0.5-1.5)` | 与方法论 HTML 一致；可解决度越高代表越容易/成本越低。只对已核验评论计算；假设项显示“暂不评分”或单列假设分，不与实测排序混排 |
-| **有效税率** | `CID + PAL + VAT + SSCL + CESS`（按Daraz SL规则） | 品类门槛判断（文档案例：8516.31→29.8%） |
+| **有效税率** | `GD + PAL + VAT + SSCL + CESS`（按 Daraz SL 规则；运费域/权威用 **GD**，本文早期案例中的 CID 即 GD 别名） | 品类门槛判断（文档案例：8516.31→29.8%） |
 | **经营净利率** | `(售价 - 完整经营成本) / 售价 × 100%`；完整经营成本 = 到仓成本 + 平台/支付/营销/退货等明确计入项 | GO/HOLD/NO-GO 的主要利润指标；必须列出包含项/缺失项；未提供的费用不得默认为 0 且不标注 |
 | **机会评分** | 明确方向：高分=机会更好；由需求证据、竞争空档、差异化可行性等分项组成 | 仅作排序辅助，不得用单一分数代替证据与人工决策 |
 | **竞争强度** | 独立展示“竞争越强，数值越高”或“竞争越有利，数值越高”，产品内固定一种表达 | 不与“机会分”混用；Demo 暂采用“竞争压力：低/中/高”避免歧义 |
@@ -119,12 +119,12 @@ UI (apps/shop/src/app/[locale]/console/(ops)/ai-selection/*)
 
 ## 4. 数据模型设计（阶段二旧草案/概念示例，非生产表清单）
 
-阶段二的数据结构须先对照 `crossborder-database-design.md`：复用 `product_candidates` 与 `skill_executions`/OKF 引用模式；不要照抄本节旧版“6张 AI 专属固定流程表”作为生产方案。成本/报价快照由独立运费域保存，AI 选品仅保存逻辑引用和消费方摘要。
+阶段二的数据结构须先对照 `crossborder-database-design.md` 与权威 [haoshiyun-erp-database-schema.md](../haoshiyun-erp-database-schema.md)：复用 `product_candidates` 与 `skill_executions`/OKF 引用模式；不要照抄本节旧版“6张 AI 专属固定流程表”作为生产方案。成本/报价快照由独立运费域保存，AI 选品仅保存逻辑引用和消费方摘要。**证据分级列名以权威 `evidence_basis` 为准**（本节旧草案用 `evidence_status`，值域 `verified/estimated/assumption/unverified/stale` 一致）；**文件组织按权威原则**：在 `commerce-schema.ts` 按域分节扩展，不另建平行 schema 文件。
 
 ### 4.1 枚举定义
 
 ```typescript
-// packages/db/src/ai-selection-schema.ts（或在 commerce-schema.ts 扩展）
+// commerce-schema.ts 按域分节扩展（权威原则 #9；不另建 ai-selection-schema.ts）
 export const aiSelectionTaskStatuses = ["pending", "running", "succeeded", "failed", "cancelled"] as const
 export type AiSelectionTaskStatus = (typeof aiSelectionTaskStatuses)[number]
 
@@ -788,7 +788,7 @@ interface DarazDataProvider {
 
 ### 8.2 与 packages/db
 
-- 在 `packages/db/src/` 新增 `ai-selection-schema.ts`，导出到 `index.ts` 或 `schema.ts`
+- 在 `packages/db/src/commerce-schema.ts` 按域分节扩展（权威原则 #9，不另建平行 schema 文件）
 - 扩展 `productCandidates` 表（向后兼容，新增可空字段）
 - 运行 `pnpm --filter @workspace/db db:generate` 生成迁移
 - 在使用处通过 Drizzle 查询
@@ -803,7 +803,7 @@ interface DarazDataProvider {
 ### 8.4 与现有业务流
 
 - **选品→刊登**：`GO` 的候选可关联到 `products` 或直接发起刊登流程，走 `pendingActions`（kind: `listing_submit`）
-- **成本关联**：可复用 `costs` 模块的成本计算思路（`packages/db` 中有 `productCosts`、`costComponents`）
+- **成本关联**：可复用 `costs` 模块的成本计算思路；目标写路径见权威 [haoshiyun-erp-database-schema.md](../haoshiyun-erp-database-schema.md) §12——`sku_costs` / `cost_template_versions` / `order_fees`，运费走 `freight_estimates` 逻辑引用（旧 `cost_components` 为只读归档，代码中不存在 `productCosts` 表）
 - **店铺上下文**：选品时可关联目标店铺（`shops`）用于费用模板定制
 
 ## 9. 实施计划

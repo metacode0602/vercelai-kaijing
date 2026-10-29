@@ -2,9 +2,9 @@
 
 > 状态：**设计稿，待业务/IT确认后由 `drizzle-kit generate` 落库**
 > 日期：2026-10-28
-> 输入：`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（F01–F19、202 字段、R01–R12、PUR-001~003）；[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)（评论抓取/DomainReview/HTML 报告）；样例报告 `docs/design/comments/Daraz评价分析报告-3D打印机器人.html`
+> 输入：`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（F01–F19、202 字段、R01–R12、PUR-001~003）；[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)（评论抓取/DomainReview/HTML 报告）；样例报告 `docs/design/comments/Daraz评价分析报告-3D打印机器人.html`；[freight-estimation-design.md](freight-estimation-design.md)（运费测算 §4 已确认 8 表草案）+ 原型 `docs/design/ship-fees/`
 > 借鉴：[Open Mercato](https://github.com/open-mercato/open-mercato) Core（MIT）—— `wms.movements` 事件账本、`workflows`/`business_rules` 审批、`audit_logs`、`sync_excel` 批次导入、`dictionaries`+别名；**不引入** MikroORM / REST factory / Enterprise 代码
-> 关联：[haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md)、[haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md)、[crossborder-database-design.md](crossborder-database-design.md)、[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)
+> 关联：[haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md)、[haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md)、[crossborder-database-design.md](crossborder-database-design.md)、[comment-scraping-and-report-design.md](comment-scraping-and-report-design.md)、[freight-estimation-design.md](freight-estimation-design.md)
 
 ## 0. 设计原则
 
@@ -16,7 +16,7 @@
 6. **金额规范**：`numeric(15,4)` 原币 + `currency` + 汇率快照引用；禁止跨币种直接 SUM。
 7. **枚举用 varchar + TS union**（AGENTS 约定），不用 PG enum。
 8. **幂等键**：所有平台同步写入与库存事件带 `idempotency_key`，重放不重复生效（Q06）。
-9. **演进不另建平行库**：在 `packages/db/src/commerce-schema.ts` 按域分节扩展；与现有 21 表冲突处给出迁移说明（§11）。
+9. **演进不另建平行库**：在 `packages/db/src/commerce-schema.ts` 按域分节扩展；与现有 21 表冲突处给出迁移说明（§12）。
 10. **非通用电商 ERP**：无自营店面/购物车/CRM 会员/促销引擎；平台侧只有连接器、映射、结算拉取。
 
 ### 0.1 借鉴 OM 的具体形状
@@ -72,6 +72,19 @@ erDiagram
   product_reviews ||--o{ product_review_analyses : analyzed
   review_reports ||--o{ review_report_items : includes
   product_reviews ||--o{ review_report_items : cited_in
+  freight_carriers ||--o{ freight_quotes : quotes
+  freight_lanes ||--o{ freight_quotes : covers
+  freight_lanes ||--o{ freight_rate_cards : prices
+  freight_rate_cards ||--o{ freight_rate_card_versions : versions
+  freight_rate_card_versions ||--o{ freight_rate_tiers : tiers
+  freight_quotes ||--o{ freight_quote_lines : lines
+  freight_charge_item_defs ||--o{ freight_quote_lines : defines
+  hs_codes ||--o{ hs_tariff_versions : has
+  hs_codes ||--o{ hs_match_rules : matches
+  freight_estimates }o--|| freight_quotes : references
+  freight_estimates }o--|| freight_rate_card_versions : references
+  freight_estimates }o--|| hs_tariff_versions : snapshots
+  sku_costs }o--|| freight_estimates : logical_ref
 ```
 
 ---
@@ -999,6 +1012,8 @@ better-auth org/member 不动；业务权限独立：
 
 ### 9.3 `import_batches` + `import_rows` — 导入迁移（借鉴 OM sync_excel，F19）
 
+**双通道统一**：同一套批次框架承载①**文件导入**（Excel/CSV 迁移）与②**平台 API 批次导入**（Daraz/Lazada/TikTok 按店铺授权拉取历史/区间数据），靠 `trigger` 区分。
+
 #### `import_batches`
 
 | 列 | 类型 | 说明 |
@@ -1006,14 +1021,24 @@ better-auth org/member 不动；业务权限独立：
 | id | text PK | |
 | organization_id | text FK | |
 | batch_no | varchar(32) | |
-| kind | varchar(32) | `product_master` / `sku_master` / `supplier_sku` / `opening_stock` / `historical_order` / `settlement` / `fee` / `review_backfill` |
+| trigger | varchar(16) | **`file_upload` / `platform_api` / `scheduled`** — API 拉取与文件导入分道 |
+| kind | varchar(32) | 文件类：`product_master` / `sku_master` / `supplier_sku` / `opening_stock` / `historical_order` / `settlement` / `fee` / `review_backfill`；**API 类**：`api_products` / `api_orders` / `api_reviews` / `api_settlements` / `api_listings` |
+| shop_id | text FK **可空** | `trigger=platform_api` 必填：**按店铺授权拉取**（Daraz/Lazada/TikTok 每店独立凭据） |
+| credential_id | text 可空 | 逻辑引用 `integration_credentials`（本次拉取所用凭据快照） |
+| api_endpoint | varchar(128) 可空 | 如 `Get Order List` / `getReviewList` / adapter action 名 |
+| api_params | jsonb 可空 | 拉取范围：`{timeFrom, timeTo, cursorStart, pageSize, itemIds?}` |
+| cursor_from / cursor_to | text 可空 | 拉取前后游标留痕（回写 `integration_states` 前的快照） |
 | status | varchar(32) | `draft` / `validating` / `partial` / `committed` / `failed` / `rolled_back` |
-| dry_run | boolean | |
-| template_version | varchar(32) | |
-| file_name / file_storage_key | text | |
+| dry_run | boolean | API 通道默认 false；文件通道可 true |
+| template_version | varchar(32) | 文件通道用 |
+| file_name / file_storage_key | text | 文件通道用 |
 | total_rows / success_rows / error_rows | integer | |
+| api_calls / api_pages | integer 可空 | API 通道：调用次数/页数 |
+| integration_log_ids | jsonb `string[]` 可空 | 关联 `integration_logs.request_id`，串起接口日志 |
+| idempotency_key | varchar(128) | UNIQUE `(organization_id, idempotency_key)` — 重试不重复建批 |
 | rollback_of_batch_id | text | 可空 |
 | created_by / validated_at / committed_at / rolled_back_at | | |
+| **UNIQUE** | | `(organization_id, batch_no)`；`(organization_id, idempotency_key)` |
 
 #### `import_rows`
 
@@ -1023,14 +1048,18 @@ better-auth org/member 不动；业务权限独立：
 | import_batch_id | text FK | |
 | organization_id | text FK | |
 | row_no | integer | |
-| raw | jsonb | 原始行 |
+| external_id | text 可空 | API 通道：平台侧 ID（order_id/item_id/review_id），幂等对账用 |
+| raw | jsonb | 原始行（文件行 / API 原始 payload 摘要） |
 | normalized | jsonb | 校验后 |
 | status | varchar(16) | `pending` / `valid` / `error` / `committed` / `rolled_back` |
 | error_code / error_message | text | |
 | entity_type / entity_id | text | 提交后回填 |
 | **UNIQUE** | | `(import_batch_id, row_no)` |
+| 建议 INDEX | | `(import_batch_id, external_id)` partial — API 行按平台 ID 对账 |
 
 回滚只撤销该批次 `entity_id` 集合产生的影响，且不触碰批次提交后并发产生的新流水（用时间窗 + 幂等键标记）。
+
+**与业务表幂等的关系**：API 导入提交时，业务表自身唯一键仍是最终防线（`orders(shop_id, external_order_id)`、`product_reviews(shop_id, external_review_id)` 等）；批次行只做过程校验与错误隔离，重复批次靠 `idempotency_key` + 业务表 upsert 双保险。
 
 ### 9.4 `report_metrics` — 指标元数据（可选，F17）
 
@@ -1047,9 +1076,49 @@ better-auth org/member 不动；业务权限独立：
 
 P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 
-### 9.5 保留的集成表
+### 9.5 店铺授权与接口日志（`integration_*`，Daraz / Lazada / TikTok）
 
-`integration_credentials` / `integration_states` / `integration_logs` 维持现结构；`integration_logs` 增加 `organization_id` 列（现仅有 shopId）以便跨店审计查询。
+现有三表**保留并增补**，支撑「每个商家/店铺配置对应平台授权 → 按店拉取 → 批次导入 → 审计」链路：
+
+#### `integration_credentials` — 店铺级授权凭据（增列）
+
+现有：`organization_id`、`shop_id`、`kind`、`payload_encrypted`、`expires_at`。
+
+| 增列 | 类型 | 说明 |
+| --- | --- | --- |
+| auth_mode | varchar(16) | `oauth2` / `app_key_sign` / `manual_token` —— Daraz/Lazada LAZOP 与 TikTok Partner Center 均为 oauth2 + 签名，手工录入兜底 |
+| auth_status | varchar(16) | `active` / `expiring`（7 天内到期）/ `expired` / `revoked` / `error` — 授权健康 |
+| scopes | jsonb `string[]` | 授权范围（orders/products/reviews/settlements） |
+| authorized_by | text | 操作人（better-auth user）→ 联动 `audit_events` |
+| authorized_at / revoked_at / last_refresh_at | timestamptz | 授权/解绑/刷新时间线 |
+| refresh_fail_count | integer DEFAULT 0 | 连续刷新失败 → 置 `error` 并告警 |
+| **UNIQUE** | | `(shop_id, kind)` — 每店每类凭据一条（当前隐含约定显式化） |
+| INDEX | | `(auth_status, expires_at)` — 授权到期巡检 |
+
+凭据变更（authorize / refresh / revoke）**必须**写 `audit_events`（entity_type=`integration_credential`，before/after 只存非密文元数据：auth_status/scopes/expires_at，**绝不落 payload_encrypted**）。
+
+#### `integration_states` — 同步状态（增列）
+
+保留现有 4 组游标；新增评论游标（见下）与：
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| last_import_batch_id | text 可空 | 最近一次 API 批次导入（→ import_batches） |
+| auth_checked_at | timestamptz | 最近一次授权健康检查 |
+
+#### `integration_logs` — 接口调用日志（增列）
+
+现有：`shop_id`、`direction`、`action`、`request_id`、`status`、`message`、`payload_summary`。
+
+| 增列 | 类型 | 说明 |
+| --- | --- | --- |
+| organization_id | text FK | 跨店审计查询（现仅有 shopId） |
+| import_batch_id | text 可空 | 本次调用归属的 API 批次 |
+| http_status / latency_ms | 可空 | 技术可观测 |
+| error_code | varchar(64) 可空 | 平台错误码 |
+| INDEX | | `(organization_id, created_at)`、`(import_batch_id)` |
+
+**日志分层口径**：`integration_logs` = 每次平台 HTTP 调用的技术流水（含分页）；`import_batches` = 一次业务批次的聚合与回滚单元；`audit_events` = 谁在什么时候做了授权/导入/回滚等业务动作。三者通过 `import_batch_id` + `request_id` 串联，不互相替代。
 
 `integration_states` **增加评论同步游标列**（与现有 4 组 `*_cursor + last_*_sync_at` 同模式）：
 
@@ -1061,9 +1130,44 @@ P0 可用 SQL 视图 + 本表元数据；不引入独立 OLAP。
 
 不建 item 级游标表：单商品评论为小集合，按页全量 + `(shop_id, external_review_id)` upsert 幂等即可。抓取运行明细可选走 `review_fetch_runs`（§10.6）或复用 `integration_logs(action='reviews.fetch')`。
 
-### 9.6 `import_batches.kind` 枚举扩展
+### 9.6 平台 API 批次导入流程与审计联动
 
-在 §9.3 枚举基础上追加：`review_backfill`（评论历史回灌）。`import_rows` 不存评论正文，只存校验/错误指针。
+**流程（trigger=platform_api）**：
+
+```mermaid
+sequenceDiagram
+  actor U as 商家操作人
+  participant T as Console/后台
+  participant A as Domain Service
+  participant C as Marketplace Connector
+  participant DB as import_batches/rows
+  participant L as integration_logs
+  participant AU as audit_events
+  U->>T: 选择店铺→凭据(auth_status=active)→导入类型/时间窗
+  T->>A: 创建批次(trigger=platform_api, idempotency_key)
+  A->>AU: 写 audit(import_batch.create)
+  A->>C: 分页调用(Daraz/Lazada/TikTok adapter)
+  C->>L: 每次HTTP调用记日志(request_id)
+  A->>DB: 行级 upsert 校验(raw/normalized/status)
+  A->>DB: 提交→业务表 upsert(唯一键幂等)
+  A->>AU: 写 audit(import_batch.commit, before/after 计数)
+  A->>A: 回写 integration_states 游标
+  Note over U,AU: 失败→partial/failed可重试；回滚→audit(import_batch.rollback)
+```
+
+**审计必写点**：
+
+| 动作 | audit_events 记录 |
+| --- | --- |
+| 店铺授权 / 解绑 / 刷新 | `entity_type=integration_credential`，before/after=非密文元数据 |
+| 创建 API 导入批次 | `entity_type=import_batch`，action=create，after=kind/shop/时间窗 |
+| 批次提交 / 部分成功 | action=commit，after=success_rows/error_rows |
+| 批次回滚 | action=rollback，before=原批次状态，after=rolled_back |
+| 手动重试 | 新批次 + `rollback_of_batch_id` 或 idempotency 关联，actor 必填 |
+
+**权限**：按 `erp_role_scopes` 的 shop scope 过滤可操作店铺（Q23）；`platform_api` 导入需 `import.execute` 权限，回滚需 `import.rollback`；外部 IT 技术账号（R11）只读日志、不可触发回滚（可配置）。
+
+**已覆盖现状**：三平台 OAuth 流程与签名见 [marketplace-connectors.md](marketplace-connectors.md)（`integration_credentials` 加密落库已是真实写路径）；本节补齐的是**批次语义、授权生命周期状态与审计联动的表结构**。
 
 ---
 
@@ -1253,10 +1357,226 @@ product_reviews
 4. 媒体是否强制转存对象存储（`storage_key` 是否必填）。
 5. 评论同步默认频率与是否并入 `runMarketplaceSync` worker。
 
+---
+
+## 11. 域 K：运费测算（Freight Estimation，K0–K6）
+
+> 来源：[freight-estimation-design.md](freight-estimation-design.md)（v2.6，§4 已确认 8 表草案：独立快照 + 消费方逻辑引用）+ 原型 `docs/design/ship-fees/整柜关税计算器.html`（海运 FCL 单柜分摊 + LK 税叠 + Daraz 定价，HS_RULES 214 条 / HS_TARIFF 137 条）与 `Daraz整柜定价逻辑讲解.html` + [cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md)。
+> 定位：**独立参考数据 + 情景快照**，与域 H 单向交互——K 产出 `freight_estimates`，H 消费（采纳为标准成本 / 订单实际费用另走事实层）；消费方只做**逻辑引用（text，无跨模块 FK）+ 摘要冗余**（freight-estimation-design §2.4/§4.3）。
+> 模块形态（阶段二代码）：`packages/freight` 纯函数引擎 + dataaccess；本轮只落表结构设计，不接 tRPC。
+
+### 11.1 与既有设计的保留 / 调整 / 新增
+
+| 处置 | 内容 |
+| --- | --- |
+| **保留（freight-estimation-design §4.2 已确认 8 表，原样落地）** | `freight_estimates`、`hs_codes`、`hs_tariff_versions`、`hs_match_rules`、`freight_config_versions`、`packaging_specs`、`import_batches`+行表（与域 I 合并，见下） |
+| **调整** | ① `freight_estimates` 增列：`carrier_id` / `lane_id` / `quote_id` / `rate_card_version_id` / `comparison_group_id` / `selected` / `evidence_basis` / `fx_rate_id`（均可空，逻辑引用）——内联费率字段保留为手工快照路径，引用 quote 时可由引擎填充；② `import_batches` 与域 I §9.3 合并为**一套**（全局参考数据 `owner_key='global'` + 租户导入 `organization_id`；行表统一 `import_rows`，废弃双命名）；③ `freight_config_versions(configType='fx')` 仅作平台默认回退，**权威日汇率 = 域 H `fx_rates`** |
+| **新增（本节 K1–K7）** | `freight_carriers`、`freight_lanes`、`freight_charge_item_defs`、`freight_quotes`、`freight_quote_lines`、`freight_rate_cards`、`freight_rate_card_versions`、`freight_rate_tiers`、（可选 P2）`freight_estimate_comparisons` |
+| **消费侧增列（域 H）** | `sku_costs` + `freight_estimate_id`（可空）；`cost_template_versions.components` jsonb 中 freight 组件可带 `freightEstimateId` / `source:"freight_estimate"`；`order_fees` **不写测算值**（只存实际发生费用，复盘用 `order_profit_snapshots`） |
+
+**为何独立为域 K 而非并入 H**：freight-estimation-design 已确立独立模块/包边界；H 是「已发生/标准化成本」（租户财务写），K 是「参考数据 + 情景快照」（全局参考平台运营写 + 租户报价），写路径与权限不同。
+
+### 11.2 `freight_estimates` — 测算快照大宽表（核心，保留 §4.1 草案 + 增列）
+
+§4.1 草案字段全部保留：org、`source_type`（standalone/ai_candidate/listing/order/import）、`subject_type/subject_id`（逻辑引用）、`mode`（air_ddp/sea_lcl/sea_fcl）、`status`（draft/completed/superseded）、输入快照（采购价/箱规/container_usd/lcl_rate_*/air_rate_*/最低收费/计抛比/附加费 jsonb/有效期/含不含/时效/公式版本/USD-CNY 与 CNY-LKR 汇率/目标毛利/包邮参数）、HS 快照（hs_code/match 标记/tariff_snapshot/compliance/config 快照）、结果（单件 landed/total/净利 + 整柜合计 + 标准/包邮定价 + breakdown + missing_fields + warnings）。
+
+**本设计增列**：
+
+| 新增列 | 类型 | 说明 |
+| --- | --- | --- |
+| carrier_id | text 可空 | 逻辑引用 `freight_carriers`（手工散报价可空） |
+| lane_id | text 可空 | 逻辑引用 `freight_lanes` |
+| quote_id | text 可空 | 逻辑引用 `freight_quotes`；引用时费率字段可空由引擎填 |
+| rate_card_version_id | text 可空 | 引用 `freight_rate_card_versions`（牌价路径） |
+| comparison_group_id | text 可空 | 三方案对比归组（同组 N 条快照，每 mode 一条） |
+| selected | varchar(8) DEFAULT `'false'` | 组内是否被选中 |
+| evidence_basis | varchar(16) NOT NULL DEFAULT `'estimated'` | `verified/estimated/assumption/unverified/stale`（对齐评论域与 AI 选品） |
+| fx_rate_id | text 可空 | 逻辑引用域 H `fx_rates`（USD/CNY 时点权威） |
+
+索引：`(organization_id, created_at DESC)`、`(organization_id, subject_type, subject_id)`、`(comparison_group_id)`。UNIQUE 无（每次测算新行，superseded 靠状态标记）。
+
+### 11.3 `freight_carriers` — 货代/承运商主档
+
+MVP 建议 global（平台运营维护）+ org 协作属性；UNIQUE `(owner_key, code)`。
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| scope | varchar(16) | `global` / `tenant` |
+| owner_key | text | 全局 `global`，租户 = organizationId |
+| organization_id | text NULL | scope=tenant 必填 |
+| code / name / name_en | | 如 `CARRIER-DHL-LK` |
+| kind | varchar(16) | `freight_forwarder` / `airline` / `shipping_line` / `courier` |
+| scac / iata / contact / phone / email | 可空 | |
+| supports_modes | jsonb `string[]` | `["air_ddp","sea_lcl","sea_fcl"]` |
+| default_currency | varchar(3) | USD |
+| status / source_type / source_ref / source_batch_id / created_* | | §4.2.1 溯源规范 |
+| **UNIQUE** | | `(owner_key, code)` |
+
+### 11.4 `freight_lanes` — 航线/港口对
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id / scope / owner_key / organization_id | | 同 K3 |
+| origin_country / dest_country | varchar(2) | 默认 `CN` → `LK` |
+| origin_port / dest_port | varchar(16) 可空 | UN/LOCODE（`CNXMN`/`LKCMB`）；空 = 航线级默认 |
+| mode | varchar(16) | `air_ddp` / `sea_lcl` / `sea_fcl` |
+| trade_term | varchar(8) 可空 | `EXW/FOB/CFR/CIF/DDU/DDP` |
+| lcl_fcl | varchar(8) 可空 | sea 时 `LCL`/`FCL` |
+| transit_days_min/max | integer 可空 | 报价可覆盖 |
+| status / 溯源 / timestamps | | |
+| UNIQUE | | `(owner_key, origin_country, origin_port, dest_country, dest_port, mode)`（空港用 `''` 归一或表达式索引） |
+| INDEX | | `(owner_key, mode, dest_country)` |
+
+### 11.5 `freight_charge_item_defs` — 费用项字典（对齐 `order_fees.fee_type`）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id / scope / owner_key | | 全局为主 |
+| code | varchar(48) | `ocean_freight` / `air_freight` / `thc_origin` / `thc_dest` / `doc_fee` / `customs_clearance` / `pickup` / `delivery_dest` / `fuel_surcharge` / `peak_season_surcharge` / `insurance` / `duty_gd` / `tax_pal` / `tax_cess` / `tax_vat` / `tax_sscl` / `tax_excise` / `tax_surcharge` / `port_misc` / `storage` / `jsb_freight` … |
+| name_zh / name_en | text | |
+| category | varchar(16) | `freight` / `origin_misc` / `destination_misc` / `clearance` / `insurance` / `tax` |
+| charge_phase | varchar(16) | `origin` / `main` / `destination` |
+| is_tax | varchar(8) | 税项不与 DDP 已含范围重复计算 |
+| default_formula_hint | text 可空 | 人读公式（HTML 明细表「说明」列） |
+| sort_order / status / 溯源 / timestamps | | |
+| **UNIQUE** | | `(owner_key, code)` |
+
+### 11.6 `freight_quotes` + `freight_quote_lines` — 货代报价单（一单一议，比价基础）
+
+`freight_quotes`（头）：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK NOT NULL | 报价是租户资产 |
+| carrier_id / lane_id | text 可空 FK | |
+| mode / trade_term / lcl_fcl | varchar | 同 lane 语义 |
+| origin_port / dest_port | varchar(16) 可空 | 冗余 |
+| container_type | varchar(16) 可空 | `20GP`/`40GP`/`40HQ` |
+| currency | varchar(3) | |
+| base_price | numeric(15,4) | FCL 整柜包干 / LCL 每 CBM / 空运每 kg |
+| billing_basis | varchar(16) | `container` / `cbm` / `chargeable_weight` / `weight_or_volume_max` |
+| minimum_charge | numeric(15,4) 可空 | 最低收费 |
+| volumetric_divisor | integer 可空 | 计抛比——**必须来自报价，无全局默认**（freight-design §5.2） |
+| valid_from / valid_until / quoted_at | timestamptz | 有效期（HTML 缺失、设计补齐） |
+| includes / excludes | jsonb `string[]` | DDP 边界（含税/清关/派送范围） |
+| transit_days_min/max | integer 可空 | |
+| evidence_basis | varchar(16) | 五级（同 §11.2） |
+| quote_ref / attachment_key / source_type / source_ref | text | 报价单号/附件 |
+| status | varchar(16) | `draft` / `active` / `expired` / `archived` |
+| notes / raw / created_by / timestamps | | |
+| INDEX | | `(organization_id, mode, status, valid_until)`、`(carrier_id)`、`(lane_id)` |
+| UNIQUE | | `(organization_id, carrier_id, quote_ref)` partial（quote_ref 非空） |
+
+`freight_quote_lines`（费目行）：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id / quote_id FK cascade / organization_id | | |
+| charge_code | varchar(48) | → defs.code（软关联） |
+| name / amount / currency | | numeric(15,4) |
+| unit | varchar(16) | `shipment` / `cbm` / `kg` / `ton` / `container` / `piece` |
+| included_in_base | varchar(8) | true=已含 base_price |
+| tier_rule | jsonb 可空 | 行级阶梯（与 K8 同构） |
+| sort_order / timestamps | | |
+| INDEX | | `(quote_id, sort_order)` |
+
+### 11.7 `freight_rate_cards` + `_versions` + `_tiers` — 公共牌价（阶梯价，版本不可变）
+
+与 quotes 分离：牌价是**可复用**的月度/协议价，支持阶梯与有效期版本（HTML 讨论的装载率/最低收费规则在此固化）。
+
+`freight_rate_cards`（头）：id、scope/owner_key/organization_id、carrier_id/lane_id 可空、code/name、mode/trade_term/container_type/billing_basis/currency、status/溯源/timestamps；UNIQUE `(owner_key, code)`。
+
+`freight_rate_card_versions`：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id / rate_card_id FK / organization_id 可空 | | |
+| version | integer | |
+| status | varchar(16) | `draft` / `active` / `archived` |
+| effective_from / effective_to | timestamptz | |
+| base_price | numeric(15,4) | |
+| minimum_charge / volumetric_divisor | 可空 | |
+| includes / excludes | jsonb | |
+| transit_days_min/max | integer 可空 | |
+| published_by / published_at / 溯源 / timestamps | | |
+| **UNIQUE** | | `(rate_card_id, version)`；发布事务关旧版本（§4.2.8 同规则） |
+
+`freight_rate_tiers`（阶梯行）：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id / version_id FK / organization_id 可空 | | |
+| tier_from / tier_to | numeric(15,4) 可空 | 下闭上开；tier_to null=无上限 |
+| tier_unit | varchar(16) | `cbm` / `kg` / `chargeable_kg` / `ton` / `shipment` |
+| price | numeric(15,4) | 该档单价 |
+| min_charge_override | numeric(15,4) 可空 | |
+| charge_code | varchar(48) 可空 | null=主运费；非空=附加费档 |
+| sort_order / timestamps | | |
+| INDEX | | `(version_id, tier_unit, tier_from)` |
+
+### 11.8 `freight_estimate_comparisons` — 比价记录（P2 可选）
+
+MVP 用 `freight_estimates.comparison_group_id` 归组即可；多货代同 lane 深度比价时升级本表：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id / organization_id | | |
+| group_key / title | | |
+| lane_id / mode / shipment_hint | jsonb | 上下文（总体积/总重/件数） |
+| entries | jsonb | `[{estimateId, quoteId?, carrierName, unitCost, comparable, nonComparableReasons[]}]` —— **快照条目不做行级 FK 网络**，避免与「快照不可漂移」冲突 |
+| result | jsonb | 可比性结论 / 排除原因（freight-design §3.5「暂不可比较」） |
+| created_by / created_at | | |
+| INDEX | | `(organization_id, created_at DESC)` |
+
+### 11.9 参考数据 6 表（保留 freight-estimation-design §4.2.2–4.2.7 草案）
+
+| 表 | 关键点 | 与 HTML 原型关系 |
+| --- | --- | --- |
+| `hs_codes` | country+code+normalized UNIQUE、parent/level/unit | HS_TARIFF 137 条数据化 |
+| `hs_tariff_versions` | gd/surcharge/pal/cess/excise/vat/sscl 从价+从量（specific_amount/unit/rule=max\|sum）、isExact/confidence、生效区间、**已发布不可覆盖** | 税率回退三级提示 → isExact/confidence |
+| **增列** `uplift_rule` | jsonb | 记录 VAT/SSCL 是否含 10%/15% CIF uplift——消解 ship-fees 与 cost-calculator UED 两版税叠口径差异（开放问题 #4） |
+| `hs_match_rules` | pattern/match_type(keyword\|regex)/priority | HS_RULES 214 条数据化；**禁止静默回退**（§5.3） |
+| `freight_config_versions` | configType=`platform_fees\|fx\|containers\|insurance` + payload 版本化 | 佣金 11%/包邮 5%+封顶 ₨450/回款 3.5%/仓杂 10%/柜型 68CBM/保险 0.3% |
+| `packaging_specs` | L/W/H、pieces_per_box、package_count、subject 引用 | 箱规 0.13918m³/18 件 |
+| `import_batches` + `import_rows` | **与域 I §9.3 合并**：domain=hs_codes\|hs_tariffs\|hs_match_rules\|freight_config\|packaging\|review_backfill\|…，checksum 幂等，draft→published，行级 action/errors | HTML 手工维护 → 批量导入 |
+
+### 11.10 关联与不变量
+
+```text
+freight_quotes ──quote_id──> freight_estimates ──freight_estimate_id──> sku_costs / cost_template_versions.components / ai_candidate_costs
+freight_lanes / carriers / rate_card_versions ── 逻辑引用（可空）──> freight_estimates
+hs_tariff_versions / packaging_specs / fx_rates ── 快照固化 ──> freight_estimates.tariff_snapshot / config_snapshot
+freight_charge_item_defs.code ←── order_fees.fee_type（事实层对齐）
+```
+
+| # | 不变量 | 实现层 |
+| --- | --- | --- |
+| K1 | 测算只写 `freight_estimates`，消费方不反向写快照 | 包边界 + 无跨模块 FK |
+| K2 | HS 匹配未命中/近似回退必须进 `warnings`+`missing_fields`，禁止静默回退 | engine 校验（HTML 五坑#1） |
+| K3 | 计抛比/费率必须来自报价或牌价版本，无全局默认兜底 | 输入校验 |
+| K4 | 税率/平台配置/牌价版本发布后不可变，只增新版本 + effective 区间 | §4.2.8 同规则 |
+| K5 | `evidence_basis` 必填；`assumption` 报价不参与自动推荐 | service |
+| K6 | 柜容装载率 >100% 默认**警告不阻断**（沿 HTML），配置可升级为阻断 | warnings + config |
+| K7 | 到仓成本口径固化在 `pricing_formula_version`；两版税叠差异须先由报关行确认再写 `uplift_rule` | 发布流程 |
+
+### 11.11 待确认（运费域）
+
+1. 运价来源：手工报价单 / Excel 导入 / 货代 API（P3）？平台统一采价还是租户自采（决定 quotes 归属与全局共享）？
+2. 货代主档 global 还是 tenant；是否需要平台白名单审批？
+3. 是否允许租户级**默认计抛比**（evidence_basis=assumption）供初筛？
+4. **税叠口径验收基线**：ship-fees/freight-design 级联（无 uplift）vs cost-calculator UED 官方口径（+10%/15% CIF uplift、SCL 替代）——报关行确认后写 `uplift_rule`。
+5. LCL 计费量 `max(CBM, 计费吨)` 是否兜底默认，还是完全逐报价。
+6. DDP 申报优化类报价的合规标注与是否禁止自动推荐。
+7. FCL 一柜多 SKU 分摊权重默认（CBM/件数）；装载率>100% 警告 vs 阻断。
+8. 汇率权威源确认：`fx_rates` 唯一权威，取价时点（T/T+0）与手工覆盖权限。
+9. 快照 superseded 触发时机与保留期限；「采纳为标准成本」是否走 `approval_instances`。
+10. `import_batches` 合并后的行表命名统一为 `import_rows`（域 I §9.3 命名为唯一权威）。
 
 ---
 
-## 11. 现有表冲突与迁移说明
+## 12. 现有表冲突与迁移说明
 
 | 现有表 | 冲突 | 迁移策略 |
 | --- | --- | --- |
@@ -1273,7 +1593,7 @@ product_reviews
 
 ---
 
-## 12. 关键业务不变量（DB + Service 双层）
+## 13. 关键业务不变量（DB + Service 双层）
 
 | # | 不不变量 | 实现层 |
 | --- | --- | --- |
@@ -1290,10 +1610,12 @@ product_reviews
 | 11 | 历史订单利润引用当时 `sku_costs`/`fx_rates` 版本 | 快照 FK，不重算覆盖已确认报表 |
 | 12 | 导入回滚只影响本批次 | batch 标记 + 幂等键前缀 |
 | J1–J6 | 评论域：shop 级唯一、分析追加式、未映射可入库、KPI 带公式、证据分级、合规抓取 | 见 §10.8 |
+| K1–K7 | 运费域：快照单向消费、禁静默回退、费率必有来源、版本不可变、证据分级、柜容警告、公式版本化 | 见 §11.10 |
+| I10–I13 | 授权与 API 导入：每店每类凭据唯一、凭据变更必审计且不落密文、API 批次幂等 + 业务表唯一键双保险、三日志分层（calls/batch/business audit）不互相替代 | 见 §9.5/§9.6 |
 
 ---
 
-## 13. 表清单汇总
+## 14. 表清单汇总
 
 | 域 | 表 | 状态 |
 | --- | --- | --- |
@@ -1307,12 +1629,14 @@ product_reviews
 | H 成本财务 | fx_rates, cost_templates, cost_template_versions, sku_costs, order_fees, settlements*, settlement_lines*, order_profit_snapshots | 新建 5 + 扩展 3 |
 | I 系统 | erp_roles, erp_role_permissions, erp_member_roles, erp_role_scopes, audit_events, import_batches, import_rows, report_metrics, integration_*（保留+reviews 游标） | 新建 8 + 微调 3 |
 | J 评论口碑 | product_reviews, product_review_media, product_review_replies, product_review_analyses, review_reports, review_report_items, review_fetch_runs | 全新建 7 |
+| K 运费测算 | freight_estimates, hs_codes, hs_tariff_versions, hs_match_rules, freight_config_versions, packaging_specs, import_batches(+items, 与 I 合并), freight_carriers, freight_lanes, freight_charge_item_defs, freight_quotes, freight_quote_lines, freight_rate_cards, freight_rate_card_versions, freight_rate_tiers, freight_estimate_comparisons(P2) | 保留落地 7（freight-design §4.2）+ 全新建 9 |
+| H→K 消费侧增列 | sku_costs.freight_estimate_id、cost_template_versions.components.freightEstimateId（逻辑引用运费快照） | 扩展 2 |
 
-`*` = 在现有表上扩展/重构。合计约 **62 张业务表**（不含 auth 基础表）。
+`*` = 在现有表上扩展/重构。合计约 **75 张业务表**（不含 auth 基础表；K 域中 import_batches 与 I 合并计 1 张）。
 
 ---
 
-## 14. 与需求追溯
+## 15. 与需求追溯
 
 | 需求 | 主要表 |
 | --- | --- |
@@ -1330,13 +1654,15 @@ product_reviews
 | F16 成本利润 | fx_rates / cost_* / sku_costs / order_fees / settlements / profit_snapshots |
 | F17 报表 | report_metrics + 只读视图/聚合查询 |
 | F18 日志审计 | integration_logs / audit_events |
-| F19 导入 | import_batches / import_rows |
+| F19 导入 | import_batches / import_rows（双通道：file_upload + platform_api 按店授权拉取） |
+| 平台授权与 API 导入 | integration_credentials（每店 Daraz/Lazada/TikTok 授权）+ import_batches(trigger=platform_api) + integration_logs + audit_events，见 §9.5/§9.6 |
 | 评论抓取与报告 | §10 域 J 全部 + integration_states.reviews_* + import kind=review_backfill |
 | AI 选品（P2） | product_reviews + product_review_analyses + review_reports + product_candidates.evidence |
+| 运费成本估算 | §11 域 K 全部（freight_estimates 快照 + 报价/牌价/HS 税率）→ 消费至 sku_costs / cost_template_versions / ai_candidate_costs |
 
 ---
 
-## 15. 待确认对 schema 的影响
+## 16. 待确认对 schema 的影响
 
 | Q 编号 | 影响 |
 | --- | --- |
@@ -1348,12 +1674,13 @@ product_reviews
 | Q16 平台费用 API | `order_fees.source` 哪些可 `api` |
 | Q17 JSB | `packages.channel=jsb_th` 是否有 API 字段 |
 | Q23 权限粒度 | `erp_role_scopes.scope_type` 维度集合 |
-| Q24 容量 | 分区策略：`inventory_ledger` / `audit_events` / `integration_logs` / `product_reviews` 按月分区（设计预留，首期不分区） |
+| Q24 容量 | 分区策略：`inventory_ledger` / `audit_events` / `integration_logs` / `product_reviews` / `freight_estimates` 按月分区（设计预留，首期不分区） |
 | 评论域 §10.9 | content_zh 归属、负面率公式、回复审核流、媒体转存、同步频率 |
+| 运费域 §11.11 | 运价来源与采价方式、货代主档范围、默认计抛比、**税叠 uplift 口径基线**、LCL 计费量兜底、DDP 合规标注、柜容分摊、汇率时点、superseded 策略、import 行表命名 |
 
 ---
 
-## 16. 实施顺序（与 S1–S7 对齐）
+## 17. 实施顺序（与 S1–S7 对齐）
 
 1. **S1**：域 A + 域 I 的 roles/scopes + 字典 —— 不依赖业务单据。
 2. **S2**：域 B + 域 C —— 编码序列与映射约束先行。
@@ -1362,5 +1689,15 @@ product_reviews
 5. **S5**：audit + import + report_metrics + 待办聚合；**域 J 最小闭环**（product_reviews + analyses + fetch 游标；报告可先 CLI 生成 HTML）。
 6. **S6**：域 H + 域 G 完整售后。
 7. **S7**：多平台扩展仅加 marketplace 行 + adapter，不改核心表；评论补 media/replies/report_items/report 快照与 AI 选品串联。
+
+**域 K 运费测算批次**（与 S 批次并行，freight-estimation-design 阶段一为 UED、阶段二接库）：
+
+- **K0**：freight-design 已确认 8 表落地 + 与域 I 合并 import 框架 + fx 权威源决策 → `db:generate`（可并入 S6 前置）。
+- **K1**：`freight_charge_item_defs` + `freight_carriers` + `freight_lanes`（seed 自现有手工报价）。
+- **K2**：`freight_quotes(+lines)` + `freight_estimates` 增列；`packages/freight` 引擎纯函数 + HTML 回归基线单测。
+- **K3**：`freight_rate_cards/_versions/_tiers` 牌价录入与发布。
+- **K4**：tRPC/dataaccess（阶段二）：estimateFreight / resolveFreightInputs / 参考数据维护 + 独立测算页 / 平台后台。
+- **K5**：消费方接线 —— 「采纳为标准成本」→ cost_template_versions + sku_costs（含 freight_estimate_id）；AI 选品适配层；订单复盘对比。
+- **K6（P2）**：多货代比价 UI / `freight_estimate_comparisons`、税则 API 同步、实时报价对接。
 
 每步：`db:generate` → dataaccess 事务 → tRPC router → 单测 → 页面去 mock。

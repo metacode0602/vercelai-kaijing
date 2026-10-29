@@ -14,7 +14,7 @@
 - 负向与中性（含高分差评标记、SKU、原文、中文翻译、备注、图片）
 - 全部评价（按情感分组）
 
-目前代码库中 `packages/marketplace` 已有 Lazop（Daraz/Lazada）连接器框架，但未发现评论（Review/Rating）相关接口定义。`packages/db` 暂无评论相关 schema。
+目前代码库中 `packages/marketplace` 已有 Lazop（Daraz/Lazada）连接器框架，但未发现评论（Review/Rating）相关接口定义。代码暂无评论 schema；**目标模型已设计**——`product_reviews` / `product_reviews_media` / `product_review_replies` / `product_review_analyses` / `product_review_reports` / `product_review_report_items` / `review_fetch_runs` 共 7 表，见 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) §10，待 `db:generate` 落地。
 
 ## 2. 设计目标
 
@@ -237,34 +237,9 @@ packages/marketplace/src/reports/html-generator.ts # HTML 报告生成
 packages/marketplace/src/reports/templates/        # 模板（可选）
 ```
 
-### 8.2 数据库（可选但推荐）
-如需持久化，扩展 `packages/db/src/commerce-schema.ts`：
+### 8.2 数据库
 
-```typescript
-export const productReviews = pgTable("product_reviews", {
-  id: text("id").primaryKey(),
-  organizationId: text("organization_id").references(() => organizations.id),
-  platform: varchar("platform", { length: 32 }).notNull(),
-  shopExternalId: text("shop_external_id"),
-  itemId: text("item_id").notNull(),
-  reviewId: text("review_id").notNull(),
-  sku: text("sku"),
-  rating: integer("rating").notNull(),
-  content: text("content"),
-  contentZh: text("content_zh"),
-  buyerName: text("buyer_name"),
-  purchasedAt: timestamp("purchased_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }),
-  images: jsonb("images").$type<Array<{url:string}>>(),
-  sentiment: varchar("sentiment", { length: 16 }),
-  source: varchar("source", { length: 16 }).notNull(), // api|ai_scrape
-  raw: jsonb("raw"),
-  fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow(),
-}, (t) => ({
-  uniq: uniqueIndex("uq_product_reviews").on(t.platform, t.itemId, t.reviewId),
-  idxItem: index("idx_product_reviews_item").on(t.platform, t.itemId),
-}))
-```
+评论持久化表结构**以权威 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) §10 为准**（`product_reviews` 唯一键 `(shop_id, external_review_id)`、`shop_id NOT NULL`、情感/分析入追加表 `product_review_analyses`）。本文早期草案已废弃，勿按旧结构建表。
 
 遵循现有约定：时间戳用 `withTimezone: true`，金额用 `numeric`（本场景不涉及）、主键用 `text`、JSON 用 `jsonb`。
 

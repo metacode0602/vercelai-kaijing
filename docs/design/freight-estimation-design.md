@@ -1,6 +1,7 @@
 # 运费测算设计（Freight Estimation）——独立能力与消费方集成
 
 > **状态：设计稿（先可交互 UED 验证，再接业务 API/tRPC）**  
+> **表结构最终以 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) §11 域 K 为准**（本文 §4.2 草案保留为输入；权威在此基础上增列 `carrier_id`/`lane_id`/`quote_id`/`rate_card_version_id`/`comparison_group_id`/`selected`/`evidence_basis`/`fx_rate_id`；`import_batches` 与域 I 合并、行表统一 `import_rows`）  
 > **模块定位：独立运费测算能力**，AI 选品是首批消费方之一，但不是唯一消费方  
 > **代码形态：新增 `packages/freight`**（计算核心 + 类型 + 配置 + 快照 dataaccess），宿主先放 `apps/shop`  
 > **适用范围：** 首期设计与 UED 覆盖 **Daraz Sri Lanka（LK）空运 DDP、海运 LCL、海运 FCL**；按确认的费率/计税规则逐阶段启用，缺真实报价时仅展示标注清楚的示例情景  
@@ -146,6 +147,8 @@ HTML 明确：**装箱单中的「单件体积」常是「整箱体积」**，�
 > **注意：** 若总体积 > 柜型容积（如 40'HQ ≈ 68 CBM）需提示「装不下」或建议按多柜重算。
 
 ### 3.3 斯里兰卡级联计税
+
+> **开放口径提示：** 本节为**无 uplift 级联版**；[cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md) §5.2 为含 **+10%/15% CIF uplift** 的官方公式版。两版**尚未统一**，待报关行确认后写入权威 `hs_tariff_versions.uplift_rule`（见 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) K7 / §11.11#4）。
 
 按 HTML 顺序计算：
 
@@ -381,6 +384,8 @@ HTML 示例写：0.315
 
 ### 4.1 新增 `freight_estimates`（独立测算快照）
 
+> 本节为草案；**最终表结构以权威 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) §11.2 为准**（保留本节字段并增列 `carrier_id` / `lane_id` / `quote_id` / `rate_card_version_id` / `comparison_group_id` / `selected` / `evidence_basis` / `fx_rate_id`）。
+
 保存每次测算的输入、配置快照与结果。该表**不依赖候选/商品/订单**，通过可空的 `subjectType` / `subjectId` 记录“由谁发起”，但不加跨模块外键。
 
 ```typescript
@@ -575,6 +580,8 @@ export const hsCodes = pgTable(
 
 #### 4.2.3 `hs_tariff_versions`（税率版本）
 
+> 草案；权威另增列 **`uplift_rule` jsonb**（记录 VAT/SSCL 是否含 10%/15% CIF uplift，消解与 cost-calculator 两版口径差异——开放问题，见 schema K7）。
+
 同一 HS 编码可有多个版本，按 `effective_from` / `effective_to` 取生效版本。**不允许覆盖已发布版本**；变更必须新建版本。
 
 ```typescript
@@ -757,59 +764,13 @@ export const packagingSpecs = pgTable(
 
 > `product_candidates` 不再需要新增包装字段；AI 选品适配层可读 `packaging_specs`，也可以把候选包装写入 `packaging_specs`，由 `freight_estimates.packagingSpecId` 逻辑引用。
 
-#### 4.2.7 `import_batches` / `import_batch_items`（导入批次）
+#### 4.2.7 `import_batches` / `import_rows`（导入批次）
+
+> **已与权威域 I §9.3 合并为一套**：本节草案的 `scope`/`ownerKey`/`domain`/`checksum`/`published` 语义保留为全局参考数据路径（`owner_key='global'`）；租户导入走 `organization_id`；**行表命名统一为 `import_rows`**（废弃 `import_batch_items` 双命名）。租户侧另含 `trigger`（file_upload/platform_api）、`idempotency_key` 等，见权威 §9.3。
 
 Excel/CSV/API 导入都走同一套批次和校验，不直接写目标表。
 
-```typescript
-export const importBatches = pgTable(
-  "import_batches",
-  {
-    id: text("id").primaryKey().$defaultFn(() => createId()),
-    scope: varchar("scope", { length: 16 }).notNull().default("global"),
-    ownerKey: text("owner_key").notNull().default("global"),
-    organizationId: text("organization_id").references(() => organization.id),
-    domain: varchar("domain", { length: 32 }).notNull(), // hs_codes|hs_tariffs|hs_match_rules|freight_config|packaging
-    sourceType: varchar("source_type", { length: 16 }).notNull(), // excel|csv|api|manual
-    format: varchar("format", { length: 16 }).notNull(), // xlsx|csv|json
-    fileName: text("file_name"),
-    fileUrl: text("file_url"),
-    checksum: varchar("checksum", { length: 128 }),
-    status: varchar("status", { length: 16 }).notNull().default("draft"), // draft|validating|ready|published|failed|archived
-    totalRows: integer("total_rows").notNull().default(0),
-    validRows: integer("valid_rows").notNull().default(0),
-    errorRows: integer("error_rows").notNull().default(0),
-    createdRows: integer("created_rows").notNull().default(0),
-    updatedRows: integer("updated_rows").notNull().default(0),
-    skippedRows: integer("skipped_rows").notNull().default(0),
-    errors: jsonb("errors").$type<Array<Record<string, unknown>>>().default([]),
-    createdBy: text("created_by").references(() => user.id),
-    publishedBy: text("published_by").references(() => user.id),
-    publishedAt: timestamp("published_at", { withTimezone: true }),
-    ...timestamps,
-  },
-  (t) => [
-    index("import_batches_owner_domain_idx").on(t.ownerKey, t.domain),
-    index("import_batches_status_idx").on(t.ownerKey, t.status),
-    index("import_batches_checksum_idx").on(t.ownerKey, t.domain, t.checksum),
-  ],
-)
-
-export const importBatchItems = pgTable(
-  "import_batch_items",
-  {
-    id: text("id").primaryKey().$defaultFn(() => createId()),
-    batchId: text("batch_id").notNull().references(() => importBatches.id, { onDelete: "cascade" }),
-    rowNo: integer("row_no").notNull(),
-    action: varchar("action", { length: 16 }).notNull(), // create|update|skip|error
-    recordId: text("record_id"), // 发布后写入目标表 id
-    raw: jsonb("raw").$type<Record<string, unknown>>().notNull(),
-    errors: jsonb("errors").$type<string[]>().default([]),
-    ...timestamps,
-  },
-  (t) => [index("import_batch_items_batch_idx").on(t.batchId, t.rowNo)],
-)
-```
+列结构见权威 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) §9.3（`import_batches` 含 `trigger`/`shop_id`/`api_*`/`idempotency_key`，行表 `import_rows` 含 `external_id` 幂等对账）；全局参考数据导入复用同一套，`owner_key='global'`。
 
 #### 4.2.8 发布、版本与回滚规则
 
@@ -1651,7 +1612,7 @@ UED 验收时用户应能正确说明：单件与整批成本区别；DDP 报价
 | **模块形态** | 新增 `packages/freight`（计算 + 参考数据 + 快照 + 导入 + 维护服务），宿主先放 `apps/shop`，平台后台在 `apps/web` | **已确认** |
 | **计价范围** | UED 覆盖 `air_ddp` / `sea_lcl` / `sea_fcl`；业务启用前要求对应有效费率/报价与规则 | **已确认** |
 | **计费规则** | 按运输方式与有效承运商/货代报价区分：空运可按报价计费重、LCL 按报价 CBM/计费吨/最低收费、FCL 按柜价与装载分摊；不使用无来源的通用材积系数 | **已确认** |
-| **数据模型** | 新增 `freight_estimates` 快照 + `hs_codes` / `hs_tariff_versions` / `hs_match_rules` / `freight_config_versions` / `packaging_specs` / `import_batches` / `import_batch_items` | **已确认** |
+| **数据模型** | 新增 `freight_estimates` 快照 + `hs_codes` / `hs_tariff_versions` / `hs_match_rules` / `freight_config_versions` / `packaging_specs` / `import_batches` / `import_rows` | **已确认** |
 | **参考数据维护** | 平台后台维护全局 HS/税率/规则/费率/汇率/柜型；租户维护本组织包装规格 | **已确认** |
 | **数据来源** | 支持手工、Excel/CSV、API、seed；批次化校验/发布/回滚/审计 | **已确认** |
 | **解耦方式** | 运费模块不写消费方表；消费方通过 API 调用并自行写回 | **已确认** |

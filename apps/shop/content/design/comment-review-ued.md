@@ -225,7 +225,7 @@
 
 ## 6. 数据模型（前端视角）
 
-前端只需消费以下视图模型：
+前端只需消费以下视图模型（`shopExternalId` 为展示用视图字段，后端由权威 `product_reviews.shop_id` + marketplace 映射填充，见 schema §10）：
 
 ```typescript
 // 列表项（聚合，可选）

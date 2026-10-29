@@ -36,7 +36,7 @@
 4. 以第 6 节全局 CopilotKit 与跨页能力补齐壳层；
 5. 以第 8 节迁移表从现有 `/crossborder/*` 平滑切到目标路由。
 
-基础运营数据模型已在 commerce schema 中设计（`shops`、`products`、`listings`、`orders`、`inventory_*`、`cost_components`、`settlements`、`pending_actions`、`product_candidates`）。Skill execution/OKF 知识索引模型见 `docs/design/crossborder-database-design.md`；本文定义动态执行/知识对象索引、人工复核和运营闭环，不固定 Skill 流程，也不替代 schema 文档。
+基础运营数据模型已在 commerce schema 中设计（`shops`、`products`、`listings`、`orders`、`inventory_*`、`cost_components`、`settlements`、`pending_actions`、`product_candidates`）。好时运 ERP 目标域 A–K 见 [`haoshiyun-erp-database-schema.md`](../../../../docs/design/haoshiyun-erp-database-schema.md)（设计稿，未实现）。Skill execution/OKF 知识索引模型见 `docs/design/crossborder-database-design.md`；本文定义动态执行/知识对象索引、人工复核和运营闭环，不固定 Skill 流程，也不替代 schema 文档。
 
 ---
 
@@ -493,7 +493,7 @@ apps/shop/app/.../（示意 · App Router）
 | 页面目标 | 优先暴露紧急库存与库龄问题，给出补货/闪购**建议**（非自动下单采购） |
 | 主要区块 | 紧急补货列表；库龄黄/红统计；补货建议参数卡；闪购建议卡；明细表 |
 | 关键交互 | 筛选 SKU/店铺；「生成补货待审」（P1，kind 可扩展）或仅复制建议 |
-| 字段 | `on_hand`、`threshold`、库龄天数、建议补货量、运输方式（拼柜/整柜） |
+| 字段 | `on_hand`、`threshold`、库龄天数、建议补货量、运输方式（拼柜/整柜）（P1 配置时对齐权威 `stock_alerts`：warehouse+variant、双阈值 `threshold_out`/`threshold_in`、可 `muted`） |
 | 空态 | 无预警 → 正向空态「库存健康」 |
 | AI A/B/C | 建议文案 **C**；自动推库存到平台属 **A**（需另议）；改价闪购走 **B** |
 | 与 Demo 差异 | 保留 Demo 四块结构；补货阈值数字为示例，口径进 P1 配置 |
@@ -513,7 +513,7 @@ apps/shop/app/.../（示意 · App Router）
 | 定价 | 平台佣金、支付费、仓库费、建议售价、目标毛利率阈值 |
 | 空态 | 无成本组件 → 引导录入或从选品带入 |
 | AI A/B/C | 税率/HS 提示 **C**；写入成本 **B**（若影响在售价） |
-| 与 Demo 差异 | 与财务中心拆分；结构化对齐 `cost_components`（purchase/freight/duty/other），税项可落在 `note` 或 jsonb 扩展，**不在本文改表** |
+| 与 Demo 差异 | 与财务中心拆分；旧 mock 对齐 `cost_components`（purchase/freight/duty/other）仅作过渡兼容——目标写路径已改 `cost_template_versions`/`sku_costs`/`order_fees`（权威 schema §12），税项落在组件 jsonb；**不在本文改表** |
 
 ### 5.8 财务中心 `/console/finance`
 

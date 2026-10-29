@@ -294,7 +294,7 @@ Web `/console` IA **保持**现有 `console-nav.ts`，不因 Desktop 改侧栏�
 |----|------|---------|-----|------|
 | S1 | 选品候选写入待审 | Skill + MCP upsert candidate | `/console/candidates`、`/pending` | candidates / pending_actions |
 | S2 | 待审确认 | 确认卡或「请到 Web 确认」 | `/console/pending` | pending B 模式 |
-| S3 | 成本解读 | Skill 读成本字段 | `/console/costs` + 计算器 | cost_components |
+| S3 | 成本解读 | Skill 读成本字段 | `/console/costs` + 计算器 | cost_components（过渡读路径；目标切 `sku_costs`/`order_fees`，见权威 schema §12） |
 | S4 | 订单/库存问答 | MCP list_orders / get_inventory | 详情页深链 | **orders / inventory（SoR）** |
 | S5 | **Automations 采情入库** | 定时任务 + Skill（经兼容 Automations API） | KB 管理页（可后置） | **shop OKF bundle + OSS 次级索引** |
 | S6 | **Dashboard 关注流** | 订阅源 → 卡片 | 可选对照 KPI | follow_* + KB 摘要 + 只读聚合 |

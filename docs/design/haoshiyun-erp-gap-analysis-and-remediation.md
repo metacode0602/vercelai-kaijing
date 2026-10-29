@@ -1,5 +1,7 @@
 # 好时运 ERP 运营需求：覆盖分析与整改设计
 
+> **状态：整改前代码基线分析（快照）。** 本文按分析时点的代码证据作差距判断；其中列出的「缺失实体」（仓库/库位、采购审批、库存流水、导入批次、审计事件、业务角色等）的**目标数据模型已由权威 [haoshiyun-erp-database-schema.md](./haoshiyun-erp-database-schema.md) 完成设计**（域 A–K，约 75 表，代码未实现）。本文保留为基线对照，不作现行设计依据。
+
 **输入**：`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（9 个工作表）  
 **分析范围**：当前工作区 `open-shop` 中已跟踪的源码、数据库 schema/migrations、页面、服务端路由及设计文档。  
 **状态**：初步设计；待业务确认项见 §8。  
@@ -102,7 +104,7 @@ erDiagram
 
 建议在现有 `commerce-schema.ts` 演进，不另建平行业务 schema。新增实体按 organization 隔离，外部 ID 专用字段或映射表，金额保存原币、币种、来源及发生时间；不可变交易事实采用追加事件/流水，主档停用而非物理删除。跨平台库存归属 warehouse+SKU，而不归属 shop；店铺销售映射仅决定订单占用同一个库存池。
 
-### 4.2 平台基础资料与可复用主数据（本轮 UED / DB 设计重点）
+### 4.1 平台基础资料与可复用主数据（本轮 UED / DB 设计重点）
 
 本轮新增 UED 使用的层级：**平台 → 国家/站点 → 店铺 → 可选仓库（其中一个默认出库仓）/库存池**。国家主档提供默认时区和币种；店铺在选择平台后只显示该平台支持的站点，并默认带出站点币种、时区和库存/履约设置；每个店铺可以关联多个仓库，且必须选择其中一个作为默认出库仓。同一个公司仓库可以复用于多个店铺。基础资料统一软停用，不删除历史引用。
 
@@ -117,7 +119,7 @@ erDiagram
 | `commerce_warehouses` | `id, organization_id, code, name, type, country_id, timezone, operating_currency, address, status` | `(organization_id, code)` 唯一；公司仓库可被多个平台店铺复用 |
 | `shops`（扩充） | 现字段 + `marketplace_id, seller_id, shop_code, legal_entity_id, owner_user_id, team_id, default_warehouse_id, inventory_pool_id, fulfillment_mode, status, planned_launch_at, launched_at` | `marketplace_id` 约束平台/国家；(org, platform, seller_id) 唯一；授权凭据继续独立加密保存 |
 | `shop_warehouses` | `id, organization_id, shop_id, warehouse_id, is_default_outbound, status, created_at, created_by` | 店铺与仓库多对多；每店 active 关联必须且仅一个 `is_default_outbound=true`；复合 FK 保证双方属于同一 organization；默认仓必须是店铺已关联且 active 仓 |
-| `inventory_pools` | `id, organization_id, code, name, warehouse_id, status` | 可选抽象：多个店铺共享同一库存池；首阶段所有 Lazada 五站配置到一个 pool；余额以 pool/仓库/SKU 归属 |
+| `inventory_pools` | `id, organization_id, code, name, warehouse_id, status` | 可选抽象：多个店铺共享同一库存池；首阶段所有 Lazada 五站配置到一个 pool。余额物理事实按权威口径 = **warehouse + bin + variant**（pool 仅逻辑分组/推送策略，见 schema §1.7） |
 | `commerce_dictionaries` | `id, organization_id nullable, key, label, scope, status, is_system` | organization null 代表系统字典；用户字典按组织隔离；key 唯一范围按 system/org 定义 |
 | `commerce_dictionary_values` | `id, dictionary_id, code, canonical_value, label_zh, label_en, sort_order, status, metadata` | `(dictionary_id, code)` 唯一；停用不删；表单仅可选 active 值 |
 | `commerce_dictionary_aliases` | `id, dictionary_value_id, alias, normalized_alias, locale` | 同字典下 normalized alias 唯一；别名用于导入匹配/搜索，不作为新业务记录主值 |
@@ -126,17 +128,17 @@ erDiagram
 
 页面简化原则：创建店铺以“平台→站点→店铺信息→选择可用仓库→指定默认出库仓”分步且同一表单完成；国家默认时区/币种和平台支持站点自动带出；只把不常用字段放进“更多设置”；基础字典提供一次维护、多处复用、别名归一、停用而非删除。新建平台不能通过普通基础字典 CRUD 创造 API 集成，需由平台管理员完成 connector 配置。
 
-## 4.3 UED 实现边界（本轮）
+## 4.2 UED 实现边界（本轮）
 
 基础设置页面 `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
 
-### 4.4 其余页面 UED 规格
+### 4.3 其余页面 UED 规格
 
 已补齐剩余 ERP 页面组的信息架构、主要页面内容、状态、操作与待确认点，见 [`haoshiyun-erp-ued-catalog.md`](./haoshiyun-erp-ued-catalog.md)。主数据、供应商、Seller SKU 映射、采购、库存流水调整、售后、报表、导入、日志、角色权限以及店铺多仓向导已实现为客户端示例交互；订单履约异常详情、完整平台状态流程、SKU 规格矩阵批量生成、实文件导入校验等仍是原型规格/待后续细化，不代表业务服务已实现。
 
 ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另见 [`haoshiyun-erp-target-function-matrix.md`](./haoshiyun-erp-target-function-matrix.md)。目标覆盖不应以“菜单/页面存在”作为完成标准。
 
-### 4.1 关键约束
+### 4.4 关键约束
 
 1. **编码**：SPU `HSY` + 6 位序号；SKU 由 SPU + 3 位序号构成。编号在数据库事务/序列中生成且不可复用；迁移旧码保存 legacy code，不覆盖外部 Seller SKU。
 2. **Listing 映射**：唯一业务键 `(organization_id, shop_id, seller_sku)`；关联一个有效内部 SKU。一个内部 SKU 可出现在多个 Listing；每个 Listing 的变体按 Seller SKU 独立映射。缺失/冲突/停用映射进入异常队列并禁止自动占库。
@@ -273,3 +275,5 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 - tRPC 入口：`open-shop/apps/web/src/lib/server/routers/index.ts`
 - 现有阶段/交付边界：`open-shop/docs/design/crossborder-mvp-overview.md`
 - 现有 DB 设计：`open-shop/docs/design/crossborder-database-design.md`
+- 目标 DB 权威设计：`open-shop/docs/design/haoshiyun-erp-database-schema.md`
+- 复用评估：`open-shop/docs/design/haoshiyun-erp-open-mercato-reuse-plan.md`

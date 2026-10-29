@@ -1,5 +1,7 @@
 # 跨境运营域：数据库设计（Drizzle / PostgreSQL）
 
+> **状态：现状基线（v0）。** 本文描述 `commerce-schema.ts` 已落地的早期跨境域表结构。好时运 ERP 目标演进（域 A–K，约 75 表）以 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) 为**权威**——库存共享池、成本写路径、Seller SKU 映射、审计列集等均已由权威文档重定义；本文中标注的差异处以权威为准。
+
 **归属：** `packages/db`  
 **原则：** 复用 `auth-schema` 的 `organization` / `member` / `session.activeOrganizationId`；业务表强制 `organization_id`；外部平台 ID 只进映射表。Open Shop 为 Desktop/Skill 提供跨境业务输入数据接口，并通过 MCP 接收、保存 Skill 的执行结果和过程数据。完整知识内容进入基于 LLM Wiki（Open Knowledge Format，OKF）的电商知识库；PostgreSQL 只保存业务数据和访问/检索/关联所需的索引元数据，不复制成固定步骤的研究流程数据库。平台动作仍经过统一 domain 与待审策略。
 
@@ -131,6 +133,8 @@ MVP 运行时只启用 `daraz`。
 
 ### 3.7 external_id_mappings
 
+> **注意：** Seller SKU → 内部 SKU 的**权威映射路径已改为** `seller_sku_mappings`（唯一键 `(organization_id, shop_id, seller_sku)`，见权威 §3.2）。本表现仅承载非 SKU 实体（订单/结算/评论等外部 ID）；`(shop_id, entity_type, internal_id)` 侧唯一键需放宽为 1:N（见权威 §12）。
+
 | 列 | 说明 |
 |----|------|
 | id | |
@@ -157,13 +161,17 @@ MVP 运行时只启用 `daraz`。
 
 ### 3.9 inventory_balances / stock_alerts
 
-**inventory_balances：** organization_id, shop_id, variant_id, on_hand, reserved, updated_at；唯一 `(shop_id, variant_id)`  
+> **注意（迁移前现状）：** 权威 §5.1/§5.5/§12 已重构为**共享库存池**——余额按 `(organization_id, warehouse_id, bin_id, variant_id)` 归集，**店铺不再持有库存余额**；`stock_alerts` 改挂 warehouse+variant、双阈值 `threshold_out`/`threshold_in`、新增 `muted` 状态。本节为迁移前 `shop_id + variant` 拆分结构的现状记录。
 
-**stock_alerts：** organization_id, shop_id, variant_id, threshold, triggered_at, status(`open`|`acked`)
+**inventory_balances（现状）：** organization_id, shop_id, variant_id, on_hand, reserved, updated_at；唯一 `(shop_id, variant_id)`  
+
+**stock_alerts（现状）：** organization_id, shop_id, variant_id, threshold, triggered_at, status(`open`|`acked`)
 
 ### 3.10 cost_components
 
-SKU 落地成本组件：organization_id, variant_id, component(`purchase`|`freight`|`duty`|`other`), amount, currency, note, effective_from。
+> **注意：** 权威 §12 已裁定 `cost_components` 为**只读归档**；写路径改为 `cost_template_versions` + `sku_costs`（含 `freight_estimate_id` 逻辑引用），实际发生费用入 `order_fees`。本节为旧写路径的现状记录。
+
+SKU 落地成本组件（现状）：organization_id, variant_id, component(`purchase`|`freight`|`duty`|`other`), amount, currency, note, effective_from。
 
 ### 3.11 settlements / settlement_lines
 
@@ -284,6 +292,8 @@ OpenWork Agent 可提出、Open Shop 租户运营台复核的候选商品。候�
 
 #### 3.15.8 `audit_events`（跨产品操作审计）
 
+> **注意：** ERP 权威结构见域 I §9.2（`actor_type` / `module` / `before` / `after` / `ip` / `user_agent`）。本节为 Skill/OKF 侧扩展字段候选（`actor_kind` / `source` / `idempotency_key` / `metadata_summary`）；落地前需**合并为一套列集**，不得同名表两套迁移。
+
 统一记录研究索引与业务动作：`id, organization_id, actor_kind, actor_id, source(desktop_mcp|shop_ui|api|worker|marketplace), action, resource_type, resource_id, resource_version nullable, request_id, idempotency_key nullable, result, reason_code nullable, metadata_summary jsonb, created_at`。
 
 审计只放索引/操作摘要；完整的人工批注、Agent 结果和决策说明存 OKF。业务最终审批状态若影响产品/刊登执行，仍记录在对应业务表/pending_actions，而非只记知识库。
@@ -293,6 +303,8 @@ OpenWork Agent 可提出、Open Shop 租户运营台复核的候选商品。候�
 候选表加 `knowledge_document_id` / `knowledge_space_id` / `source_execution_id` 关联相关 OKF 结果；如多引用，使用 `knowledge_document_refs` junction。候选本身的标题、类目、建议价格、候选状态等是运营列表/审批字段，仍保留在业务表。候选决策依据正文存 OKF。
 
 ### 3.16 执行索引到业务运营数据关系
+
+> 本 ER 图仅覆盖 MVP Skill/OKF 关系，不含好时运域 A–K 新表（见权威 schema）。
 
 ```mermaid
 erDiagram

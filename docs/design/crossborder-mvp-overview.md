@@ -110,6 +110,8 @@ packages/ui  共享组件
 | **P3** | OpenWork 选品 Skill + 端到端 | — |
 | **P4（新增设计目标）** | 动态 Skill execution/OKF 索引与知识库 adapter；MCP 完整业务输入读写、组织角色/知识 ACL；Desktop 关联；候选→商品→listing→平台结果复盘 | 共用 domain |
 
+> 好时运 ERP 域 A–K 落地批次另见 [haoshiyun-erp-database-schema.md](./haoshiyun-erp-database-schema.md) §17（S1–S7 + K0–K6），与上表并行推进、非互斥。
+
 ---
 
 ## 7. 与文档/代码债
