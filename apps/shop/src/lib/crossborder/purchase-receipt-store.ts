@@ -19,6 +19,7 @@ import {
   type PurchaseOrder,
   type PurchaseOrderLine,
 } from '@/lib/crossborder/purchase-order-store'
+import { applyPurchaseStockIn } from '@/lib/crossborder/wms-store'
 
 /** 对应 purchase_receipts.status */
 export const PURCHASE_RECEIPT_STATUSES = ['草稿', '待质检', '已完成', '已取消'] as const
@@ -654,13 +655,26 @@ export function confirmStockInboundShelve(
   if (current.quantity <= 0) return { ok: false, reason: '上架数量无效' }
 
   let updated!: StockInbound
+  const actor = operator?.trim() || current.operator || '当前用户'
+  const stockResult = applyPurchaseStockIn({
+    warehouse: current.warehouse || 'WH-CN-XMN-001',
+    bin: current.bin,
+    sku: current.sku,
+    quantity: current.quantity,
+    sourceDoc: current.sourceDoc,
+    actor,
+    idempotencyKey: current.idempotencyKey,
+    reason: `${current.sourceType}上架`,
+  })
+  if (!stockResult.ok) return { ok: false, reason: stockResult.reason }
+
   inboundStore.set(
     inbounds.map((inbound) => {
       if (inbound.id !== inboundId) return inbound
       updated = {
         ...inbound,
         status: '已上架',
-        operator: operator?.trim() || inbound.operator || '当前用户',
+        operator: actor,
         at: nowStamp(),
       }
       return updated

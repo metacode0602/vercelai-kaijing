@@ -1,37 +1,98 @@
 'use client'
 
 import * as React from 'react'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { ERP_DEMO_INVENTORY } from '@/lib/crossborder/erp-ued-data'
+import { DetailKpiRow } from '@/components/console/detail'
+import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { LEDGER_EVENT_TYPES, useInventoryLedger } from '@/lib/crossborder/wms-store'
+import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
-type LedgerRow = { id: string; sku: string; warehouse: string; bin: string; type: string; before: number; delta: number; after: number; source: string; reason: string; actor: string; at: string; status: string }
-
-export const DEMO_LEDGER: LedgerRow[] = [
-  { id: 'MOV-2026-10012', sku: 'HSY000001001', warehouse: 'WH-CN-XMN-001', bin: 'A-01-01-01', type: '采购入库', before: 30, delta: 20, after: 50, source: 'PO-2026-0031', reason: '合格入库', actor: '仓库员', at: '2026-10-28 09:15', status: '已记账' },
-  { id: 'MOV-2026-10011', sku: 'HSY000001001', warehouse: 'WH-CN-XMN-001', bin: 'A-01-01-01', type: '订单锁定', before: 50, delta: -4, after: 46, source: 'DZ-10021', reason: '订单预留（示例）', actor: '系统', at: '2026-10-28 08:02', status: '已记账' },
-]
-
 export default function InventoryLedgerPage() {
-  const [rows, setRows] = React.useState(DEMO_LEDGER)
-  const [open, setOpen] = React.useState(false)
+  const rows = useInventoryLedger()
+  const router = useLocaleRouter()
   const [notice, setNotice] = React.useState('')
-  const editor = open ? <UedDialog title="创建库存调整单" description="提交后等待业务审批规则确认；不直接修改库存余额。" fields={[
-        { key: 'type', label: '变动类型', options: ['盘盈', '盘亏', '报损', '库位转移'], required: true },
-        { key: 'sku', label: '内部 SKU', options: ['HSY000001001', 'HSY000001002', 'HSY000002001'], required: true },
-        { key: 'warehouse', label: '仓库', options: ['WH-CN-XMN-001'], required: true },
-        { key: 'bin', label: '库位', options: ['A-01-01-01', 'A-01-01-02', 'B-02-01-01'], required: true },
-        { key: 'delta', label: '变动数量', type: 'number', required: true, helper: '盘亏 / 报损填写负数' },
-        { key: 'source', label: '来源单号', placeholder: '如 PO-2026-0031 或盘点任务号' },
-        { key: 'reason', label: '原因 / 证据', type: 'textarea', required: true, fullWidth: true },
-        { key: 'applicant', label: '申请人', required: true },
-        { key: 'remark', label: '备注', type: 'textarea', fullWidth: true },
-      ]} onClose={() => setOpen(false)} onSave={() => { setRows((current) => [{ id: `ADJ-${current.length + 21}`, sku: 'HSY000001001', warehouse: 'WH-CN-XMN-001', bin: 'A-01-01-01', type: '盘点调整（草稿）', before: 46, delta: 1, after: 47, source: '待审批', reason: '人工盘点（示例）', actor: '当前用户', at: '刚刚', status: '待确认' }, ...current]); setOpen(false); setNotice('调整单已保存为本次原型草稿；余额未改变。') }} /> : null
-  return <>{editor}<UedWorkspace title="库存流水与调整" description="库存变化追加记账，不允许直接编辑余额或删除历史流水。" rows={rows} detailHref={(row) => `/console/inventory-ledger/${encodeURIComponent(row.id)}`} searchKeys={['id', 'sku', 'warehouse', 'bin', 'type', 'source', 'actor']} addLabel="创建调整单" onAdd={() => setOpen(true)} columns={[
-    { key: 'id', label: '流水 / 调整单' }, { key: 'sku', label: 'SKU' }, { key: 'warehouse', label: '仓库 / 库位', render: (row) => `${row.warehouse} · ${row.bin}` }, { key: 'type', label: '变动类型' }, { key: 'before', label: '变动前' }, { key: 'delta', label: '变化' }, { key: 'after', label: '变动后' }, { key: 'source', label: '来源单' }, { key: 'actor', label: '操作人' }, { key: 'at', label: '时间' }, { key: 'status', label: '状态', render: (row) => <Badge variant="secondary">{row.status}</Badge> },
-  ]}>
-    <UedPrototypeNotice>可用库存按“实际库存 − 锁定库存 − 不可售库存”计算；调整和报损的审批门槛待 Q11 确认。更正历史应创建反向流水。</UedPrototypeNotice>
-    <div className="flex flex-wrap gap-2">{ERP_DEMO_INVENTORY.map((item) => <Button key={item.sku} variant="outline" size="sm" onClick={() => setNotice(`${item.sku} · ${item.warehouse}/${item.bin} · 账面 ${item.onHand} · 预留 ${item.reserved} · 残次 ${item.damaged} · 可用 ${item.onHand - item.reserved - item.damaged}`)}>{item.sku} 库存摘要</Button>)}</div>{notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-  </UedWorkspace></>
+
+  const kpiItems = React.useMemo(() => {
+    const inbound = rows.filter((row) => row.direction === 'in').length
+    const outbound = rows.filter((row) => row.direction === 'out').length
+    const adjust = rows.filter((row) => row.direction === 'adjust' || row.direction === 'move').length
+    return [
+      { label: '流水笔数', value: String(rows.length), hint: '追加式 · 禁改删' },
+      { label: '入库类', value: String(inbound) },
+      { label: '出库类', value: String(outbound) },
+      { label: '调整 / 锁定', value: String(adjust) },
+    ]
+  }, [rows])
+
+  return (
+    <UedWorkspace
+      title="库存流水"
+      description="inventory_ledger：库存变化追加记账；余额是投影。修正一律创建反向流水，不允许编辑或删除历史。"
+      rows={rows}
+      detailHref={(row) => `/console/inventory-ledger/${encodeURIComponent(row.id)}`}
+      searchKeys={['id', 'sku', 'warehouse', 'bin', 'type', 'sourceId', 'actor', 'idempotencyKey', 'eventType']}
+      searchPlaceholder="搜索流水号、SKU、来源单或幂等键"
+      filters={[{ label: '类型', options: [...LEDGER_EVENT_TYPES], key: 'eventType' }]}
+      emptyText="暂无库存流水。入库上架、出库过账或调整过账后会出现在此。"
+      columns={[
+        { key: 'id', label: '流水号' },
+        { key: 'sku', label: 'SKU' },
+        {
+          key: 'warehouse',
+          label: '仓库 / 库位',
+          render: (row) => `${row.warehouse} · ${row.bin}`,
+        },
+        { key: 'type', label: '变动类型' },
+        { key: 'onHandBefore', label: '变动前', render: (row) => String(row.onHandBefore) },
+        {
+          key: 'qty',
+          label: '变化',
+          render: (row) => {
+            const delta = row.onHandAfter - row.onHandBefore
+            const reservedDelta = row.reservedAfter - row.reservedBefore
+            const show = delta !== 0 ? delta : reservedDelta
+            return (
+              <span className={show < 0 ? 'text-destructive' : undefined}>
+                {show > 0 ? `+${show}` : show}
+              </span>
+            )
+          },
+        },
+        { key: 'onHandAfter', label: '变动后', render: (row) => String(row.onHandAfter) },
+        { key: 'sourceId', label: '来源单' },
+        { key: 'actor', label: '操作人' },
+        { key: 'occurredAt', label: '时间' },
+        {
+          key: 'status',
+          label: '状态',
+          render: (row) => <Badge variant="secondary">{row.status}</Badge>,
+        },
+      ]}
+    >
+      <DetailKpiRow items={kpiItems} />
+      <UedPrototypeNotice>
+        幂等键（organization_id + idempotency_key）唯一：重复上架 / 出库 / 过账会被拦截。创建调整请前往「盘点与调整」，本页只读流水。
+      </UedPrototypeNotice>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" onClick={() => router.push('/console/stock-adjustments')}>
+          发起盘点 / 调整
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => router.push('/console/stock-inbounds')}>
+          入库上架
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => router.push('/console/stock-outbounds')}>
+          出库单
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setNotice('流水不可导出删除；演示导出请用右上角「导出演示清单」。')}
+        >
+          关于冲正
+        </Button>
+      </div>
+      {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+    </UedWorkspace>
+  )
 }
