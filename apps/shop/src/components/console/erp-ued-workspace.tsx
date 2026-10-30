@@ -28,14 +28,19 @@ export function UedWorkspace<T>(props: {
   children?: React.ReactNode
 }) {
   const [query, setQuery] = React.useState('')
-  const [filter, setFilter] = React.useState('全部')
+  const filterDefs = props.filters ?? []
+  const [filterValues, setFilterValues] = React.useState<Record<number, string>>({})
   const searchKeys = props.searchKeys ?? ['id', 'code', 'spu', 'sku', 'name', 'status']
-  const filterKey = props.filters?.[0]?.key ?? 'status'
   const rows = props.rows.filter((row) => {
     const record = row as Record<string, unknown>
     const searchable = searchKeys.map((key) => String(record[String(key)] ?? '')).join(' ').toLowerCase()
-    const statusValue = String(record[filterKey] ?? record.status ?? '')
-    return searchable.includes(query.toLowerCase()) && (filter === '全部' || statusValue === filter)
+    if (!searchable.includes(query.toLowerCase())) return false
+    return filterDefs.every((item, index) => {
+      const selected = filterValues[index] ?? '全部'
+      if (selected === '全部') return true
+      const filterKey = item.key ?? 'status'
+      return String(record[filterKey] ?? record.status ?? '') === selected
+    })
   })
 
   function exportDemoRows() {
@@ -58,7 +63,7 @@ export function UedWorkspace<T>(props: {
   return <section className="mx-auto flex w-full max-w-7xl flex-col gap-5">
     <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-xl font-semibold tracking-tight">{props.title}</h1><p className="mt-1 text-sm text-muted-foreground">{props.description}</p></div><div className="flex gap-2"><Button variant="outline" onClick={props.onExport ?? exportDemoRows}><Download data-icon="inline-start" />导出演示清单</Button>{props.onAdd ? <Button onClick={props.onAdd}><Plus data-icon="inline-start" />{props.addLabel ?? '新增'}</Button> : null}</div></header>
     {props.children}
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder ?? '搜索编码、名称或状态'} className="pl-9" /></div><div className="flex items-center gap-3"><span className="text-sm text-muted-foreground">{rows.length} 条示例</span>{props.filters?.length ? <NativeSelect value={filter} onChange={(event) => setFilter(event.target.value)} className="w-40"><NativeSelectOption value="全部">全部状态</NativeSelectOption>{props.filters.flatMap((item) => item.options).map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect> : null}<Badge variant="outline">示例数据</Badge></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder ?? '搜索编码、名称或状态'} className="pl-9" /></div><div className="flex flex-wrap items-center gap-3"><span className="text-sm text-muted-foreground">{rows.length} 条示例</span>{filterDefs.map((item, index) => <NativeSelect key={`${item.label}-${index}`} value={filterValues[index] ?? '全部'} onChange={(event) => setFilterValues((current) => ({ ...current, [index]: event.target.value }))} className="w-40"><NativeSelectOption value="全部">全部{item.label}</NativeSelectOption>{item.options.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect>)}<Badge variant="outline">示例数据</Badge></div></div>
     <div className="overflow-hidden rounded-lg border"><Table><TableHeader><TableRow>{props.columns.map((column) => <TableHead key={String(column.key)}>{column.label}</TableHead>)}{props.detailHref ? <TableHead className="w-24 text-right">详情</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row, index) => { const record = row as Record<string, unknown>; return <TableRow key={String(record.id ?? record.code ?? record.spu ?? record.sku ?? index)}>{props.columns.map((column) => <TableCell key={String(column.key)}>{column.render ? column.render(row) : String(record[String(column.key)] ?? '—')}</TableCell>)}{props.detailHref ? <TableCell className="text-right"><Button variant="ghost" size="sm" asChild><LocaleLink href={props.detailHref(row)}>查看<ChevronRight data-icon="inline-end" /></LocaleLink></Button></TableCell> : null}</TableRow>})}{rows.length === 0 ? (<TableRow><TableCell colSpan={props.columns.length + (props.detailHref ? 1 : 0)} className="h-24 text-center text-muted-foreground">{props.emptyText ?? '没有匹配数据。清除筛选或新增记录。'}</TableCell></TableRow>) : null}</TableBody></Table></div>
   </section>
 }

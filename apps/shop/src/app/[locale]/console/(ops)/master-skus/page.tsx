@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
-import { ProductCoverCell, ProductImagePanel } from '@/components/console/product-images'
+import { ProductCoverCell } from '@/components/console/product-images'
 import {
   createVariant,
   listSkuRows,
@@ -12,7 +12,6 @@ import {
 import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
 
 export default function MasterSkusPage() {
   const products = useProducts()
@@ -23,32 +22,43 @@ export default function MasterSkusPage() {
   const sizeOptions = activeDictionaryValues(dictionaries, 'product_size')
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
-  const [selectedSku, setSelectedSku] = React.useState('')
-
-  React.useEffect(() => {
-    if (!selectedSku && rows[0]) setSelectedSku(rows[0].sku)
-  }, [rows, selectedSku])
-
-  const selected = rows.find((row) => row.sku === selectedSku) ?? rows[0]
 
   const kpiItems = React.useMemo(() => {
     const enabled = rows.filter((item) => item.status === '启用').length
     const pending = rows.filter((item) => item.status === '待确认').length
-    const missingBarcode = rows.filter(
-      (item) => !item.barcode || item.barcode === '待补充',
-    ).length
+    const disabled = rows.filter((item) => item.status === '停用').length
+    const hasBarcode = (item: { barcode?: string }) =>
+      Boolean(item.barcode) && item.barcode !== '待补充'
+    const missingBarcode = rows.filter((item) => !hasBarcode(item)).length
+    const listable = rows.filter((item) => item.status === '启用' && hasBarcode(item)).length
+    const spuCount = new Set(rows.map((item) => item.spu)).size
+    const totalWeight = rows.reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
     return [
       { label: 'SKU 数', value: String(rows.length), hint: '当前原型会话' },
       { label: '启用', value: String(enabled) },
       { label: '待确认', value: String(pending) },
+      { label: '停用', value: String(disabled) },
+      { label: '可刊登', value: String(listable), hint: '启用且条码齐全' },
       { label: '缺条码', value: String(missingBarcode), hint: '缺条码不可刊登' },
+      { label: '覆盖 SPU', value: String(spuCount) },
+      { label: '总重量', value: `${(totalWeight / 1000).toFixed(1)} kg` },
+    ]
+  }, [rows])
+
+  const filters = React.useMemo(() => {
+    const unique = (values: string[]) => [...new Set(values)]
+    return [
+      { label: '状态', key: 'status', options: ['启用', '待确认', '停用'] },
+      { label: '所属 SPU', key: 'spu', options: unique(rows.map((row) => row.spu)) },
+      { label: '颜色', key: 'color', options: unique(rows.map((row) => row.color)) },
+      { label: '尺码', key: 'size', options: unique(rows.map((row) => row.size)) },
     ]
   }, [rows])
 
   const editor = open ? (
     <UedDialog
       title="生成内部 SKU"
-      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成；创建后可在列表上方或详情页上传图片。"
+      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成；创建后可在详情页补充图片与关联信息。"
       fields={[
         {
           key: 'spu',
@@ -98,7 +108,6 @@ export default function MasterSkusPage() {
           status: (values.status as '待确认' | '启用' | '停用') || '待确认',
         })
         if (created) {
-          setSelectedSku(created.code)
           setNotice(`${created.code} 已生成（原型会话）；实际编号规则由后端校验去重与流水号。`)
         }
         setOpen(false)
@@ -116,7 +125,7 @@ export default function MasterSkusPage() {
         detailHref={(row) => `/console/master-skus/${encodeURIComponent(row.id)}`}
         searchKeys={['sku', 'spu', 'name', 'color', 'size', 'barcode', 'status']}
         searchPlaceholder="搜索 SKU、SPU、颜色或条码"
-        filters={[{ label: '状态', options: ['启用', '待确认', '停用'] }]}
+        filters={filters}
         addLabel="生成内部 SKU"
         onAdd={() => setOpen(true)}
         columns={[
@@ -152,36 +161,6 @@ export default function MasterSkusPage() {
         <UedPrototypeNotice>
           SKU 与 SPU 编号不可编辑、不可复用；停用保留历史。颜色与尺码从属性字典标准值选择，服装尺码不允许自造值。条码缺失的 SKU 不允许刊登。
         </UedPrototypeNotice>
-        {selected ? (
-          <div className="rounded-lg border p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="font-medium">{selected.sku} · SKU 图片</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  封面图用于 SKU 列表展示；截图可多张维护。
-                </p>
-              </div>
-              <NativeSelect
-                value={selected.sku}
-                onChange={(event) => setSelectedSku(event.target.value)}
-                className="w-56"
-              >
-                {rows.map((row) => (
-                  <NativeSelectOption key={row.sku} value={row.sku}>
-                    {row.sku} · {row.color} {row.size}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-            <ProductImagePanel
-              key={selected.sku}
-              imageKey={`sku:${selected.sku}`}
-              fallback={{ cover: selected.coverImage, images: selected.images ?? [] }}
-              label="SKU 图片"
-              description="维护该 SKU 的封面与细节截图。"
-            />
-          </div>
-        ) : null}
         <div className="flex flex-wrap gap-2">
           {rows
             .filter((row) => row.status === '待确认')
