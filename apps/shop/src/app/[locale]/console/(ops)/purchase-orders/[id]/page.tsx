@@ -20,7 +20,11 @@ import {
   usePurchaseOrders,
   type PurchaseOrderStatus,
 } from '@/lib/crossborder/purchase-order-store'
-import { LocaleLink } from '@/lib/i18n/navigation'
+import {
+  createReceiptFromPurchaseOrder,
+  usePurchaseReceipts,
+} from '@/lib/crossborder/purchase-receipt-store'
+import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -46,6 +50,8 @@ function statusVariant(status: string) {
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
   const orders = usePurchaseOrders()
+  const receipts = usePurchaseReceipts()
+  const router = useLocaleRouter()
   const order = orders.find((item) => item.id === id)
 
   const [lineOpen, setLineOpen] = React.useState(false)
@@ -251,14 +257,31 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
             下发采购单
           </Button>
         ) : null}
-        {current.status === '已下发' ? (
-          <Button size="sm" variant="outline" onClick={() => advance('部分到货')}>
-            登记部分到货
+        {current.status === '已下发' || current.status === '部分到货' ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              const result = createReceiptFromPurchaseOrder(receipts, current.id, {
+                receivedBy: '当前用户',
+              })
+              if (!result.ok) {
+                setNotice(result.reason)
+                return
+              }
+              setNotice(`${current.poNo} 已创建到货批次 ${result.receipt.receiptNo}`)
+              router.push(`/console/purchase-receipts/${encodeURIComponent(result.receipt.id)}`)
+            }}
+          >
+            登记到货
           </Button>
         ) : null}
-        {current.status === '部分到货' ? (
-          <Button size="sm" onClick={() => advance('已收货')}>
-            确认收货完成
+        {current.status === '已下发' || current.status === '部分到货' ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => router.push('/console/purchase-receipts')}
+          >
+            查看到货质检
           </Button>
         ) : null}
         {current.status === '草稿' || current.status === '已下发' ? (

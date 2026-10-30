@@ -4,11 +4,14 @@ import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import {
   createPurchaseOrderHeader,
+  listReceivablePurchaseOrders,
   toListRow,
-  updatePurchaseOrderStatus,
   usePurchaseOrders,
-  type PurchaseOrderStatus,
 } from '@/lib/crossborder/purchase-order-store'
+import {
+  createReceiptFromPurchaseOrder,
+  usePurchaseReceipts,
+} from '@/lib/crossborder/purchase-receipt-store'
 import { usePurchaseRequests } from '@/lib/crossborder/purchase-request-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -19,7 +22,9 @@ const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
 
 export default function PurchaseOrdersPage() {
   const orders = usePurchaseOrders()
+  const receipts = usePurchaseReceipts()
   const purchaseRequests = usePurchaseRequests()
+  const receivable = React.useMemo(() => listReceivablePurchaseOrders(orders), [orders])
   const REQUEST_OPTIONS = React.useMemo(() => {
     const nos = purchaseRequests.map((item) => item.requestNo)
     return [...nos, '—']
@@ -29,9 +34,14 @@ export default function PurchaseOrdersPage() {
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
-  function advance(id: string, status: PurchaseOrderStatus) {
-    updatePurchaseOrderStatus(orders, id, status)
-    setNotice(`${id} 推进为「${status}」（原型会话）；到货登记在「到货质检入库」完成。`)
+  function registerReceive(poId: string) {
+    const result = createReceiptFromPurchaseOrder(receipts, poId, { receivedBy: '当前用户' })
+    if (!result.ok) {
+      setNotice(result.reason)
+      return
+    }
+    setNotice(`${poId} 已创建到货批次 ${result.receipt.receiptNo}，正在打开…`)
+    router.push(`/console/purchase-receipts/${encodeURIComponent(result.receipt.id)}`)
   }
 
   const editor = open ? (
@@ -117,20 +127,14 @@ export default function PurchaseOrdersPage() {
           创建流程对齐表结构：列表「新建」只写主信息（供应商、仓库、币种、预计到货等），不要求同时填写行项目。明细在详情页按行追加；无明细的草稿也可先保存。正式环境仍可由已审核申请转换生成。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
-          {rows
-            .filter((row) => row.status === '已下发')
-            .map((row) => (
-              <Button key={row.id} variant="outline" size="sm" onClick={() => advance(row.id, '部分到货')}>
-                登记部分到货 · {row.id}
-              </Button>
-            ))}
-          {rows
-            .filter((row) => row.status === '部分到货')
-            .map((row) => (
-              <Button key={`done-${row.id}`} size="sm" onClick={() => advance(row.id, '已收货')}>
-                确认收货完成 · {row.id}
-              </Button>
-            ))}
+          {receivable.map((row) => (
+            <Button key={row.id} variant="outline" size="sm" onClick={() => registerReceive(row.id)}>
+              登记到货 · {row.poNo}
+            </Button>
+          ))}
+          <Button size="sm" variant="ghost" onClick={() => router.push('/console/purchase-receipts')}>
+            打开到货质检入库
+          </Button>
           <Button
             variant="ghost"
             size="sm"

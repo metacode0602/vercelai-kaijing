@@ -1,117 +1,212 @@
 'use client'
 
 import * as React from 'react'
+import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import {
+  listReceivablePurchaseOrders,
+  usePurchaseOrders,
+} from '@/lib/crossborder/purchase-order-store'
+import {
+  countReceiptsByStatus,
+  createReceiptFromPurchaseOrder,
+  toReceiptListRow,
+  usePurchaseReceipts,
+} from '@/lib/crossborder/purchase-receipt-store'
+import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
-type ReceiptRow = {
-  id: string
-  po: string
-  sku: string
-  arrived: number
-  qcPass: number
-  qcDefect: number
-  shortage: number
-  bin: string
-  operator: string
-  status: string
+function statusVariant(status: string) {
+  if (status === '已完成') return 'secondary' as const
+  if (status === '已取消') return 'destructive' as const
+  return 'outline' as const
 }
 
-export const DEMO_RECEIPTS: ReceiptRow[] = [
-  { id: 'RCV-2026-0044', po: 'PO-2026-0030', sku: 'HSY000001002', arrived: 40, qcPass: 32, qcDefect: 6, shortage: 2, bin: 'A-01-01-02', operator: '仓库员 · 兰雨晨', status: '部分入库' },
-  { id: 'RCV-2026-0045', po: 'PO-2026-0031', sku: 'HSY000002001', arrived: 50, qcPass: 0, qcDefect: 0, shortage: 0, bin: 'B-02-01-01', operator: '仓库员 · 兰雨晨', status: '待质检' },
-  { id: 'RCV-2026-0041', po: 'PO-2026-0028', sku: 'HSY000001001', arrived: 100, qcPass: 98, qcDefect: 2, shortage: 0, bin: 'A-01-01-01', operator: '仓库员 · 兰雨晨', status: '已入库' },
-]
-
 export default function PurchaseReceiptsPage() {
-  const [rows, setRows] = React.useState<ReceiptRow[]>(DEMO_RECEIPTS)
+  const receipts = usePurchaseReceipts()
+  const orders = usePurchaseOrders()
+  const rows = React.useMemo(() => receipts.map(toReceiptListRow), [receipts])
+  const counts = React.useMemo(() => countReceiptsByStatus(receipts), [receipts])
+  const receivable = React.useMemo(() => listReceivablePurchaseOrders(orders), [orders])
+  const router = useLocaleRouter()
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+
+  const poOptions = React.useMemo(() => {
+    if (receivable.length === 0) return ['（暂无可收货采购单）']
+    return receivable.map((order) => {
+      const openQty = order.lines.reduce((sum, line) => sum + Math.max(0, line.qtyOrdered - line.qtyReceived), 0)
+      return `${order.poNo} · ${order.supplier} · 待收 ${openQty}`
+    })
+  }, [receivable])
+
+  const kpiItems = React.useMemo(
+    () => [
+      { label: '收货批次', value: String(rows.length), hint: 'purchase_receipts' },
+      { label: '待质检', value: String(counts.待质检), hint: '需完成合格/残次录入' },
+      { label: '草稿', value: String(counts.草稿) },
+      { label: '已完成', value: String(counts.已完成), hint: '合格数已生成入库单' },
+    ],
+    [rows.length, counts],
+  )
+
   const editor = open ? (
     <UedDialog
-      title="登记到货批次"
-      description="按采购单分批到货建单；实际到货数量与质检结果决定入库数量。"
+      title="登记到货批次 · 主信息"
+      description="从已下发/部分到货的采购单创建 purchase_receipts。明细按采购行剩余可收数量自动带出；保存后进入详情清点数量并提交质检。"
       fields={[
-        { key: 'po', label: '采购单', options: ['PO-2026-0030', 'PO-2026-0031', 'PO-2026-0028'], required: true },
-        { key: 'sku', label: '内部 SKU', options: ['HSY000001001', 'HSY000001002', 'HSY000002001'], required: true },
-        { key: 'arrived', label: '到货数量', type: 'number', required: true, helper: '按实际清点数量填写' },
-        { key: 'boxes', label: '箱数', type: 'number', required: true },
-        { key: 'qcPass', label: '质检合格数', type: 'number', helper: '质检完成后回填' },
-        { key: 'qcDefect', label: '残次数量', type: 'number' },
-        { key: 'shortage', label: '短少数量', type: 'number' },
-        { key: 'bin', label: '上架库位', options: ['A-01-01-01', 'A-01-01-02', 'B-02-01-01'], required: true },
-        { key: 'deliveryNote', label: '送货单号', placeholder: '供应商送货单 / 物流单号' },
-        { key: 'operator', label: '收货操作人', required: true },
-        { key: 'remark', label: '收货备注', type: 'textarea', fullWidth: true },
+        {
+          key: 'po',
+          label: '采购单',
+          options: poOptions,
+          required: true,
+          helper: '仅展示仍有未收数量的采购单；供应商/仓库随单带出',
+        },
+        {
+          key: 'receivedBy',
+          label: '收货操作人',
+          required: true,
+          defaultValue: '兰雨晨',
+        },
+        {
+          key: 'deliveryNote',
+          label: '送货单号',
+          placeholder: '供应商送货单 / 物流单号',
+        },
+        {
+          key: 'remark',
+          label: '收货备注',
+          type: 'textarea',
+          fullWidth: true,
+          placeholder: '破损、短少、分批说明等',
+        },
       ]}
       onClose={() => setOpen(false)}
-      onSave={() => {
-        setRows((current) => [
-          {
-            id: `RCV-2026-${String(current.length + 46).padStart(4, '0')}`,
-            po: 'PO-2026-0031',
-            sku: 'HSY000002001',
-            arrived: 20,
-            qcPass: 0,
-            qcDefect: 0,
-            shortage: 0,
-            bin: 'B-02-01-01',
-            operator: '当前用户',
-            status: '待质检',
-          },
-          ...current,
-        ])
+      onSave={(values) => {
+        const poNo = (values.po || '').split(' · ')[0]?.trim()
+        if (!poNo || poNo.startsWith('（')) {
+          setNotice('请选择可收货的采购单。')
+          setOpen(false)
+          return
+        }
+        const result = createReceiptFromPurchaseOrder(receipts, poNo, {
+          receivedBy: values.receivedBy,
+          deliveryNote: values.deliveryNote,
+          remark: values.remark,
+        })
         setOpen(false)
-        setNotice('到货批次已登记为「待质检」（原型）；质检合格后才形成入库流水。')
+        if (!result.ok) {
+          setNotice(result.reason)
+          return
+        }
+        setNotice(
+          `${result.receipt.receiptNo} 已创建（草稿），供应商「${result.receipt.supplier}」、仓库「${result.receipt.warehouse}」已带出。正在进入详情…`,
+        )
+        router.push(`/console/purchase-receipts/${encodeURIComponent(result.receipt.id)}`)
       }}
+      saveLabel="创建收货单并继续"
     />
   ) : null
-  function qc(id: string) {
-    setRows((current) =>
-      current.map((row) => {
-        if (row.id !== id) return row
-        const defect = Math.min(2, Math.max(0, row.arrived - 1))
-        return { ...row, qcPass: row.arrived - defect, qcDefect: defect, shortage: 0, status: '已入库' }
-      }),
-    )
-    setNotice(`${id} 质检完成：合格数进可用库存，残次入不可售区并登记原因（原型流水）。`)
-  }
+
   return (
     <>
       {editor}
       <UedWorkspace
         title="到货质检入库"
-        description="分批到货 → 质检（合格/残次/短缺）→ 部分或整批入库；合格数量才进可用库存。"
-        rows={rows} detailHref={(row) => `/console/purchase-receipts/${encodeURIComponent(row.id)}`}
-        searchKeys={['id', 'po', 'sku', 'bin', 'operator', 'status']}
-        searchPlaceholder="搜索收货单号、采购单或 SKU"
-        filters={[{ label: '状态', options: ['待质检', '部分入库', '已入库', '退供应商'] }]}
+        description="采购单分批到货 → 质检（合格/残次）→ 生成入库上架单。仅合格数量进入可用库存；残次进不可售并要求原因。"
+        rows={rows}
+        detailHref={(row) => `/console/purchase-receipts/${encodeURIComponent(row.id)}`}
+        searchKeys={[
+          'id',
+          'receiptNo',
+          'purchaseOrderId',
+          'firstSku',
+          'supplier',
+          'warehouse',
+          'receivedBy',
+          'status',
+          'deliveryNote',
+        ]}
+        searchPlaceholder="搜索收货单号、采购单、SKU 或供应商"
+        filters={[{ label: '状态', options: [...['草稿', '待质检', '已完成', '已取消']] }]}
+        emptyText="暂无收货批次。请从可收货采购单登记到货，或到「采购单」详情点击登记到货。"
         addLabel="登记到货"
         onAdd={() => setOpen(true)}
         columns={[
-          { key: 'id', label: '收货单号' },
-          { key: 'po', label: '采购单' },
-          { key: 'sku', label: '内部 SKU' },
-          { key: 'arrived', label: '到货', render: (row) => String(row.arrived) },
-          { key: 'qcPass', label: '合格', render: (row) => String(row.qcPass) },
-          { key: 'qcDefect', label: '残次', render: (row) => String(row.qcDefect) },
-          { key: 'shortage', label: '短缺', render: (row) => String(row.shortage) },
-          { key: 'bin', label: '上架库位' },
-          { key: 'operator', label: '操作人' },
-          { key: 'status', label: '状态', render: (row) => <Badge variant={row.status === '已入库' ? 'secondary' : 'outline'}>{row.status}</Badge> },
+          { key: 'receiptNo', label: '收货单号' },
+          { key: 'purchaseOrderId', label: '采购单' },
+          { key: 'supplier', label: '供应商' },
+          {
+            key: 'firstSku',
+            label: '首行 SKU',
+            render: (row) => (row.lineCount > 0 ? row.firstSku : '—'),
+          },
+          {
+            key: 'totalArrived',
+            label: '到货',
+            render: (row) => String(row.totalArrived),
+          },
+          {
+            key: 'totalPassed',
+            label: '合格',
+            render: (row) => String(row.totalPassed),
+          },
+          {
+            key: 'totalFailed',
+            label: '残次',
+            render: (row) => String(row.totalFailed),
+          },
+          { key: 'warehouse', label: '仓库' },
+          { key: 'receivedBy', label: '操作人' },
+          { key: 'arrivedAt', label: '到货时间' },
+          {
+            key: 'status',
+            label: '状态',
+            render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge>,
+          },
         ]}
       >
+        <DetailKpiRow items={kpiItems} />
         <UedPrototypeNotice>
-          合格数量才进可用库存；残次进不可售区并要求填写原因；短缺回写采购单差异，超过容忍比例需主管确认。每批入库触发库存流水（幂等键防重复记账），历史流水不可删除。
+          对齐 schema：purchase_receipts（分批）→ 质检行结果 → 仅 qty_passed 生成入库/库存流水（幂等键）。采购申请未批准不得生成
+          PO/收货。列表与详情共享本地会话 store，可与采购单、入库单互相跳转。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
-          {rows.filter((row) => row.status === '待质检').map((row) => (
-            <Button key={row.id} size="sm" onClick={() => qc(row.id)}>质检并入库 · {row.id}</Button>
-          ))}
-          <Button variant="outline" size="sm" onClick={() => setNotice('残次批次可发起退供应商：生成退货物流并回写采购单（原型）。')}>退供应商</Button>
+          <Badge variant="outline">可收货采购单 {receivable.length}</Badge>
+          {rows
+            .filter((row) => row.status === '待质检')
+            .slice(0, 4)
+            .map((row) => (
+              <Button
+                key={row.id}
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/console/purchase-receipts/${encodeURIComponent(row.id)}`)}
+              >
+                去质检 · {row.receiptNo}
+              </Button>
+            ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => router.push('/console/purchase-orders')}
+          >
+            打开采购单
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => router.push('/console/stock-inbounds')}
+          >
+            打开入库单
+          </Button>
         </div>
-        {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+        {notice ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {notice}
+          </p>
+        ) : null}
       </UedWorkspace>
     </>
   )

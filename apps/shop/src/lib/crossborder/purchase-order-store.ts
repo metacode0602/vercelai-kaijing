@@ -324,3 +324,59 @@ export function updatePurchaseOrderHeader(
 ) {
   store.set(orders.map((order) => (order.id === poId ? { ...order, ...patch } : order)))
 }
+
+export type ReceiveProjectionDelta = {
+  poLineId: string
+  sku: string
+  qtyReceivedDelta: number
+  qtyQcPassedDelta: number
+  qtyStockedDelta: number
+}
+
+/**
+ * 收货/质检/上架回写采购明细投影，并按行汇总推进采购单状态：
+ *   已下发 → 部分到货 → 已收货（全部 qty_received >= qty_ordered）
+ */
+export function applyPurchaseOrderReceiveProjection(
+  poId: string,
+  deltas: ReceiveProjectionDelta[],
+) {
+  const orders = store.get()
+  const next = orders.map((order) => {
+    if (order.id !== poId && order.poNo !== poId) return order
+    const lines = order.lines.map((line) => {
+      const delta =
+        deltas.find((item) => item.poLineId && item.poLineId === line.id) ||
+        deltas.find((item) => item.sku === line.sku)
+      if (!delta) return line
+      return {
+        ...line,
+        qtyReceived: Math.max(0, line.qtyReceived + (delta.qtyReceivedDelta || 0)),
+        qtyQcPassed: Math.max(0, line.qtyQcPassed + (delta.qtyQcPassedDelta || 0)),
+        qtyStocked: Math.max(0, line.qtyStocked + (delta.qtyStockedDelta || 0)),
+      }
+    })
+    const totalOrdered = lines.reduce((sum, line) => sum + line.qtyOrdered, 0)
+    const totalReceived = lines.reduce((sum, line) => sum + line.qtyReceived, 0)
+    let status = order.status
+    if (status !== '已取消' && status !== '已关闭') {
+      if (totalReceived <= 0) {
+        status = status === '草稿' ? '草稿' : status === '已下发' ? '已下发' : status
+      } else if (totalReceived < totalOrdered) {
+        status = '部分到货'
+      } else {
+        status = '已收货'
+      }
+    }
+    return { ...order, lines, status }
+  })
+  store.set(next)
+}
+
+/** 可登记到货的采购单（已下发 / 部分到货，且仍有未收完行） */
+export function listReceivablePurchaseOrders(orders: PurchaseOrder[] = store.get()) {
+  return orders.filter((order) => {
+    if (order.status !== '已下发' && order.status !== '部分到货') return false
+    return order.lines.some((line) => line.qtyOrdered > line.qtyReceived)
+  })
+}

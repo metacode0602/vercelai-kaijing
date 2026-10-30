@@ -5,6 +5,12 @@ import type {
 } from '@/components/console/detail/detail-related-list'
 import { DEMO_SUPPLIER_SKUS } from '@/lib/crossborder/supplier-sku-store'
 import { DEMO_PURCHASE_ORDERS } from '@/lib/crossborder/purchase-order-store'
+import {
+  DEMO_PURCHASE_RECEIPTS,
+  DEMO_STOCK_INBOUNDS,
+  toRelatedInboundShape,
+  toRelatedReceiptShape,
+} from '@/lib/crossborder/purchase-receipt-store'
 import { DEMO_WAREHOUSE_ZONES } from '@/lib/crossborder/warehouse-zone-store'
 import {
   ERP_DEMO_AFTERSALES,
@@ -191,17 +197,38 @@ const PO_COLUMNS = [
   { key: 'expectedAt', label: '预计到货' },
 ]
 
-function receiptRows(filter: (r: (typeof RELATED_DEMO_RECEIPTS)[number]) => boolean) {
-  return RELATED_DEMO_RECEIPTS.filter(filter).map((item) => ({
+function receiptRows(filter: (r: { id: string; po: string; sku: string; arrived: number; qcPass: number; qcDefect: number; shortage: number; bin: string; operator: string; status: string }) => boolean) {
+  type ReceiptShape = {
+    id: string
+    po: string
+    sku: string
+    arrived: number
+    qcPass: number
+    qcDefect: number
+    shortage: number
+    bin: string
+    operator: string
+    status: string
+  }
+  const fromStore: ReceiptShape[] = DEMO_PURCHASE_RECEIPTS.map(toRelatedReceiptShape)
+  const byId = new Map<string, ReceiptShape>(fromStore.map((item) => [item.id, item]))
+  for (const item of RELATED_DEMO_RECEIPTS) {
+    if (!byId.has(item.id)) byId.set(item.id, item)
+  }
+  return [...byId.values()].filter(filter).map((item) => ({
     id: item.id,
     po: item.po,
     sku: item.sku,
     arrived: item.arrived,
     qcPass: item.qcPass,
     qcDefect: item.qcDefect,
+    shortage: item.shortage,
     bin: item.bin,
+    operator: item.operator,
     status: item.status,
     href: `/console/purchase-receipts/${encodeURIComponent(item.id)}`,
+    poHref: `/console/purchase-orders/${encodeURIComponent(item.po)}`,
+    skuHref: `/console/master-skus/${encodeURIComponent(item.sku)}`,
   }))
 }
 
@@ -215,17 +242,37 @@ const RECEIPT_COLUMNS = [
   { key: 'status', label: '状态' },
 ]
 
-function inboundRows(filter: (r: (typeof RELATED_DEMO_INBOUNDS)[number]) => boolean) {
-  return RELATED_DEMO_INBOUNDS.filter(filter).map((item) => ({
+function inboundRows(filter: (r: { id: string; sourceType: string; sourceDoc: string; sku: string; quantity: number; qcResult: string; bin: string; operator: string; at: string; status: string }) => boolean) {
+  type InboundShape = {
+    id: string
+    sourceType: string
+    sourceDoc: string
+    sku: string
+    quantity: number
+    qcResult: string
+    bin: string
+    operator: string
+    at: string
+    status: string
+  }
+  const fromStore: InboundShape[] = DEMO_STOCK_INBOUNDS.map(toRelatedInboundShape)
+  const byId = new Map<string, InboundShape>(fromStore.map((item) => [item.id, item]))
+  for (const item of RELATED_DEMO_INBOUNDS) {
+    if (!byId.has(item.id)) byId.set(item.id, item)
+  }
+  return [...byId.values()].filter(filter).map((item) => ({
     id: item.id,
     sourceType: item.sourceType,
     sourceDoc: item.sourceDoc,
     sku: item.sku,
     quantity: item.quantity,
+    qcResult: item.qcResult,
     bin: item.bin,
-    status: item.status,
+    operator: item.operator,
     at: item.at,
+    status: item.status,
     href: `/console/stock-inbounds/${encodeURIComponent(item.id)}`,
+    skuHref: `/console/master-skus/${encodeURIComponent(item.sku)}`,
   }))
 }
 

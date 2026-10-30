@@ -186,7 +186,7 @@ export const RELATED_DEMO_RECEIPTS: DemoReceipt[] = [
     shortage: 2,
     bin: 'A-01-01-02',
     operator: '仓库员 · 兰雨晨',
-    status: '部分入库',
+    status: '已完成',
   },
   {
     id: 'RCV-2026-0045',
@@ -210,7 +210,7 @@ export const RELATED_DEMO_RECEIPTS: DemoReceipt[] = [
     shortage: 0,
     bin: 'A-01-01-01',
     operator: '仓库员 · 兰雨晨',
-    status: '已入库',
+    status: '已完成',
   },
 ]
 
