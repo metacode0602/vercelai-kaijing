@@ -38,6 +38,18 @@ import {
   RELATED_DEMO_RETURNS,
   RELATED_DEMO_SYNC_TASKS,
 } from '@/lib/console/related-ops-data'
+import { getCostBySku, getOrderById } from '@/lib/crossborder/mock-data'
+import {
+  DEMO_FREIGHT_ESTIMATES,
+  estimatesForCarrier,
+  estimatesForCarton,
+  findShopByLabel,
+  profitFeesFor,
+  quotesForCarrier,
+  quotesForEstimate,
+  resolveInternalSku,
+  settlementLinesFor,
+} from '@/lib/crossborder/finance-related-data'
 
 export type UedRecord = Record<string, unknown>
 
@@ -65,6 +77,13 @@ export const RELATED_PARENT_REPLACED_KEYS: Record<string, string[]> = {
   profits: ['sku', 'order'],
   'order-exceptions': ['internalSku', 'order'],
   reviews: ['sku'],
+  costs: ['internalSku'],
+  settlements: ['shop'],
+  finance: ['shop'],
+  carriers: [],
+  'carton-specs': [],
+  freight: ['sku', 'cartonId'],
+  reports: ['dimension'],
 }
 
 function str(row: UedRecord, key: string): string | undefined {
@@ -501,6 +520,62 @@ function parentForPo(po: string | undefined): DetailRelatedParent[] {
       value: po,
       href: `/console/purchase-orders/${encodeURIComponent(po)}`,
       mono: true,
+    },
+  ]
+}
+
+function parentForShop(label: string | undefined): DetailRelatedParent[] {
+  if (!label) return []
+  const shop = findShopByLabel(label)
+  if (shop) {
+    return [
+      {
+        label: '店铺',
+        value: shop.name,
+        href: `/console/settings/shops/${encodeURIComponent(shop.id)}`,
+      },
+    ]
+  }
+  return [{ label: '店铺', value: label }]
+}
+
+function parentForOrder(order: string | undefined): DetailRelatedParent[] {
+  if (!order || order === '—') return []
+  const found = getOrderById(order)
+  return [
+    {
+      label: '订单',
+      value: order,
+      mono: true,
+      href: found
+        ? `/console/orders/${encodeURIComponent(found.id)}`
+        : `/console/orders/${encodeURIComponent(order)}`,
+    },
+  ]
+}
+
+function parentForCarton(cartonId: string | undefined): DetailRelatedParent[] {
+  if (!cartonId) return []
+  return [
+    {
+      label: '箱规',
+      value: cartonId,
+      mono: true,
+      href: `/console/carton-specs/${encodeURIComponent(cartonId)}`,
+    },
+  ]
+}
+
+function parentForCostSku(costSku: string | undefined): DetailRelatedParent[] {
+  if (!costSku) return []
+  const cost = getCostBySku(costSku)
+  if (!cost) return []
+  return [
+    {
+      label: '成本测算',
+      value: cost.sku,
+      mono: true,
+      href: `/console/costs/${encodeURIComponent(cost.sku)}`,
     },
   ]
 }
@@ -1376,7 +1451,64 @@ export function buildUedRelatedInfo(
       }
     }
 
-    case 'profits':
+    case 'profits': {
+      const id = str(row, 'id')
+      const dimension = str(row, 'dimension') ?? ''
+      const isOrder = dimension.startsWith('订单') || Boolean(id && /^(DZ|LZ|TT|SP)-/.test(id))
+      const orderId = isOrder ? id : undefined
+      const sku = !isOrder ? id || str(row, 'sku') : resolveInternalSku(str(row, 'sku'))
+      const shopLabel = dimension.includes('·')
+        ? dimension.split('·').slice(1).join('·').trim()
+        : undefined
+      const feeLines = profitFeesFor(id).map((line, index) => ({
+        id: `${line.profitId}-${line.feeType}-${index}`,
+        feeType: line.feeType,
+        amount: line.amount,
+        currency: line.currency,
+        note: line.note,
+        settlementId: line.settlementId ?? '—',
+        costSku: line.costSku ?? '—',
+        settlementHref: line.settlementId
+          ? `/console/settlements/${encodeURIComponent(line.settlementId)}`
+          : undefined,
+        costHref: line.costSku
+          ? `/console/costs/${encodeURIComponent(line.costSku)}`
+          : undefined,
+      }))
+      const parents: DetailRelatedParent[] = [
+        ...parentForOrder(orderId),
+        ...parentForInternalSku(sku),
+        ...parentForSpu(sku),
+        ...parentForShop(shopLabel),
+      ]
+      return {
+        parents,
+        sections: [
+          {
+            title: '费用拆分',
+            description: '收入扣减项：商品成本 / 平台佣金 / 物流 / 退款等（示例）',
+            columns: [
+              { key: 'feeType', label: '费用项' },
+              { key: 'amount', label: '金额' },
+              { key: 'currency', label: '币种' },
+              { key: 'note', label: '备注' },
+              { key: 'settlementId', label: '结算单', mono: true, hrefKey: 'settlementHref' },
+              { key: 'costSku', label: '成本 SKU', mono: true, hrefKey: 'costHref' },
+            ],
+            rows: feeLines,
+            emptyText: '暂无费用拆分',
+          },
+          ...(sku
+            ? [
+                listingsSection(getDemoListingsBySku(sku), {
+                  description: '本利润维度关联刊登（示例）',
+                }),
+              ]
+            : []),
+        ],
+      }
+    }
+
     case 'order-exceptions': {
       const sku = str(row, 'sku') || str(row, 'internalSku')
       const order = str(row, 'order')
@@ -1384,7 +1516,7 @@ export function buildUedRelatedInfo(
         parents: [
           ...parentForInternalSku(sku),
           ...parentForSpu(sku),
-          ...(order ? [{ label: '订单', value: order, mono: true }] : []),
+          ...parentForOrder(order),
         ],
         sections: sku
           ? [
@@ -1395,15 +1527,487 @@ export function buildUedRelatedInfo(
       }
     }
 
-    case 'settlements':
-    case 'reports':
-    case 'logistics-lgs':
-    case 'logistics-jsb':
+    case 'settlements': {
+      const settlementId = str(row, 'id')
+      const shopLabel = str(row, 'shop')
+      const platform = str(row, 'platform')
+      const lines = settlementLinesFor(settlementId).map((line, index) => {
+        const orderId = line.orderExternalId !== '—' ? line.orderExternalId : undefined
+        const found = orderId ? getOrderById(orderId) : undefined
+        return {
+          id: `${line.settlementId}-${line.feeType}-${index}`,
+          orderExternalId: line.orderExternalId,
+          feeType: line.feeType,
+          amount: line.amount,
+          currency: line.currency,
+          matchStatus: line.matchStatus,
+          note: line.note,
+          orderHref: orderId
+            ? found
+              ? `/console/orders/${encodeURIComponent(found.id)}`
+              : `/console/orders/${encodeURIComponent(orderId)}`
+            : undefined,
+        }
+      })
+      const feeOnly = lines.filter((line) => line.orderExternalId === '—' || line.feeType.includes('费'))
+      const parents: DetailRelatedParent[] = [
+        ...parentForShop(shopLabel),
+        ...(platform ? [{ label: '平台', value: platform }] : []),
+      ]
+      return {
+        parents,
+        sections: [
+          {
+            title: '结算明细行',
+            description: '账单行对账：可点击订单号进入订单详情（示例）',
+            columns: [
+              { key: 'orderExternalId', label: '订单号', mono: true, hrefKey: 'orderHref' },
+              { key: 'feeType', label: '费用类型' },
+              { key: 'amount', label: '金额' },
+              { key: 'currency', label: '币种' },
+              { key: 'matchStatus', label: '匹配状态' },
+              { key: 'note', label: '备注' },
+            ],
+            rows: lines,
+            emptyText: '暂无结算明细',
+          },
+          {
+            title: '关联费用汇总',
+            description: '无订单号或费用类账单行（示例）',
+            columns: [
+              { key: 'feeType', label: '费用类型' },
+              { key: 'amount', label: '金额' },
+              { key: 'currency', label: '币种' },
+              { key: 'matchStatus', label: '状态' },
+              { key: 'note', label: '备注' },
+            ],
+            rows: feeOnly,
+            emptyText: '暂无费用行',
+          },
+        ],
+      }
+    }
+
+    case 'finance': {
+      const platform = str(row, 'platform')
+      const shopName =
+        typeof row.settlement === 'object' &&
+        row.settlement &&
+        typeof (row.settlement as { shopName?: unknown }).shopName === 'string'
+          ? (row.settlement as { shopName: string }).shopName
+          : str(row, 'shop')
+      const settlementId =
+        typeof row.settlement === 'object' &&
+        row.settlement &&
+        typeof (row.settlement as { id?: unknown }).id === 'string'
+          ? (row.settlement as { id: string }).id
+          : str(row, 'id')
+      const embeddedLines =
+        typeof row.settlement === 'object' &&
+        row.settlement &&
+        Array.isArray((row.settlement as { lines?: unknown }).lines)
+          ? (
+              (row.settlement as {
+                lines: Array<{ orderExternalId: string; amount: number; note: string }>
+              }).lines
+            ).map((line, index) => {
+              const orderId =
+                line.orderExternalId && line.orderExternalId !== 'fees'
+                  ? line.orderExternalId
+                  : undefined
+              const found = orderId ? getOrderById(orderId) : undefined
+              return {
+                id: `${settlementId ?? platform}-${index}`,
+                orderExternalId: line.orderExternalId,
+                amount: line.amount,
+                note: line.note,
+                orderHref: orderId
+                  ? found
+                    ? `/console/orders/${encodeURIComponent(found.id)}`
+                    : `/console/orders/${encodeURIComponent(orderId)}`
+                  : undefined,
+              }
+            })
+          : []
+      const demoLines = settlementLinesFor(
+        platform === 'Daraz' ? 'STL-DZ-2026-10-LK' : platform === 'Lazada' ? 'STL-LZ-2026-09-MY' : undefined,
+      ).map((line, index) => {
+        const orderId = line.orderExternalId !== '—' ? line.orderExternalId : undefined
+        const found = orderId ? getOrderById(orderId) : undefined
+        return {
+          id: `demo-${line.settlementId}-${index}`,
+          orderExternalId: line.orderExternalId,
+          amount: line.amount,
+          note: `${line.feeType} · ${line.note}`,
+          orderHref: orderId
+            ? found
+              ? `/console/orders/${encodeURIComponent(found.id)}`
+              : `/console/orders/${encodeURIComponent(orderId)}`
+            : undefined,
+        }
+      })
+      const lines = embeddedLines.length > 0 ? embeddedLines : demoLines
+      return {
+        parents: [
+          ...parentForShop(shopName),
+          ...(platform ? [{ label: '平台', value: platform }] : []),
+          ...(settlementId
+            ? [
+                {
+                  label: '结算单',
+                  value: settlementId,
+                  mono: true,
+                  href: settlementId.startsWith('STL-')
+                    ? `/console/settlements/${encodeURIComponent(settlementId)}`
+                    : undefined,
+                },
+              ]
+            : []),
+        ],
+        sections: [
+          {
+            title: '结算明细',
+            description: '平台结算行与关联订单（示例）；可点击订单进入履约详情',
+            columns: [
+              { key: 'orderExternalId', label: '关联订单', mono: true, hrefKey: 'orderHref' },
+              { key: 'amount', label: '金额' },
+              { key: 'note', label: '备注' },
+            ],
+            rows: lines,
+            emptyText: '暂无结算明细',
+          },
+        ],
+      }
+    }
+
+    case 'costs': {
+      const costSku = str(row, 'sku') || str(row, 'id')
+      const internalSku = resolveInternalSku(costSku)
+      const cost = costSku ? getCostBySku(costSku) : undefined
+      const components = (cost?.components ?? []).map((item, index) => ({
+        id: `${costSku}-comp-${index}`,
+        component: item.component,
+        amount: item.amount,
+        note: item.note,
+      }))
+      const shipping = (cost?.shippingOptions ?? []).map((item, index) => ({
+        id: `${costSku}-ship-${index}`,
+        mode: item.mode,
+        unitCost: item.unitCost,
+        leadDays: item.leadDays,
+        note: item.note,
+      }))
+      const freightLinks = DEMO_FREIGHT_ESTIMATES.filter(
+        (item) => item.sku === internalSku,
+      ).map((item) => ({
+        id: item.id,
+        scenario: item.scenario,
+        freightUsd: item.freightUsd,
+        ddpUsd: item.ddpUsd,
+        status: item.status,
+        href: `/console/freight/${encodeURIComponent(item.id)}`,
+      }))
+      const purchaseRefs = DEMO_PURCHASE_ORDERS.filter((po) =>
+        po.lines.some((line) => line.sku === internalSku),
+      )
+        .slice(0, 6)
+        .map((po) => ({
+          id: po.id,
+          supplier: po.supplier,
+          status: po.status,
+          totalAmount: po.totalAmount,
+          currency: po.currency,
+          href: `/console/purchase-orders/${encodeURIComponent(po.id)}`,
+        }))
+      return {
+        parents: [
+          ...parentForInternalSku(internalSku),
+          ...parentForSpu(internalSku),
+        ],
+        sections: [
+          {
+            title: '成本构成',
+            description: '采购 / 运费 / 关税 / 其他税项（示例，待核实）',
+            columns: [
+              { key: 'component', label: '费用项' },
+              { key: 'amount', label: '金额' },
+              { key: 'note', label: '备注' },
+            ],
+            rows: components,
+            emptyText: '暂无成本构成',
+          },
+          {
+            title: '头程方案',
+            description: '可选运输方式对比（示例）',
+            columns: [
+              { key: 'mode', label: '方式' },
+              { key: 'unitCost', label: '单位成本' },
+              { key: 'leadDays', label: '时效（天）' },
+              { key: 'note', label: '备注' },
+            ],
+            rows: shipping,
+            emptyText: '暂无头程方案',
+          },
+          listingsSection(internalSku ? getDemoListingsBySku(internalSku) : [], {
+            description: '该内部 SKU 的刊登与售价（示例）',
+          }),
+          {
+            title: '采购成本参考',
+            description: '覆盖本 SKU 的采购单（示例）',
+            columns: [
+              { key: 'id', label: '采购单', mono: true, hrefKey: 'href' },
+              { key: 'supplier', label: '供应商' },
+              { key: 'totalAmount', label: '金额' },
+              { key: 'currency', label: '币种' },
+              { key: 'status', label: '状态' },
+            ],
+            rows: purchaseRefs,
+            emptyText: '暂无采购单',
+          },
+          {
+            title: '关联运费测算',
+            description: '同 SKU 的运费情景快照（示例）',
+            columns: [
+              { key: 'id', label: '测算单', mono: true, hrefKey: 'href' },
+              { key: 'scenario', label: '情景' },
+              { key: 'freightUsd', label: '运费 USD' },
+              { key: 'ddpUsd', label: 'DDP USD' },
+              { key: 'status', label: '状态' },
+            ],
+            rows: freightLinks,
+            emptyText: '暂无运费测算',
+          },
+        ],
+      }
+    }
+
     case 'carriers': {
+      const code = str(row, 'code') || str(row, 'id')
+      const name = str(row, 'name')
+      const quotes = quotesForCarrier(code || name).map((item) => ({
+        id: item.id,
+        lane: item.lane,
+        type: item.type,
+        unit: item.unit,
+        price: item.price,
+        transit: item.transit,
+        validUntil: item.validUntil,
+        estimateId: item.estimateId ?? '—',
+        estimateHref: item.estimateId
+          ? `/console/freight/${encodeURIComponent(item.estimateId)}`
+          : undefined,
+      }))
+      const estimates = estimatesForCarrier(code || name).map((item) => ({
+        id: item.id,
+        scenario: item.scenario,
+        sku: item.sku,
+        ddpUsd: item.ddpUsd,
+        status: item.status,
+        href: `/console/freight/${encodeURIComponent(item.id)}`,
+        skuHref: `/console/master-skus/${encodeURIComponent(item.sku)}`,
+      }))
+      return {
+        parents: [],
+        sections: [
+          {
+            title: '线路报价',
+            description: '该承运商在运费测算中的即期报价 / 牌价（示例）',
+            columns: [
+              { key: 'id', label: '报价 ID', mono: true },
+              { key: 'lane', label: '线路' },
+              { key: 'type', label: '类型' },
+              { key: 'price', label: '价格' },
+              { key: 'transit', label: '时效' },
+              { key: 'validUntil', label: '有效期' },
+              { key: 'estimateId', label: '关联测算', mono: true, hrefKey: 'estimateHref' },
+            ],
+            rows: quotes,
+            emptyText: '暂无线路报价',
+          },
+          {
+            title: '采纳测算',
+            description: '已选用本承运商的运费估算快照（示例）',
+            columns: [
+              { key: 'id', label: '测算单', mono: true, hrefKey: 'href' },
+              { key: 'scenario', label: '情景' },
+              { key: 'sku', label: '内部 SKU', mono: true, hrefKey: 'skuHref' },
+              { key: 'ddpUsd', label: 'DDP USD' },
+              { key: 'status', label: '状态' },
+            ],
+            rows: estimates,
+            emptyText: '暂无采纳记录',
+          },
+        ],
+      }
+    }
+
+    case 'carton-specs': {
+      const cartonId = str(row, 'id')
+      const estimates = estimatesForCarton(cartonId).map((item) => ({
+        id: item.id,
+        scenario: item.scenario,
+        sku: item.sku,
+        weightKg: item.weightKg,
+        volumeM3: item.volumeM3,
+        adoptedCarrier: item.adoptedCarrier,
+        status: item.status,
+        href: `/console/freight/${encodeURIComponent(item.id)}`,
+        skuHref: `/console/master-skus/${encodeURIComponent(item.sku)}`,
+        carrierHref: `/console/carriers/${encodeURIComponent(item.adoptedCarrierCode)}`,
+      }))
+      const costLinks = Object.entries(
+        // map internal sku → cost demo sku for display
+        { HSY000001001: 'TEE-001', HSY000002001: 'HUB-01' } as Record<string, string>,
+      )
+        .filter(([internal]) => estimates.some((item) => item.sku === internal))
+        .map(([, costSku]) => {
+          const cost = getCostBySku(costSku)
+          return cost
+            ? {
+                id: cost.sku,
+                title: cost.title,
+                currency: cost.currency,
+                suggestPrice: cost.suggestPrice,
+                href: `/console/costs/${encodeURIComponent(cost.sku)}`,
+              }
+            : null
+        })
+        .filter(Boolean) as Array<Record<string, unknown>>
+      return {
+        parents: [],
+        sections: [
+          {
+            title: '运费测算使用',
+            description: '引用本箱规的估算情景（示例）',
+            columns: [
+              { key: 'id', label: '测算单', mono: true, hrefKey: 'href' },
+              { key: 'scenario', label: '情景' },
+              { key: 'sku', label: '内部 SKU', mono: true, hrefKey: 'skuHref' },
+              { key: 'weightKg', label: '重量 kg' },
+              { key: 'volumeM3', label: '体积 m³' },
+              { key: 'adoptedCarrier', label: '承运商', hrefKey: 'carrierHref' },
+              { key: 'status', label: '状态' },
+            ],
+            rows: estimates,
+            emptyText: '暂无测算引用',
+          },
+          {
+            title: '关联成本测算',
+            description: '同 SKU 的到仓成本记录（示例）',
+            columns: [
+              { key: 'id', label: '成本 SKU', mono: true, hrefKey: 'href' },
+              { key: 'title', label: '标题' },
+              { key: 'suggestPrice', label: '建议售价' },
+              { key: 'currency', label: '币种' },
+            ],
+            rows: costLinks,
+            emptyText: '暂无成本记录',
+          },
+        ],
+      }
+    }
+
+    case 'freight': {
+      const estimateId = str(row, 'id')
+      const sku = str(row, 'sku')
+      const cartonId = str(row, 'cartonId')
+      const quotes = quotesForEstimate(estimateId).map((item) => ({
+        id: item.id,
+        carrierName: item.carrierName,
+        lane: item.lane,
+        type: item.type,
+        price: item.price,
+        transit: item.transit,
+        hsRate: item.hsRate,
+        validUntil: item.validUntil,
+        carrierHref: `/console/carriers/${encodeURIComponent(item.carrierCode)}`,
+      }))
+      return {
+        parents: [
+          ...parentForInternalSku(sku),
+          ...parentForSpu(sku),
+          ...parentForCarton(cartonId),
+        ],
+        sections: [
+          {
+            title: '承运商报价',
+            description: '本情景下的即期报价与牌价（示例）；可点击进入承运商',
+            columns: [
+              { key: 'carrierName', label: '承运商', hrefKey: 'carrierHref' },
+              { key: 'lane', label: '线路' },
+              { key: 'type', label: '类型' },
+              { key: 'price', label: '价格' },
+              { key: 'transit', label: '时效' },
+              { key: 'hsRate', label: 'HS / 税率' },
+              { key: 'validUntil', label: '有效期' },
+            ],
+            rows: quotes,
+            emptyText: '暂无报价',
+          },
+        ],
+      }
+    }
+
+    case 'reports': {
+      const dimension = str(row, 'dimension') ?? ''
+      const shopHint = dimension.includes('/')
+        ? dimension.split('/')[0]?.trim()
+        : dimension.replace(/（.*）/, '').trim()
+      const shop = findShopByLabel(shopHint) || findShopByLabel(dimension)
+      return {
+        parents: [
+          ...parentForShop(shop?.name ?? (shopHint && shopHint !== '全平台' ? shopHint : undefined)),
+          ...(dimension ? [{ label: '报表维度', value: dimension }] : []),
+        ],
+        sections: [
+          {
+            title: '库存摘要',
+            description: '同维度示例库存（全量演示数据摘要）',
+            columns: [
+              { key: 'sku', label: '内部 SKU', mono: true, hrefKey: 'href' },
+              { key: 'warehouse', label: '仓库' },
+              { key: 'onHand', label: '在库' },
+              { key: 'reserved', label: '锁定' },
+              { key: 'inbound', label: '在途' },
+            ],
+            rows: ERP_DEMO_INVENTORY.slice(0, 6).map((item) => ({
+              sku: item.sku,
+              warehouse: item.warehouse,
+              onHand: item.onHand,
+              reserved: item.reserved,
+              inbound: item.inbound,
+              href: `/console/master-skus/${encodeURIComponent(item.sku)}`,
+            })),
+            emptyText: '暂无库存',
+          },
+          {
+            title: '采购在途',
+            description: '示例采购单摘要',
+            columns: [
+              { key: 'id', label: '采购单', mono: true, hrefKey: 'href' },
+              { key: 'supplier', label: '供应商' },
+              { key: 'status', label: '状态' },
+              { key: 'totalAmount', label: '金额' },
+            ],
+            rows: DEMO_PURCHASE_ORDERS.slice(0, 6).map((po) => ({
+              id: po.id,
+              supplier: po.supplier,
+              status: po.status,
+              totalAmount: po.totalAmount,
+              href: `/console/purchase-orders/${encodeURIComponent(po.id)}`,
+            })),
+            emptyText: '暂无采购单',
+          },
+        ],
+      }
+    }
+
+    case 'logistics-lgs':
+    case 'logistics-jsb': {
       const order = str(row, 'order')
       const tracking = str(row, 'tracking')
       const parents: DetailRelatedParent[] = [
-        ...(order ? [{ label: '订单', value: order, mono: true }] : []),
+        ...parentForOrder(order),
         ...(tracking ? [{ label: '运单号', value: tracking, mono: true }] : []),
       ]
       const picks = RELATED_DEMO_PICKS.filter(

@@ -503,7 +503,11 @@ export function UedRecordDetail({
   const skipArrayKeys =
     module === 'master-products' || module === 'master-skus'
       ? new Set(['variants'])
-      : new Set<string>()
+      : module === 'costs'
+        ? new Set(['components', 'shippingOptions'])
+        : module === 'finance'
+          ? new Set(['settlement'])
+          : new Set<string>()
   const arrayTables = collectArrayTables(current, labelMap, timelineKey).filter(
     (table) => !skipArrayKeys.has(table.key),
   )

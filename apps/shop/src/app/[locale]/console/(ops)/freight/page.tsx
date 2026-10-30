@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/componen
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { DEMO_FREIGHT_ESTIMATES } from '@/lib/crossborder/finance-related-data'
 
 type ScenarioKey = 'air_ddp' | 'sea_lcl' | 'sea_fcl'
 
@@ -83,6 +84,49 @@ export default function FreightPage() {
       <UedPrototypeNotice>
         参考数据（承运商、线路、HS 税率、箱规）中平台参考数据由平台运营维护；即期报价与牌价分开比较，采纳后生成 freight_estimates 快照，历史快照不被覆盖。关税按申报货值与匹配税率估算，清关实缴以税单为准。
       </UedPrototypeNotice>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">估算快照（示例）</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>测算单</TableHead>
+                <TableHead>情景</TableHead>
+                <TableHead>内部 SKU</TableHead>
+                <TableHead>运费 USD</TableHead>
+                <TableHead>DDP USD</TableHead>
+                <TableHead>承运商</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {DEMO_FREIGHT_ESTIMATES.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-mono text-xs">
+                    <LocaleLink href={`/console/freight/${encodeURIComponent(item.id)}`} className="underline-offset-2 hover:underline">
+                      {item.id}
+                    </LocaleLink>
+                  </TableCell>
+                  <TableCell>{item.scenario}</TableCell>
+                  <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                  <TableCell className="tabular-nums">{item.freightUsd}</TableCell>
+                  <TableCell className="tabular-nums">{item.ddpUsd}</TableCell>
+                  <TableCell>
+                    <LocaleLink href={`/console/carriers/${encodeURIComponent(item.adoptedCarrierCode)}`} className="underline-offset-2 hover:underline">
+                      {item.adoptedCarrier}
+                    </LocaleLink>
+                  </TableCell>
+                  <TableCell><Badge variant="secondary">{item.status}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
 
       <div className="flex flex-wrap gap-2">
         {SCENARIOS.map((item) => (

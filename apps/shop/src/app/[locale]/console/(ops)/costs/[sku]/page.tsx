@@ -1,163 +1,86 @@
+'use client'
+
+import * as React from 'react'
 import { notFound } from 'next/navigation'
 import { Calculator } from 'lucide-react'
-import {
-  ConsoleBreadcrumbs,
-  DetailKpiRow,
-  DetailPageHeader,
-  DetailSection,
-  EditableDetailFields,
-} from '@/components/console/detail'
+import { DetailPageHeader } from '@/components/console/detail'
+import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
 import { costLandedTotal, getCostBySku } from '@/lib/crossborder/mock-data'
+import { resolveInternalSku } from '@/lib/crossborder/finance-related-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
-import { Badge } from '@workspace/ui/components/badge'
-import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@workspace/ui/components/table'
-import { labelField, labelStatus } from '@/lib/console/labels'
 
-interface CostDetailPageProps {
-  params: Promise<{ sku: string }>
-}
-
-export default async function CostDetailPage({ params }: CostDetailPageProps) {
-  const { sku } = await params
+export default function CostDetailPage({ params }: { params: Promise<{ sku: string }> }) {
+  const sku = decodeRouteParam(React.use(params).sku)
   const cost = getCostBySku(sku)
-  if (!cost) notFound()
+
+  if (!cost) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/costs"
+          title="未找到成本记录"
+          description={`SKU ${sku} 不存在于示例成本库。`}
+        />
+        <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          请返回列表重新选择。
+        </p>
+      </div>
+    )
+  }
 
   const landed = costLandedTotal(cost)
-  const margin =
-    cost.suggestPrice > 0
-      ? (((cost.suggestPrice - landed) / cost.suggestPrice) * 100).toFixed(1)
-      : '—'
+  const internalSku = resolveInternalSku(cost.sku)
+  const row = {
+    sku: cost.sku,
+    title: cost.title,
+    currency: cost.currency,
+    suggestPrice: cost.suggestPrice,
+    targetMarginPct: cost.targetMarginPct,
+    purchase: cost.purchase,
+    freight: cost.freight,
+    customs: cost.customs,
+    pal: cost.pal,
+    cess: cost.cess,
+    vat: cost.vat,
+    sscl: cost.sscl,
+    landed: Number(landed.toFixed(2)),
+    internalSku: internalSku ?? '—',
+    components: cost.components,
+    shippingOptions: cost.shippingOptions,
+  }
 
   return (
-    <div className="space-y-4">
-      <ConsoleBreadcrumbs
-        items={[
-          { label: '成本', href: '/console/costs' },
-          { label: cost.sku },
-        ]}
-      />
-      <DetailPageHeader
-        backHref="/console/costs"
-        title={`${cost.sku} · 成本测算（示例）`}
-        description={cost.title}
-        badges={<Badge variant="outline">{cost.currency}</Badge>}
-        actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <Button size="sm" className="gap-1.5" asChild>
-              <LocaleLink href={`/console/costs/${cost.sku}/recalculate`}>
-                <Calculator className="size-3.5" />
-                重新测算
+    <UedRecordDetail
+      backHref="/console/costs"
+      moduleTitle="成本计算"
+      module="costs"
+      idKey="sku"
+      titleKeys={['sku', 'title']}
+      row={row as unknown as Record<string, unknown>}
+      notice="到仓成本、税率与头程方案均为演示数据；正式口径确认前不可用于采购决策。父链指向内部 SKU / SPU 主数据，费用构成与刊登/采购/运费分表展示。"
+      description={cost.title}
+      showPrimaryPricing={false}
+      extra={
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 p-3">
+          <Button size="sm" className="gap-1.5" asChild>
+            <LocaleLink href={`/console/costs/${encodeURIComponent(cost.sku)}/recalculate`}>
+              <Calculator className="size-3.5" />
+              重新测算
+            </LocaleLink>
+          </Button>
+          {internalSku ? (
+            <Button size="sm" variant="outline" asChild>
+              <LocaleLink href={`/console/master-skus/${encodeURIComponent(internalSku)}`}>
+                查看内部 SKU
               </LocaleLink>
             </Button>
-            <LocaleLink
-              href={`/console/products/${cost.sku}`}
-              className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-            >
-              查看商品
-            </LocaleLink>
-          </div>
-        }
-      />
-
-      <Alert>
-        <AlertTitle>UED 示例成本 · 非实际报价</AlertTitle>
-        <AlertDescription>
-          下面的到仓成本和方案对比只用于演示交互，费率、税率及费用包含范围尚未核实；不同方案目前不可直接比较或作为采购决定。
-        </AlertDescription>
-      </Alert>
-
-      <DetailKpiRow
-        items={[
-          { label: '到仓成本（示例）', value: `${landed.toFixed(2)} ${cost.currency}`, hint: '来源与报价待核实' },
-          {
-            label: '建议售价（示例）',
-            value: `${cost.suggestPrice.toFixed(2)} ${cost.currency}`,
-          },
-          { label: '毛利率（示例）', value: `${margin}%`, hint: '未扣平台费，不是经营净利率' },
-          { label: '目标毛利率', value: `${cost.targetMarginPct}%` },
-        ]}
-      />
-
-      <EditableDetailFields
-        title="斯里兰卡税项结构（展示层）"
-        columns={4}
-        fields={[
-          { key: 'purchase', label: labelField('purchase'), value: cost.purchase.toFixed(2), type: 'number' },
-          { key: 'freight', label: labelField('freight'), value: cost.freight.toFixed(2), type: 'number' },
-          { key: 'customs', label: labelField('customs'), value: cost.customs.toFixed(2), type: 'number' },
-          { key: 'pal', label: labelField('PAL'), value: cost.pal.toFixed(2), type: 'number' },
-          { key: 'cess', label: labelField('CESS'), value: cost.cess.toFixed(2), type: 'number' },
-          { key: 'vat', label: labelField('VAT'), value: cost.vat.toFixed(2), type: 'number' },
-          { key: 'sscl', label: labelField('SSCL'), value: cost.sscl.toFixed(2), type: 'number' },
-          { key: 'landed', label: labelField('landed'), value: landed.toFixed(2), type: 'number', readOnly: true },
-        ]}
-      />
-
-      <DetailSection
-        title="成本明细（示例）"
-        description="采购 / 运费 / 关税 / 其他 · 尚未核实货代报价及实际税率"
-      >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>费用项</TableHead>
-              <TableHead>金额</TableHead>
-              <TableHead>备注</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cost.components.map((c, idx) => (
-              <TableRow key={`${c.component}-${c.note}-${idx}`}>
-                <TableCell>
-                  <Badge variant="outline">{labelStatus(c.component)}</Badge>
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {c.amount.toFixed(2)} {cost.currency}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{c.note}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </DetailSection>
-
-      <DetailSection title="运输方案报价对比（示例）" description="方案费用范围未对齐，不能据此判断完整到仓成本最优">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>模式</TableHead>
-              <TableHead>单价</TableHead>
-              <TableHead>时效（天）</TableHead>
-              <TableHead>备注</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[
-              { mode: '空运 DDP', unitCost: 4.5, leadDays: 5, note: '示例·称含税；税费/清关/派送边界待核实' },
-              ...cost.shippingOptions.filter((opt) => opt.mode !== 'Air').map((opt) => ({ mode: opt.mode, unitCost: opt.unitCost, leadDays: opt.leadDays, note: `${opt.note} · 示例，税费范围待核实` })),
-              { mode: 'FCL 整柜', unitCost: 1.2, leadDays: 22, note: '示例分摊；整柜价/柜容/税费未核实' },
-            ].map((opt) => (
-              <TableRow key={opt.mode}>
-                <TableCell className="font-medium">{opt.mode}</TableCell>
-                <TableCell className="tabular-nums">
-                  {opt.unitCost.toFixed(2)} {cost.currency}
-                </TableCell>
-                <TableCell className="tabular-nums">{opt.leadDays}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{opt.note}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </DetailSection>
-    </div>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            测算工作台仍可用；保存结果仅留在本机原型会话。
+          </p>
+        </div>
+      }
+    />
   )
 }
