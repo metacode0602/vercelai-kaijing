@@ -1573,3 +1573,104 @@ export function toRelatedBinShape(bin: WmsBin) {
 // silence unused helper warning in some bundlers
 void nextSeq
 void nextMovId
+
+/* ───────── P4 售后回库 / 报损（写流水，禁止直改余额） ───────── */
+
+/** 售后合格回库：增加 on_hand，event_type=售后回库 */
+export function applyAftersaleRestock(input: {
+  warehouse: string
+  bin: string
+  sku: string
+  quantity: number
+  sourceDoc: string
+  sourceLineId?: string
+  actor: string
+  idempotencyKey: string
+  reason?: string
+}): { ok: true; entry: InventoryLedgerEntry; duplicated: boolean } | { ok: false; reason: string } {
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+    return { ok: false, reason: '回库数量必须为正整数' }
+  }
+  return appendLedgerAndProject({
+    warehouse: input.warehouse,
+    bin: input.bin,
+    sku: input.sku,
+    direction: 'in',
+    eventType: '售后回库',
+    type: '售后回库',
+    qty: input.quantity,
+    onHandDelta: input.quantity,
+    sourceType: 'aftersale_return',
+    sourceId: input.sourceDoc,
+    sourceLineId: input.sourceLineId,
+    reason: input.reason || '售后质检合格回库',
+    actor: input.actor,
+    idempotencyKey: input.idempotencyKey,
+  })
+}
+
+/** 售后残次报损：增加 damaged（不增加可用），event_type=质检报损 */
+export function applyAftersaleScrap(input: {
+  warehouse: string
+  bin: string
+  sku: string
+  quantity: number
+  sourceDoc: string
+  sourceLineId?: string
+  actor: string
+  idempotencyKey: string
+  reason?: string
+}): { ok: true; entry: InventoryLedgerEntry; duplicated: boolean } | { ok: false; reason: string } {
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+    return { ok: false, reason: '报损数量必须为正整数' }
+  }
+  return appendLedgerAndProject({
+    warehouse: input.warehouse,
+    bin: input.bin,
+    sku: input.sku,
+    direction: 'adjust',
+    eventType: '质检报损',
+    type: '质检报损',
+    qty: input.quantity,
+    onHandDelta: 0,
+    damagedDelta: input.quantity,
+    sourceType: 'aftersale_return',
+    sourceId: input.sourceDoc,
+    sourceLineId: input.sourceLineId,
+    reason: input.reason || '售后质检残次报损',
+    actor: input.actor,
+    idempotencyKey: input.idempotencyKey,
+  })
+}
+
+/** 取消订单释放预留：扣减 reserved，event_type=订单释放 */
+export function applyOrderReleaseReserved(input: {
+  warehouse: string
+  bin: string
+  sku: string
+  quantity: number
+  sourceDoc: string
+  actor: string
+  idempotencyKey: string
+  reason?: string
+}): { ok: true; entry: InventoryLedgerEntry; duplicated: boolean } | { ok: false; reason: string } {
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+    return { ok: false, reason: '释放数量必须为正整数' }
+  }
+  return appendLedgerAndProject({
+    warehouse: input.warehouse,
+    bin: input.bin,
+    sku: input.sku,
+    direction: 'adjust',
+    eventType: '订单释放',
+    type: '订单释放',
+    qty: input.quantity,
+    onHandDelta: 0,
+    reservedDelta: -input.quantity,
+    sourceType: 'aftersale',
+    sourceId: input.sourceDoc,
+    reason: input.reason || '取消订单释放锁定库存',
+    actor: input.actor,
+    idempotencyKey: input.idempotencyKey,
+  })
+}

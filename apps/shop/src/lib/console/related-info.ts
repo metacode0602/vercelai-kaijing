@@ -1441,9 +1441,93 @@ export function buildUedRelatedInfo(
       }
     }
 
+    case 'integration-log': {
+      const shop = str(row, 'shop')
+      const requestId = str(row, 'requestId')
+      const syncTaskId = str(row, 'syncTaskId')
+      const parents: DetailRelatedParent[] = [
+        ...(shop ? [{ label: '店铺', value: shop }] : []),
+        ...(requestId ? [{ label: 'Request ID', value: requestId, mono: true }] : []),
+        ...(syncTaskId
+          ? [
+              {
+                label: '同步任务',
+                value: syncTaskId,
+                mono: true,
+                href: `/console/sync-tasks/${encodeURIComponent(syncTaskId)}`,
+              },
+            ]
+          : []),
+      ]
+      const siblings = RELATED_DEMO_SYNC_TASKS.filter(
+        (item) =>
+          (shop ? item.shop === shop : false) ||
+          (requestId ? (item as { requestId?: string }).requestId === requestId : false),
+      )
+        .slice(0, 6)
+        .map((item) => ({
+          id: item.id,
+          type: item.type,
+          target: item.target,
+          status: item.status,
+          lastRun: item.lastRun,
+          href: `/console/sync-tasks/${encodeURIComponent(item.id)}`,
+        }))
+      return {
+        parents,
+        sections: [
+          {
+            title: '关联同步任务',
+            description: '同店铺 / request id 下的同步任务（示例）',
+            columns: [
+              { key: 'id', label: '任务 ID', mono: true, hrefKey: 'href' },
+              { key: 'type', label: '类型' },
+              { key: 'target', label: '目标' },
+              { key: 'status', label: '状态' },
+              { key: 'lastRun', label: '最近执行' },
+            ],
+            rows: siblings,
+            emptyText: '暂无关联任务；可从详情页同步任务按钮跳转',
+          },
+        ],
+      }
+    }
+
+    case 'shops': {
+      const shop = str(row, 'name') || str(row, 'shop')
+      const listings = shop
+        ? getDemoListingsBySku('HSY000001001').filter((item) => item.shop === shop)
+        : []
+      const tasks = RELATED_DEMO_SYNC_TASKS.filter((item) => item.shop === shop).map((item) => ({
+        id: item.id,
+        type: item.type,
+        target: item.target,
+        status: item.status,
+        lastRun: item.lastRun,
+        href: `/console/sync-tasks/${encodeURIComponent(item.id)}`,
+      }))
+      return {
+        parents: shop ? [{ label: '店铺', value: shop }] : [],
+        sections: [
+          listingsSection(listings, { description: '本店刊登（示例）' }),
+          {
+            title: '本店同步任务',
+            description: '近期同步任务（示例）',
+            columns: [
+              { key: 'id', label: '任务 ID', mono: true, hrefKey: 'href' },
+              { key: 'type', label: '类型' },
+              { key: 'target', label: '目标' },
+              { key: 'status', label: '状态' },
+            ],
+            rows: tasks,
+            emptyText: '暂无同步任务',
+          },
+        ],
+      }
+    }
+
     case 'imports':
     case 'import-templates':
-    case 'integration-log':
     case 'erp-access':
       return { parents: [], sections: [] }
 

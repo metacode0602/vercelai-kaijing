@@ -4,15 +4,24 @@ import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
 import { createMapping, mappingRouteId, useMappings } from '@/lib/crossborder/mapping-store'
+import {
+  countExceptionsKpi,
+  useMappingExceptions,
+} from '@/lib/crossborder/mapping-exception-store'
 import { skuCodeOptions, useProducts } from '@/lib/crossborder/product-store'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 
 export default function MappingsPage() {
   const rows = useMappings()
+  const exceptions = useMappingExceptions()
   const products = useProducts()
   const skuOptions = React.useMemo(() => skuCodeOptions(products), [products])
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const exKpi = React.useMemo(() => countExceptionsKpi(exceptions), [exceptions])
 
   const kpiItems = React.useMemo(() => {
     const enabled = rows.filter((item) => item.mappingStatus === '启用').length
@@ -24,8 +33,9 @@ export default function MappingsPage() {
       { label: '启用', value: String(enabled) },
       { label: '待确认', value: String(pending) },
       { label: '异常 / 未映射', value: String(abnormal + unmapped), hint: '异常订单不占库' },
+      { label: '阻断占库异常', value: String(exKpi.open), hint: 'mapping_exceptions' },
     ]
-  }, [rows])
+  }, [rows, exKpi.open])
 
   const editor = open ? (
     <UedDialog
@@ -132,6 +142,17 @@ export default function MappingsPage() {
         ]}
       >
         <DetailKpiRow items={kpiItems} />
+        <Alert>
+          <AlertTitle>映射异常阻断自动占库</AlertTitle>
+          <AlertDescription>
+            对齐 schema mapping_exceptions：未映射 / 冲突 / 停用 SKU 的订单行必须进异常队列，且禁止自动库存预留。开放阻断 {exKpi.open} 条。
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" asChild>
+            <LocaleLink href="/console/order-exceptions">打开订单映射异常队列</LocaleLink>
+          </Button>
+        </div>
         <UedPrototypeNotice>
           店铺 + Seller SKU 必须唯一；未映射、重复映射或 SKU 停用时，订单进入异常队列且不占库存。详情页自动带出内部 SKU、刊登与库存。
         </UedPrototypeNotice>

@@ -1,126 +1,140 @@
-import { notFound } from 'next/navigation'
+'use client'
+
+import * as React from 'react'
 import {
   ConsoleBreadcrumbs,
+  DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailSection,
-  EditableDetailFields,
+  DetailRelatedTables,
+  parentsToFields,
 } from '@/components/console/detail'
-import { getShopById } from '@/lib/crossborder/mock-data'
+import { decodeRouteParam } from '@/components/console/erp-ued-detail'
+import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { buildUedRelatedInfo } from '@/lib/console/related-info'
+import {
+  markShopReauthQueued,
+  setShopSyncPaused,
+  toRelatedShopShape,
+  useShopConnections,
+} from '@/lib/crossborder/shop-connection-store'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
-import { labelField, labelStatus } from '@/lib/console/labels'
 
-interface ShopDetailPageProps {
-  params: Promise<{ id: string }>
-}
+export default function ShopDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const id = decodeRouteParam(React.use(params).id)
+  const rows = useShopConnections()
+  const row = rows.find((item) => item.id === id)
+  const [mounted, setMounted] = React.useState(false)
+  const [notice, setNotice] = React.useState('')
 
-function statusVariant(status: string) {
-  if (status === 'active') return 'default' as const
-  if (status === 'error') return 'destructive' as const
-  if (status === 'connecting') return 'secondary' as const
-  return 'outline' as const
-}
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
-const OAUTH_PLATFORMS = new Set(['daraz', 'lazada', 'tiktok_shop'])
+  if (!row) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/settings/shops"
+          title={mounted ? '未找到店铺' : '加载中…'}
+          description={mounted ? `店铺 ${id} 不存在。` : '正在读取本机原型会话…'}
+        />
+      </div>
+    )
+  }
 
-export default async function ShopDetailPage({ params }: ShopDetailPageProps) {
-  const { id } = await params
-  const shop = getShopById(id)
-  if (!shop) notFound()
-
-  const canOauth = OAUTH_PLATFORMS.has(shop.platform)
-  const oauthHref = canOauth
-    ? `/api/marketplace/oauth/authorize?platform=${shop.platform}&shopId=${shop.id}&locale=zh&region=${shop.region.toLowerCase()}`
-    : undefined
+  const related = buildUedRelatedInfo('shops', toRelatedShopShape(row))
+  const parentFields = parentsToFields(related.parents)
 
   return (
-    <div className="space-y-4">
+    <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbs
-        items={[{ label: '店铺', href: '/console/settings/shops' }, { label: shop.name }]}
+        items={[{ label: '店铺连接', href: '/console/settings/shops' }, { label: row.name }]}
       />
       <DetailPageHeader
         backHref="/console/settings/shops"
-        backLabel="返回店铺列表"
-        title={shop.name}
-        description="店铺详情 · 授权连接使用本页店铺 ID · 凭证已脱敏"
+        title={row.name}
+        description={`${row.platformLabel} · ${row.region} · ${row.externalShopId}`}
         badges={
           <>
-            <Badge variant={statusVariant(shop.status)}>{labelStatus(shop.status)}</Badge>
-            <Badge variant="outline">{shop.platform}</Badge>
+            <Badge variant="outline">示例数据</Badge>
+            <Badge variant={row.authStatus === '授权失效' ? 'destructive' : 'secondary'}>
+              {row.authStatus}
+            </Badge>
+            {row.syncPaused ? <Badge variant="destructive">同步暂停</Badge> : null}
           </>
         }
         actions={
-          oauthHref ? (
-            <Button variant="outline" size="sm" asChild>
-              <a href={oauthHref}>重新授权</a>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const result = setShopSyncPaused(row.id, !row.syncPaused)
+                setNotice(
+                  result.ok
+                    ? `同步已${result.row.syncPaused ? '暂停' : '恢复'}（原型）`
+                    : result.reason,
+                )
+              }}
+            >
+              {row.syncPaused ? '恢复同步' : '暂停同步'}
             </Button>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              重连
+            <Button
+              size="sm"
+              onClick={() => {
+                const result = markShopReauthQueued(row.id)
+                setNotice(result.ok ? result.row.lastError : result.reason)
+              }}
+            >
+              排队重授权
             </Button>
-          )
+            <Button size="sm" variant="ghost" asChild>
+              <LocaleLink href="/console/sync-tasks">同步任务</LocaleLink>
+            </Button>
+          </div>
         }
       />
-
-      <Alert>
-        <AlertTitle>UED 示例店铺 · 凭证已脱敏</AlertTitle>
-        <AlertDescription>
-          授权状态与连接信息为演示数据。OAuth 跳转仅用于原型联调，不会保存真实密钥到本页。
-        </AlertDescription>
-      </Alert>
-
+      {row.authStatus === '授权失效' ? (
+        <Alert variant="destructive">
+          <AlertTitle>授权失效 · 应暂停自动同步</AlertTitle>
+          <AlertDescription>{row.lastError}</AlertDescription>
+        </Alert>
+      ) : null}
+      <UedPrototypeNotice>
+        {notice || '凭证已脱敏；OAuth 重授权不跳转真实平台。'}
+      </UedPrototypeNotice>
       <DetailKpiRow
         items={[
-          { label: '健康', value: labelStatus(shop.health) },
-          { label: '最近订单同步', value: shop.lastOrdersSyncAt ?? '—' },
-          { label: '最近库存同步', value: shop.lastInventorySyncAt ?? '—' },
-          { label: '区域 / 币种', value: `${shop.region} / ${shop.currency}` },
+          { label: '授权', value: row.authStatus },
+          { label: '健康', value: row.healthLabel },
+          { label: '同步', value: row.syncPaused ? '已暂停' : '同步中' },
+          { label: '币种', value: row.currency },
         ]}
       />
-
-      <EditableDetailFields
-        title="店铺信息"
+      <DetailFieldGrid
+        title="店铺连接详情"
+        description="shops / shop_credentials 投影（脱敏）"
         fields={[
-          { key: 'id', label: labelField('id'), value: shop.id, mono: true, readOnly: true, required: true },
-          { key: 'slug', label: labelField('slug'), value: shop.slug, mono: true },
-          { key: 'externalShopId', label: labelField('externalShopId'), value: shop.externalShopId, mono: true },
-          { key: 'platform', label: labelField('platform'), value: shop.platform },
-          { key: 'region', label: labelField('region'), value: shop.region },
-          { key: 'marketplaceCountry', label: labelField('marketplaceCountry'), value: shop.marketplaceCountry },
-          { key: 'timezone', label: labelField('timezone'), value: shop.timezone },
-          { key: 'sellerName', label: labelField('sellerName'), value: shop.sellerName },
-          { key: 'currency', label: labelField('currency'), value: shop.currency },
-          { key: 'status', label: labelField('status'), value: labelStatus(shop.status) },
-          { key: 'authExpiresAt', label: labelField('authExpiresAt'), value: shop.authExpiresAt ?? '—' },
-          { key: 'lastSyncAt', label: labelField('lastSyncAt'), value: shop.lastSyncAt },
-          { key: 'meta', label: labelField('meta'), value: JSON.stringify(shop.meta) },
+          { label: '店铺 ID', value: row.id, mono: true },
+          ...parentFields,
+          { label: '平台', value: row.platformLabel },
+          { label: '站点', value: row.region },
+          { label: '平台店铺 ID', value: row.externalShopId, mono: true },
+          { label: '凭证掩码', value: row.credentialMask, mono: true },
+          { label: '授权到期', value: row.authExpiresAt },
+          { label: '默认仓库', value: row.defaultWarehouse, mono: true },
+          { label: '负责人', value: row.owner },
+          { label: '最近同步', value: row.lastSyncAt },
+          { label: '最近订单同步', value: row.lastOrdersSyncAt },
+          { label: '最近库存同步', value: row.lastInventorySyncAt },
+          { label: '最近错误', value: row.lastError },
         ]}
       />
-
-      <DetailSection title="接入凭证（脱敏）">
-        <dl className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">类型</dt>
-            <dd className="mt-1 text-sm font-medium">{shop.credentialKind}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">脱敏密钥</dt>
-            <dd className="mt-1 font-mono text-sm">{shop.credentialMask}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">到期时间</dt>
-            <dd className="mt-1 text-sm font-medium">{shop.credentialExpiresAt ?? '—'}</dd>
-          </div>
-        </dl>
-      </DetailSection>
-
-      {shop.lastError ? (
-        <DetailSection title="最近同步错误">
-          <p className="text-sm text-destructive">{shop.lastError}</p>
-        </DetailSection>
-      ) : null}
+      <DetailRelatedTables sections={related.sections ?? []} />
     </div>
   )
 }
