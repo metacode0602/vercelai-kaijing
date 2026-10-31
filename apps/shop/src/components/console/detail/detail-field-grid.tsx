@@ -40,8 +40,8 @@ export function DetailFieldGrid({
       ) : null}
       <CardContent className={title ? undefined : 'pt-6'}>
         <dl className={`grid gap-4 ${colClass}`}>
-          {fields.map((field) => (
-            <div key={field.label} className="min-w-0 space-y-1">
+          {fields.map((field, index) => (
+            <div key={`${field.label}-${index}`} className="min-w-0 space-y-1">
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</dt>
               <dd
                 className={
