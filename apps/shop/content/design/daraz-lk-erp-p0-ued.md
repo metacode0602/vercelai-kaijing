@@ -6,6 +6,7 @@
 > @see docs/design/haoshiyun-erp-database-schema.md  
 > @see apps/shop/content/design/cost-calculator-sl-landed-ued.md  
 > @see apps/shop/content/design/erp-console-ued-plan.md
+> @see docs/design/platform-apis/ — 官方 Open API 能力（Q38 客服 / Q43 字段 / Q44 券；编号与下文 P2 旧 Q36/Q38/Q44 不同）
 
 ## 1. 架构冲突决议（必须）
 
@@ -82,3 +83,13 @@
 | F30 归因看板 | 报表 | `/console/reports/attribution` |
 | F31 HS+SLSI | 商品中心 | `/console/compliance-hs-slsi` |
 | F28 客服收件箱 | 售后中心（只读） | `/console/cs-inbox` |
+
+## 7. 官方 API 能力指针
+
+业务侧关于「店铺授权 API 之后能拉哪些字段 / 客服能否发消息 / 有没有券接口」的**证据文档**（勿猜测）见：
+
+- 索引与 Q38/Q43/Q44 总表：[`docs/design/platform-apis/README.md`](../../../../docs/design/platform-apis/README.md)
+- Daraz（优先）：[`docs/design/platform-apis/daraz.md`](../../../../docs/design/platform-apis/daraz.md)
+
+**编号对照**：本文 §4 P2 的 Q36/Q38/Q44（评论抓取 / 券运营 / 外部合规源）≠ 上述调研的 **Q38=IM、Q43=字段、Q44=券 API**。F28 只读与 Daraz IM path「官方未说明 / 未找到」一致。
+
