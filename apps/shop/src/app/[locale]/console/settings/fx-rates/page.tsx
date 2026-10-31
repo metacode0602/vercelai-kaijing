@@ -15,7 +15,13 @@ import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 
 export default function FxRatesSettingsPage() {
   const rows = useFxRates()
@@ -141,10 +147,15 @@ export default function FxRatesSettingsPage() {
       <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
         <div className="space-y-1">
           <Label>平台</Label>
-          <NativeSelect value={form.platform} onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}>
-            <NativeSelectOption value="Daraz">Daraz</NativeSelectOption>
-            <NativeSelectOption value="Lazada">Lazada</NativeSelectOption>
-          </NativeSelect>
+          <Select value={form.platform} onValueChange={(value) => setForm((f) => ({ ...f, platform: value }))}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Daraz">Daraz</SelectItem>
+              <SelectItem value="Lazada">Lazada</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label>站点</Label>
@@ -168,12 +179,17 @@ export default function FxRatesSettingsPage() {
         </div>
         <div className="space-y-1">
           <Label>来源</Label>
-          <NativeSelect value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}>
-            <NativeSelectOption value="manual">manual</NativeSelectOption>
-            <NativeSelectOption value="import">import</NativeSelectOption>
-            <NativeSelectOption value="api">api</NativeSelectOption>
-            <NativeSelectOption value="platform_bill">platform_bill</NativeSelectOption>
-          </NativeSelect>
+          <Select value={form.source} onValueChange={(value) => setForm((f) => ({ ...f, source: value }))}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">manual</SelectItem>
+              <SelectItem value="import">import</SelectItem>
+              <SelectItem value="api">api</SelectItem>
+              <SelectItem value="platform_bill">platform_bill</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label>备注</Label>

@@ -7,7 +7,13 @@ import { Button } from '@workspace/ui/components/button'
 import { ConsoleListSection, useConsolePagination } from '@/components/console/list'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import {
   INITIAL_COUNTRIES,
@@ -210,8 +216,8 @@ export default function PlatformBasicsPage() {
                 {fieldSpecs[dialog.tab].map((field) => (
                   <div key={field.key} className="flex flex-col gap-2">
                     <Label htmlFor={`record-${field.key}`}>{field.label}</Label>
-                    {field.type === 'select' ? <NativeSelect id={`record-${field.key}`} value={values[field.key] ?? ''} disabled={field.readOnly} onChange={(event) => {
-                      const value = event.target.value
+                    {field.type === 'select' ? <Select value={(values[field.key] ?? '') || '__none__'} disabled={field.readOnly} onValueChange={(next) => {
+                      const value = next === '__none__' ? '' : next
                       setValues((current) => {
                         if (dialog.tab === 'countries' && field.key === 'defaultCurrency') return { ...current, defaultCurrency: value }
                         if (dialog.tab === 'warehouses' && field.key === 'country') {
@@ -220,7 +226,7 @@ export default function PlatformBasicsPage() {
                         }
                         return { ...current, [field.key]: value }
                       })
-                    }}><NativeSelectOption value="">请选择</NativeSelectOption>{field.options?.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect> : <Input id={`record-${field.key}`} type={field.type ?? 'text'} placeholder={field.placeholder} value={values[field.key] ?? ''} disabled={field.readOnly} required={field.key !== 'symbol'} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
+                    }}><SelectTrigger id={`record-${field.key}`} className="w-full"><SelectValue placeholder="请选择" /></SelectTrigger><SelectContent><SelectItem value="__none__">请选择</SelectItem>{field.options?.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : <Input id={`record-${field.key}`} type={field.type ?? 'text'} placeholder={field.placeholder} value={values[field.key] ?? ''} disabled={field.readOnly} required={field.key !== 'symbol'} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
                     {field.hint ? <p className="text-xs text-muted-foreground">{field.hint}</p> : null}
                     {dialog.tab === 'warehouses' && field.key === 'country' ? <p className="text-xs text-muted-foreground">选择国家后自动带出时区和核算币种。</p> : null}
                     {dialog.tab === 'warehouses' && field.key === 'shops' ? <p className="text-xs text-muted-foreground">一个仓库可供多个店铺选择；店铺也可关联多个仓库。</p> : null}

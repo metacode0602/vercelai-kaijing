@@ -4,7 +4,13 @@ import * as React from 'react'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Badge } from '@workspace/ui/components/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { DetailKpiRow } from '@/components/console/detail'
@@ -153,11 +159,16 @@ export default function FreightPage() {
         </div>
         <div className="flex flex-col gap-2">
           <Label>目的国 / HS 归类</Label>
-          <NativeSelect defaultValue="lk">
-            <NativeSelectOption value="lk">斯里兰卡 · HS 3926.90</NativeSelectOption>
-            <NativeSelectOption value="my">马来西亚 · HS 3926.90</NativeSelectOption>
-            <NativeSelectOption value="th">泰国 · HS 3926.90</NativeSelectOption>
-          </NativeSelect>
+          <Select defaultValue="lk">
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="lk">斯里兰卡 · HS 3926.90</SelectItem>
+              <SelectItem value="my">马来西亚 · HS 3926.90</SelectItem>
+              <SelectItem value="th">泰国 · HS 3926.90</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <Button onClick={estimate}>重新测算</Button>
       </div>

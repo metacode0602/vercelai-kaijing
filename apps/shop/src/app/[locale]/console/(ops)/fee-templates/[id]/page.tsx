@@ -6,6 +6,13 @@ import { Button } from '@workspace/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Textarea } from '@workspace/ui/components/textarea'
 import {
   Table,
@@ -295,20 +302,24 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                             />
                           </TableCell>
                           <TableCell>
-                            <select
-                              className="h-8 rounded-md border bg-background px-2 text-sm"
+                            <Select
                               value={comp.unit}
-                              onChange={(e) => {
-                                const unit: FeeComponent['unit'] = e.target.value === 'usd' ? 'usd' : 'pct'
+                              onValueChange={(value) => {
+                                const unit: FeeComponent['unit'] = value === 'usd' ? 'usd' : 'pct'
                                 const next: FeeComponent[] = selected.components.map((c, i) =>
                                   i === index ? { ...c, unit } : c,
                                 )
                                 saveComponents(next)
                               }}
                             >
-                              <option value="pct">比例</option>
-                              <option value="usd">USD</option>
-                            </select>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pct">比例</SelectItem>
+                                <SelectItem value="usd">USD</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <Input

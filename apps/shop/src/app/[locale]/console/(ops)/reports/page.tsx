@@ -3,7 +3,13 @@
 import * as React from 'react'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { ERP_DEMO_INVENTORY, ERP_DEMO_PURCHASES, ERP_DEMO_PRODUCTS } from '@/lib/crossborder/erp-ued-data'
@@ -29,7 +35,7 @@ export default function ReportsPage() {
       <Button size="sm" variant="secondary" asChild><LocaleLink href="/console/reports/stock-risk">F21 滞销/断货</LocaleLink></Button>
       <Button size="sm" variant="secondary" asChild><LocaleLink href="/console/reports/attribution">F30 差评退货归因</LocaleLink></Button>
     </div>
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-4"><div className="flex flex-col gap-2"><label className="text-xs text-muted-foreground">日期范围</label><Input type="date" defaultValue="2026-10-01" /></div><div className="flex flex-col gap-2"><label className="text-xs text-muted-foreground">平台 / 站点</label><NativeSelect defaultValue="all"><NativeSelectOption value="all">全部平台</NativeSelectOption><NativeSelectOption value="lazada">Lazada</NativeSelectOption><NativeSelectOption value="daraz">Daraz</NativeSelectOption></NativeSelect></div><Button variant="outline" onClick={() => setNotice(`当前筛选展示 ${count} 条关联示例主数据，尚未查询服务器。`)}>查询</Button><Button variant="outline" onClick={() => setNotice('已导出当前示例筛选（原型动作，无文件下载）。')}>导出</Button></div>
+    <div className="flex flex-wrap items-end gap-3 rounded-lg border p-4"><div className="flex flex-col gap-2"><label className="text-xs text-muted-foreground">日期范围</label><Input type="date" defaultValue="2026-10-01" /></div><div className="flex flex-col gap-2"><label className="text-xs text-muted-foreground">平台 / 站点</label><Select defaultValue="all"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">全部平台</SelectItem><SelectItem value="lazada">Lazada</SelectItem><SelectItem value="daraz">Daraz</SelectItem></SelectContent></Select></div><Button variant="outline" onClick={() => setNotice(`当前筛选展示 ${count} 条关联示例主数据，尚未查询服务器。`)}>查询</Button><Button variant="outline" onClick={() => setNotice('已导出当前示例筛选（原型动作，无文件下载）。')}>导出</Button></div>
     <div className="flex flex-wrap gap-2">{['订单数', '销售金额', '库存', '在途采购'].map((label) => <Button key={label} variant="secondary" size="sm" onClick={() => setNotice(`${label}：点击后应下钻至同筛选条件明细列表。`)}>{label} · 查看明细</Button>)}</div>{notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
   </UedWorkspace>
 }

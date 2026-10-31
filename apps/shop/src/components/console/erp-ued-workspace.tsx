@@ -5,7 +5,13 @@ import { Check, ChevronRight, Download, Plus, Search } from 'lucide-react'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { ConsoleListSection, ConsoleTableEmpty } from '@/components/console/list'
@@ -180,19 +186,23 @@ export function UedWorkspace<T>(props: {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {filterDefs.map((item, index) => (
-            <NativeSelect
+            <Select
               key={`${item.label}-${index}`}
               value={filterValues[index] ?? '全部'}
-              onChange={(event) => updateFilter(index, event.target.value)}
-              className="w-40"
+              onValueChange={(value) => updateFilter(index, value)}
             >
-              <NativeSelectOption value="全部">全部{item.label}</NativeSelectOption>
-              {item.options.map((option) => (
-                <NativeSelectOption key={option} value={option}>
-                  {option}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="全部">全部{item.label}</SelectItem>
+                {item.options.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ))}
         </div>
       </div>
@@ -248,9 +258,14 @@ export function UedDialog(props: {
                 <div key={key} className={field.fullWidth ? 'flex flex-col gap-2 sm:col-span-2' : 'flex flex-col gap-2'}>
                   <Label htmlFor={`ued-field-${key}`}>{field.label}{field.required ? <span className="text-destructive">*</span> : null}</Label>
                   {field.options ? (
-                    <NativeSelect id={`ued-field-${key}`} value={value} onChange={(event) => setValue(event.target.value)} disabled={field.readOnly}>
-                      {field.options.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}
-                    </NativeSelect>
+                    <Select value={value === '' ? '__empty__' : value} onValueChange={(next) => setValue(next === '__empty__' ? '' : next)} disabled={field.readOnly}>
+                      <SelectTrigger id={`ued-field-${key}`}>
+                        <SelectValue placeholder="请选择" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.options.map((option) => <SelectItem key={option || '__empty__'} value={option || '__empty__'}>{option || '（不限）'}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   ) : field.type === 'textarea' ? (
                     <textarea id={`ued-field-${key}`} value={value} onChange={(event) => setValue(event.target.value)} placeholder={field.placeholder} readOnly={field.readOnly} required={field.required} rows={3} className="min-h-20 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50" />
                   ) : (

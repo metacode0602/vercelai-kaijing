@@ -33,7 +33,13 @@ import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import {
   Table,
   TableBody,
@@ -564,22 +570,26 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor={`bin-${line.id}`}>上架库位</Label>
-                        <NativeSelect
-                          id={`bin-${line.id}`}
+                        <Select
                           value={draft.bin}
-                          onChange={(event) =>
+                          onValueChange={(value) =>
                             setQcDraft((prev) => ({
                               ...prev,
-                              [line.id]: { ...draft, bin: event.target.value },
+                              [line.id]: { ...draft, bin: value },
                             }))
                           }
                         >
-                          {BIN_OPTIONS.map((bin) => (
-                            <NativeSelectOption key={bin} value={bin}>
-                              {bin}
-                            </NativeSelectOption>
-                          ))}
-                        </NativeSelect>
+                          <SelectTrigger id={`bin-${line.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BIN_OPTIONS.map((bin) => (
+                              <SelectItem key={bin} value={bin}>
+                                {bin}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor={`note-${line.id}`}>残次/差异说明</Label>

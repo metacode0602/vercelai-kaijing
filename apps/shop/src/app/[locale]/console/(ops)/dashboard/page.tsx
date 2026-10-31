@@ -41,7 +41,13 @@ import {
   CardTitle,
 } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
-import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import {
   Table,
   TableBody,
@@ -247,31 +253,46 @@ export default function DashboardPage() {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">平台</label>
-          <NativeSelect value={platform} onChange={(event) => setPlatform(event.target.value)}>
-            <NativeSelectOption value="all">全部平台</NativeSelectOption>
-            <NativeSelectOption value="lazada">Lazada</NativeSelectOption>
-            <NativeSelectOption value="daraz">Daraz</NativeSelectOption>
-          </NativeSelect>
+          <Select value={platform} onValueChange={setPlatform}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部平台</SelectItem>
+              <SelectItem value="lazada">Lazada</SelectItem>
+              <SelectItem value="daraz">Daraz</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">国家 / 站点</label>
-          <NativeSelect value={site} onChange={(event) => setSite(event.target.value)}>
-            <NativeSelectOption value="all">全部站点</NativeSelectOption>
-            <NativeSelectOption value="MY">MY</NativeSelectOption>
-            <NativeSelectOption value="LK">LK</NativeSelectOption>
-            <NativeSelectOption value="TH">TH</NativeSelectOption>
-          </NativeSelect>
+          <Select value={site} onValueChange={setSite}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部站点</SelectItem>
+              <SelectItem value="MY">MY</SelectItem>
+              <SelectItem value="LK">LK</SelectItem>
+              <SelectItem value="TH">TH</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">店铺</label>
-          <NativeSelect value={shop} onChange={(event) => setShop(event.target.value)}>
-            <NativeSelectOption value="all">全部店铺</NativeSelectOption>
-            {MOCK_SHOPS.map((item) => (
-              <NativeSelectOption key={item.id} value={item.id}>
-                {item.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+          <Select value={shop} onValueChange={setShop}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部店铺</SelectItem>
+              {MOCK_SHOPS.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Button
           variant="outline"
