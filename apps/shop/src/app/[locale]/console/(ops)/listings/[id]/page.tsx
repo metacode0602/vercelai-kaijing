@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
@@ -10,6 +9,7 @@ import {
   DetailSection,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { ListingImagesSection } from '@/components/console/listing-images-section'
@@ -190,7 +190,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
     <div className="space-y-4">
       {editDialog}
       {lineDialog}
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[{ label: '刊登', href: '/console/listings' }, { label: listing.id }]}
       />
       <DetailPageHeader

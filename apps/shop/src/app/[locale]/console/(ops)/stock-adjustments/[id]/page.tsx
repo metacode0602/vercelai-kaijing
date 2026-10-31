@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
@@ -11,6 +10,7 @@ import {
   StatusTimeline,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -103,7 +103,7 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[
           { label: '盘点与调整', href: '/console/stock-adjustments' },
           { label: adjustment.adjustmentNo },

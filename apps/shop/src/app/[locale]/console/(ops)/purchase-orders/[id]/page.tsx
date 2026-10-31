@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
@@ -10,6 +9,7 @@ import {
   DetailSection,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildPurchaseOrderRelatedInfo } from '@/lib/console/related-info'
@@ -94,7 +94,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[{ label: '采购单', href: '/console/purchase-orders' }, { label: current.poNo }]}
       />
 

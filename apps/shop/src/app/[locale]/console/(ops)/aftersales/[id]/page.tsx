@@ -2,13 +2,13 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailRelatedTables,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -44,7 +44,7 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs items={[{ label: '售后管理', href: '/console/aftersales' }, { label: row.id }]} />
+      <ConsoleBreadcrumbRegistration items={[{ label: '售后管理', href: '/console/aftersales' }, { label: row.id }]} />
       <DetailPageHeader
         backHref="/console/aftersales"
         title={row.id}

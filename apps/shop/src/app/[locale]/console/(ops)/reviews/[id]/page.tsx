@@ -2,13 +2,13 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailRelatedTables,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -44,7 +44,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs items={[{ label: '商品评论', href: '/console/reviews' }, { label: row.id }]} />
+      <ConsoleBreadcrumbRegistration items={[{ label: '商品评论', href: '/console/reviews' }, { label: row.id }]} />
       <DetailPageHeader
         backHref="/console/reviews"
         title={`${row.rating} ★ · ${row.sentiment}`}

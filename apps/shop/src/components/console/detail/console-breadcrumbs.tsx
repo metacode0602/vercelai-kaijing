@@ -15,10 +15,18 @@ export type ConsoleBreadcrumbItem = {
 }
 
 /** Chinese console breadcrumbs with LocaleLink. Last item without href = current page. */
-export function ConsoleBreadcrumbs({ items }: { items: ConsoleBreadcrumbItem[] }) {
+export function ConsoleBreadcrumbs({
+  items,
+  className,
+  listClassName,
+}: {
+  items: ConsoleBreadcrumbItem[]
+  className?: string
+  listClassName?: string
+}) {
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className={className}>
+      <BreadcrumbList className={listClassName}>
         {items.map((item, index) => {
           const isLast = index === items.length - 1
           return (

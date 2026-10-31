@@ -3,7 +3,6 @@
 import * as React from 'react'
 import { Pencil } from 'lucide-react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
@@ -15,6 +14,7 @@ import {
   type DetailRelatedInfo,
   type DetailRelatedItem,
 } from '@/components/console/detail'
+import { useConsoleBreadcrumbs } from '@/components/console/console-breadcrumbs-context'
 import { UedDialog, type UedDialogField } from '@/components/console/erp-ued-workspace'
 import { UED_RECORD_LABELS } from '@/lib/crossborder/erp-ued-labels'
 import {
@@ -540,17 +540,13 @@ export function UedRecordDetail({
   })
 
   const noticeText = notice ?? '仅在当前原型会话内查看与修改，不会写入业务数据库。'
-  const breadcrumbCurrent = String(title)
+  useConsoleBreadcrumbs([
+    { label: moduleTitle, href: backHref },
+    { label: String(title) },
+  ])
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs
-        items={[
-          { label: moduleTitle, href: backHref },
-          { label: breadcrumbCurrent },
-        ]}
-      />
-
       <DetailPageHeader
         backHref={backHref}
         title={title}

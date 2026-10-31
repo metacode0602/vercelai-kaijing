@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
@@ -10,6 +9,7 @@ import {
   DetailSection,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -77,7 +77,7 @@ export default function PickingDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[{ label: '拣货打包发货', href: '/console/picking' }, { label: pkg.id }]}
       />
       <DetailPageHeader

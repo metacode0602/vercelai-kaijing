@@ -2,13 +2,13 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailRelatedTables,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -70,7 +70,7 @@ export default function InventoryBalanceDetailPage({ params }: { params: Promise
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[
           { label: '库存汇总', href: '/console/inventory-balances' },
           { label: balance.sku },

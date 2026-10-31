@@ -3,12 +3,12 @@
 import * as React from 'react'
 import { notFound } from 'next/navigation'
 import {
-  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
   EditableDetailFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { getCandidateById, getShopById } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -53,7 +53,7 @@ export default function CandidateDetailPage({ params }: CandidateDetailPageProps
 
   return (
     <div className="space-y-4">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[{ label: '选品候选', href: '/console/candidates' }, { label: candidate.title }]}
       />
       <DetailPageHeader

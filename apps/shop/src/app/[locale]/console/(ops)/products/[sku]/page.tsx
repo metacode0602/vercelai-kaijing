@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import {
-  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
   EditableDetailFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { costLandedTotal, getCostBySku, getInventoryBySku, getProductBySku } from '@/lib/crossborder/mock-data'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
@@ -51,7 +51,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
 
   return (
     <div className="space-y-6">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[{ label: '商品', href: '/console/products' }, { label: product.sku }]}
       />
       <DetailPageHeader

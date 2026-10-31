@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import {
-  ConsoleBreadcrumbs,
   DetailKpiRow,
   DetailPageHeader,
   DetailSection,
   EditableDetailFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { getInventoryBySku } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -36,7 +36,7 @@ export default async function InventoryDetailPage({ params }: InventoryDetailPag
 
   return (
     <div className="space-y-4">
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[{ label: '库存', href: '/console/inventory' }, { label: item.sku }]}
       />
       <DetailPageHeader

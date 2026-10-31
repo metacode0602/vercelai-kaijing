@@ -2,13 +2,13 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailRelatedTables,
   parentsToFields,
 } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -61,7 +61,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
     const warehouseBins = listBinsForWarehouse(warehouse.code)
     return (
       <div className="flex w-full flex-col gap-4">
-        <ConsoleBreadcrumbs
+        <ConsoleBreadcrumbRegistration
           items={[{ label: '仓库与库位', href: '/console/warehouse' }, { label: warehouse.code }]}
         />
         <DetailPageHeader
@@ -209,7 +209,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="flex w-full flex-col gap-4">
       {editor}
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[
           { label: '仓库与库位', href: '/console/warehouse' },
           { label: bin.warehouseCode, href: `/console/warehouse/${encodeURIComponent(bin.warehouseCode)}` },

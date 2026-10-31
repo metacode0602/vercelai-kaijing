@@ -2,13 +2,13 @@
 
 import * as React from 'react'
 import {
-  ConsoleBreadcrumbs,
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
   DetailRelatedTables,
   DetailSection,
 } from '@/components/console/detail'
+import { useConsoleBreadcrumbs } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { ProductImageEditor } from '@/components/console/product-images'
@@ -42,6 +42,10 @@ function statusVariant(status: string) {
 
 export default function MasterProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
+  useConsoleBreadcrumbs([
+    { label: '商品 SPU / SKU', href: '/console/master-products' },
+    { label: id },
+  ])
   const products = useProducts()
   const product = products.find((item) => item.spu === id)
   const dictionaries = useDictionaries()
@@ -85,13 +89,6 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbs
-        items={[
-          { label: '商品 SPU / SKU', href: '/console/master-products' },
-          { label: current.spu },
-        ]}
-      />
-
       <DetailPageHeader
         backHref="/console/master-products"
         title={`${current.spu} · ${current.name}`}
