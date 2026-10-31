@@ -22,17 +22,17 @@ export function DashboardKpiCard({
   href,
 }: DashboardKpiCardProps) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+    <Card size="sm">
+      <CardHeader className="pb-0">
+        <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
       </CardHeader>
       <CardContent>
         <LocaleLink
           href={href}
           className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <p className="text-2xl font-semibold tabular-nums">{value}</p>
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          <p className="text-xl font-semibold tabular-nums leading-tight">{value}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
             <span
               className={cn(
                 tone === 'positive' && 'text-emerald-600 dark:text-emerald-400',
