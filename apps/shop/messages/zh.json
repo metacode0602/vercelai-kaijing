@@ -220,7 +220,13 @@
       "profits": "订单与SKU利润",
       "freight": "运费测算",
       "carriers": "承运商管理",
-      "cartonSpecs": "箱规管理"
+      "cartonSpecs": "箱规管理",
+      "oceanContainers": "海运柜次",
+      "sellThrough": "动销率",
+      "stockRisk": "滞销断货预警",
+      "attribution": "差评退货归因",
+      "complianceHsSlsi": "HS与SLSI认证",
+      "csInbox": "客服收件箱"
     },
     "usage": {
       "title": "用量",
@@ -353,7 +359,13 @@
       "warehouseZones": "库区管理",
       "carriers": "承运商管理",
       "cartonSpecs": "箱规管理",
-      "importTemplates": "导入模板"
+      "importTemplates": "导入模板",
+      "oceanContainers": "海运柜次",
+      "sellThrough": "动销率",
+      "stockRisk": "滞销断货预警",
+      "attribution": "差评退货归因",
+      "complianceHsSlsi": "HS与SLSI认证",
+      "csInbox": "客服收件箱"
     },
     "comingSoon": {
       "billing": {
@@ -390,7 +402,8 @@
       "credentials": "平台凭证",
       "notifications": "通知 / 钉钉",
       "members": "组织成员",
-      "preferences": "偏好"
+      "preferences": "偏好",
+      "fxRates": "汇率配置"
     },
     "profile": {
       "account": "账号",

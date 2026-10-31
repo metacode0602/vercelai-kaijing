@@ -11,6 +11,7 @@ import {
 } from '@/components/console/list'
 import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
 import { useCosts } from '@/lib/crossborder/finance-store'
+import { useSkuCostVersions } from '@/lib/crossborder/sku-cost-version-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -31,6 +32,7 @@ export default function CostsPage() {
   const [keyword, setKeyword] = React.useState('')
   const [currency, setCurrency] = React.useState('all')
   const sessionCosts = useCosts()
+  const costVersions = useSkuCostVersions()
 
   const rows = MOCK_COSTS.filter((row) => {
     if (!matchesKeyword(keyword, row.sku, row.title)) return false
@@ -57,7 +59,7 @@ export default function CostsPage() {
         </AlertDescription>
       </Alert>
 
-      <UedPrototypeNotice>订单级净利润仍待采购批次成本、平台账单费用、汇率来源/日期及广告分摊口径确认；本页金额不可用于经营决策。</UedPrototypeNotice>
+      <UedPrototypeNotice>F32：测算结果可保存为按柜次的 sku_cost 版本（本机）。订单级净利润仍待平台账单费用与广告分摊确认；本页金额不可用于经营决策。</UedPrototypeNotice>
 
       <ConsoleFilterBar
         keyword={keyword}
@@ -73,6 +75,58 @@ export default function CostsPage() {
           },
         ]}
       />
+
+
+      <ConsoleListSection
+        title="柜次成本版本（F32）"
+        description={`共 ${costVersions.length} 条 · 测算工作台可按柜次保存到仓成本版本（PAL/CESS/VAT/SSCL）`}
+      >
+        {costVersions.length === 0 ? (
+          <ConsoleTableEmpty />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>版本 ID</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>柜次</TableHead>
+                <TableHead>v#</TableHead>
+                <TableHead>税模版</TableHead>
+                <TableHead>到仓/件</TableHead>
+                <TableHead>建议售价</TableHead>
+                <TableHead>生效</TableHead>
+                <TableHead>创建人</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {costVersions.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-mono text-xs">{row.id}</TableCell>
+                  <TableCell>
+                    <LocaleLink
+                      href={`/console/costs/${encodeURIComponent(row.sku)}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {row.sku}
+                    </LocaleLink>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{row.lotCode}</TableCell>
+                  <TableCell>v{row.versionNo}</TableCell>
+                  <TableCell className="text-xs">{row.taxTemplateCode}</TableCell>
+                  <TableCell className="tabular-nums">{row.landedUnitCost.toFixed(2)} {row.currency}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {row.suggestPrice != null ? row.suggestPrice.toFixed(2) : '—'}
+                  </TableCell>
+                  <TableCell>{row.effectiveFrom}</TableCell>
+                  <TableCell>{row.createdBy}</TableCell>
+                  <TableCell><Badge variant="secondary">{row.status}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ConsoleListSection>
 
       <ConsoleListSection title="会话成本行（财务 store）" description={`共 ${sessionCosts.length} 条 · 费用拆分关联利润核算`}>
         {sessionCosts.length === 0 ? (

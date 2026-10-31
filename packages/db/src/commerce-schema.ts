@@ -547,7 +547,7 @@ export const orderLines = pgTable(
 
 // ---------------------------------------------------------------------------
 // inventory_balances — KEEP + MERGE（仓+库位维度；WMS 不变量列）
-// 设计：available = on_hand - reserved - qc_hold - damaged；在途/待入不计入可用
+// 设计：available = on_hand - reserved - qc_hold - damaged；在途/待入/清关中不计入可用
 // ---------------------------------------------------------------------------
 
 export const inventoryBalances = pgTable(
@@ -574,6 +574,8 @@ export const inventoryBalances = pgTable(
     inTransit: integer("in_transit").notNull().default(0),
     /** 待入 / 已到仓未上架；不计入 available。 */
     pendingInbound: integer("pending_inbound").notNull().default(0),
+    /** 清关中（Daraz 海运柜次）；不计入 available。@see F22 */
+    customsClearing: integer("customs_clearing").notNull().default(0),
     version: integer("version").notNull().default(1),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -635,6 +637,15 @@ export const skuCosts = pgTable(
     amount: numeric("amount", { precision: 18, scale: 4 }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("CNY"),
     note: text("note"),
+    /** 柜次成本版本号（F32）；同 SKU+柜次递增 */
+    versionNo: integer("version_no").notNull().default(1),
+    /** → ocean_shipments.id；Daraz 按柜次版本化 */
+    containerLotId: text("container_lot_id"),
+    taxTemplateCode: varchar("tax_template_code", { length: 64 }),
+    taxBreakdown: jsonb("tax_breakdown").$type<Record<string, unknown>>(),
+    calculatorSnapshot: jsonb("calculator_snapshot").$type<Record<string, unknown>>(),
+    landedUnitCost: numeric("landed_unit_cost", { precision: 18, scale: 4 }),
+    fxRateId: text("fx_rate_id"),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }),
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -642,6 +653,7 @@ export const skuCosts = pgTable(
   (t) => [
     index("sku_costs_org_idx").on(t.organizationId),
     index("sku_costs_variant_idx").on(t.variantId),
+    index("sku_costs_lot_idx").on(t.containerLotId),
   ],
 )
 
@@ -818,6 +830,108 @@ export const platformCategories = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// fx_rates — ADD（F33；platform + ccy + effective date + source）
+// ---------------------------------------------------------------------------
+
+export const fxRates = pgTable(
+  "fx_rates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id").references(() => organization.id),
+    platform: varchar("platform", { length: 32 }),
+    marketplaceCode: varchar("marketplace_code", { length: 32 }),
+    baseCurrency: varchar("base_currency", { length: 3 }).notNull(),
+    quoteCurrency: varchar("quote_currency", { length: 3 }).notNull(),
+    rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
+    effectiveDate: varchar("effective_date", { length: 10 }).notNull(),
+    source: varchar("source", { length: 32 }).notNull().default("manual"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("fx_rates_lookup_idx").on(
+      t.platform,
+      t.baseCurrency,
+      t.quoteCurrency,
+      t.effectiveDate,
+    ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// ocean_shipments / ocean_shipment_lines — ADD（F22 海运柜次）
+// ---------------------------------------------------------------------------
+
+export const oceanShipmentStatuses = [
+  "in_transit",
+  "customs_clearing",
+  "received_local",
+  "cancelled",
+] as const
+export type OceanShipmentStatus = (typeof oceanShipmentStatuses)[number]
+
+export const oceanShipments = pgTable(
+  "ocean_shipments",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    lotCode: varchar("lot_code", { length: 64 }).notNull(),
+    containerNo: varchar("container_no", { length: 64 }),
+    containerType: varchar("container_type", { length: 16 }),
+    platform: varchar("platform", { length: 32 }).notNull().default("daraz"),
+    originPort: varchar("origin_port", { length: 16 }),
+    destPort: varchar("dest_port", { length: 16 }),
+    destinationWarehouseCode: varchar("destination_warehouse_code", { length: 64 }),
+    status: varchar("status", { length: 32 }).notNull().default("in_transit"),
+    etd: varchar("etd", { length: 10 }),
+    etaPort: varchar("eta_port", { length: 10 }),
+    etaWarehouse: varchar("eta_warehouse", { length: 10 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("ocean_shipments_org_lot_uidx").on(t.organizationId, t.lotCode),
+    index("ocean_shipments_status_idx").on(t.status),
+  ],
+)
+
+export const oceanShipmentLines = pgTable(
+  "ocean_shipment_lines",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shipmentId: text("shipment_id")
+      .notNull()
+      .references(() => oceanShipments.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }),
+    qtyShipped: integer("qty_shipped").notNull().default(0),
+    qtyReceived: integer("qty_received").notNull().default(0),
+    qtyDamaged: integer("qty_damaged").notNull().default(0),
+    skuCostId: text("sku_cost_id"),
+  },
+  (t) => [
+    uniqueIndex("ocean_shipment_lines_ship_variant_uidx").on(t.shipmentId, t.variantId),
+    index("ocean_shipment_lines_shipment_idx").on(t.shipmentId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // audit_events — ADD（精简占位；对齐设计 audit_events）
 // ---------------------------------------------------------------------------
 
@@ -861,3 +975,6 @@ export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect
+export type FxRate = typeof fxRates.$inferSelect
+export type OceanShipment = typeof oceanShipments.$inferSelect
+export type OceanShipmentLine = typeof oceanShipmentLines.$inferSelect

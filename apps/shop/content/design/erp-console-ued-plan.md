@@ -139,3 +139,7 @@
 - 不接 tRPC、不接真实 DB、不做 ~75 表生产迁移。
 - 侧栏 IA 基本不动（仅 settings 增加「变更审计」）。
 - 正式费用分摊规则、汇率服务、平台账单解析仍待财务确认。
+
+## Daraz LK 差分（F20–F33）
+
+> 见 [daraz-lk-erp-p0-ued.md](./daraz-lk-erp-p0-ued.md)：Daraz **不**共享厦门现货池；P0=F22/F33/F32；P1 壳=F20/F21/F30/F31/F28；P2 抓取/优惠券仅 stub（Q36/Q38/Q44）。

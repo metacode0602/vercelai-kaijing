@@ -3,32 +3,59 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import {
+  inventoryBucketsFromLots,
+  useOceanLots,
+} from '@/lib/crossborder/ocean-container-store'
 import { countBalancesKpi, useInventoryBalances } from '@/lib/crossborder/wms-store'
-import { useLocaleRouter } from '@/lib/i18n/navigation'
+import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
 export default function InventoryBalancesPage() {
   const rows = useInventoryBalances()
+  const lots = useOceanLots()
+  const oceanBuckets = React.useMemo(() => inventoryBucketsFromLots(lots), [lots])
   const kpi = React.useMemo(() => countBalancesKpi(rows), [rows])
+  const oceanKpi = React.useMemo(() => {
+    return oceanBuckets.reduce(
+      (acc, row) => {
+        acc.inTransit += row.inTransit
+        acc.customsClearing += row.customsClearing
+        acc.available += row.available
+        acc.damaged += row.damaged
+        return acc
+      },
+      { inTransit: 0, customsClearing: 0, available: 0, damaged: 0 },
+    )
+  }, [oceanBuckets])
   const router = useLocaleRouter()
   const [notice, setNotice] = React.useState('')
 
   const kpiItems = React.useMemo(
     () => [
       { label: 'SKU 数', value: String(kpi.skuCount), hint: '仓+库位+SKU 维度' },
-      { label: '可用合计', value: String(kpi.availableTotal), hint: 'available = on_hand − reserved − qc_hold − damaged' },
-      { label: '预留合计', value: String(kpi.reservedTotal), hint: 'reserved：订单/调拨占库' },
-      { label: '在途 / 待入', value: String(kpi.inTransitTotal), hint: '采购未上架 / 售后回库在途，不计入 available' },
+      { label: '本地仓可用', value: String(kpi.availableTotal + oceanKpi.available), hint: 'WMS available + 已入本地仓柜次' },
+      {
+        label: '在途',
+        value: String(kpi.inTransitTotal + oceanKpi.inTransit),
+        hint: '采购在途 + 海运柜次 在途',
+      },
+      {
+        label: '清关中',
+        value: String(oceanKpi.customsClearing),
+        hint: 'Daraz LK 柜次状态=清关中；不计入可用',
+      },
+      { label: '残次', value: String(kpi.damagedTotal + oceanKpi.damaged), hint: 'WMS damaged + 柜次残次' },
       { label: '低库存', value: String(kpi.lowStock), hint: '可用 < 安全库存' },
     ],
-    [kpi],
+    [kpi, oceanKpi],
   )
 
   return (
     <UedWorkspace
       title="库存汇总"
-      description="inventory_balances：实物(on_hand) / 预留(reserved) / 质检(qc_hold) / 残次(damaged) / 可用(available)；在途·待入(in_transit)单独列，不计入可用。"
+      description="Daraz LK：在途 / 清关中 / 本地仓可用 / 残次；柜次投影与 WMS 余额并存（原型）。"
       rows={rows}
       detailHref={(row) => `/console/inventory-balances/${encodeURIComponent(row.id)}`}
       searchKeys={['sku', 'name', 'warehouse', 'bin', 'status']}
@@ -70,8 +97,46 @@ export default function InventoryBalancesPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        WMS 不变量：available = on_hand − reserved − qc_hold − damaged。在途 / 待入（in_transit）表示采购未上架或售后回库途中，单独列示、不计入可用。余额是流水投影，UI 不得直改数量。多店铺共享同一仓余额池。
+        WMS 不变量：available = on_hand − reserved − qc_hold − damaged。Daraz LK 另增「清关中」桶（customs_clearing），由海运柜次投影，不计入可用。厦门现货池不用于 Daraz。
       </UedPrototypeNotice>
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">海运柜次库存投影（F22）</h3>
+          <Button size="sm" variant="outline" asChild>
+            <LocaleLink href="/console/ocean-containers">打开柜次</LocaleLink>
+          </Button>
+        </div>
+        {oceanBuckets.length === 0 ? (
+          <p className="text-sm text-muted-foreground">暂无柜次投影。</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-1 pr-3 font-medium">SKU</th>
+                  <th className="py-1 pr-3 font-medium">仓</th>
+                  <th className="py-1 pr-3 font-medium">在途</th>
+                  <th className="py-1 pr-3 font-medium">清关中</th>
+                  <th className="py-1 pr-3 font-medium">本地可用</th>
+                  <th className="py-1 pr-3 font-medium">残次</th>
+                </tr>
+              </thead>
+              <tbody>
+                {oceanBuckets.map((row) => (
+                  <tr key={row.id} className="border-b last:border-0">
+                    <td className="py-1.5 pr-3 font-mono text-xs">{row.sku}</td>
+                    <td className="py-1.5 pr-3">{row.warehouse}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{row.inTransit}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{row.customsClearing}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{row.available}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{row.damaged}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"

@@ -52,6 +52,12 @@ import {
   type MockCostCalcPreset,
 } from '@/lib/crossborder/mock-data'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
+import { getOceanLots } from '@/lib/crossborder/ocean-container-store'
+import {
+  listSkuCostVersions,
+  saveSkuCostVersionFromCalculator,
+  useSkuCostVersions,
+} from '@/lib/crossborder/sku-cost-version-store'
 
 function presetToInput(preset: MockCostCalcPreset, overrides?: Partial<CostCalculatorInput>): CostCalculatorInput {
   return {
@@ -155,6 +161,13 @@ export function CostCalculatorWorkbench({
   )
   const [formulasOpen, setFormulasOpen] = React.useState(true)
   const [copilotHint, setCopilotHint] = React.useState<string | null>(null)
+  const allVersions = useSkuCostVersions()
+  const [lotId, setLotId] = React.useState(() => getOceanLots()[0]?.id ?? '')
+  const [saveHint, setSaveHint] = React.useState<string | null>(null)
+  const skuVersions = React.useMemo(
+    () => allVersions.filter((row) => row.sku === input.sku),
+    [allVersions, input.sku],
+  )
 
   const applySku = React.useCallback((sku: string, extras?: Partial<CostCalculatorInput>) => {
     const preset = getCostCalcPreset(sku)
@@ -244,6 +257,26 @@ export function CostCalculatorWorkbench({
   const formulas = result ? getFormulaDocs(result.tax.rates) : null
   const tariff = TARIFF_PROFILES[input.tariffProfileId]
 
+  const handleSaveVersion = React.useCallback(() => {
+    if (!result || !lotId) {
+      setSaveHint('请先测算并选择柜次')
+      return
+    }
+    const lot = getOceanLots().find((row) => row.id === lotId)
+    if (!lot) {
+      setSaveHint('柜次不存在')
+      return
+    }
+    const row = saveSkuCostVersionFromCalculator({
+      input,
+      result,
+      containerLotId: lot.id,
+      lotCode: lot.lotCode,
+      createdBy: '杨洁',
+    })
+    setSaveHint(`已保存 ${row.id} · 到仓 ${row.landedUnitCost} USD/件 · 审批参考 杨洁/黄发聪`)
+  }, [input, result, lotId])
+
   const formPanel = (
     <CostCalculatorFormPanel
       input={input}
@@ -272,7 +305,7 @@ export function CostCalculatorWorkbench({
         </span>
         <Badge variant="secondary">示例</Badge>
         <Badge variant="outline">待复核</Badge>
-        <Badge variant="secondary">仅演示 · 未保存到业务数据库</Badge>
+        <Badge variant="secondary">演示 · 可保存柜次成本版本（localStorage）</Badge>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">{formPanel}</div>
@@ -283,6 +316,11 @@ export function CostCalculatorWorkbench({
             formulas={formulas}
             formulasOpen={formulasOpen}
             onFormulasOpenChange={setFormulasOpen}
+            lotId={lotId}
+            onLotIdChange={setLotId}
+            onSaveVersion={handleSaveVersion}
+            saveHint={saveHint}
+            versions={skuVersions}
           />
         </div>
       </div>
@@ -527,12 +565,22 @@ function CostCalculatorResultsPanel({
   formulas,
   formulasOpen,
   onFormulasOpenChange,
+  lotId,
+  onLotIdChange,
+  onSaveVersion,
+  saveHint,
+  versions,
 }: {
   input: CostCalculatorInput
   result: CostCalculatorResult | null
   formulas: ReturnType<typeof getFormulaDocs> | null
   formulasOpen: boolean
   onFormulasOpenChange: (open: boolean) => void
+  lotId: string
+  onLotIdChange: (id: string) => void
+  onSaveVersion: () => void
+  saveHint: string | null
+  versions: ReturnType<typeof listSkuCostVersions>
 }) {
   if (!result) {
     return (
@@ -559,6 +607,65 @@ function CostCalculatorResultsPanel({
         />
         <Kpi label="运输情景" value={input.freightMode} />
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">保存为柜次成本版本（F32）</CardTitle>
+          <CardDescription className="text-xs">
+            写入本机 localStorage · 按 SKU + 柜次递增 versionNo · 税模版 LK PAL/CESS/VAT/SSCL
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">关联海运柜次</Label>
+            <Select value={lotId} onValueChange={onLotIdChange}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="选择柜次" />
+              </SelectTrigger>
+              <SelectContent>
+                {getOceanLots().map((lot) => (
+                  <SelectItem key={lot.id} value={lot.id}>
+                    {lot.lotCode} · {lot.status} · {lot.containerNo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={onSaveVersion} disabled={!lotId}>
+              保存到柜次成本版本
+            </Button>
+            <Badge variant="outline">审批参考：杨洁 / 黄发聪</Badge>
+          </div>
+          {saveHint ? <p role="status" className="text-xs text-muted-foreground">{saveHint}</p> : null}
+          {versions.length > 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>版本</TableHead>
+                    <TableHead>柜次</TableHead>
+                    <TableHead className="text-right">到仓/件</TableHead>
+                    <TableHead>生效</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {versions.slice(0, 5).map((v) => (
+                    <TableRow key={v.id}>
+                      <TableCell className="font-mono text-xs">v{v.versionNo}</TableCell>
+                      <TableCell className="text-xs">{v.lotCode}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{v.landedUnitCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs">{v.effectiveFrom}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">该 SKU 尚无柜次成本版本。</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">

@@ -3,6 +3,7 @@
 import * as React from 'react'
 import {
   ArrowLeft,
+  Banknote,
   Bell,
   Circle,
   FileSpreadsheet,
@@ -38,6 +39,7 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   '/console/settings/shops': <Store className="size-4" />,
   '/console/settings/credentials': <KeyRound className="size-4" />,
   '/console/settings/platform-basics': <SlidersHorizontal className="size-4" />,
+  '/console/settings/fx-rates': <Banknote className="size-4" />,
   '/console/dictionaries': <Tags className="size-4" />,
   '/console/settings/dictionaries': <Tags className="size-4" />,
   '/console/settings/imports': <Upload className="size-4" />,
@@ -92,7 +94,7 @@ export function SectionSidebar({
                   <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                     <LocaleLink href={item.url}>
                       {getSectionIcon(item.url)}
-                      <span>{t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.audit' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
+                      <span>{t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.fxRates' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.audit' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
                     </LocaleLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

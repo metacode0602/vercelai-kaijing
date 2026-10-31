@@ -1,18 +1,32 @@
 'use client'
 
 import * as React from 'react'
-import { notFound } from 'next/navigation'
 import { Calculator } from 'lucide-react'
 import { DetailPageHeader } from '@/components/console/detail'
 import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
 import { costLandedTotal, getCostBySku } from '@/lib/crossborder/mock-data'
 import { resolveInternalSku } from '@/lib/crossborder/finance-related-data'
+import { useSkuCostVersions } from '@/lib/crossborder/sku-cost-version-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@workspace/ui/components/table'
 
 export default function CostDetailPage({ params }: { params: Promise<{ sku: string }> }) {
   const sku = decodeRouteParam(React.use(params).sku)
   const cost = getCostBySku(sku)
+  const allVersions = useSkuCostVersions()
+  const versions = React.useMemo(
+    () => allVersions.filter((row) => row.sku === sku),
+    [allVersions, sku],
+  )
 
   if (!cost) {
     return (
@@ -77,8 +91,43 @@ export default function CostDetailPage({ params }: { params: Promise<{ sku: stri
             </Button>
           ) : null}
           <p className="text-xs text-muted-foreground">
-            测算工作台仍可用；保存结果仅留在本机原型会话。
+            测算工作台可保存为柜次成本版本（F32 · localStorage）。
           </p>
+          <div className="w-full space-y-2">
+            <h3 className="text-sm font-medium">该 SKU 柜次成本版本</h3>
+            {versions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">暂无版本 · 打开「重新测算」后选择柜次保存。</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>版本</TableHead>
+                    <TableHead>柜次</TableHead>
+                    <TableHead className="text-right">到仓/件</TableHead>
+                    <TableHead>PAL</TableHead>
+                    <TableHead>CESS</TableHead>
+                    <TableHead>VAT</TableHead>
+                    <TableHead>SSCL</TableHead>
+                    <TableHead>状态</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {versions.map((v) => (
+                    <TableRow key={v.id}>
+                      <TableCell className="font-mono text-xs">v{v.versionNo}</TableCell>
+                      <TableCell className="text-xs">{v.lotCode}</TableCell>
+                      <TableCell className="text-right tabular-nums">{v.landedUnitCost.toFixed(2)}</TableCell>
+                      <TableCell className="tabular-nums text-xs">{(v.taxBreakdown.pal ?? 0).toFixed(2)}</TableCell>
+                      <TableCell className="tabular-nums text-xs">{(v.taxBreakdown.cess ?? 0).toFixed(2)}</TableCell>
+                      <TableCell className="tabular-nums text-xs">{(v.taxBreakdown.vat ?? 0).toFixed(2)}</TableCell>
+                      <TableCell className="tabular-nums text-xs">{(v.taxBreakdown.sscl ?? 0).toFixed(2)}</TableCell>
+                      <TableCell><Badge variant="secondary">{v.status}</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </div>
       }
     />

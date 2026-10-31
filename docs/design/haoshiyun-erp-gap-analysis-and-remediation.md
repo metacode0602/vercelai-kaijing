@@ -119,7 +119,7 @@ erDiagram
 | `commerce_warehouses` | `id, organization_id, code, name, type, country_id, timezone, operating_currency, address, status` | `(organization_id, code)` 唯一；公司仓库可被多个平台店铺复用 |
 | `shops`（扩充） | 现字段 + `marketplace_id, seller_id, shop_code, legal_entity_id, owner_user_id, team_id, default_warehouse_id, inventory_pool_id, fulfillment_mode, status, planned_launch_at, launched_at` | `marketplace_id` 约束平台/国家；(org, platform, seller_id) 唯一；授权凭据继续独立加密保存 |
 | `shop_warehouses` | `id, organization_id, shop_id, warehouse_id, is_default_outbound, status, created_at, created_by` | 店铺与仓库多对多；每店 active 关联必须且仅一个 `is_default_outbound=true`；复合 FK 保证双方属于同一 organization；默认仓必须是店铺已关联且 active 仓 |
-| `inventory_pools` | `id, organization_id, code, name, warehouse_id, status` | 可选抽象：多个店铺共享同一库存池；首阶段所有 Lazada 五站配置到一个 pool。余额物理事实按权威口径 = **warehouse + bin + variant**（pool 仅逻辑分组/推送策略，见 schema §1.7） |
+| `inventory_pools` | `id, organization_id, code, name, warehouse_id, status` | 可选抽象：多个店铺共享同一库存池；首阶段 **Lazada 五站**一个厦门 pool；**Daraz LK 独立 Colombo 本地仓 + 海运柜次，不入厦门池**。余额 = **warehouse + bin + variant**（见 schema §1.7 / F22） |
 | `commerce_dictionaries` | `id, organization_id nullable, key, label, scope, status, is_system` | organization null 代表系统字典；用户字典按组织隔离；key 唯一范围按 system/org 定义 |
 | `commerce_dictionary_values` | `id, dictionary_id, code, canonical_value, label_zh, label_en, sort_order, status, metadata` | `(dictionary_id, code)` 唯一；停用不删；表单仅可选 active 值 |
 | `commerce_dictionary_aliases` | `id, dictionary_value_id, alias, normalized_alias, locale` | 同字典下 normalized alias 唯一；别名用于导入匹配/搜索，不作为新业务记录主值 |

@@ -58,3 +58,14 @@
 - `listings.variant_id` 保留至映射表写满后再弃用。
 - `inventory_balances` 唯一键改为 `(org, warehouse, bin, variant)`；旧 `(shop, variant)` 唯一废弃。
 - 删除的 TypeScript 符号：`costComponents`、`CostComponentKind`、`costComponentKinds` → 改用 `skuCosts` / `SkuCostKind` / `skuCostKinds`。
+
+## Daraz LK P0 增量（2026-10-31）
+
+| 表 / 列 | 决策 | 说明 |
+| --- | --- | --- |
+| `inventory_balances.customs_clearing` | **MERGE** | 清关中桶；不计入 available |
+| `fx_rates` | **ADD（精简）** | platform + ccy + effective_date + source |
+| `ocean_shipments` / `ocean_shipment_lines` | **ADD（精简）** | 海运柜次头/行 |
+| `sku_costs` | **MERGE** | `container_lot_id` / `version_no` / `tax_breakdown` / `calculator_snapshot` |
+
+仍不落地完整 75 表；无破坏性 migration；控制台 localStorage。

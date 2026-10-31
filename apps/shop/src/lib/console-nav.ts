@@ -52,6 +52,12 @@ export type ConsoleNavTitleKey =
   | 'nav.carriers'
   | 'nav.cartonSpecs'
   | 'nav.reports'
+  | 'nav.oceanContainers'
+  | 'nav.sellThrough'
+  | 'nav.stockRisk'
+  | 'nav.attribution'
+  | 'nav.complianceHsSlsi'
+  | 'nav.csInbox'
   | 'nav.settings'
   | 'nav.products'
   | 'nav.purchases'
@@ -100,6 +106,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
       { url: '/console/dictionaries', titleKey: 'nav.dictionaries' },
       { url: '/console/reviews', titleKey: 'nav.reviews' },
+      { url: '/console/compliance-hs-slsi', titleKey: 'nav.complianceHsSlsi' },
     ],
   },
   {
@@ -127,6 +134,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     labelKey: 'nav.warehouseCenter',
     items: [
       { url: '/console/inventory-balances', titleKey: 'nav.inventoryBalances' },
+      { url: '/console/ocean-containers', titleKey: 'nav.oceanContainers' },
       { url: '/console/warehouse', titleKey: 'nav.warehouse' },
       { url: '/console/warehouse-zones', titleKey: 'nav.warehouseZones' },
       { url: '/console/stock-inbounds', titleKey: 'nav.stockInbounds' },
@@ -153,6 +161,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     items: [
       { url: '/console/aftersale-cancels', titleKey: 'nav.aftersaleCancels' },
       { url: '/console/aftersale-returns', titleKey: 'nav.aftersaleReturns' },
+      { url: '/console/cs-inbox', titleKey: 'nav.csInbox' },
     ],
   },
   {
@@ -170,7 +179,12 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
   {
     groupKey: 'reports',
     labelKey: 'nav.reports',
-    items: [{ url: '/console/reports', titleKey: 'nav.reports' }],
+    items: [
+      { url: '/console/reports', titleKey: 'nav.reports' },
+      { url: '/console/reports/sell-through', titleKey: 'nav.sellThrough' },
+      { url: '/console/reports/stock-risk', titleKey: 'nav.stockRisk' },
+      { url: '/console/reports/attribution', titleKey: 'nav.attribution' },
+    ],
   },
 ]
 
@@ -194,6 +208,7 @@ export const SETTINGS_NAV = [
   { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
   { url: '/console/settings/credentials', titleKey: 'settings.credentials' as const },
   { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
+  { url: '/console/settings/fx-rates', titleKey: 'settings.fxRates' as const },
   { url: '/console/dictionaries', titleKey: 'settings.dictionaries' as const },
   { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
   { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },

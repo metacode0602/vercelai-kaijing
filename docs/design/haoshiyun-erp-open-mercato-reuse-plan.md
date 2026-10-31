@@ -10,13 +10,13 @@
 
 1. **不建议代码级集成 Open Mercato**。OM 基于 MikroORM + 模块级迁移 + REST CRUD factory + 自研 auth，与 Open Shop 的 Drizzle 单 schema + tRPC + better-auth 分层冲突；Enterprise 模块为商业许可，禁止生产使用与派生。
 2. **推荐「概念参考 + 自研 Drizzle schema」落地**：借鉴 OM 的 WMS 流水事件、workflows/business_rules 审批、audit_logs/events 审计、sync_excel 批次导入、字典与仪表盘组织方式；不搬运代码、不引入第二套 ORM/API/认证。
-3. **好时运最核心的 5 项诉求 OM 均不提供**：跨境平台连接器（Daraz/Lazada/TikTok）、Seller SKU 映射、五国共享库存池、平台结算对账、采购审批。这些必须在 Open Shop 现有架构上全新开发。
+3. **好时运最核心的 5 项诉求 OM 均不提供**：跨境平台连接器（Daraz/Lazada/TikTok）、Seller SKU 映射、Lazada 五站共享库存池（Daraz LK 另走 Colombo/柜次）、平台结算对账、采购审批。这些必须在 Open Shop 现有架构上全新开发。
 4. **Open Shop 现状为 P0「UED 原型 + 基建」阶段**：19 个功能点中 0 项达到业务闭环（D2），9 项部分覆盖（有表/页面/mock），10 项未覆盖；仅平台 OAuth 授权落库是真实业务写路径。
 5. **复用比例判断**：约 70% 工作量应基于 Open Shop 现有架构扩展；OM 贡献约 20% 的"设计形状"借鉴；约 10%（采购域、LGS/JSB 履约）OM 与 Open Shop 均无、需全新设计。
 
 ## 2. 需求清单概览（Excel 解析）
 
-文件位于 `apps/shop/content/design/好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`，V1.1（2026-10-28），当前平台 Lazada（MY/PH/SG/TH/VN）+ Daraz，默认仓"好时运厦门自营仓 WH-CN-XMN-001"，五国共享库存。
+文件位于 `apps/shop/content/design/好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`，V1.1（2026-10-28），当前平台 Lazada（MY/PH/SG/TH/VN）+ Daraz。**历史 Excel 默认仓写「好时运厦门自营仓 WH-CN-XMN-001、五国共享库存」——该表述仅适用于 Lazada 五站；Daraz LK 已决议改为海运→Colombo 本地仓，不共享厦门现货池**（见 [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md)）。
 
 | Sheet | 规模 | 内容 |
 | --- | --- | --- |

@@ -202,7 +202,13 @@
       "profits": "Order & SKU profit",
       "freight": "Freight estimation",
       "carriers": "Carriers",
-      "cartonSpecs": "Carton specs"
+      "cartonSpecs": "Carton specs",
+      "oceanContainers": "Ocean containers",
+      "sellThrough": "Sell-through",
+      "stockRisk": "Slow / stockout",
+      "attribution": "Review attribution",
+      "complianceHsSlsi": "HS & SLSI",
+      "csInbox": "CS inbox (RO)"
     },
     "usage": {
       "title": "Usage",
@@ -335,7 +341,13 @@
       "warehouseZones": "Warehouse zones",
       "carriers": "Carriers",
       "cartonSpecs": "Carton specs",
-      "importTemplates": "Import templates"
+      "importTemplates": "Import templates",
+      "oceanContainers": "Ocean containers",
+      "sellThrough": "Sell-through",
+      "stockRisk": "Slow / stockout",
+      "attribution": "Review attribution",
+      "complianceHsSlsi": "HS & SLSI",
+      "csInbox": "CS inbox (RO)"
     },
     "comingSoon": {
       "billing": {
@@ -372,7 +384,8 @@
       "credentials": "Credentials",
       "notifications": "Notifications",
       "members": "Members",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "fxRates": "FX rates"
     },
     "profile": {
       "account": "Account",

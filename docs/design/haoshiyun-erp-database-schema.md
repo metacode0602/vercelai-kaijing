@@ -10,7 +10,7 @@
 
 1. **租户隔离**：业务表强制 `organization_id`（不用 OM 的 `tenant_id` 双键）；平台主数据（平台/国家/币种）为受控全局表。
 2. **内部 SKU 唯一主轴**：订单行、库存、采购、售后、成本、利润一律按 `variant_id`（内部 SKU）归集；Seller SKU 只存在于映射层（R04/R05/R08）。
-3. **共享库存池**：实物库存归属 `organization + warehouse + bin + variant`，**不归属 shop**；店铺通过 `shop_warehouses` 关联仓库，多站订单竞争同一池（R 五国共享）。
+3. **共享库存池**：实物库存归属 `organization + warehouse + bin + variant`，**不归属 shop**；店铺通过 `shop_warehouses` 关联仓库。**Lazada 五站**可竞争同一厦门池；**Daraz LK 使用 Colombo 本地仓 + 海运柜次状态机，不与厦门现货池混用**。
 4. **追加式交易事实**：库存流水、审批事件、审计事件、质检结果不可 UPDATE/DELETE；更正走反向单据（OM `movements` + R12）。
 5. **主档停用不删除**：`status` + `disabledAt`/`deletedAt` 软停用；编码永久唯一不复用（R06）。
 6. **金额规范**：`numeric(15,4)` 原币 + `currency` + 汇率快照引用；禁止跨币种直接 SUM。
@@ -185,7 +185,7 @@ erDiagram
 | status | varchar(16) | |
 | **UNIQUE** | | `(organization_id, code)` |
 
-首阶段 Lazada 五站 + Daraz 共用 `WH-CN-XMN-001` 对应的默认池；余额仍以 warehouse+bin+sku 为物理事实，pool 用于逻辑分组与推送策略（Q09）。
+**履约分池决议（2026-10-31）**：Lazada 五站可继续共用 `WH-CN-XMN-001` 对应的默认池（厦门现货）；**Daraz LK 不加入该池**。Daraz LK 走海运柜次 → Colombo 本地仓（见 §5.x `ocean_shipments` / `customs_clearing`）。余额仍以 warehouse+bin+sku 为物理事实，pool 仅逻辑分组与推送策略（Q09）。详见 [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md)。
 
 ### 1.8 `shops` — 店铺主档（扩展现有表）
 
@@ -835,22 +835,76 @@ JSB 无 API 时（Q17）走人工批量导入，`source=import`。
 
 ---
 
-## 8. 域 H：成本、汇率、结算与利润（F16，S6）
+## 5.x 域 W 扩展：海运柜次与清关库存（Daraz LK / F22）
 
-### 8.1 `fx_rates` — 汇率版本（Q15）
+> 决议：Daraz LK ≠ 厦门现货池。本扩展服务海运 45–60d → Colombo WH。
+
+### `ocean_shipments` — 柜次（container lot）
 
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
 | id | text PK | |
-| base_currency | varchar(3) | |
-| quote_currency | varchar(3) | |
-| rate | numeric(18,8) | |
-| rate_date | date | |
-| source | varchar(32) | `manual` / `api` / `import` |
-| created_by / created_at | | |
-| **UNIQUE** | | `(base_currency, quote_currency, rate_date, source)` |
+| organization_id | text FK | |
+| lot_code | varchar(64) | 柜次号，org 内唯一 |
+| container_no | varchar(64) | 物理柜号可空 |
+| container_type | varchar(16) | `20GP`/`40GP`/`40HQ`/`LCL` |
+| platform | varchar(32) | 默认 `daraz` |
+| origin_port / dest_port | varchar(16) | 如 `CNXMN` / `LKCMB` |
+| destination_warehouse_id | text FK | Colombo 本地仓 |
+| status | varchar(32) | `in_transit` / `customs_clearing` / `received_local` / `cancelled` |
+| etd / eta_port / eta_warehouse | date | |
+| departed_at / cleared_at / received_at | timestamptz | |
+| notes | text | |
+| created_by / created_at / updated_at | | |
+| **UNIQUE** | | `(organization_id, lot_code)` |
 
-消费方引用 `(base, quote, rate_date)`，订单/结算保存 `fx_rate_id` 快照，历史不覆盖。
+### `ocean_shipment_lines` — 柜次行
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| shipment_id | text FK | → ocean_shipments |
+| organization_id | text FK | |
+| variant_id | text FK | |
+| qty_shipped | integer | |
+| qty_received | integer | 入本地仓实收 |
+| qty_damaged | integer | |
+| sku_cost_id | text FK 可空 | 关联本柜次成本版本 |
+| **UNIQUE** | | `(shipment_id, variant_id)` |
+
+### 库存桶增量
+
+`inventory_balances` **新增** `customs_clearing`（清关中，整数，默认 0），**不计入 available**。
+
+Daraz 投影口径：
+
+- 柜次 `in_transit` → 行数量计入 SKU `in_transit`
+- 柜次 `customs_clearing` → 从 `in_transit` 转入 `customs_clearing`
+- 柜次 `received_local` → 转入 `on_hand`（再上架），残次进 `damaged`
+
+仓库 `type` / `fulfillment_role` 可配置：`origin_pool` | `destination_local` | `3pl` | `supplier`。
+
+---
+
+## 8. 域 H：成本、汇率、结算与利润（F16，S6）
+
+### 8.1 `fx_rates` — 汇率版本（Q15 / F33）
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| id | text PK | |
+| organization_id | text FK 可空 | 平台默认可空；租户覆盖填 org |
+| platform | varchar(32) | 如 `daraz` / `lazada`；可空=全局默认 |
+| marketplace_id | text FK 可空 | 更细站点（Daraz LK）；与 platform 至少填一 |
+| base_currency | varchar(3) | 原币 |
+| quote_currency | varchar(3) | 折算币 |
+| rate | numeric(18,8) | |
+| rate_date / effective_date | date | 生效日 |
+| source | varchar(32) | `manual` / `api` / `import` / `platform_bill` |
+| created_by / created_at | | |
+| **UNIQUE** | | `(organization_id, platform, marketplace_id, base_currency, quote_currency, effective_date, source)` |
+
+消费方**保留三元组**：原币金额、`fx_rate_id`（或 rate+date+source 快照）、折算金额。订单/结算保存快照，历史不覆盖。
 
 ### 8.2 `cost_templates` + `cost_template_versions` — 标准成本模板（Q14）
 
@@ -880,24 +934,31 @@ JSB 无 API 时（Q17）走人工批量导入，`source=import`。
 | created_by / created_at | | |
 | **UNIQUE** | | `(template_id, version_no)` |
 
-#### `sku_costs` — SKU 成本快照（版本化，不覆盖）
+#### `sku_costs` — SKU 成本快照（版本化，不覆盖；F32 按柜次）
 
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
 | id | text PK | |
 | organization_id | text FK | |
 | variant_id | text FK | |
-| version_id | text FK | → cost_template_versions |
+| version_id | text FK 可空 | → cost_template_versions |
+| version_no | integer | 同 SKU（+柜次）内递增 |
+| container_lot_id | text FK 可空 | → ocean_shipments（柜次）；Daraz 海运成本版本键 |
+| freight_estimate_id | text 可空 | 逻辑引用运费测算快照 |
+| tax_template_code | varchar(64) | 如 `LK_PAL_CESS_VAT_SSCL` |
+| tax_breakdown | jsonb | PAL/CESS/VAT/SSCL 等快照 |
 | landed_unit_cost | numeric(15,4) | |
 | currency | varchar(3) | |
 | fx_rate_id | text FK | 折本位币 |
 | landed_unit_cost_base | numeric(15,4) | |
 | effective_from | timestamptz | |
 | source_purchase_line_id | text | 可追溯 |
+| calculator_snapshot | jsonb | F32 工作台输入/瀑布 |
 | created_by / created_at | | |
+| INDEX | | `(organization_id, variant_id, container_lot_id, version_no)` |
 | INDEX | | `(organization_id, variant_id, effective_from)` |
 
-历史订单利润计算时按 `effective_from` 取当时版本，不回写。
+历史订单利润计算时按 `effective_from` / 柜次取当时版本，不回写。税模板可配置（本阶段种子为斯里兰卡级联）。
 
 ### 8.3 `order_fees` — 订单费用事实（Q16）
 

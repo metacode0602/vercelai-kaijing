@@ -33,6 +33,7 @@
 | [comment-review-ued.md](../../apps/shop/content/design/comment-review-ued.md) | **UED 初版** | 评论分析报告 UED：KPI、评分分布、关键发现、负向中性与全部评价区块规格 |
 | [openwork-desktop-workbench-plan.md](../../apps/shop/content/design/openwork-desktop-workbench-plan.md) | **设计稿** | OpenWork Desktop 工作台集成计划：Skill 能力索引、S1–S5 分步与读写路径 |
 | [console-inbox-sheet.md](../../apps/shop/content/design/console-inbox-sheet.md) | Demo | 控制台站内信 Sheet 交互 |
+| [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md) | **生效（P0 原型）** | Daraz LK 架构差分（非厦门共享池）、F22 柜次/清关库存、F33 汇率、F32 柜次成本版本；P1 壳；P2 Q36/Q38/Q44 推迟 |
 
 ### `apps/web` — 平台运营后台
 
