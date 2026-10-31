@@ -9,7 +9,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const t = await getTranslations('Console')
   return (
     <>
-      <SectionSidebar title={t('pages.settings')} items={SETTINGS_NAV} />
+      <SectionSidebar title={t('pages.settings')} items={SETTINGS_NAV} showBrand />
       <SidebarInset className="flex min-h-svh flex-1 flex-col">
         <ConsoleTopbar />
         <div className="flex-1 p-4 md:p-6">{children}</div>

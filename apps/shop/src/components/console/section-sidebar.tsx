@@ -8,6 +8,7 @@ import {
   Circle,
   FileSpreadsheet,
   KeyRound,
+  PackageSearch,
   ScrollText,
   History,
   Settings,
@@ -66,10 +67,12 @@ export function SectionSidebar({
   title,
   backHref = '/console/dashboard',
   items,
+  showBrand = false,
 }: {
   title: string
   backHref?: string
   items: readonly SectionItem[]
+  showBrand?: boolean
 }) {
   const t = useTranslations('Console')
   const pathname = useLocalePathname() ?? ''
@@ -77,6 +80,21 @@ export function SectionSidebar({
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader className="gap-2 border-b border-sidebar-border p-3">
+        {showBrand ? (
+          <div className="flex flex-col gap-0.5">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:p-1.5!">
+                  <LocaleLink href="/console/dashboard" className="flex items-center gap-2">
+                    <PackageSearch className="size-6 shrink-0 text-primary" />
+                    <span className="font-semibold tracking-tight">{t('brand')}</span>
+                  </LocaleLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <p className="px-2 text-xs text-muted-foreground">{t('subtitle')}</p>
+          </div>
+        ) : null}
         <Button variant="ghost" size="sm" className="justify-start gap-2 px-2" asChild>
           <LocaleLink href={backHref}>
             <ArrowLeft className="size-4" />
