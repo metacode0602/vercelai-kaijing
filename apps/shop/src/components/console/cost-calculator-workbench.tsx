@@ -649,7 +649,7 @@ function CostCalculatorResultsPanel({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <Kpi label="到仓成本 / 件（示例）" value={formatUsd(result.landedUnit, 2)} hint="运价/税率未核实" />
         <Kpi
           label="建议售价"

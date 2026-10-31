@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { ConsoleListSection, useConsolePagination } from '@/components/console/list'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -17,6 +18,7 @@ import { addMember, updateMember, useMembers } from '@/lib/crossborder/member-st
 
 export default function SettingsMembersPage() {
   const rows = useMembers()
+  const { pagedRows, pagination } = useConsolePagination(rows)
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
@@ -64,6 +66,11 @@ export default function SettingsMembersPage() {
       <UedPrototypeNotice>
         原型会话使用本地存储；正式环境邀请需邮件确认，角色权限由后端校验。所有者不可停用，停用成员保留历史单据归属。
       </UedPrototypeNotice>
+      <ConsoleListSection
+        title="成员列表"
+        description={`共 ${rows.length} 条`}
+        pagination={pagination}
+      >
       <Table>
         <TableHeader>
           <TableRow>
@@ -75,7 +82,7 @@ export default function SettingsMembersPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((member) => (
+          {pagedRows.map((member) => (
             <TableRow key={member.id}>
               <TableCell className="font-medium">{member.name}</TableCell>
               <TableCell>{member.email}</TableCell>
@@ -104,6 +111,7 @@ export default function SettingsMembersPage() {
           ))}
         </TableBody>
       </Table>
+      </ConsoleListSection>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </div>
   )

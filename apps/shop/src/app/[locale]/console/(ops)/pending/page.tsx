@@ -6,6 +6,7 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { MOCK_PENDING } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
@@ -37,6 +38,7 @@ export default function PendingPage() {
     if (shop !== 'all' && row.shop !== shop) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -74,7 +76,7 @@ export default function PendingPage() {
         ]}
       />
 
-      <ConsoleListSection title="待审列表" description={`共 ${rows.length} 条`}>
+      <ConsoleListSection title="待审列表" description={`共 ${rows.length} 条`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -91,7 +93,7 @@ export default function PendingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="text-xs">{labelStatus(row.kind)}</TableCell>
                   <TableCell className="font-medium">{row.title}</TableCell>

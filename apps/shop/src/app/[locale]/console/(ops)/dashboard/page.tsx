@@ -390,7 +390,7 @@ export default function DashboardPage() {
           <CardDescription>库存结构、周转与缺货 · 示例数据</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-4 gap-3">
             <InventoryStat
               label="库存总量"
               value={formatNumber(MOCK_DASHBOARD_INVENTORY.totalStock)}

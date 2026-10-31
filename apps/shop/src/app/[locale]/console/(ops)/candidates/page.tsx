@@ -6,6 +6,7 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { MOCK_CANDIDATES } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -42,6 +43,7 @@ export default function CandidatesPage() {
     if (category !== 'all' && row.categoryHint !== category) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -86,7 +88,7 @@ export default function CandidatesPage() {
         ]}
       />
 
-      <ConsoleListSection title="候选列表" description={`共 ${rows.length} 条`}>
+      <ConsoleListSection title="候选列表" description={`共 ${rows.length} 条`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -105,7 +107,7 @@ export default function CandidatesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">
                     <LocaleLink

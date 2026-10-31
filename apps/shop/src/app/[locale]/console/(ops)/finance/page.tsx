@@ -6,12 +6,13 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
+import { DetailKpiRow } from '@/components/console/detail'
 import { financeOverview, useFinanceState, useSettlements } from '@/lib/crossborder/finance-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { Badge } from '@workspace/ui/components/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
   Table,
   TableBody,
@@ -33,6 +34,7 @@ export default function FinancePage() {
     if (status !== 'all' && row.status !== status) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -45,24 +47,15 @@ export default function FinancePage() {
       <UedPrototypeNotice>
         KPI 与结算列表聚合本地财务会话（无 tRPC / DB）。费用拆分：平台 / 物流 / 推广 / JSB / 退款 / 汇兑。
       </UedPrototypeNotice>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
+      <DetailKpiRow
+        items={[
           { label: '订单营收（会话）', value: overview.revenue.toLocaleString() },
           { label: '商品成本', value: overview.cost.toLocaleString() },
           { label: '费用合计', value: overview.fees.toLocaleString() },
           { label: '净利润', value: overview.profit.toLocaleString() },
           { label: '利润率', value: overview.margin },
-        ].map((k) => (
-          <Card key={k.label}>
-            <CardHeader className="pb-1">
-              <CardTitle className="text-sm text-muted-foreground">{k.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-semibold tabular-nums">{k.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+        ]}
+      />
 
       <div className="flex flex-wrap gap-2 text-sm">
         <LocaleLink className="underline-offset-2 hover:underline" href="/console/settlements">
@@ -95,7 +88,7 @@ export default function FinancePage() {
         ]}
       />
 
-      <ConsoleListSection title="结算批次" description={`共 ${rows.length} 条 · 会话内 ${overview.settlementCount} 批`}>
+      <ConsoleListSection title="结算批次" description={`共 ${rows.length} 条 · 会话内 ${overview.settlementCount} 批`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -112,7 +105,7 @@ export default function FinancePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">
                     <LocaleLink

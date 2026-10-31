@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Check, ChevronDown, CircleHelp, Plus, Search, X } from 'lucide-react'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { ConsoleListSection, useConsolePagination } from '@/components/console/list'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
@@ -97,6 +98,7 @@ export default function PlatformBasicsPage() {
   const [notice, setNotice] = React.useState('')
 
   const rows = rowsFor(activeTab, data).filter((row) => (showInactive || !inactiveRecords[activeTab].includes(row.code)) && Object.values(row).join(' ').toLowerCase().includes(query.toLowerCase()))
+  const { pagedRows, pagination } = useConsolePagination(rows)
   const openCreate = () => { setValues({ ...emptyValues[activeTab] }); setDialog({ tab: activeTab, key: null }) }
   const openEdit = (row: RecordValue) => {
     const next = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value)]))
@@ -150,7 +152,7 @@ export default function PlatformBasicsPage() {
 
       <div className="flex flex-wrap items-center gap-1 border-b">
         {tabs.map((tab) => (
-          <button key={tab.key} type="button" onClick={() => { setActiveTab(tab.key); setQuery('') }} className={`border-b-2 px-3 py-2 text-sm transition-colors ${activeTab === tab.key ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`} aria-current={activeTab === tab.key ? 'page' : undefined}>
+          <button key={tab.key} type="button" onClick={() => { setActiveTab(tab.key); setQuery(''); pagination.onPageChange(1) }} className={`border-b-2 px-3 py-2 text-sm transition-colors ${activeTab === tab.key ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`} aria-current={activeTab === tab.key ? 'page' : undefined}>
             {tab.label}<span className="ml-2 text-xs text-muted-foreground">{data[tab.key].length}</span>
           </button>
         ))}
@@ -159,16 +161,20 @@ export default function PlatformBasicsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称或代码" className="pl-9" />
+          <Input value={query} onChange={(event) => { setQuery(event.target.value); pagination.onPageChange(1) }} placeholder="搜索名称或代码" className="pl-9" />
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><span>{rows.length} 条{showInactive ? '记录' : '启用记录'}</span>{inactiveRecords[activeTab].length > 0 ? <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setShowInactive((current) => !current)}>{showInactive ? '隐藏' : '查看'}停用 ({inactiveRecords[activeTab].length})</Button> : null}<Badge variant="outline">示例数据</Badge></div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border">
+      <ConsoleListSection
+        title={`${tabs.find((tab) => tab.key === activeTab)?.label}列表`}
+        description={`共 ${rows.length} 条${showInactive ? '记录' : '启用记录'}`}
+        pagination={pagination}
+      >
         <Table>
           <TableHeader><TableRow>{columns[activeTab].map((column) => <TableHead key={column.key}>{column.label}</TableHead>)}<TableHead className="w-32 text-right">操作</TableHead></TableRow></TableHeader>
           <TableBody>
-            {rows.map((row) => (
+            {pagedRows.map((row) => (
               <TableRow key={row.code}>
                 {columns[activeTab].map((column) => {
                   const value = row[column.key as keyof RecordValue]
@@ -181,7 +187,7 @@ export default function PlatformBasicsPage() {
         {rows.length === 0 ? <TableRow><TableCell colSpan={columns[activeTab].length + 1} className="h-24 text-center text-muted-foreground">{showInactive && inactiveRecords[activeTab].length > 0 ? '没有停用记录。' : '没有匹配记录。清除搜索条件或新增资料。'}</TableCell></TableRow> : null}
           </TableBody>
         </Table>
-      </div>
+      </ConsoleListSection>
 
       <details className="group rounded-lg border px-4 py-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><ChevronDown className="size-4 -rotate-90 transition-transform group-open:rotate-0" />配置说明</summary>

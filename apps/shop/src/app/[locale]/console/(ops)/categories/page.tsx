@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Plus } from 'lucide-react'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { ConsoleListSection, useConsolePagination } from '@/components/console/list'
 import { ProductCover, ProductImageField } from '@/components/console/product-images'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -41,6 +42,7 @@ export default function CategoriesPage() {
   }
 
   const ordered = flatten(rows)
+  const { pagedRows, pagination } = useConsolePagination(ordered)
   const blocked = dialog?.row ? new Set([dialog.row.id, ...descendants(rows, dialog.row.id)]) : new Set<string>()
   const parentOptions = [
     '无（一级品类）',
@@ -121,7 +123,11 @@ export default function CategoriesPage() {
           品类编码保持稳定；停用父类后，其子类不再出现在新建商品下拉，但历史商品仍保留原品类。自定义情感标签、品牌等枚举在「基础数据字典」维护。
         </UedPrototypeNotice>
 
-        <div className="overflow-hidden rounded-lg border">
+        <ConsoleListSection
+          title="品类列表"
+          description={`共 ${ordered.length} 条`}
+          pagination={pagination}
+        >
           <Table>
             <TableHeader>
               <TableRow>
@@ -135,7 +141,7 @@ export default function CategoriesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {ordered.map((row) => {
+              {pagedRows.map((row) => {
                 const depth = categoryDepth(rows, row)
                 const parent = row.parentId ? rows.find((item) => item.id === row.parentId) : null
                 return (
@@ -183,7 +189,7 @@ export default function CategoriesPage() {
               ) : null}
             </TableBody>
           </Table>
-        </div>
+        </ConsoleListSection>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </div>
     </>

@@ -6,6 +6,7 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { MOCK_PRODUCT_LIST_ROWS } from '@/lib/crossborder/mock-data'
 import { ProductCoverCell } from '@/components/console/product-images'
@@ -45,6 +46,7 @@ export default function ProductsPage() {
     if (platform !== 'all' && row.platform !== platform) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -85,6 +87,7 @@ export default function ProductsPage() {
       <ConsoleListSection
         title="商品列表"
         description={`共 ${rows.length} 条`}
+        pagination={pagination}
       >
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
@@ -105,7 +108,7 @@ export default function ProductsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.sku}>
                   <TableCell>
                     <ProductCoverCell imageKey={`product:${row.sku}`} fallback={{ cover: row.coverImage, images: row.images }} alt={row.title} />

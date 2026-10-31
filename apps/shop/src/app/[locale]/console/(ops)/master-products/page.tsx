@@ -11,6 +11,8 @@ import { activeCategoryPaths, useCategories } from '@/lib/crossborder/category-s
 import { useMembers } from '@/lib/crossborder/member-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
 
+const PAGE_SIZE = 5
+
 export default function MasterProductsPage() {
   const products = useProducts()
   const router = useLocaleRouter()
@@ -22,6 +24,7 @@ export default function MasterProductsPage() {
   const ownerOptions = members.filter((member) => member.status === '启用').map((member) => member.name)
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const [page, setPage] = React.useState(1)
 
   const kpiItems = React.useMemo(() => {
     const enabled = products.filter((item) => item.status === '启用').length
@@ -100,6 +103,8 @@ export default function MasterProductsPage() {
         filters={[{ label: '状态', options: ['启用', '待确认', '停用'] }]}
         addLabel="新建 SPU"
         onAdd={() => setOpen(true)}
+        listTitle="商品 SPU 列表"
+        pagination={{ page, pageSize: PAGE_SIZE, onPageChange: setPage }}
         columns={[
           {
             key: 'cover',

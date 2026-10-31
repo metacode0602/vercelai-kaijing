@@ -1,11 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { sumFeeBreakdown, useProfits } from '@/lib/crossborder/finance-store'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 
 export default function ProfitsPage() {
   const all = useProfits()
@@ -74,32 +74,13 @@ export default function ProfitsPage() {
       <UedPrototypeNotice>
         利润与费用拆分来自本地财务会话（无 tRPC / DB）。订单与 SKU 维度需同口径；快照一经核算不被后续汇率覆盖。
       </UedPrototypeNotice>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm text-muted-foreground">收入合计（当前视图原币）</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-semibold tabular-nums">{revenue.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm text-muted-foreground">费用合计</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-semibold tabular-nums">{fees.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm text-muted-foreground">利润合计</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-semibold tabular-nums">{profit.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <DetailKpiRow
+        items={[
+          { label: '收入合计（当前视图原币）', value: revenue.toLocaleString() },
+          { label: '费用合计', value: fees.toLocaleString() },
+          { label: '利润合计', value: profit.toLocaleString() },
+        ]}
+      />
       <div className="flex flex-wrap items-center gap-2">
         <Button variant={view === 'order' ? 'secondary' : 'outline'} size="sm" onClick={() => setView('order')}>
           订单维度

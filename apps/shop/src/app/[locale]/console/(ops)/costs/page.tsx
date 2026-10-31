@@ -8,6 +8,7 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
 import { useCosts } from '@/lib/crossborder/finance-store'
@@ -39,6 +40,11 @@ export default function CostsPage() {
     if (currency !== 'all' && row.currency !== currency) return false
     return true
   })
+  const { pagedRows: pagedCostVersions, pagination: costVersionsPagination } =
+    useConsolePagination(costVersions)
+  const { pagedRows: pagedSessionCosts, pagination: sessionCostsPagination } =
+    useConsolePagination(sessionCosts)
+  const { pagedRows: pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -80,6 +86,7 @@ export default function CostsPage() {
       <ConsoleListSection
         title="柜次成本版本（F32）"
         description={`共 ${costVersions.length} 条 · 测算工作台可按柜次保存到仓成本版本（PAL/CESS/VAT/SSCL）`}
+        pagination={costVersionsPagination}
       >
         {costVersions.length === 0 ? (
           <ConsoleTableEmpty />
@@ -100,7 +107,7 @@ export default function CostsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {costVersions.map((row) => (
+              {pagedCostVersions.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-mono text-xs">{row.id}</TableCell>
                   <TableCell>
@@ -128,7 +135,7 @@ export default function CostsPage() {
         )}
       </ConsoleListSection>
 
-      <ConsoleListSection title="会话成本行（财务 store）" description={`共 ${sessionCosts.length} 条 · 费用拆分关联利润核算`}>
+      <ConsoleListSection title="会话成本行（财务 store）" description={`共 ${sessionCosts.length} 条 · 费用拆分关联利润核算`} pagination={sessionCostsPagination}>
         {sessionCosts.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -145,7 +152,7 @@ export default function CostsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sessionCosts.map((row) => (
+              {pagedSessionCosts.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.id}</TableCell>
                   <TableCell>{row.sku}</TableCell>
@@ -161,7 +168,7 @@ export default function CostsPage() {
         )}
       </ConsoleListSection>
 
-      <ConsoleListSection title="成本记录（示例）" description={`共 ${rows.length} 条 · 点击 SKU 看详情`}>
+      <ConsoleListSection title="成本记录（示例）" description={`共 ${rows.length} 条 · 点击 SKU 看详情`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -183,7 +190,7 @@ export default function CostsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
+              {pagedRows.map((row) => {
                 const total = costLandedTotal(row).toFixed(2)
                 return (
                   <TableRow key={row.sku}>

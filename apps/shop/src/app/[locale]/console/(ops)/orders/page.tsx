@@ -6,7 +6,9 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
+import { DetailKpiRow } from '@/components/console/detail'
 import { MOCK_SHOPS } from '@/lib/crossborder/mock-data'
 import {
   confirmOrder,
@@ -16,7 +18,6 @@ import {
 } from '@/lib/crossborder/order-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
   Table,
   TableBody,
@@ -70,6 +71,7 @@ export default function OrdersPage() {
     if (platform !== 'all' && row.platform !== platform) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   function onConfirm(id: string) {
     const result = confirmOrder(id)
@@ -90,18 +92,7 @@ export default function OrdersPage() {
           平台订单号 / 状态 / 金额 · 确认占库 → 拣货出库写流水 · 点击详情
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((k) => (
-          <Card key={k.label}>
-            <CardHeader className="pb-1">
-              <CardTitle className="text-sm text-muted-foreground">{k.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-semibold tabular-nums">{k.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <DetailKpiRow items={kpis} />
 
       <ConsoleFilterBar
         keyword={keyword}
@@ -132,7 +123,7 @@ export default function OrdersPage() {
         ]}
       />
 
-      <ConsoleListSection title="订单列表" description={`共 ${rows.length} 条 · 原型会话`}>
+      <ConsoleListSection title="订单列表" description={`共 ${rows.length} 条 · 原型会话`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -151,7 +142,7 @@ export default function OrdersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
+              {pagedRows.map((row) => {
                 const canConfirm =
                   row.status === 'created' || row.status === 'paid' || !row.reserved
                 return (

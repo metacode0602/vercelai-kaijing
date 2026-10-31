@@ -6,6 +6,7 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
@@ -80,6 +81,7 @@ export default function ListingsPage() {
     if (platform !== 'all' && row.platform !== platform) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   const editor = open ? (
     <UedDialog
@@ -230,6 +232,7 @@ export default function ListingsPage() {
       <ConsoleListSection
         title="刊登列表"
         description={`共 ${rows.length} 条 · 原型会话（头 + 映射行）`}
+        pagination={pagination}
       >
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
@@ -254,7 +257,7 @@ export default function ListingsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
+              {pagedRows.map((row) => {
                 const product = findProductBySku(row.sku)
                 const cover = product?.variants.find((v) => v.code === row.sku)?.coverImage
                   || product?.coverImage

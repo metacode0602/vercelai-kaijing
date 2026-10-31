@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@workspace/ui/components/card'
+import { ConsolePagination, type ConsolePaginationProps } from './console-pagination'
 
 /** Card chrome for console list tables — matches DetailSection / 多店刊登 UED. */
 export function ConsoleListSection({
@@ -7,11 +15,15 @@ export function ConsoleListSection({
   description,
   children,
   action,
+  footer,
+  pagination,
 }: {
   title: string
   description?: string
   children: ReactNode
   action?: ReactNode
+  footer?: ReactNode
+  pagination?: ConsolePaginationProps
 }) {
   return (
     <Card>
@@ -23,6 +35,12 @@ export function ConsoleListSection({
         {action}
       </CardHeader>
       <CardContent>{children}</CardContent>
+      {pagination && pagination.total > pagination.pageSize ? (
+        <CardFooter>
+          <ConsolePagination {...pagination} />
+        </CardFooter>
+      ) : null}
+      {footer ? <CardFooter>{footer}</CardFooter> : null}
     </Card>
   )
 }

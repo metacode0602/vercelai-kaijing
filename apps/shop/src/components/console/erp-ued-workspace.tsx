@@ -2,15 +2,17 @@
 
 import * as React from 'react'
 import { Check, ChevronRight, Download, Plus, Search } from 'lucide-react'
-import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { ConsoleListSection, ConsoleTableEmpty } from '@/components/console/list'
 
 export type UedColumn<T> = { key: keyof T | string; label: string; render?: (row: T) => React.ReactNode }
+
+const DEFAULT_PAGE_SIZE = 10
 
 export function UedWorkspace<T>(props: {
   title: string
@@ -25,9 +27,18 @@ export function UedWorkspace<T>(props: {
   onExport?: () => void
   emptyText?: string
   detailHref?: (row: T) => string
+  listTitle?: string
+  listDescription?: string
+  pagination?: {
+    page: number
+    pageSize: number
+    total?: number
+    onPageChange: (page: number) => void
+  }
   children?: React.ReactNode
 }) {
   const [query, setQuery] = React.useState('')
+  const [internalPage, setInternalPage] = React.useState(1)
   const filterDefs = props.filters ?? []
   const [filterValues, setFilterValues] = React.useState<Record<number, string>>({})
   const searchKeys = props.searchKeys ?? ['id', 'code', 'spu', 'sku', 'name', 'status']
@@ -42,6 +53,25 @@ export function UedWorkspace<T>(props: {
       return String(record[filterKey] ?? record.status ?? '') === selected
     })
   })
+
+  const pageSize = Math.max(1, props.pagination?.pageSize ?? DEFAULT_PAGE_SIZE)
+  const total = props.pagination?.total ?? rows.length
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const page = props.pagination
+    ? Math.min(Math.max(1, props.pagination.page), pageCount)
+    : Math.min(Math.max(1, internalPage), pageCount)
+  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize)
+  const onPageChange = props.pagination?.onPageChange ?? setInternalPage
+
+  function updateQuery(value: string) {
+    setQuery(value)
+    onPageChange(1)
+  }
+
+  function updateFilter(index: number, value: string) {
+    setFilterValues((current) => ({ ...current, [index]: value }))
+    onPageChange(1)
+  }
 
   function exportDemoRows() {
     const headers = props.columns.map((column) => column.label)
@@ -60,12 +90,115 @@ export function UedWorkspace<T>(props: {
     URL.revokeObjectURL(url)
   }
 
-  return <section className="flex w-full flex-col gap-5">
-    <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-xl font-semibold tracking-tight">{props.title}</h1><p className="mt-1 text-sm text-muted-foreground">{props.description}</p></div><div className="flex gap-2"><Button variant="outline" onClick={props.onExport ?? exportDemoRows}><Download data-icon="inline-start" />导出演示清单</Button>{props.onAdd ? <Button onClick={props.onAdd}><Plus data-icon="inline-start" />{props.addLabel ?? '新增'}</Button> : null}</div></header>
-    {props.children}
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder ?? '搜索编码、名称或状态'} className="pl-9" /></div><div className="flex flex-wrap items-center gap-3"><span className="text-sm text-muted-foreground">{rows.length} 条</span>{filterDefs.map((item, index) => <NativeSelect key={`${item.label}-${index}`} value={filterValues[index] ?? '全部'} onChange={(event) => setFilterValues((current) => ({ ...current, [index]: event.target.value }))} className="w-40"><NativeSelectOption value="全部">全部{item.label}</NativeSelectOption>{item.options.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect>)}</div></div>
-    <div className="overflow-hidden rounded-lg border"><Table><TableHeader><TableRow>{props.columns.map((column) => <TableHead key={String(column.key)}>{column.label}</TableHead>)}{props.detailHref ? <TableHead className="w-24 text-right">详情</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row, index) => { const record = row as Record<string, unknown>; return <TableRow key={String(record.id ?? record.code ?? record.spu ?? record.sku ?? index)}>{props.columns.map((column) => <TableCell key={String(column.key)}>{column.render ? column.render(row) : String(record[String(column.key)] ?? '—')}</TableCell>)}{props.detailHref ? <TableCell className="text-right"><Button variant="ghost" size="sm" asChild><LocaleLink href={props.detailHref(row)}>查看<ChevronRight data-icon="inline-end" /></LocaleLink></Button></TableCell> : null}</TableRow>})}{rows.length === 0 ? (<TableRow><TableCell colSpan={props.columns.length + (props.detailHref ? 1 : 0)} className="h-24 text-center text-muted-foreground">{props.emptyText ?? '没有匹配数据。清除筛选或新增记录。'}</TableCell></TableRow>) : null}</TableBody></Table></div>
-  </section>
+  const tableNode =
+    rows.length === 0 ? (
+      <ConsoleTableEmpty
+        description={props.emptyText ?? '没有匹配数据。清除筛选或新增记录。'}
+      />
+    ) : (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {props.columns.map((column) => (
+              <TableHead key={String(column.key)}>{column.label}</TableHead>
+            ))}
+            {props.detailHref ? <TableHead className="w-24 text-right">详情</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {visibleRows.map((row, index) => {
+            const record = row as Record<string, unknown>
+            return (
+              <TableRow key={String(record.id ?? record.code ?? record.spu ?? record.sku ?? index)}>
+                {props.columns.map((column) => (
+                  <TableCell key={String(column.key)}>
+                    {column.render ? column.render(row) : String(record[String(column.key)] ?? '—')}
+                  </TableCell>
+                ))}
+                {props.detailHref ? (
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" asChild>
+                      <LocaleLink href={props.detailHref(row)}>
+                        查看
+                        <ChevronRight data-icon="inline-end" />
+                      </LocaleLink>
+                    </Button>
+                  </TableCell>
+                ) : null}
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    )
+
+  const tableCard = (
+    <ConsoleListSection
+      title={props.listTitle ?? `${props.title}列表`}
+      description={props.listDescription ?? `共 ${rows.length} 条`}
+      pagination={{
+        page,
+        pageSize,
+        total,
+        onPageChange,
+      }}
+    >
+      {tableNode}
+    </ConsoleListSection>
+  )
+
+  return (
+    <section className="flex w-full flex-col gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{props.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{props.description}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={props.onExport ?? exportDemoRows}>
+            <Download data-icon="inline-start" />
+            导出演示清单
+          </Button>
+          {props.onAdd ? (
+            <Button onClick={props.onAdd}>
+              <Plus data-icon="inline-start" />
+              {props.addLabel ?? '新增'}
+            </Button>
+          ) : null}
+        </div>
+      </header>
+      {props.children}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => updateQuery(event.target.value)}
+            placeholder={props.searchPlaceholder ?? '搜索编码、名称或状态'}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {filterDefs.map((item, index) => (
+            <NativeSelect
+              key={`${item.label}-${index}`}
+              value={filterValues[index] ?? '全部'}
+              onChange={(event) => updateFilter(index, event.target.value)}
+              className="w-40"
+            >
+              <NativeSelectOption value="全部">全部{item.label}</NativeSelectOption>
+              {item.options.map((option) => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          ))}
+        </div>
+      </div>
+      {tableCard}
+    </section>
+  )
 }
 
 export type UedDialogField = {

@@ -6,11 +6,11 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { MOCK_INVENTORY_LIST_ROWS } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
   Table,
   TableBody,
@@ -41,6 +41,7 @@ export default function InventoryPage() {
     if (alert !== 'all' && alert !== 'none' && row.alert !== alert) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -48,36 +49,21 @@ export default function InventoryPage() {
         <h2 className="text-xl font-semibold tracking-tight">库存预警</h2>
         <p className="text-sm text-muted-foreground">紧急补货 / 库龄 / 建议 · 点击 SKU 看多店库存</p>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm">紧急补货</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{urgent.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm">库龄 ≥ 60 天</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{aged.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm">闪购建议</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              <LocaleLink href="/console/inventory/MAT-02" className="underline-offset-2 hover:underline">
-                MAT-02
-              </LocaleLink>{' '}
-              可考虑清仓闪购（示例）
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" className="h-auto gap-1.5 px-3 py-1 text-sm font-normal">
+          <span className="text-muted-foreground">紧急补货</span>
+          <span className="font-semibold tabular-nums">{urgent.length}</span>
+        </Badge>
+        <Badge variant="secondary" className="h-auto gap-1.5 px-3 py-1 text-sm font-normal">
+          <span className="text-muted-foreground">库龄 ≥ 60 天</span>
+          <span className="font-semibold tabular-nums">{aged.length}</span>
+        </Badge>
+        <Badge variant="outline" asChild className="h-auto gap-1.5 px-3 py-1 text-sm font-normal">
+          <LocaleLink href="/console/inventory/MAT-02">
+            <span className="text-muted-foreground">闪购建议</span>
+            <span className="font-semibold">MAT-02</span>
+          </LocaleLink>
+        </Badge>
       </div>
 
       <ConsoleFilterBar
@@ -95,7 +81,7 @@ export default function InventoryPage() {
         ]}
       />
 
-      <ConsoleListSection title="库存列表" description={`共 ${rows.length} 条`}>
+      <ConsoleListSection title="库存列表" description={`共 ${rows.length} 条`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -114,7 +100,7 @@ export default function InventoryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.sku}>
                   <TableCell className="font-mono text-xs">
                     <LocaleLink

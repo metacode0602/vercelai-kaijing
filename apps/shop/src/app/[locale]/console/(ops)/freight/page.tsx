@@ -6,8 +6,9 @@ import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { NativeSelect, NativeSelectOption } from '@workspace/ui/components/native-select'
 import { Badge } from '@workspace/ui/components/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
+import { DetailKpiRow } from '@/components/console/detail'
+import { ConsoleListSection, useConsolePagination } from '@/components/console/list'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { DEMO_FREIGHT_ESTIMATES } from '@/lib/crossborder/finance-related-data'
@@ -55,6 +56,10 @@ export default function FreightPage() {
   const [notice, setNotice] = React.useState('')
 
   const quotes = DEMO_QUOTES[scenario]
+  const { pagedRows: pagedEstimates, pagination: estimatesPagination } =
+    useConsolePagination(DEMO_FREIGHT_ESTIMATES)
+  const { pagedRows: pagedQuotes, pagination: quotesPagination } =
+    useConsolePagination(quotes)
 
   function estimate() {
     const w = Number(weight) || 0
@@ -85,11 +90,11 @@ export default function FreightPage() {
         参考数据（承运商、线路、HS 税率、箱规）中平台参考数据由平台运营维护；即期报价与牌价分开比较，采纳后生成 freight_estimates 快照，历史快照不被覆盖。关税按申报货值与匹配税率估算，清关实缴以税单为准。
       </UedPrototypeNotice>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">估算快照（示例）</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
+      <ConsoleListSection
+        title="估算快照（示例）"
+        description={`共 ${DEMO_FREIGHT_ESTIMATES.length} 条`}
+        pagination={estimatesPagination}
+      >
           <Table>
             <TableHeader>
               <TableRow>
@@ -103,7 +108,7 @@ export default function FreightPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {DEMO_FREIGHT_ESTIMATES.map((item) => (
+              {pagedEstimates.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-mono text-xs">
                     <LocaleLink href={`/console/freight/${encodeURIComponent(item.id)}`} className="underline-offset-2 hover:underline">
@@ -124,8 +129,7 @@ export default function FreightPage() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </ConsoleListSection>
 
 
       <div className="flex flex-wrap gap-2">
@@ -159,29 +163,20 @@ export default function FreightPage() {
       </div>
 
       {result ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-1"><CardTitle className="text-sm text-muted-foreground">运费估算</CardTitle></CardHeader>
-            <CardContent><p className="text-xl font-semibold tabular-nums">USD {result.freight.toLocaleString()}</p></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-1"><CardTitle className="text-sm text-muted-foreground">关税估算（15%）</CardTitle></CardHeader>
-            <CardContent><p className="text-xl font-semibold tabular-nums">USD {result.duty.toLocaleString()}</p></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-1"><CardTitle className="text-sm text-muted-foreground">DDP 总计</CardTitle></CardHeader>
-            <CardContent><p className="text-xl font-semibold tabular-nums">USD {result.ddp.toLocaleString()}</p><p className="mt-1 text-xs text-muted-foreground">{result.fx}</p></CardContent>
-          </Card>
-        </div>
+        <DetailKpiRow
+          items={[
+            { label: '运费估算', value: `USD ${result.freight.toLocaleString()}` },
+            { label: '关税估算（15%）', value: `USD ${result.duty.toLocaleString()}` },
+            { label: 'DDP 总计', value: `USD ${result.ddp.toLocaleString()}`, hint: result.fx },
+          ]}
+        />
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
-          <div>
-            <h2 className="font-medium">报价比较 · {SCENARIOS.find((item) => item.key === scenario)?.label}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">即期报价与牌价并列；采纳后生成估算快照。</p>
-          </div>
-        </div>
+      <ConsoleListSection
+        title={`报价比较 · ${SCENARIOS.find((item) => item.key === scenario)?.label}`}
+        description={`共 ${quotes.length} 条 · 即期报价与牌价并列；采纳后生成估算快照`}
+        pagination={quotesPagination}
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -197,7 +192,7 @@ export default function FreightPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {quotes.map((quote) => (
+            {pagedQuotes.map((quote) => (
               <TableRow key={`${quote.carrier}-${quote.type}`}>
                 <TableCell className="font-medium">{quote.carrier}</TableCell>
                 <TableCell>{quote.lane}</TableCell>
@@ -214,7 +209,7 @@ export default function FreightPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </ConsoleListSection>
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => setNotice('HS 税率维护（平台参考数据）：3926.90 手机壳 · LK 15% · MY 0%（示例）。')}>维护 HS 税率</Button>

@@ -98,7 +98,7 @@ export function ProductReviewsSection({ sku }: { sku: string }) {
         </div>
       }
     >
-      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-6">
+      <div className="mb-4 grid grid-cols-6 gap-2">
         <div className="rounded-lg border p-3">
           <div className="text-xs text-muted-foreground">实抓</div>
           <div className="text-lg font-semibold">{data.kpis.total}</div>
