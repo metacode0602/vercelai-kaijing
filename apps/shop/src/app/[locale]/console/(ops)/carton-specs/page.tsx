@@ -55,6 +55,7 @@ export default function CartonSpecsPage() {
         title="箱规管理"
         description="运输包装独立维护，引用售卖包装规格；商品表单不出现长宽高/重量字段。"
         rows={rows}
+        detailHref={(row) => `/console/carton-specs/${encodeURIComponent(row.id)}`}
         searchKeys={['id', 'name', 'applicablePack', 'status', 'note']}
         searchPlaceholder="搜索箱规、包装规格或状态"
         addLabel="新增箱规"

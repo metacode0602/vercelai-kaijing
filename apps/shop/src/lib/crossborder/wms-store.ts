@@ -1643,6 +1643,40 @@ export function applyAftersaleScrap(input: {
   })
 }
 
+/** 订单确认占库：增加 reserved，event_type=订单锁定；不改 on_hand */
+export function applyOrderReserve(input: {
+  warehouse: string
+  bin: string
+  sku: string
+  quantity: number
+  sourceDoc: string
+  sourceLineId?: string
+  actor: string
+  idempotencyKey: string
+  reason?: string
+}): { ok: true; entry: InventoryLedgerEntry; duplicated: boolean } | { ok: false; reason: string } {
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
+    return { ok: false, reason: '占库数量必须为正整数' }
+  }
+  return appendLedgerAndProject({
+    warehouse: input.warehouse,
+    bin: input.bin,
+    sku: input.sku,
+    direction: 'adjust',
+    eventType: '订单锁定',
+    type: '订单锁定',
+    qty: input.quantity,
+    onHandDelta: 0,
+    reservedDelta: input.quantity,
+    sourceType: 'order',
+    sourceId: input.sourceDoc,
+    sourceLineId: input.sourceLineId,
+    reason: input.reason || '订单确认占库',
+    actor: input.actor,
+    idempotencyKey: input.idempotencyKey,
+  })
+}
+
 /** 取消订单释放预留：扣减 reserved，event_type=订单释放 */
 export function applyOrderReleaseReserved(input: {
   warehouse: string

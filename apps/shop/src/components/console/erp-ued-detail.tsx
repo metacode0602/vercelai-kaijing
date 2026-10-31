@@ -23,7 +23,8 @@ import {
   RELATED_PARENT_REPLACED_KEYS,
   resolveSkuFromRow,
 } from '@/lib/console/related-info'
-import { getCostBySku, getOrderById } from '@/lib/crossborder/mock-data'
+import { getCostBySku } from '@/lib/crossborder/mock-data'
+import { getOrderById } from '@/lib/crossborder/order-store'
 import {
   ERP_DEMO_AFTERSALES,
   ERP_DEMO_BINS,
@@ -503,7 +504,11 @@ export function UedRecordDetail({
   const skipArrayKeys =
     module === 'master-products' || module === 'master-skus'
       ? new Set(['variants'])
-      : new Set<string>()
+      : module === 'costs'
+        ? new Set(['components', 'shippingOptions'])
+        : module === 'finance'
+          ? new Set(['settlement'])
+          : new Set<string>()
   const arrayTables = collectArrayTables(current, labelMap, timelineKey).filter(
     (table) => !skipArrayKeys.has(table.key),
   )
