@@ -77,6 +77,11 @@ function presetToInput(preset: MockCostCalcPreset, overrides?: Partial<CostCalcu
     airQuoteIncludesTax: true,
     freightMode: 'LCL',
     tariffProfileId: preset.tariffProfileId,
+    platform: 'daraz',
+    country: 'LK',
+    fulfillmentPool: 'daraz_lk_sea_lot',
+    fulfillmentLogistics: '',
+    asOf: new Date().toISOString().slice(0, 10),
     clearanceMiscTotal: preset.clearanceMiscTotal,
     targetNetMarginPct: preset.defaultMarginPct,
     platformCommissionPct: preset.platformCommissionPct,
@@ -118,7 +123,7 @@ function applyBridgeAction(
       break
     case 'set_tariff':
       next = { ...prev, tariffProfileId: action.profileId }
-      hint = `已套用税率档「${TARIFF_PROFILES[action.profileId].labelZh}」（示例·待复核）`
+      hint = `已套用税率档「${TARIFF_PROFILES[action.profileId].labelZh}」（费用模板 formulaProfile · 待复核）`
       break
     case 'compare_lcl_fcl':
       next = { ...prev, freightMode: prev.freightMode === 'LCL' ? 'FCL20' : 'LCL' }
@@ -274,7 +279,9 @@ export function CostCalculatorWorkbench({
       lotCode: lot.lotCode,
       createdBy: '杨洁',
     })
-    setSaveHint(`已保存 ${row.id} · 到仓 ${row.landedUnitCost} USD/件 · 审批参考 杨洁/黄发聪`)
+    setSaveHint(
+      `已保存 ${row.id} · 到仓 ${row.landedUnitCost} USD/件 · 费用模板版本 ${row.feeTemplateVersionId ?? '—'} · 审批参考 杨洁/黄发聪`,
+    )
   }, [input, result, lotId])
 
   const formPanel = (
@@ -300,7 +307,7 @@ export function CostCalculatorWorkbench({
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Calculator className="size-4 text-primary" />
         <span>
-          {input.title} · 税率表 {result?.meta.tariffTableVersion ?? 'v2026.10-mock'} · 汇率{' '}
+          {input.title} · 费用模板 {result?.meta.feeTemplateCode ?? result?.meta.tariffTableVersion ?? '未解析'} · 汇率{' '}
           {result?.meta.fxRateDate ?? '2026-10-21'} · 示例计算·需报关/法务复核
         </span>
         <Badge variant="secondary">示例</Badge>
@@ -421,9 +428,9 @@ function CostCalculatorFormPanel({
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <Label>HS / 税率档</Label>
+            <Label>HS / 税率档（费用模板 formulaProfile）</Label>
             <Badge variant="outline" className="text-[10px]">
-              示例·待复核
+              费用模板·待复核
             </Badge>
           </div>
           <ToggleGroup
@@ -449,7 +456,55 @@ function CostCalculatorFormPanel({
             HS 示意 {tariff.hsHint} · 关税 {(tariff.customs * 100).toFixed(0)}% / CESS{' '}
             {(tariff.cess * 100).toFixed(0)}% / PAL {(tariff.pal * 100).toFixed(0)}% / VAT{' '}
             {(tariff.vat * 100).toFixed(0)}% / SSCL {(tariff.sscl * 100).toFixed(1)}%
+            （按平台+国家+履约+asOf 解析费用模板版本）
           </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[11px]">平台</Label>
+              <Select
+                value={input.platform}
+                onValueChange={(v) => {
+                  if (v) setInput((s) => ({ ...s, platform: v }))
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daraz">Daraz</SelectItem>
+                  <SelectItem value="lazada">Lazada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">国家</Label>
+              <Select
+                value={input.country}
+                onValueChange={(v) => {
+                  if (v) setInput((s) => ({ ...s, country: v }))
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LK">LK</SelectItem>
+                  <SelectItem value="MY">MY</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-[11px]">履约池</Label>
+              <Select
+                value={input.fulfillmentPool}
+                onValueChange={(v) => {
+                  if (v) setInput((s) => ({ ...s, fulfillmentPool: v }))
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daraz_lk_sea_lot">daraz_lk_sea_lot</SelectItem>
+                  <SelectItem value="lazada_cn_spot_xmn">lazada_cn_spot_xmn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-2">

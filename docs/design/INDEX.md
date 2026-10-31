@@ -32,6 +32,7 @@
 | --- | --- | --- |
 | [crossborder-shop-ued-product-design.md](../../apps/shop/content/design/crossborder-shop-ued-product-design.md) | **生效** | 租户端 IA、动态 Skill execution/OKF 知识复核与 Desktop 商业闭环 UED |
 | [cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md) | **生效** | 斯里兰卡成本计算工作台：先交互 UED 再接业务；空运 DDP / LCL / FCL 成本情景、税项与建议售价 |
+| [fee-templates-ued.md](../../apps/shop/content/design/fee-templates-ued.md) | **UED 初版** | 费用模板（import_tax / platform_fee）：履约两级、优先级解析、localStorage 列表/详情；成本测算按平台+国家+履约+asOf 命中版本并快照 |
 | [comment-review-ued.md](../../apps/shop/content/design/comment-review-ued.md) | **UED 初版** | 评论分析报告 UED：KPI、评分分布、关键发现、负向中性与全部评价区块规格 |
 | [openwork-desktop-workbench-plan.md](../../apps/shop/content/design/openwork-desktop-workbench-plan.md) | **设计稿** | OpenWork Desktop 工作台集成计划：Skill 能力索引、S1–S5 分步与读写路径 |
 | [console-inbox-sheet.md](../../apps/shop/content/design/console-inbox-sheet.md) | Demo | 控制台站内信 Sheet 交互 |

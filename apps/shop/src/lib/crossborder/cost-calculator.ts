@@ -6,8 +6,18 @@
  *
  * Tax stack (MVP, Excise/Surcharge/SCL off):
  *   Customs → CESS → PAL on CIF (v); then VAT & SSCL on (v + 10%v + d + c + p).
- * See apps/shop/content/design/cost-calculator-sl-landed-ued.md §5–§7.
+ * Rates resolve from fee templates (platform + country + fulfillment + asOf + priority).
+ * TARIFF_PROFILES kept as fallback seed / 文案 only.
+ * See apps/shop/content/design/cost-calculator-sl-landed-ued.md §5–§7
+ * and apps/shop/content/design/fee-templates-ued.md.
  */
+
+import {
+  componentsToTariffRates,
+  getPlatformFeePercents,
+  resolveFeeTemplateVersion,
+  type ResolvedFeeTemplate,
+} from '@/lib/crossborder/fee-template-store'
 
 export const TARIFF_TABLE_VERSION = 'v2026.10-mock'
 export const FREIGHT_RATE_VERSION = 'freight-mock-2026.10'
@@ -36,7 +46,7 @@ export type TariffRates = {
   reviewNeeded: boolean
 }
 
-/** Example Sri Lanka rate templates — 示例·待复核 */
+/** @deprecated Prefer fee templates; kept as fallback seed / 文案. 示例·待复核 */
 export const TARIFF_PROFILES: Record<TariffProfileId, TariffRates> = {
   apparel: {
     id: 'apparel',
@@ -112,7 +122,20 @@ export type CostCalculatorInput = {
   /** Estimated gross package volume in cm³ for AIR DDP chargeable weight. */
   airQuoteIncludesTax: boolean
   freightMode: FreightMode
+  /** 兼容旧 UED：映射到费用模板 formulaProfile */
   tariffProfileId: TariffProfileId
+  /** 平台 / 国家 / 履约（费用模板解析维度） */
+  platform: string
+  country: string
+  fulfillmentPool: string
+  /** 空=按 freightMode 推导 */
+  fulfillmentLogistics: string
+  /** 测算基准日 YYYY-MM-DD */
+  asOf: string
+  /** 可选：显式进口税模板 code/id */
+  importTaxTemplateId?: string
+  /** 可选：显式平台费模板 code/id */
+  platformFeeTemplateId?: string
   clearanceMiscTotal: number
   targetNetMarginPct: number
   platformCommissionPct: number
@@ -132,6 +155,10 @@ export type TaxBreakdown = {
   taxTotal: number
   vatSsclBase: number
   rates: TariffRates
+  feeTemplateVersionId: string | null
+  feeTemplateCode: string | null
+  feeTemplatePriority: number | null
+  resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
 }
 
 export type WaterfallLine = {
@@ -188,6 +215,10 @@ export type CostCalculatorResult = {
     fxRateDate: string
     fxUsdLkr: number
     disclaimerZh: string
+    feeTemplateVersionId: string | null
+    feeTemplateCode: string | null
+    platformFeeTemplateVersionId: string | null
+    componentsSnapshot: Array<{ code: string; labelZh: string; rate: number; unit: string }>
   }
 }
 
@@ -241,6 +272,12 @@ export function computeAirDdpFreight(
 export function computeLkTaxStack(
   cifTotalUsd: number,
   rates: TariffRates,
+  resolveMeta?: {
+    feeTemplateVersionId: string | null
+    feeTemplateCode: string | null
+    feeTemplatePriority: number | null
+    resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
+  },
 ): TaxBreakdown {
   const v = cifTotalUsd * FX_USD_LKR
   const d = v * rates.customs
@@ -262,6 +299,71 @@ export function computeLkTaxStack(
     taxTotal: toUsd(taxTotalLkr),
     vatSsclBase: toUsd(base2),
     rates,
+    feeTemplateVersionId: resolveMeta?.feeTemplateVersionId ?? null,
+    feeTemplateCode: resolveMeta?.feeTemplateCode ?? null,
+    feeTemplatePriority: resolveMeta?.feeTemplatePriority ?? null,
+    resolvedFrom: resolveMeta?.resolvedFrom ?? 'tariff_profile_fallback',
+  }
+}
+
+function logisticsFromFreightMode(mode: FreightMode): string {
+  if (mode === 'AIR_DDP') return 'AIR_DDP'
+  if (mode === 'LCL') return 'LCL'
+  if (mode === 'FCL20' || mode === 'FCL40') return 'FCL'
+  return mode
+}
+
+/** 按平台+国家+履约+asOf 解析进口税费用模板；失败则回退 TARIFF_PROFILES。 */
+export function resolveImportTaxRates(input: Pick<
+  CostCalculatorInput,
+  | 'platform'
+  | 'country'
+  | 'fulfillmentPool'
+  | 'fulfillmentLogistics'
+  | 'freightMode'
+  | 'asOf'
+  | 'tariffProfileId'
+  | 'importTaxTemplateId'
+>): {
+  rates: TariffRates
+  resolved: ResolvedFeeTemplate | null
+  resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
+} {
+  const logistics =
+    input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode)
+  const baseArgs = {
+    platform: input.platform || 'daraz',
+    country: input.country || 'LK',
+    fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
+    fulfillmentLogistics: logistics,
+    type: 'import_tax' as const,
+    asOf: input.asOf,
+    templateCodeOrId: input.importTaxTemplateId,
+  }
+  const resolved =
+    resolveFeeTemplateVersion({ ...baseArgs, formulaProfile: input.tariffProfileId }) ??
+    resolveFeeTemplateVersion(baseArgs)
+  if (resolved) {
+    const mapped = componentsToTariffRates(resolved.version, input.tariffProfileId)
+    const rates: TariffRates = {
+      id: (['apparel', 'electronics', 'home_sports'].includes(mapped.id)
+        ? mapped.id
+        : input.tariffProfileId) as TariffProfileId,
+      labelZh: mapped.labelZh,
+      hsHint: mapped.hsHint,
+      customs: mapped.customs,
+      cess: mapped.cess,
+      pal: mapped.pal,
+      vat: mapped.vat,
+      sscl: mapped.sscl,
+      reviewNeeded: mapped.reviewNeeded,
+    }
+    return { rates, resolved, resolvedFrom: 'fee_template' }
+  }
+  return {
+    rates: TARIFF_PROFILES[input.tariffProfileId],
+    resolved: null,
+    resolvedFrom: 'tariff_profile_fallback',
   }
 }
 
@@ -311,10 +413,33 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   const firstMileInCif = input.firstMileInCif ? input.firstMileTotal : 0
   const cifTotal = fobTotal + insurance + (input.freightMode === 'AIR_DDP' ? 0 : selectedFreightTotal) + firstMileInCif
 
-  const rates = TARIFF_PROFILES[input.tariffProfileId]
+  const { rates, resolved: importResolved, resolvedFrom } = resolveImportTaxRates(input)
+  const resolveMeta = {
+    feeTemplateVersionId: importResolved?.version.id ?? null,
+    feeTemplateCode: importResolved?.template.code ?? null,
+    feeTemplatePriority: importResolved?.version.priority ?? null,
+    resolvedFrom,
+  }
   const tax = freightIncludesTax
-    ? computeLkTaxStack(0, rates)
-    : computeLkTaxStack(cifTotal, rates)
+    ? computeLkTaxStack(0, rates, resolveMeta)
+    : computeLkTaxStack(cifTotal, rates, resolveMeta)
+
+  const platformFeeResolved = resolveFeeTemplateVersion({
+    platform: input.platform || 'daraz',
+    country: input.country || 'LK',
+    fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
+    fulfillmentLogistics: input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode),
+    type: 'platform_fee',
+    asOf: input.asOf,
+    templateCodeOrId: input.platformFeeTemplateId,
+  })
+  const platformFeePercents = getPlatformFeePercents(platformFeeResolved)
+  const platformCommissionPct = platformFeeResolved
+    ? platformFeePercents.commissionPct
+    : input.platformCommissionPct
+  const paymentFeePct = platformFeeResolved
+    ? platformFeePercents.paymentFeePct
+    : input.paymentFeePct
 
   const landedTotal =
     fobTotal +
@@ -328,8 +453,8 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
     landedUnit,
     input.lastMileUnit,
     input.targetNetMarginPct,
-    input.platformCommissionPct,
-    input.paymentFeePct,
+    platformCommissionPct,
+    paymentFeePct,
     input.adsPct,
   )
 
@@ -338,7 +463,7 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   if (suggestPrice != null && suggestPrice > 0) {
     const feeVar =
       (suggestPrice *
-        (input.platformCommissionPct + input.paymentFeePct + input.adsPct)) /
+        (platformCommissionPct + paymentFeePct + input.adsPct)) /
       100
     const costAtP = landedUnit + input.lastMileUnit + feeVar
     netMarginPct = round2(((suggestPrice - costAtP) / suggestPrice) * 100)
@@ -474,12 +599,25 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
       noteZh,
     },
     meta: {
-      tariffTableVersion: TARIFF_TABLE_VERSION,
+      tariffTableVersion: importResolved
+        ? `${importResolved.template.code}@v${importResolved.version.versionNo}`
+        : TARIFF_TABLE_VERSION,
       freightRateVersion: FREIGHT_RATE_VERSION,
       fxRateDate: FX_RATE_DATE,
       fxUsdLkr: FX_USD_LKR,
       disclaimerZh:
-        '估算 · 需报关/法务复核。示例税率与运价，非法务结论，无官方实时税率 API。',
+        resolvedFrom === 'fee_template'
+          ? `估算 · 需报关/法务复核。税率来自费用模板 ${importResolved?.template.code}（优先级 ${importResolved?.version.priority}）。`
+          : '估算 · 需报关/法务复核。未命中费用模板，已回退 TARIFF_PROFILES 示例税率。',
+      feeTemplateVersionId: importResolved?.version.id ?? null,
+      feeTemplateCode: importResolved?.template.code ?? null,
+      platformFeeTemplateVersionId: platformFeeResolved?.version.id ?? null,
+      componentsSnapshot: (importResolved?.version.components ?? []).map((c) => ({
+        code: c.code,
+        labelZh: c.labelZh,
+        rate: c.rate,
+        unit: c.unit,
+      })),
     },
   }
 }

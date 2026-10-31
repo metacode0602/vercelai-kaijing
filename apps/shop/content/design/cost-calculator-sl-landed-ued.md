@@ -4,7 +4,7 @@
 |----|------|
 | 文档范围 | `apps/shop` 跨境运营台 · 到仓成本 / LK 税叠加 / 空运 DDP·LCL·FCL / 建议售价与净利率 |
 | 受众 | 产品、UED、前端、运营、报关对接 |
-| 版本 | **v1.2** |
+| 版本 | **v1.3** |
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop` |
 | 关联 | `crossborder-shop-ued-product-design.md`（§5.7 成本页总览；本文为深化专篇）、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)（现状基线）、[`haoshiyun-erp-database-schema.md`](../../../../docs/design/haoshiyun-erp-database-schema.md)（权威 schema：§8 域 H 成本 / §11 域 K 运费）、[`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md) |
@@ -18,6 +18,7 @@
 | v1.0 | 2026-10-21 | 初稿：LK 税叠加工式、LCL/FCL、建议售价、UED 工作台、分阶段与验收 |
 | v1.1 | 2026-10-25 | 关联文档迁至 `docs/design/`；移除历史业务成本口径的交叉引用 |
 | v1.2 | 2026-10-28 | 明确先做可交互 UED、用户确认后再接 tRPC；三种运输方案纳入工作台；统一成本名称、证据/报价状态、示例数据标记和可复用快照目标 |
+| v1.3 | 2026-10-31 | 税率改为费用模板解析（平台+国家+履约+asOf+优先级）；见 [`fee-templates-ued.md`](./fee-templates-ued.md)；`TARIFF_PROFILES` 仅作 fallback |
 
 ---
 
@@ -507,3 +508,9 @@ FOB/件
 ---
 
 **文档版本 v1.2 · 设计稿。** 先通过可交互 UED 确认用户习惯，再实现业务持久化与集成。
+
+---
+
+## 附录：费用模板（v1.3）
+
+进口税与平台费不再写死在测算引擎。配置与解析见 **[`fee-templates-ued.md`](./fee-templates-ued.md)**（用户已确认 C1–C9）。保存柜次成本写入 `feeTemplateVersionId` + components 快照；`TARIFF_PROFILES` / `LK_PAL_CESS_VAT_SSCL` 仅作未命中时的 fallback 文案。

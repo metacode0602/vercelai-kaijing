@@ -46,6 +46,7 @@ export type ConsoleNavTitleKey =
   | 'nav.aftersaleReturns'
   | 'nav.costFinance'
   | 'nav.costs'
+  | 'nav.feeTemplates'
   | 'nav.settlements'
   | 'nav.profits'
   | 'nav.freight'
@@ -169,6 +170,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     labelKey: 'nav.costFinance',
     items: [
       { url: '/console/costs', titleKey: 'nav.costs' },
+      { url: '/console/fee-templates', titleKey: 'nav.feeTemplates' },
       { url: '/console/settlements', titleKey: 'nav.settlements' },
       { url: '/console/profits', titleKey: 'nav.profits' },
       { url: '/console/carriers', titleKey: 'nav.carriers' },

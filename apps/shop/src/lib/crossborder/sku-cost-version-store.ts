@@ -15,7 +15,9 @@ export type SkuCostVersion = {
   containerLotId: string
   lotCode: string
   versionNo: number
+  /** @deprecated 文案回退；优先 feeTemplateVersionId */
   taxTemplateCode: string
+  feeTemplateVersionId: string | null
   currency: string
   landedUnitCost: number
   suggestPrice: number | null
@@ -26,6 +28,7 @@ export type SkuCostVersion = {
   snapshot: {
     input: Partial<CostCalculatorInput>
     waterfall: Array<{ id: string; labelZh: string; unitUsd: number; totalUsd: number }>
+    components: Array<{ code: string; labelZh: string; rate: number; unit: string }>
   }
   status: string
 }
@@ -39,6 +42,7 @@ const SEED: SkuCostVersion[] = [
     lotCode: 'LOT-CMB-2026-08-01',
     versionNo: 1,
     taxTemplateCode: 'LK_PAL_CESS_VAT_SSCL',
+    feeTemplateVersionId: 'FTV-DARAZ-LK-APPAREL-V1',
     currency: 'USD',
     landedUnitCost: 4.82,
     suggestPrice: 12.9,
@@ -54,6 +58,7 @@ const SEED: SkuCostVersion[] = [
         { id: 'tax', labelZh: '进口税瀑布', unitUsd: 0.96, totalUsd: 288 },
         { id: 'other', labelZh: '清关杂费', unitUsd: 0.36, totalUsd: 108 },
       ],
+      components: [],
     },
     status: '已生效',
   },
@@ -93,7 +98,8 @@ export function saveSkuCostVersionFromCalculator(args: {
     containerLotId: args.containerLotId,
     lotCode: args.lotCode,
     versionNo,
-    taxTemplateCode: 'LK_PAL_CESS_VAT_SSCL',
+    taxTemplateCode: args.result.meta.feeTemplateCode ?? 'LK_PAL_CESS_VAT_SSCL',
+    feeTemplateVersionId: args.result.meta.feeTemplateVersionId,
     currency: 'USD',
     landedUnitCost: Number(args.result.landedUnit.toFixed(4)),
     suggestPrice: args.result.suggestPrice,
@@ -120,6 +126,7 @@ export function saveSkuCostVersionFromCalculator(args: {
         unitUsd: line.unitUsd,
         totalUsd: line.totalUsd,
       })),
+      components: args.result.meta.componentsSnapshot,
     },
     status: '已生效',
   }

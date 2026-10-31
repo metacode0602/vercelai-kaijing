@@ -10,6 +10,7 @@
 
 import { createId } from "@paralleldrive/cuid2"
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -642,6 +643,8 @@ export const skuCosts = pgTable(
     /** → ocean_shipments.id；Daraz 按柜次版本化 */
     containerLotId: text("container_lot_id"),
     taxTemplateCode: varchar("tax_template_code", { length: 64 }),
+    /** → fee_template_versions.id；测算命中的费用模板版本 */
+    feeTemplateVersionId: text("fee_template_version_id"),
     taxBreakdown: jsonb("tax_breakdown").$type<Record<string, unknown>>(),
     calculatorSnapshot: jsonb("calculator_snapshot").$type<Record<string, unknown>>(),
     landedUnitCost: numeric("landed_unit_cost", { precision: 18, scale: 4 }),
@@ -961,6 +964,79 @@ export const auditEvents = pgTable(
   ],
 )
 
+
+// ---------------------------------------------------------------------------
+// fee_templates / fee_template_versions — DRAFT（UED 优先 localStorage；正式落库前勿 db:generate 强推）
+// @see apps/shop/content/design/fee-templates-ued.md
+// ---------------------------------------------------------------------------
+
+export const feeTemplateTypes = ["import_tax", "platform_fee"] as const
+export type FeeTemplateTypeDb = (typeof feeTemplateTypes)[number]
+
+export const feeTemplates = pgTable(
+  "fee_templates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    country: varchar("country", { length: 8 }).notNull(),
+    fulfillmentPool: varchar("fulfillment_pool", { length: 64 }),
+    fulfillmentLogistics: varchar("fulfillment_logistics", { length: 32 }),
+    type: varchar("type", { length: 32 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("fee_templates_org_code_uidx").on(t.organizationId, t.code),
+    index("fee_templates_org_dim_idx").on(
+      t.organizationId,
+      t.platform,
+      t.country,
+      t.type,
+    ),
+  ],
+)
+
+export const feeTemplateVersions = pgTable(
+  "fee_template_versions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => feeTemplates.id),
+    versionNo: integer("version_no").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    /** 同维度重叠时人工优先级，越大越优先 */
+    priority: integer("priority").notNull().default(10),
+    formulaProfile: varchar("formula_profile", { length: 64 }),
+    components: jsonb("components").$type<Record<string, unknown>[]>().notNull(),
+    published: boolean("published").notNull().default(false),
+    reviewNeeded: boolean("review_needed").notNull().default(true),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("fee_template_versions_tpl_ver_uidx").on(t.templateId, t.versionNo),
+    index("fee_template_versions_org_idx").on(t.organizationId),
+    index("fee_template_versions_eff_idx").on(t.templateId, t.effectiveFrom),
+  ],
+)
+
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
@@ -970,6 +1046,8 @@ export type MappingException = typeof mappingExceptions.$inferSelect
 export type Order = typeof orders.$inferSelect
 export type OrderLine = typeof orderLines.$inferSelect
 export type SkuCost = typeof skuCosts.$inferSelect
+export type FeeTemplateRow = typeof feeTemplates.$inferSelect
+export type FeeTemplateVersionRow = typeof feeTemplateVersions.$inferSelect
 export type AuditEvent = typeof auditEvents.$inferSelect
 export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
