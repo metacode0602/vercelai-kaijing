@@ -143,3 +143,7 @@
 ## Daraz LK 差分（F20–F33）
 
 > 见 [daraz-lk-erp-p0-ued.md](./daraz-lk-erp-p0-ued.md)：Daraz **不**共享厦门现货池；P0=F22/F33/F32；P1 壳=F20/F21/F30/F31/F28；P2 抓取/优惠券仅 stub（Q36/Q38/Q44）。
+
+## 需求答复指针
+
+- Q01–Q35 开发人员答复（含人工确认清单）：[`docs/design/erp-requirements-q01-q35-dev-replies.md`](../../../../docs/design/erp-requirements-q01-q35-dev-replies.md)

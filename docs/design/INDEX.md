@@ -11,6 +11,7 @@
 | [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
 | [platform-apis/](platform-apis/README.md) | **证据基线（2026-10-31）** | 各平台官方 Open API：授权后可读/可写范围；Daraz/Lazada/Shopee/TikTok；Q38 客服 / Q43 字段 / Q44 券 |
+| [erp-requirements-q01-q35-dev-replies.md](erp-requirements-q01-q35-dev-replies.md) | **开发答复（2026-10-31）** | 需求 Q01–Q35 据 develop 实现/设计的开发人员答复；需人工确认项已标红 |
 | [haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md) | **初步设计，待业务/IT确认** | 好时运 ERP 需求 Excel（9 张表）覆盖分析、当前仓库证据、目标模型与分阶段整改方案 |
 | [haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md) | **调研结论，待业务/IT确认** | 好时运 ERP 需求 × Open Shop 现状 × Open Mercato 复用评估：推荐「概念参考 + 自研 Drizzle schema」，含差距表、三类复用建议与 S1–S7 优先级 |
 | [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) | **设计稿，待业务/IT确认后 db:generate** | 好时运 ERP 完整数据库表结构（约 75 表）：平台主数据、商品供应商、Seller SKU 映射、采购互审、共享库存流水（借鉴 OM wms）、订单履约 LGS/JSB、售后、成本汇率利润、RBAC/审计/导入、评论口碑（product_reviews / 分析 / HTML 报告快照）、运费测算（freight_estimates 快照 + 货代报价/牌价/HS 税率版本，对齐 freight-estimation-design）；含现有表迁移与业务不变量 |
