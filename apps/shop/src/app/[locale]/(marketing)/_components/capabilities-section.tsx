@@ -1,3 +1,4 @@
+import { cn } from "@workspace/ui/lib/utils"
 import {
   AppWindow,
   Code2,
@@ -68,24 +69,29 @@ export function CapabilitiesSection() {
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-y-6 pt-10 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-1 gap-y-6 pt-10 sm:grid-cols-2 lg:grid-cols-3">
           {capabilities.map((item, index) => {
             const Icon = item.icon
 
             return (
               <div
                 key={item.number}
-                className={`flex flex-col gap-6 border-l border-border/30 p-4 md:px-10 md:pb-4 md:pt-6 ${
-                  index % 3 === 0 ? "lg:border-l-0 lg:pl-0" : ""
-                }`}
+                className={cn(
+                  "flex flex-col gap-6 border-border/30 p-4 md:pr-10 md:pb-4 md:pt-6",
+                  "sm:border-l sm:pl-6",
+                  index % 2 === 0 ? "sm:border-l-0 sm:pl-0" : "",
+                  index % 3 === 0
+                    ? "lg:border-l-0 lg:pl-0"
+                    : "lg:border-l lg:pl-10",
+                )}
               >
                 <span className="font-mono text-sm leading-none text-muted-foreground">
                   {item.number}
                 </span>
-                <div className="flex h-[116px] items-end">
+                <div className="flex h-[96px] items-end md:h-[116px]">
                   <div className="glass-surface rounded-xl border border-border/20 p-4">
                     <Icon
-                      className="size-14 text-primary/80"
+                      className="size-12 text-primary/80 md:size-14"
                       strokeWidth={1.25}
                       aria-hidden
                     />

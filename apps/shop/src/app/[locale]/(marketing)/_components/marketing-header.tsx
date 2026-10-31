@@ -7,13 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  navigationMenuTriggerStyle,
-} from "@workspace/ui/components/navigation-menu"
+import { navigationMenuTriggerStyle } from "@workspace/ui/components/navigation-menu"
 import {
   Sheet,
   SheetContent,
@@ -114,7 +108,7 @@ export function MarketingHeader() {
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-[999] flex justify-center px-3 pt-3 lg:px-5 lg:pt-5">
       <nav className="marketing-nav pointer-events-auto relative w-full max-w-6xl overflow-visible rounded-full">
-        <div className="relative flex h-[52px] min-h-0 flex-row items-center justify-between pl-8 pr-3 lg:gap-10 lg:pl-5 lg:pr-1.5">
+        <div className="relative flex h-[52px] min-h-0 flex-row items-center justify-between pl-4 pr-3 sm:pl-5 lg:gap-10 lg:pl-5 lg:pr-1.5">
           <LocaleLink
             href="/"
             className="hidden h-full shrink-0 items-center justify-center lg:flex gap-2"
@@ -132,7 +126,7 @@ export function MarketingHeader() {
             <GPURunFullIcon className="size-7 select-none" />
           </LocaleLink>
 
-          <div className="flex flex-row items-center gap-2">
+          <div className="hidden flex-row items-center gap-2 lg:flex">
             {navLinks.map((link) =>
               link.items && !link.href ? (
                 <NavDropdown
@@ -188,7 +182,7 @@ export function MarketingHeader() {
                 <Menu className="size-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="marketing-popover w-[300px]">
+            <SheetContent side="right" className="marketing-popover w-[85vw] max-w-[300px]">
               <SheetHeader>
                 <SheetTitle>菜单</SheetTitle>
               </SheetHeader>

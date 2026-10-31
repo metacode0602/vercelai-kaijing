@@ -19,11 +19,11 @@ export function HeroSection() {
       </div>
 
       <div className="relative mx-auto max-w-[1512px]">
-        <div className="relative flex min-h-[700px] flex-col px-5 pb-5 pt-[100px] md:block md:px-0 md:pb-0 md:pt-0">
+        <div className="relative flex flex-col gap-8 px-5 pb-10 pt-24 md:px-12 lg:min-h-[700px] lg:flex-row lg:items-center lg:justify-between lg:gap-10 lg:px-12 lg:py-10 lg:pt-[120px] xl:px-24">
           <div
             className={cn(
               "glass-panel",
-              "relative z-10 flex max-w-full flex-col gap-4 p-6 pb-6 md:absolute md:left-[60px] md:top-[215px] md:max-w-[560px] md:gap-6 md:p-8 lg:left-[124px]",
+              "relative z-10 flex w-full max-w-[560px] flex-col gap-4 p-6 pb-6 md:gap-6 md:p-8 lg:shrink-0",
             )}
           >
             <div className="flex items-center gap-2">
@@ -68,14 +68,14 @@ export function HeroSection() {
             </p>
           </div>
 
-          <div className="relative z-0 mt-2 flex select-none items-start justify-start pl-4 md:absolute md:left-0 md:top-[444px] md:mt-0 md:pl-0 lg:left-auto lg:right-0 lg:top-[116px] lg:items-start lg:justify-end">
+          <div className="relative z-0 flex w-full select-none items-center justify-center lg:flex-1 lg:justify-end">
             <Image
               src="/sandbox1/page/hero-main.png"
               alt="智能体沙盒 — GPU 云、智能体应用、模型 APIs 图示"
               width={960}
               height={780}
               priority
-              className="h-auto w-[740px] object-contain opacity-90 md:w-[960px] lg:w-[660px] xl:w-[820px]"
+              className="h-auto w-full max-w-[740px] object-contain opacity-90 lg:max-w-[660px] xl:max-w-[820px]"
             />
           </div>
         </div>
