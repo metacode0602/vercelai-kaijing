@@ -65,7 +65,8 @@
 | P1 | 计划文档；主数据 UED 加强（SPU/SKU/供应商货号/映射/刊登）：KPI 列表、头行创建、详情关联与图片 | 已合入 develop |
 | P2 | 采购申请→审批→采购单→到货质检→入库上架全链路 UED；PO 投影回写；关联 SKU/供应商/仓库自动带出 | 已合入 develop |
 | P3 | WMS：仓库/库区/库位、余额、流水、出库、盘点调整 UED；与 P2 上架写流水连续；一库位一 SKU | 已合入 develop |
-| **P4（本 PR）** | 同步任务 / 异常队列 / 评论退货只读面；店铺连接与接口日志 | 进行中 |
+| P4 | 同步任务 / 异常队列 / 评论退货只读面；店铺连接与接口日志 | 已合入 develop |
+| **P0 商业闭环（本 PR）** | 订单→拣货→出库→流水；刊登写路径（listing-store 头+映射行）；related-info `orders`/`listings` | 进行中 |
 | P5 | 接 tRPC + DB（替换 localStorage），保留同一 UED | 待开 |
 
 ## 10. 验收（P1）
@@ -95,4 +96,12 @@
 - 同步任务、接口日志、店铺连接、映射异常（订单异常）、评论、退货收货与质检、取消退款、售后总览具备 KPI、筛选、空态与中文校验；详情自动带出相关链接（SKU/订单/刊登/request id）。
 - 同步 / 接口日志重试、评论抓取、店铺重授权为原型动作，不调用真实平台 connector。
 - 映射异常 UI 明示阻断自动占库；退货回库/报损与取消释放锁定经 `wms-store` 流水，禁止直改余额。
+- `pnpm --filter shop typecheck` 通过；PR → `develop`，不合并。
+
+## 14. 验收（P0 商业闭环）
+
+- 侧栏未改结构 / 路由前缀。
+- 订单列表/详情使用 `order-store`（替换 `MOCK_ORDER_LIST_ROWS` 本地只读）；确认占库写「订单锁定」流水；拣货终态调用 `createStockOutbound` / `postStockOutbound` 写「订单出库」流水，禁止直改余额。
+- 刊登列表/详情使用 `listing-store`（头 + 映射行，替换 `MOCK_LISTING_*`）；可新建/编辑；与 `mapping-store` 双向；同步任务仍为原型。
+- 详情 `buildUedRelatedInfo` 含 `case 'orders'` / `case 'listings'`（及拣货父链订单链接）。
 - `pnpm --filter shop typecheck` 通过；PR → `develop`，不合并。

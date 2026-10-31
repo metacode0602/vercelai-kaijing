@@ -23,7 +23,8 @@ import {
   RELATED_PARENT_REPLACED_KEYS,
   resolveSkuFromRow,
 } from '@/lib/console/related-info'
-import { getCostBySku, getOrderById } from '@/lib/crossborder/mock-data'
+import { getCostBySku } from '@/lib/crossborder/mock-data'
+import { getOrderById } from '@/lib/crossborder/order-store'
 import {
   ERP_DEMO_AFTERSALES,
   ERP_DEMO_BINS,

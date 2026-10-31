@@ -11,6 +11,9 @@ import {
   toRelatedInboundShape,
   toRelatedReceiptShape,
 } from '@/lib/crossborder/purchase-receipt-store'
+import { getOrders, getPackages } from '@/lib/crossborder/order-store'
+import { getListings } from '@/lib/crossborder/listing-store'
+import { getMappingExceptions } from '@/lib/crossborder/mapping-exception-store'
 import { DEMO_WAREHOUSE_ZONES } from '@/lib/crossborder/warehouse-zone-store'
 import {
   ERP_DEMO_AFTERSALES,
@@ -77,6 +80,8 @@ export const RELATED_PARENT_REPLACED_KEYS: Record<string, string[]> = {
   profits: ['sku', 'order'],
   'order-exceptions': ['internalSku', 'order'],
   reviews: ['sku'],
+  orders: ['sku', 'sellerSku', 'packageId'],
+  listings: ['sku', 'spu', 'sellerSku'],
   costs: ['internalSku'],
   settlements: ['shop'],
   finance: ['shop'],
@@ -1368,24 +1373,66 @@ export function buildUedRelatedInfo(
     case 'picking':
     case 'shipments': {
       const order = str(row, 'order')
+      const outboundId = str(row, 'outboundId')
       const skusField = str(row, 'skus')
-      const firstSku = skusField?.match(/HSY\d+/)?.[0]
+      const firstSku = skusField?.match(/HSY\d+/)?.[0] || str(row, 'sku')
+      const orderRec = order
+        ? getOrders().find((item) => item.externalOrderId === order || item.id === order)
+        : undefined
       const parents: DetailRelatedParent[] = [
-        ...(order ? [{ label: '订单', value: order, mono: true }] : []),
+        ...(order
+          ? [
+              {
+                label: '订单',
+                value: order,
+                mono: true,
+                href: `/console/orders/${encodeURIComponent(orderRec?.id || order)}`,
+              },
+            ]
+          : []),
         ...parentForInternalSku(firstSku),
+        ...(outboundId && outboundId !== '—'
+          ? [
+              {
+                label: '出库单',
+                value: outboundId,
+                mono: true,
+                href: `/console/stock-outbounds/${encodeURIComponent(outboundId)}`,
+              },
+            ]
+          : []),
       ]
       const outbounds = outboundRows((item) => item.order === order)
+      const storeOutbounds = getPackages()
+        .filter((item) => item.order === order && item.outboundId)
+        .map((item) => ({
+          id: item.outboundId,
+          order: item.order,
+          sku: item.lines[0]?.sku ?? '—',
+          quantity: item.items,
+          bin: item.lines[0]?.bin ?? '—',
+          status: item.status,
+          at: '—',
+          href: `/console/stock-outbounds/${encodeURIComponent(item.outboundId)}`,
+        }))
+      const outboundMap = new Map<string, (typeof outbounds)[number]>()
+      for (const item of [...outbounds, ...storeOutbounds]) outboundMap.set(item.id, item)
       return {
         parents,
         sections: [
           {
             title: '出库单',
-            description: '本包裹/发货关联的出库作业（示例）',
+            description: '本包裹/发货关联的出库作业（示例 + 会话）',
             columns: OUTBOUND_COLUMNS,
-            rows: outbounds,
+            rows: Array.from(outboundMap.values()),
             emptyText: '暂无出库单',
           },
-          ...(firstSku ? [inventorySectionForSku(firstSku)] : []),
+          ...(firstSku
+            ? [
+                inventorySectionForSku(firstSku),
+                listingsSection(getDemoListingsBySku(firstSku)),
+              ]
+            : []),
         ],
       }
     }
@@ -2126,6 +2173,222 @@ export function buildUedRelatedInfo(
             rows: tasks,
             emptyText: '暂无同步任务',
           },
+        ],
+      }
+    }
+
+    case 'orders': {
+      const sku = str(row, 'sku')
+      const sellerSku = str(row, 'sellerSku')
+      const orderId = str(row, 'id') || str(row, 'externalOrderId')
+      const externalOrderId = str(row, 'externalOrderId') || str(row, 'order') || orderId
+      const shop = str(row, 'shop')
+      const packageId = str(row, 'packageId')
+      const parents: DetailRelatedParent[] = [
+        ...parentForInternalSku(sku),
+        ...parentForSpu(sku),
+        ...(shop ? [{ label: '店铺', value: shop }] : []),
+        ...(sellerSku
+          ? [
+              {
+                label: 'Seller SKU',
+                value: sellerSku,
+                mono: true,
+                href: shop
+                  ? `/console/mappings/${encodeURIComponent(`${shop}::${sellerSku}`)}`
+                  : undefined,
+              },
+            ]
+          : []),
+      ]
+      const exceptions = getMappingExceptions()
+        .filter((item) => item.order === externalOrderId)
+        .map((item) => ({
+          id: item.id,
+          order: item.order,
+          sellerSku: item.sellerSku,
+          kind: item.kind,
+          status: item.status,
+          blocksReservation: item.blocksReservation ? '是' : '否',
+          href: `/console/order-exceptions/${encodeURIComponent(item.id)}`,
+        }))
+      const picks = getPackages()
+        .filter((item) => item.order === externalOrderId || item.orderId === orderId)
+        .map((item) => ({
+          id: item.id,
+          order: item.order,
+          shop: item.shop,
+          skus: item.skus,
+          status: item.status,
+          outboundId: item.outboundId || '—',
+          href: `/console/picking/${encodeURIComponent(item.id)}`,
+        }))
+      const outbounds = outboundRows((item) => item.order === externalOrderId)
+      const storeOut = picks
+        .filter((item) => item.outboundId && item.outboundId !== '—')
+        .map((item) => ({
+          id: item.outboundId,
+          order: item.order,
+          sku: sku || '—',
+          quantity: 0,
+          bin: '—',
+          status: item.status,
+          at: '—',
+          href: `/console/stock-outbounds/${encodeURIComponent(item.outboundId)}`,
+        }))
+      const outboundMap = new Map<string, (typeof outbounds)[number]>()
+      for (const item of [...outbounds, ...storeOut]) outboundMap.set(String(item.id), item)
+      const listings = sku
+        ? getDemoListingsBySku(sku)
+        : sellerSku
+          ? getDemoListingsBySellerSku(shop || '', sellerSku)
+          : []
+      return {
+        parents,
+        sections: [
+          {
+            title: '映射异常',
+            description: '该订单关联的 mapping_exceptions（阻断占库）',
+            columns: [
+              { key: 'id', label: '异常 ID', mono: true, hrefKey: 'href' },
+              { key: 'sellerSku', label: 'Seller SKU', mono: true },
+              { key: 'kind', label: '类型' },
+              { key: 'status', label: '状态' },
+              { key: 'blocksReservation', label: '阻断占库' },
+            ],
+            rows: exceptions,
+            emptyText: '暂无映射异常',
+          },
+          {
+            title: '拣货包裹',
+            description: '订单关联拣货单（会话）',
+            columns: [
+              { key: 'id', label: '包裹', mono: true, hrefKey: 'href' },
+              { key: 'skus', label: 'SKU 明细' },
+              { key: 'status', label: '状态' },
+              { key: 'outboundId', label: '出库单', mono: true },
+            ],
+            rows: picks,
+            emptyText: '暂无拣货包裹',
+          },
+          {
+            title: '出库单',
+            description: '订单关联出库作业',
+            columns: OUTBOUND_COLUMNS,
+            rows: Array.from(outboundMap.values()),
+            emptyText: '暂无出库单',
+          },
+          listingsSection(listings, { description: '订单 SKU / Seller SKU 关联刊登（示例）' }),
+          ...(sku ? [inventorySectionForSku(sku)] : []),
+          ...(packageId && packageId !== '—'
+            ? []
+            : []),
+        ],
+      }
+    }
+
+    case 'listings': {
+      const sku = str(row, 'sku')
+      const spu = str(row, 'spu')
+      const sellerSku = str(row, 'sellerSku')
+      const shop = str(row, 'shop')
+      const listingId = str(row, 'id')
+      const parents: DetailRelatedParent[] = [
+        ...parentForInternalSku(sku),
+        ...(spu
+          ? [
+              {
+                label: '所属 SPU',
+                value: spu,
+                mono: true,
+                href: `/console/master-products/${encodeURIComponent(spu)}`,
+              },
+            ]
+          : parentForSpu(sku)),
+        ...(shop ? [{ label: '店铺', value: shop }] : []),
+      ]
+      const liveListing = listingId ? getListings().find((item) => item.id === listingId) : undefined
+      const mappingLines = (liveListing?.mappingLines ?? []).map((line) => ({
+        id: `${line.shop}::${line.sellerSku}`,
+        sellerSku: line.sellerSku,
+        internalSku: line.internalSku,
+        color: line.color,
+        size: line.size,
+        mappingStatus: line.mappingStatus,
+        listingStatus: line.listingStatus,
+        href: `/console/mappings/${encodeURIComponent(`${line.shop}::${line.sellerSku}`)}`,
+      }))
+      const mappingFallback =
+        !mappingLines.length && shop && sellerSku
+          ? ERP_DEMO_MAPPINGS.filter(
+              (item) => item.shop === shop && item.sellerSku === sellerSku,
+            ).map((item) => ({
+              id: `${item.shop}::${item.sellerSku}`,
+              sellerSku: item.sellerSku,
+              internalSku: item.internalSku,
+              color: item.color,
+              size: item.size,
+              mappingStatus: item.mappingStatus,
+              listingStatus: item.listingStatus,
+              href: `/console/mappings/${encodeURIComponent(`${item.shop}::${item.sellerSku}`)}`,
+            }))
+          : mappingLines
+      const siblings = sku
+        ? getListings()
+            .filter((item) => item.sku === sku && item.id !== listingId)
+            .map((item) => ({
+              id: item.id,
+              shop: item.shopName,
+              platform: item.platform,
+              sellerSku: item.sellerSku,
+              title: item.title,
+              sellPrice: `${item.sellPrice.toFixed(2)} ${item.currency}`,
+              status: item.status,
+              stockOnHand: item.stockOnHand,
+              href: `/console/listings/${encodeURIComponent(item.id)}`,
+            }))
+        : []
+      return {
+        parents,
+        sections: [
+          {
+            title: '映射行',
+            description: '本刊登 Seller SKU → 内部 SKU（会话；与 mapping-store 双向）',
+            columns: [
+              { key: 'sellerSku', label: 'Seller SKU', mono: true, hrefKey: 'href' },
+              { key: 'internalSku', label: '内部 SKU', mono: true },
+              { key: 'color', label: '颜色' },
+              { key: 'size', label: '尺码' },
+              { key: 'listingStatus', label: '上架' },
+              { key: 'mappingStatus', label: '映射状态' },
+            ],
+            rows: mappingFallback,
+            emptyText: '暂无映射行',
+          },
+          {
+            title: '同 SKU 其他刊登',
+            description: '跨店刊登对照（会话）',
+            columns: LISTING_COLUMNS,
+            rows: siblings,
+            emptyText: '暂无其他刊登',
+          },
+          ...(sku
+            ? [
+                inventorySectionForSku(sku),
+                {
+                  title: '同 SKU 映射',
+                  description: '该内部 SKU 的其他 Seller 映射（示例）',
+                  columns: [
+                    { key: 'sellerSku', label: 'Seller SKU', mono: true, hrefKey: 'href' },
+                    { key: 'shop', label: '店铺' },
+                    { key: 'listingStatus', label: '上架' },
+                    { key: 'mappingStatus', label: '映射状态' },
+                  ],
+                  rows: mappingRows(sku, sellerSku),
+                  emptyText: '暂无其他映射',
+                } satisfies DetailRelatedSection,
+              ]
+            : []),
         ],
       }
     }
