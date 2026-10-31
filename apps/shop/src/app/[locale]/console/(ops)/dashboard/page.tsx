@@ -22,6 +22,14 @@ import {
   type DashboardTrendRange,
 } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { getOrders } from '@/lib/crossborder/order-store'
+import { getMappingExceptions } from '@/lib/crossborder/mapping-exception-store'
+import { usePurchaseRequests, countByStatus as countPurchaseByStatus } from '@/lib/crossborder/purchase-request-store'
+import { useInventoryBalances, countBalancesKpi } from '@/lib/crossborder/wms-store'
+import { useAftersaleCancels, countCancelsByStatus } from '@/lib/crossborder/aftersale-store'
+import { useSyncTasks, countSyncTasksByStatus } from '@/lib/crossborder/sync-store'
+import { useMappings } from '@/lib/crossborder/mapping-store'
+import { DetailKpiRow } from '@/components/console/detail'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -78,6 +86,61 @@ function InventoryStat({
         {unit ? <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span> : null}
       </p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  )
+}
+
+
+function OpsTodoKpiRow() {
+  const orders = React.useMemo(() => getOrders(), [])
+  const purchases = usePurchaseRequests()
+  const balances = useInventoryBalances()
+  const cancels = useAftersaleCancels()
+  const syncTasks = useSyncTasks()
+  const mappings = useMappings()
+  const mappingExceptions = React.useMemo(() => getMappingExceptions(), [])
+
+  const readyToShip = orders.filter(
+    (o) =>
+      o.fulfillmentStatus === 'ready_to_ship' ||
+      o.fulfillmentStatus === 'unfulfilled' ||
+      String(o.status) === 'ready_to_ship',
+  ).length
+  const lowStock = countBalancesKpi(balances).lowStock
+  const purchaseCounts = countPurchaseByStatus(purchases) as Record<string, number>
+  const pendingPurchase = purchaseCounts['待审核'] ?? 0
+  const refundPending = countCancelsByStatus(cancels).pending
+  const mappingAbnormal =
+    mappings.filter((m) => m.mappingStatus === '异常' || !m.internalSku || m.internalSku === '—')
+      .length +
+    mappingExceptions.filter((e) => e.status === '开放' || e.status === '阻断扣库').length
+  const syncCounts = countSyncTasksByStatus(syncTasks)
+  const syncFail = (syncCounts['失败'] ?? 0) + (syncCounts['部分失败'] ?? 0)
+
+  const items = [
+    { label: '待发货', value: String(readyToShip), hint: 'ready_to_ship' },
+    { label: '缺货', value: String(lowStock), hint: '库存低于安全水位' },
+    { label: '待审采购', value: String(pendingPurchase), hint: '采购申请待审核' },
+    { label: '退款', value: String(refundPending), hint: '取消/退款待处理' },
+    { label: '映射异常', value: String(mappingAbnormal), hint: '映射 + 异常队列' },
+    { label: '接口异常', value: String(syncFail), hint: '同步失败 / 部分失败' },
+  ]
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-medium">运营待办</h3>
+        <p className="text-xs text-muted-foreground">聚合订单 / 库存 / 采购 / 售后 / 映射 / 同步原型会话</p>
+      </div>
+      <DetailKpiRow items={items} />
+      <div className="flex flex-wrap gap-2 text-xs">
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/orders">订单</LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/inventory-balances">库存</LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/purchase-requests">采购</LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/aftersale-cancels">退款</LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/mappings">映射</LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/sync-tasks">同步</LocaleLink>
+      </div>
     </div>
   )
 }
@@ -168,10 +231,9 @@ export default function DashboardPage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">运营仪表盘</h2>
           <p className="text-sm text-muted-foreground">
-            经营概览 · {rangeLabel} · Daraz LK · 示例数据
+            经营概览 · {rangeLabel} · 多店铺运营 KPI
           </p>
         </div>
-        <Badge variant="outline">示例数据</Badge>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
@@ -242,6 +304,10 @@ export default function DashboardPage() {
         </p>
       ) : null}
 
+
+      {/* 运营待办 KPI：聚合现有原型 store */}
+      <OpsTodoKpiRow />
+
       <Alert>
         <AlertTitle>跨币种指标暂不合计</AlertTitle>
         <AlertDescription>
@@ -268,7 +334,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-base">销售与订单趋势</CardTitle>
-              <CardDescription>销售额、订单量、销量 · {rangeLabel} · 示例数据</CardDescription>
+              <CardDescription>销售额、订单量、销量 · {rangeLabel}</CardDescription>
             </div>
             <DashboardRangeToggle value={range} onChange={setRange} />
           </CardHeader>

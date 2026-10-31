@@ -105,3 +105,37 @@
 - 刊登列表/详情使用 `listing-store`（头 + 映射行，替换 `MOCK_LISTING_*`）；可新建/编辑；与 `mapping-store` 双向；同步任务仍为原型。
 - 详情 `buildUedRelatedInfo` 含 `case 'orders'` / `case 'listings'`（及拣货父链订单链接）。
 - `pnpm --filter shop typecheck` 通过；PR → `develop`，不合并。
+
+
+---
+
+## Gap closure — schema cleanup + UED fill (2026-10-31)
+
+> 配套：`docs/design/commerce-schema-cleanup.md`。本轮 **不** 接入 tRPC / 业务数据库；控制台仍为 localStorage 原型。
+
+### Schema（packages/db commerce-schema）
+
+- 对照 haoshiyun 设计清理旧表：KEEP / MERGE / DROP / ADD，见 cleanup 决策矩阵。
+- 控制台不直接读 Drizzle；schema 对齐为后续正式迁移铺路。
+
+### 已补全的 UED / 原型缺口
+
+| # | 缺口 | 处理 |
+| --- | --- | --- |
+| 1 | 店铺 `sellerId` / `shopGroup` / `fulfillmentMode`，与 `externalShopId`（平台店铺 ID）区分 | shop-connection-store v2 + 列表/详情 |
+| 2 | SKU 三边 `lengthMm`/`widthMm`/`heightMm` | product-store + master-skus 创建/编辑/展示 |
+| 3 | 独立 `platformSkuId`（并行 itemId / sellerSku / internalSku） | mapping-store v2 + mappings UED |
+| 4 | 仪表盘运营 KPI：待发货、缺货、待审采购、退款、映射异常、接口异常 | dashboard 聚合现有 store |
+| 5 | 财务结算/利润/成本费用拆分（平台/物流/推广/JSB/退款/汇兑） | finance-store + settlements/profits/finance/costs |
+| 6 | 库存 待入/在途 vs on_hand/reserved/qc_hold/damaged/available 文案 | inventory-balances KPI/列/说明 |
+| 7 | JSB：批次 / 交接 / 清关 / 签收 | logistics-jsb `signedAt` + 节点补录 |
+| 8 | 导入 / 角色权限 / 同步 | imports 能力清单与回滚；erp-access 互审矩阵；sync 接口异常口径 |
+| 9 | 审计 `audit_events` | audit-store + settings/audit |
+| 10 | 审批人统一 **杨洁 / 黄发聪** | 种子与互审文案保持一致 |
+| 11 | 弱化「示例数据」角标，保留会话说明 | UedWorkspace / UedRecordDetail |
+
+### 明确不做 / 延期
+
+- 不接 tRPC、不接真实 DB、不做 ~75 表生产迁移。
+- 侧栏 IA 基本不动（仅 settings 增加「变更审计」）。
+- 正式费用分摊规则、汇率服务、平台账单解析仍待财务确认。

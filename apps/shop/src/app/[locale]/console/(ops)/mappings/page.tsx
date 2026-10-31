@@ -56,7 +56,13 @@ export default function MappingsPage() {
           options: ['MY', 'PH', 'LK', 'TH', 'SG', 'VN'],
           required: true,
         },
-        { key: 'itemId', label: 'Item ID', required: true },
+        { key: 'itemId', label: 'Item ID', required: true, helper: '平台商品 / Item ID' },
+        {
+          key: 'platformSkuId',
+          label: '平台 SKU ID',
+          required: true,
+          helper: '独立于 Item ID、Seller SKU、内部 SKU',
+        },
         { key: 'sellerSku', label: 'Seller SKU', required: true },
         {
           key: 'internalSku',
@@ -87,6 +93,7 @@ export default function MappingsPage() {
           platform: values.platform || 'Lazada',
           site: values.site || 'MY',
           itemId: values.itemId || '待同步',
+          platformSkuId: values.platformSkuId || '待同步',
           sellerSku: values.sellerSku || `DEMO-${rows.length + 1}`,
           internalSku: values.internalSku || skuOptions[0] || 'HSY000001001',
           color: values.color || 'Black',
@@ -110,8 +117,8 @@ export default function MappingsPage() {
         description="逐变体将店铺 Seller SKU 绑定到唯一内部 SKU。未映射 / 冲突 / 停用 SKU 的订单进异常队列且不占库存。"
         rows={rows}
         detailHref={(row) => `/console/mappings/${encodeURIComponent(mappingRouteId(row))}`}
-        searchKeys={['shop', 'platform', 'site', 'sellerSku', 'internalSku', 'itemId']}
-        searchPlaceholder="搜索店铺、Seller SKU 或内部 SKU"
+        searchKeys={['shop', 'platform', 'site', 'sellerSku', 'internalSku', 'itemId', 'platformSkuId']}
+        searchPlaceholder="搜索店铺、Seller SKU、平台 SKU ID 或内部 SKU"
         filters={[
           { label: '映射状态', options: ['启用', '待确认', '异常'], key: 'mappingStatus' },
         ]}
@@ -125,6 +132,7 @@ export default function MappingsPage() {
             render: (row) => `${row.platform} / ${row.site}`,
           },
           { key: 'itemId', label: 'Item ID' },
+          { key: 'platformSkuId', label: '平台 SKU ID' },
           { key: 'sellerSku', label: 'Seller SKU' },
           { key: 'internalSku', label: '内部 SKU' },
           { key: 'color', label: '平台颜色' },
@@ -154,7 +162,7 @@ export default function MappingsPage() {
           </Button>
         </div>
         <UedPrototypeNotice>
-          店铺 + Seller SKU 必须唯一；未映射、重复映射或 SKU 停用时，订单进入异常队列且不占库存。详情页自动带出内部 SKU、刊登与库存。
+          四码并列：Item ID · 平台 SKU ID · Seller SKU · 内部 SKU。店铺 + Seller SKU 必须唯一；未映射 / 冲突 / 停用 SKU 的订单进异常队列且不占库存。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

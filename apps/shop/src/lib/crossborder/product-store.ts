@@ -42,13 +42,16 @@ export type CreateVariantInput = {
   pack: string
   barcode?: string
   weight: number
+  lengthMm?: number
+  widthMm?: number
+  heightMm?: number
   status?: DemoStatus
   coverImage?: string
   images?: string[]
 }
 
 export type UpdateVariantInput = Partial<
-  Pick<DemoSku, 'color' | 'size' | 'pack' | 'barcode' | 'weight' | 'status' | 'coverImage' | 'images'>
+  Pick<DemoSku, 'color' | 'size' | 'pack' | 'barcode' | 'weight' | 'lengthMm' | 'widthMm' | 'heightMm' | 'status' | 'coverImage' | 'images'>
 >
 
 export type SkuListRow = DemoSku & {
@@ -86,7 +89,7 @@ function withSkuCount(product: ProductRecord): ProductRecord {
 }
 
 const seed = structuredClone(ERP_DEMO_PRODUCTS) as ProductRecord[]
-const store = createDemoStore<ProductRecord[]>('open-shop.console.demo.products.v1', seed)
+const store = createDemoStore<ProductRecord[]>('open-shop.console.demo.products.v2', seed)
 
 export function useProducts() {
   return store.useStore()
@@ -144,6 +147,9 @@ export function createVariant(input: CreateVariantInput): VariantRecord | null {
     pack: input.pack.trim(),
     barcode: input.barcode?.trim() || '待补充',
     weight: Number(input.weight) || 0,
+    lengthMm: Number(input.lengthMm) || 0,
+    widthMm: Number(input.widthMm) || 0,
+    heightMm: Number(input.heightMm) || 0,
     status: input.status ?? '待确认',
     coverImage: input.coverImage ?? product.coverImage,
     images: input.images ?? product.images,

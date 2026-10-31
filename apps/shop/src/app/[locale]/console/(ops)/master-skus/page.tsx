@@ -86,6 +86,9 @@ export default function MasterSkusPage() {
         },
         { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，后续可补录' },
         { key: 'weight', label: '重量（g）', type: 'number', required: true },
+        { key: 'lengthMm', label: '长（mm）', type: 'number', helper: '外箱/件尺寸，对齐 length_mm' },
+        { key: 'widthMm', label: '宽（mm）', type: 'number' },
+        { key: 'heightMm', label: '高（mm）', type: 'number' },
         { key: 'status', label: '状态', options: ['待确认', '启用', '停用'], required: true },
         { key: 'remark', label: '规格备注', type: 'textarea', fullWidth: true },
       ]}
@@ -105,6 +108,9 @@ export default function MasterSkusPage() {
           pack: values.pack || packOptions[0] || '单件',
           barcode: values.barcode,
           weight: Number(values.weight) || 220,
+          lengthMm: Number(values.lengthMm) || 0,
+          widthMm: Number(values.widthMm) || 0,
+          heightMm: Number(values.heightMm) || 0,
           status: (values.status as '待确认' | '启用' | '停用') || '待确认',
         })
         if (created) {
@@ -120,7 +126,7 @@ export default function MasterSkusPage() {
       {editor}
       <UedWorkspace
         title="内部 SKU"
-        description="维护真实交付规格（颜色/尺码/包装/条码/重量）；编码生成后不可修改、不可复用。"
+        description="维护真实交付规格（颜色/尺码/包装/条码/重量/长宽高 mm）；编码生成后不可修改、不可复用。"
         rows={rows}
         detailHref={(row) => `/console/master-skus/${encodeURIComponent(row.id)}`}
         searchKeys={['sku', 'spu', 'name', 'color', 'size', 'barcode', 'status']}
@@ -148,6 +154,11 @@ export default function MasterSkusPage() {
           { key: 'pack', label: '包装' },
           { key: 'barcode', label: '条码' },
           { key: 'weight', label: '重量 g', render: (row) => String(row.weight) },
+          {
+            key: 'dims',
+            label: '尺寸 mm',
+            render: (row) => `${row.lengthMm || 0}×${row.widthMm || 0}×${row.heightMm || 0}`,
+          },
           {
             key: 'status',
             label: '状态',

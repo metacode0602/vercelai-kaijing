@@ -24,6 +24,10 @@ export type DemoSku = {
   pack: string
   barcode: string
   weight: number
+  /** 长 / 宽 / 高（毫米），对齐 product_variants.length_mm 等 */
+  lengthMm: number
+  widthMm: number
+  heightMm: number
   status: DemoStatus
   coverImage?: string
   images?: string[]
@@ -59,6 +63,8 @@ export type DemoMapping = {
   platform: string
   site: string
   itemId: string
+  /** 平台 SKU / 变体 ID，独立于 itemId / sellerSku / internalSku */
+  platformSkuId: string
   sellerSku: string
   internalSku: string
   color: string
@@ -121,12 +127,12 @@ export type DemoImport = {
 
 export const ERP_DEMO_PRODUCTS: DemoProduct[] = [
   { spu: 'HSY000001', name: 'Oversized Cotton Tee', brand: 'HELLO COSMOS', category: '服装 / 上衣 / T恤', owner: '李萍', status: '启用', skuCount: 3, material: '纯棉', style: '落肩宽松', coverImage: DEMO_IMAGES.teeBlack, images: [DEMO_IMAGES.teeBlack, DEMO_IMAGES.teeWhite, DEMO_IMAGES.teeGrey], variants: [
-    { code: 'HSY000001001', color: '黑色', size: 'L', pack: '单件', barcode: '8901001001001', weight: 220, status: '启用', coverImage: DEMO_IMAGES.teeBlack, images: [DEMO_IMAGES.teeBlack, DEMO_IMAGES.teeWhite] },
-    { code: 'HSY000001002', color: '白色', size: 'L', pack: '单件', barcode: '8901001001002', weight: 218, status: '启用', coverImage: DEMO_IMAGES.teeWhite, images: [DEMO_IMAGES.teeWhite, DEMO_IMAGES.teeGrey] },
-    { code: 'HSY000001003', color: '深灰色', size: 'XL', pack: '单件', barcode: '8901001001003', weight: 226, status: '待确认', coverImage: DEMO_IMAGES.teeGrey, images: [DEMO_IMAGES.teeGrey] },
+    { code: 'HSY000001001', color: '黑色', size: 'L', pack: '单件', barcode: '8901001001001', weight: 220, lengthMm: 720, widthMm: 520, heightMm: 15, status: '启用', coverImage: DEMO_IMAGES.teeBlack, images: [DEMO_IMAGES.teeBlack, DEMO_IMAGES.teeWhite] },
+    { code: 'HSY000001002', color: '白色', size: 'L', pack: '单件', barcode: '8901001001002', weight: 218, lengthMm: 720, widthMm: 520, heightMm: 15, status: '启用', coverImage: DEMO_IMAGES.teeWhite, images: [DEMO_IMAGES.teeWhite, DEMO_IMAGES.teeGrey] },
+    { code: 'HSY000001003', color: '深灰色', size: 'XL', pack: '单件', barcode: '8901001001003', weight: 226, lengthMm: 740, widthMm: 540, heightMm: 15, status: '待确认', coverImage: DEMO_IMAGES.teeGrey, images: [DEMO_IMAGES.teeGrey] },
   ] },
   { spu: 'HSY000002', name: 'USB-C Hub 7-in-1', brand: 'LinkForge', category: '数码 / 电脑配件', owner: '张鑫德', status: '启用', skuCount: 1, material: '铝合金', style: '7口扩展坞', coverImage: DEMO_IMAGES.hub, images: [DEMO_IMAGES.hub], variants: [
-    { code: 'HSY000002001', color: '灰色', size: '标准', pack: '单件', barcode: '8901001002002', weight: 95, status: '启用', coverImage: DEMO_IMAGES.hub, images: [DEMO_IMAGES.hub] },
+    { code: 'HSY000002001', color: '灰色', size: '标准', pack: '单件', barcode: '8901001002002', weight: 95, lengthMm: 120, widthMm: 80, heightMm: 25, status: '启用', coverImage: DEMO_IMAGES.hub, images: [DEMO_IMAGES.hub] },
   ] },
 ]
 
@@ -142,9 +148,9 @@ export const ERP_DEMO_SUPPLIER_MASTERS: DemoSupplierMaster[] = [
 ]
 
 export const ERP_DEMO_MAPPINGS: DemoMapping[] = [
-  { shop: 'Lazada MY', platform: 'Lazada', site: 'MY', itemId: 'MY-ITEM-8802', sellerSku: 'TEE-BLK-L', internalSku: 'HSY000001001', color: 'Black', size: 'L', listingStatus: '在线', mappingStatus: '启用' },
-  { shop: 'Daraz LK', platform: 'Daraz', site: 'LK', itemId: 'LK-ITEM-5201', sellerSku: 'DZ-HUB-01', internalSku: 'HSY000002001', color: 'Grey', size: 'Standard', listingStatus: '在线', mappingStatus: '启用' },
-  { shop: 'Daraz LK', platform: 'Daraz', site: 'LK', itemId: 'LK-ITEM-9011', sellerSku: 'TEE-OLD-BLACK', internalSku: '—', color: 'Black', size: 'M', listingStatus: '在线', mappingStatus: '异常' },
+  { shop: 'Lazada MY', platform: 'Lazada', site: 'MY', itemId: 'MY-ITEM-8802', platformSkuId: 'MY-SKU-8802-BLK-L', sellerSku: 'TEE-BLK-L', internalSku: 'HSY000001001', color: 'Black', size: 'L', listingStatus: '在线', mappingStatus: '启用' },
+  { shop: 'Daraz LK', platform: 'Daraz', site: 'LK', itemId: 'LK-ITEM-5201', platformSkuId: 'LK-SKU-5201-01', sellerSku: 'DZ-HUB-01', internalSku: 'HSY000002001', color: 'Grey', size: 'Standard', listingStatus: '在线', mappingStatus: '启用' },
+  { shop: 'Daraz LK', platform: 'Daraz', site: 'LK', itemId: 'LK-ITEM-9011', platformSkuId: 'LK-SKU-9011-OLD', sellerSku: 'TEE-OLD-BLACK', internalSku: '—', color: 'Black', size: 'M', listingStatus: '在线', mappingStatus: '异常' },
 ]
 
 export const ERP_DEMO_PURCHASES: DemoPurchase[] = [

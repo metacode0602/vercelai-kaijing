@@ -17,9 +17,10 @@ export default function InventoryBalancesPage() {
   const kpiItems = React.useMemo(
     () => [
       { label: 'SKU 数', value: String(kpi.skuCount), hint: '仓+库位+SKU 维度' },
-      { label: '可用合计', value: String(kpi.availableTotal), hint: 'on_hand − reserved − qc − damaged' },
-      { label: '预留合计', value: String(kpi.reservedTotal) },
-      { label: '低库存', value: String(kpi.lowStock), hint: `在途 ${kpi.inTransitTotal}` },
+      { label: '可用合计', value: String(kpi.availableTotal), hint: 'available = on_hand − reserved − qc_hold − damaged' },
+      { label: '预留合计', value: String(kpi.reservedTotal), hint: 'reserved：订单/调拨占库' },
+      { label: '在途 / 待入', value: String(kpi.inTransitTotal), hint: '采购未上架 / 售后回库在途，不计入 available' },
+      { label: '低库存', value: String(kpi.lowStock), hint: '可用 < 安全库存' },
     ],
     [kpi],
   )
@@ -27,7 +28,7 @@ export default function InventoryBalancesPage() {
   return (
     <UedWorkspace
       title="库存汇总"
-      description="inventory_balances：按仓库 / 库位 / SKU 查实物、预留、质检占用、残次与可用；多站点共享同一库存池。"
+      description="inventory_balances：实物(on_hand) / 预留(reserved) / 质检(qc_hold) / 残次(damaged) / 可用(available)；在途·待入(in_transit)单独列，不计入可用。"
       rows={rows}
       detailHref={(row) => `/console/inventory-balances/${encodeURIComponent(row.id)}`}
       searchKeys={['sku', 'name', 'warehouse', 'bin', 'status']}
@@ -39,16 +40,24 @@ export default function InventoryBalancesPage() {
         { key: 'name', label: '商品' },
         { key: 'warehouse', label: '仓库' },
         { key: 'bin', label: '库位' },
-        { key: 'onHand', label: '实物', render: (row) => String(row.onHand) },
-        { key: 'reserved', label: '预留', render: (row) => String(row.reserved) },
-        { key: 'qcHold', label: '质检占用', render: (row) => String(row.qcHold) },
-        { key: 'damaged', label: '残次', render: (row) => String(row.damaged) },
+        { key: 'onHand', label: '实物 on_hand', render: (row) => String(row.onHand) },
+        { key: 'reserved', label: '预留 reserved', render: (row) => String(row.reserved) },
+        { key: 'qcHold', label: '质检 qc_hold', render: (row) => String(row.qcHold) },
+        { key: 'damaged', label: '残次 damaged', render: (row) => String(row.damaged) },
         {
           key: 'available',
-          label: '可用',
+          label: '可用 available',
           render: (row) => <span className="font-medium tabular-nums">{row.available}</span>,
         },
-        { key: 'inTransit', label: '在途', render: (row) => String(row.inTransit) },
+        {
+          key: 'inTransit',
+          label: '在途·待入',
+          render: (row) => (
+            <span className="tabular-nums" title="采购未上架 / 售后回库在途，不计入 available">
+              {row.inTransit}
+            </span>
+          ),
+        },
         { key: 'threshold', label: '安全库存', render: (row) => String(row.threshold) },
         {
           key: 'status',
@@ -61,7 +70,7 @@ export default function InventoryBalancesPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        余额是流水投影，UI 不得直改。可用 = 实物 − 预留 − 质检占用 − 残次。在途（未上架采购 / 售后回库）不计入可用。五国共享池指多店铺竞争同一仓余额。
+        WMS 不变量：available = on_hand − reserved − qc_hold − damaged。在途 / 待入（in_transit）表示采购未上架或售后回库途中，单独列示、不计入可用。余额是流水投影，UI 不得直改数量。多店铺共享同一仓余额池。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button

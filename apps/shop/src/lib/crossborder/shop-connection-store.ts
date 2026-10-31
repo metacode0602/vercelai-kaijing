@@ -18,7 +18,14 @@ export type ShopConnection = {
   platformLabel: string
   region: string
   currency: string
+  /** 平台店铺 ID（marketplace shop / store id） */
   externalShopId: string
+  /** 卖家侧标识；可与平台店铺 ID 不同，勿混用 */
+  sellerId: string
+  /** 店铺分组，如 Lazada 五国 / Daraz */
+  shopGroup: string
+  /** 履约模式：自营仓发货 / 平台仓 / 混合 */
+  fulfillmentMode: '自营仓发货' | '平台仓' | '混合'
   authStatus: ShopAuthStatus
   healthLabel: string
   syncPaused: boolean
@@ -55,6 +62,17 @@ function healthLabel(health: string) {
   return health || '—'
 }
 
+function defaultGroup(platform: string, region: string) {
+  if (platform === 'lazada') return 'Lazada 五国'
+  if (platform === 'daraz') return 'Daraz'
+  return `${PLATFORM_LABEL[platform] ?? platform} · ${region}`
+}
+
+function defaultFulfillment(region: string): ShopConnection['fulfillmentMode'] {
+  if (region === 'TH') return '混合'
+  return '自营仓发货'
+}
+
 function seed(): ShopConnection[] {
   return MOCK_SHOPS.map((shop) => ({
     id: shop.id,
@@ -64,6 +82,9 @@ function seed(): ShopConnection[] {
     region: shop.region,
     currency: shop.currency,
     externalShopId: shop.externalShopId,
+    sellerId: shop.sellerName,
+    shopGroup: defaultGroup(shop.platform, shop.region),
+    fulfillmentMode: defaultFulfillment(shop.region),
     authStatus: authFromMock(shop.status),
     healthLabel: healthLabel(shop.health),
     syncPaused: (shop.status as string) === 'error' || (shop.syncStatus as string) === 'error',
@@ -89,7 +110,7 @@ function nowStamp() {
 }
 
 const store = createDemoStore<ShopConnection[]>(
-  'open-shop.console.demo.shop-connections.v1',
+  'open-shop.console.demo.shop-connections.v2',
   seed(),
 )
 
@@ -157,6 +178,9 @@ export function addShopConnection(input: {
   region: string
   currency: string
   externalShopId: string
+  sellerId?: string
+  shopGroup?: string
+  fulfillmentMode?: ShopConnection['fulfillmentMode']
   defaultWarehouse?: string
   warehouseNames?: string[]
   owner?: string
@@ -175,6 +199,9 @@ export function addShopConnection(input: {
     region: input.region,
     currency: input.currency,
     externalShopId: input.externalShopId.trim(),
+    sellerId: (input.sellerId || '').trim() || `seller-${input.externalShopId.trim()}`,
+    shopGroup: (input.shopGroup || '').trim() || defaultGroup(input.platform, input.region),
+    fulfillmentMode: input.fulfillmentMode || defaultFulfillment(input.region),
     authStatus: '草稿',
     healthLabel: '空闲',
     syncPaused: true,
@@ -199,8 +226,37 @@ export function toRelatedShopShape(row: ShopConnection): Record<string, unknown>
     shop: row.name,
     platform: row.platformLabel,
     site: row.region,
+    sellerId: row.sellerId,
+    shopGroup: row.shopGroup,
+    fulfillmentMode: row.fulfillmentMode,
+    externalShopId: row.externalShopId,
     status: row.authStatus,
     syncPaused: row.syncPaused ? '已暂停' : '同步中',
     lastSyncAt: row.lastSyncAt,
   }
+}
+
+export function updateShopConnection(
+  id: string,
+  patch: Partial<
+    Pick<
+      ShopConnection,
+      | 'name'
+      | 'sellerId'
+      | 'shopGroup'
+      | 'fulfillmentMode'
+      | 'defaultWarehouse'
+      | 'owner'
+      | 'currency'
+    >
+  >,
+): { ok: true; row: ShopConnection } | { ok: false; reason: string } {
+  const list = store.get()
+  const index = list.findIndex((item) => item.id === id)
+  if (index < 0) return { ok: false, reason: '店铺不存在' }
+  const next = { ...list[index]!, ...patch }
+  const copy = [...list]
+  copy[index] = next
+  store.set(copy)
+  return { ok: true, row: next }
 }

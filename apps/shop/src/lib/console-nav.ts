@@ -199,6 +199,7 @@ export const SETTINGS_NAV = [
   { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },
   { url: '/console/settings/integration-log', titleKey: 'settings.integrationLog' as const },
   { url: '/console/settings/erp-access', titleKey: 'settings.erpAccess' as const },
+  { url: '/console/settings/audit', titleKey: 'settings.audit' as const },
   { url: '/console/settings/members', titleKey: 'settings.members' as const },
   { url: '/console/settings/notifications', titleKey: 'settings.notifications' as const },
   { url: '/console/settings/preferences', titleKey: 'settings.preferences' as const },

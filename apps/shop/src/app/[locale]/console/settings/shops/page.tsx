@@ -55,7 +55,30 @@ export default function ShopsSettingsPage() {
           required: true,
         },
         { key: 'name', label: '店铺名称', required: true },
-        { key: 'externalShopId', label: '平台店铺 ID', required: true },
+        {
+          key: 'externalShopId',
+          label: '平台店铺 ID',
+          required: true,
+          helper: 'marketplace shop / store id，与卖家 ID 不同',
+        },
+        {
+          key: 'sellerId',
+          label: '卖家 ID（sellerId）',
+          required: true,
+          helper: '卖家侧标识，可与平台店铺 ID 不同',
+        },
+        {
+          key: 'shopGroup',
+          label: '店铺分组',
+          options: ['Lazada 五国', 'Daraz', 'TikTok', '其他'],
+          required: true,
+        },
+        {
+          key: 'fulfillmentMode',
+          label: '履约模式',
+          options: ['自营仓发货', '平台仓', '混合'],
+          required: true,
+        },
         {
           key: 'currency',
           label: '币种',
@@ -77,6 +100,9 @@ export default function ShopsSettingsPage() {
           region: values.region || 'MY',
           currency: values.currency || 'MYR',
           externalShopId: values.externalShopId || '',
+          sellerId: values.sellerId,
+          shopGroup: values.shopGroup,
+          fulfillmentMode: (values.fulfillmentMode as '自营仓发货' | '平台仓' | '混合') || '自营仓发货',
           defaultWarehouse: values.defaultWarehouse,
           owner: values.owner,
         })
@@ -96,8 +122,8 @@ export default function ShopsSettingsPage() {
       description="店铺授权、凭证脱敏、同步暂停与健康状态。运营中文面；OAuth / 刷新仅为原型。"
       rows={rows}
       detailHref={(row) => `/console/settings/shops/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'authStatus', 'lastError', 'owner']}
-      searchPlaceholder="搜索店铺名、站点或平台店铺 ID"
+      searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'lastError', 'owner']}
+      searchPlaceholder="搜索店铺、卖家 ID、分组或平台店铺 ID"
       filters={[{ label: '授权状态', options: [...SHOP_AUTH_STATUSES], key: 'authStatus' }]}
       emptyText="暂无店铺。新增草稿后可排队重授权（原型）。"
       addLabel="新增店铺"
@@ -106,6 +132,9 @@ export default function ShopsSettingsPage() {
         { key: 'name', label: '店铺' },
         { key: 'platformLabel', label: '平台' },
         { key: 'region', label: '站点' },
+        { key: 'sellerId', label: '卖家 ID' },
+        { key: 'shopGroup', label: '店铺分组' },
+        { key: 'fulfillmentMode', label: '履约模式' },
         { key: 'externalShopId', label: '平台店铺 ID' },
         {
           key: 'authStatus',
@@ -129,7 +158,7 @@ export default function ShopsSettingsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        不展示明文 token。授权失效店铺应暂停自动同步；重授权按钮不跳转真实平台。
+        卖家 ID（sellerId）≠ 平台店铺 ID（externalShopId）。不展示明文 token；授权失效应暂停自动同步；重授权不跳转真实平台。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         {rows.map((row) => (

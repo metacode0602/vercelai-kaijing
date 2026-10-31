@@ -367,6 +367,7 @@
       "imports": "Data imports",
       "importTemplates": "Import templates",
       "integrationLog": "API logs",
+      "audit": "Audit log",
       "erpAccess": "Roles & data scope",
       "credentials": "Credentials",
       "notifications": "Notifications",

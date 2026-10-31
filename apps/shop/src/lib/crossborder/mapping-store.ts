@@ -19,6 +19,7 @@ export type CreateMappingInput = {
   platform: string
   site: string
   itemId: string
+  platformSkuId?: string
   sellerSku: string
   internalSku: string
   color: string
@@ -33,6 +34,7 @@ export type UpdateMappingInput = Partial<
     | 'platform'
     | 'site'
     | 'itemId'
+    | 'platformSkuId'
     | 'internalSku'
     | 'color'
     | 'size'
@@ -46,7 +48,7 @@ function mappingKey(shop: string, sellerSku: string) {
 }
 
 const seed = structuredClone(ERP_DEMO_MAPPINGS) as MappingRecord[]
-const store = createDemoStore<MappingRecord[]>('open-shop.console.demo.mappings.v1', seed)
+const store = createDemoStore<MappingRecord[]>('open-shop.console.demo.mappings.v2', seed)
 
 export function useMappings() {
   return store.useStore()
@@ -76,6 +78,7 @@ export function createMapping(input: CreateMappingInput): MappingRecord {
     platform: input.platform.trim(),
     site: input.site.trim(),
     itemId: input.itemId.trim(),
+    platformSkuId: (input.platformSkuId || '').trim() || '待同步',
     sellerSku: input.sellerSku.trim(),
     internalSku: input.internalSku.trim(),
     color: input.color.trim(),

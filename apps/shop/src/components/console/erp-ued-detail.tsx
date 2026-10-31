@@ -539,7 +539,7 @@ export function UedRecordDetail({
     }
   })
 
-  const noticeText = notice ?? '示例数据：仅在当前原型会话内查看与修改，不会写入业务数据库。'
+  const noticeText = notice ?? '仅在当前原型会话内查看与修改，不会写入业务数据库。'
   const breadcrumbCurrent = String(title)
 
   return (
@@ -557,7 +557,7 @@ export function UedRecordDetail({
         description={description ?? subtitle}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            
             {typeof current.status === 'string' ? (
               <Badge variant={statusVariant(current.status)}>{current.status}</Badge>
             ) : null}

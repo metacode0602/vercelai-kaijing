@@ -60,10 +60,10 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
         description={`${row.platformLabel} · ${row.region} · ${row.externalShopId}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
             <Badge variant={row.authStatus === '授权失效' ? 'destructive' : 'secondary'}>
               {row.authStatus}
             </Badge>
+            <Badge variant="outline">{row.fulfillmentMode}</Badge>
             {row.syncPaused ? <Badge variant="destructive">同步暂停</Badge> : null}
           </>
         }
@@ -111,8 +111,8 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
         items={[
           { label: '授权', value: row.authStatus },
           { label: '健康', value: row.healthLabel },
-          { label: '同步', value: row.syncPaused ? '已暂停' : '同步中' },
-          { label: '币种', value: row.currency },
+          { label: '履约', value: row.fulfillmentMode },
+          { label: '分组', value: row.shopGroup },
         ]}
       />
       <DetailFieldGrid
@@ -123,6 +123,9 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
           ...parentFields,
           { label: '平台', value: row.platformLabel },
           { label: '站点', value: row.region },
+          { label: '卖家 ID', value: row.sellerId, mono: true },
+          { label: '店铺分组', value: row.shopGroup },
+          { label: '履约模式', value: row.fulfillmentMode },
           { label: '平台店铺 ID', value: row.externalShopId, mono: true },
           { label: '凭证掩码', value: row.credentialMask, mono: true },
           { label: '授权到期', value: row.authExpiresAt },

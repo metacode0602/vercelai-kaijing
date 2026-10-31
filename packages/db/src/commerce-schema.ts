@@ -1,6 +1,11 @@
 /**
- * 跨境运营域表结构
- * @see docs/design/crossborder-database-design.md
+ * 跨境运营域表结构（对齐 haoshiyun 设计的精简 Drizzle 定义）
+ *
+ * 本文件是「可演进的中间态」：保留生产已用表、合并设计列、去掉死表，
+ * 不一次落地 ~75 张生产表。决策矩阵见 docs/design/commerce-schema-cleanup.md。
+ *
+ * @see docs/design/haoshiyun-erp-database-schema.md
+ * @see docs/design/commerce-schema-cleanup.md
  */
 
 import { createId } from "@paralleldrive/cuid2"
@@ -26,6 +31,9 @@ export type CommercePlatform = (typeof commercePlatforms)[number]
 
 export const shopStatuses = ["draft", "connecting", "active", "error", "disabled"] as const
 export type ShopStatus = (typeof shopStatuses)[number]
+
+export const fulfillmentModes = ["fbm", "fbp", "hybrid"] as const
+export type FulfillmentMode = (typeof fulfillmentModes)[number]
 
 export const syncStatuses = ["idle", "running", "success", "error"] as const
 export type SyncStatus = (typeof syncStatuses)[number]
@@ -70,14 +78,27 @@ export const pendingActionKinds = [
 ] as const
 export type PendingActionKind = (typeof pendingActionKinds)[number]
 
-export const entityTypes = ["product", "variant", "listing", "order", "shop"] as const
+/** Non-SKU entity types for external_id_mappings (SKU 走 seller_sku_mappings). */
+export const entityTypes = ["product", "listing", "order", "shop", "package", "settlement"] as const
 export type EntityType = (typeof entityTypes)[number]
 
 export const productSources = ["manual", "sourcing", "import"] as const
 export type ProductSource = (typeof productSources)[number]
 
-export const costComponentKinds = ["purchase", "freight", "duty", "other"] as const
-export type CostComponentKind = (typeof costComponentKinds)[number]
+/** 替代已删除的 cost_components；对齐设计 sku_costs / 费用拆分占位。 */
+export const skuCostKinds = [
+  "purchase",
+  "freight",
+  "duty",
+  "platform_fee",
+  "logistics",
+  "ads",
+  "jsb",
+  "refund",
+  "fx",
+  "other",
+] as const
+export type SkuCostKind = (typeof skuCostKinds)[number]
 
 export const stockAlertStatuses = ["open", "acked"] as const
 export type StockAlertStatus = (typeof stockAlertStatuses)[number]
@@ -88,6 +109,12 @@ export type ProductCandidateStatus = (typeof productCandidateStatuses)[number]
 export const integrationLogDirections = ["in", "out"] as const
 export type IntegrationLogDirection = (typeof integrationLogDirections)[number]
 
+export const sellerSkuMappingStatuses = ["active", "pending", "conflict", "disabled"] as const
+export type SellerSkuMappingStatus = (typeof sellerSkuMappingStatuses)[number]
+
+export const mappingExceptionStatuses = ["open", "resolved", "ignored"] as const
+export type MappingExceptionStatus = (typeof mappingExceptionStatuses)[number]
+
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -97,7 +124,8 @@ const timestamps = {
 }
 
 // ---------------------------------------------------------------------------
-// shops
+// shops — KEEP + MERGE（sellerId / shopGroup / fulfillmentMode）
+// externalShopId = 平台店铺 ID；sellerId = 内部卖家账号 / 平台 seller 标识（可不同）
 // ---------------------------------------------------------------------------
 
 export const shops = pgTable(
@@ -111,21 +139,25 @@ export const shops = pgTable(
       .references(() => organization.id),
     platform: varchar("platform", { length: 32 }).notNull(),
     name: text("name").notNull(),
+    /** 平台店铺 ID（marketplace shop / store id）。 */
     externalShopId: text("external_shop_id"),
+    /**
+     * 卖家侧标识：内部 seller 账号或平台 seller_id（可与 externalShopId 不同）。
+     * UED：sellerId；勿与 externalShopId 混用。
+     */
+    sellerId: text("seller_id"),
+    /** 店铺分组（如 Lazada 五国组 / Daraz 组）。 */
+    shopGroup: varchar("shop_group", { length: 64 }),
+    /** 履约模式：fbm / fbp / hybrid。 */
+    fulfillmentMode: varchar("fulfillment_mode", { length: 16 }).notNull().default("fbm"),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     region: varchar("region", { length: 16 }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
-    /** IANA timezone for schedule / display (e.g. Asia/Colombo). */
     timezone: varchar("timezone", { length: 64 }),
-    /** Seller display name on the marketplace (may differ from local name). */
     sellerName: text("seller_name"),
-    /** Marketplace country / site code (lk, my, sg, …). */
     marketplaceCountry: varchar("marketplace_country", { length: 16 }),
-    /** Access-token expiry mirrored from credentials for list UI. */
     authExpiresAt: timestamp("auth_expires_at", { withTimezone: true }),
-    /** Last successful multi-resource sync (any of products/orders/…). */
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
-    /** Platform-specific extras (seller flags, cipher hints, etc.). */
     meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -141,7 +173,7 @@ export const shops = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// integration_credentials / integration_states / integration_logs
+// integration_credentials / integration_states / integration_logs — KEEP
 // ---------------------------------------------------------------------------
 
 export const integrationCredentials = pgTable(
@@ -211,7 +243,7 @@ export const integrationLogs = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// products / product_variants
+// products / product_variants — KEEP + MERGE（spuCode / skuCode / 尺寸 / status）
 // ---------------------------------------------------------------------------
 
 export const products = pgTable(
@@ -223,23 +255,30 @@ export const products = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
+    /** 业务 SPU 码，如 HSY000001；UNIQUE(org, spu_code) 生产落地。 */
+    spuCode: varchar("spu_code", { length: 32 }),
     title: text("title").notNull(),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     source: varchar("source", { length: 32 }).notNull().default("manual"),
     brand: text("brand"),
     categoryHint: text("category_hint"),
-    /** Image URLs for list/detail thumbs [{url, sort?}]. */
+    material: text("material"),
+    style: text("style"),
+    ownerUserId: text("owner_user_id"),
     images: jsonb("images").$type<Array<Record<string, unknown>>>().default([]),
+    /** SPU 级默认尺寸（可被变体覆盖）。 */
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
     widthMm: integer("width_mm"),
     heightMm: integer("height_mm"),
-    /** Description + import extras (volatile copy in jsonb). */
     payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (t) => [index("products_org_idx").on(t.organizationId)],
+  (t) => [
+    index("products_org_idx").on(t.organizationId),
+    uniqueIndex("products_org_spu_uidx").on(t.organizationId, t.spuCode),
+  ],
 )
 
 export const productVariants = pgTable(
@@ -254,8 +293,19 @@ export const productVariants = pgTable(
     productId: text("product_id")
       .notNull()
       .references(() => products.id),
+    /**
+     * 兼容旧列：展示/导入别名。新约束以 sku_code 为准（设计 §2.2）。
+     * 迁移期与 skuCode 同值写入。
+     */
     sku: varchar("sku", { length: 128 }).notNull(),
+    /** 内部 SKU 码，如 HSY000001001。 */
+    skuCode: varchar("sku_code", { length: 32 }),
     barcode: varchar("barcode", { length: 128 }),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    weightGrams: integer("weight_grams"),
+    lengthMm: integer("length_mm"),
+    widthMm: integer("width_mm"),
+    heightMm: integer("height_mm"),
     attrs: jsonb("attrs").$type<Record<string, unknown>>().default({}),
     ...timestamps,
   },
@@ -263,11 +313,12 @@ export const productVariants = pgTable(
     index("product_variants_org_idx").on(t.organizationId),
     index("product_variants_product_idx").on(t.productId),
     uniqueIndex("product_variants_org_sku_uidx").on(t.organizationId, t.sku),
+    uniqueIndex("product_variants_org_sku_code_uidx").on(t.organizationId, t.skuCode),
   ],
 )
 
 // ---------------------------------------------------------------------------
-// listings
+// listings — KEEP + MERGE（listingTitle / primaryVariantId / marketplaceId）
 // ---------------------------------------------------------------------------
 
 export const listings = pgTable(
@@ -285,16 +336,17 @@ export const listings = pgTable(
     productId: text("product_id")
       .notNull()
       .references(() => products.id),
+    /** @deprecated 变体明细下沉到 seller_sku_mappings；保留兼容。 */
     variantId: text("variant_id").references(() => productVariants.id),
+    primaryVariantId: text("primary_variant_id").references(() => productVariants.id),
+    marketplaceId: text("marketplace_id"),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
-    /** List-display title; long copy lives in payload. */
     title: text("title"),
-    /** Platform item / product id (Daraz item_id, Lazada item_id, TikTok product_id). */
+    listingTitle: text("listing_title"),
     externalItemId: text("external_item_id"),
     brandExternalId: text("brand_external_id"),
     brandName: text("brand_name"),
     categoryExternalId: text("category_external_id"),
-    /** Human-readable category breadcrumb for list UI. */
     categoryPath: text("category_path"),
     attributes: jsonb("attributes").$type<Record<string, unknown>>().default({}),
     priceAmount: numeric("price_amount", { precision: 18, scale: 4 }),
@@ -302,10 +354,8 @@ export const listings = pgTable(
     stockOnHand: integer("stock_on_hand"),
     warehouseCode: varchar("warehouse_code", { length: 64 }),
     logisticsChannel: varchar("logistics_channel", { length: 64 }),
-    /** Platform publish / sale state (ACTIVE, INACTIVE, PENDING, …). */
     publishState: varchar("publish_state", { length: 32 }),
     lastError: text("last_error"),
-    /** Platform create/update payload + description + images. */
     payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     liveAt: timestamp("live_at", { withTimezone: true }),
@@ -320,7 +370,78 @@ export const listings = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// external_id_mappings
+// seller_sku_mappings — ADD（F07 权威路径；替代用 external_id_mappings 存变体）
+// platformSkuId 独立于 itemId / sellerSku / internalSku
+// ---------------------------------------------------------------------------
+
+export const sellerSkuMappings = pgTable(
+  "seller_sku_mappings",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    listingId: text("listing_id").references(() => listings.id),
+    /** 平台 Item / Product ID。 */
+    itemId: text("item_id"),
+    /**
+     * 平台 SKU / 变体 ID（与 Seller SKU、Item ID、内部 SKU 独立）。
+     * Lazada sku_id / Daraz sku_id 等。
+     */
+    platformSkuId: text("platform_sku_id"),
+    sellerSku: varchar("seller_sku", { length: 128 }).notNull(),
+    variantId: text("variant_id").references(() => productVariants.id),
+    status: varchar("status", { length: 32 }).notNull().default("pending"),
+    source: varchar("source", { length: 16 }).notNull().default("manual"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    index("seller_sku_mappings_org_idx").on(t.organizationId),
+    index("seller_sku_mappings_variant_idx").on(t.organizationId, t.variantId),
+    uniqueIndex("seller_sku_mappings_shop_seller_sku_uidx").on(
+      t.organizationId,
+      t.shopId,
+      t.sellerSku,
+    ),
+  ],
+)
+
+export const mappingExceptions = pgTable(
+  "mapping_exceptions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id").references(() => shops.id),
+    sellerSku: varchar("seller_sku", { length: 128 }),
+    platformSkuId: text("platform_sku_id"),
+    externalOrderId: text("external_order_id"),
+    reason: varchar("reason", { length: 64 }).notNull(),
+    detail: text("detail"),
+    status: varchar("status", { length: 16 }).notNull().default("open"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by"),
+    meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    index("mapping_exceptions_org_status_idx").on(t.organizationId, t.status),
+    index("mapping_exceptions_shop_idx").on(t.shopId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// external_id_mappings — KEEP（收窄：非 SKU 实体；去掉 internal 唯一，允许 1:N）
 // ---------------------------------------------------------------------------
 
 export const externalIdMappings = pgTable(
@@ -349,16 +470,13 @@ export const externalIdMappings = pgTable(
       t.entityType,
       t.externalId,
     ),
-    uniqueIndex("external_id_mappings_shop_int_uidx").on(
-      t.shopId,
-      t.entityType,
-      t.internalId,
-    ),
+    // 设计 §3.2 / §9：放宽 (shop, entity, internal) 唯一 → 普通索引，允许 1:N
+    index("external_id_mappings_shop_int_idx").on(t.shopId, t.entityType, t.internalId),
   ],
 )
 
 // ---------------------------------------------------------------------------
-// orders / order_lines
+// orders / order_lines — KEEP
 // ---------------------------------------------------------------------------
 
 export const orders = pgTable(
@@ -375,7 +493,6 @@ export const orders = pgTable(
       .references(() => shops.id),
     externalOrderId: text("external_order_id").notNull(),
     status: varchar("status", { length: 32 }).notNull().default("unknown"),
-    /** Raw platform status string before mapping (e.g. pending, READY_TO_SHIP). */
     platformStatus: varchar("platform_status", { length: 64 }),
     fulfillmentStatus: varchar("fulfillment_status", { length: 32 }),
     placedAt: timestamp("placed_at", { withTimezone: true }),
@@ -387,7 +504,6 @@ export const orders = pgTable(
     shippingProvider: varchar("shipping_provider", { length: 128 }),
     trackingNumber: varchar("tracking_number", { length: 128 }),
     packageId: varchar("package_id", { length: 128 }),
-    /** Buyer mask, shipping amount, city, timeline extras. */
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     ...timestamps,
   },
@@ -412,6 +528,8 @@ export const orderLines = pgTable(
       .references(() => organization.id),
     externalLineId: text("external_line_id"),
     sku: varchar("sku", { length: 128 }),
+    sellerSku: varchar("seller_sku", { length: 128 }),
+    platformSkuId: text("platform_sku_id"),
     title: text("title"),
     qty: integer("qty").notNull().default(1),
     unitPrice: numeric("unit_price", { precision: 18, scale: 4 }),
@@ -428,7 +546,8 @@ export const orderLines = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// inventory_balances / stock_alerts
+// inventory_balances — KEEP + MERGE（仓+库位维度；WMS 不变量列）
+// 设计：available = on_hand - reserved - qc_hold - damaged；在途/待入不计入可用
 // ---------------------------------------------------------------------------
 
 export const inventoryBalances = pgTable(
@@ -440,14 +559,22 @@ export const inventoryBalances = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    shopId: text("shop_id")
-      .notNull()
-      .references(() => shops.id),
+    /** 共享库存池后店铺维可空；迁移期保留可空 shop_id。 */
+    shopId: text("shop_id").references(() => shops.id),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("DEFAULT"),
+    binCode: varchar("bin_code", { length: 64 }),
     variantId: text("variant_id")
       .notNull()
       .references(() => productVariants.id),
     onHand: integer("on_hand").notNull().default(0),
     reserved: integer("reserved").notNull().default(0),
+    qcHold: integer("qc_hold").notNull().default(0),
+    damaged: integer("damaged").notNull().default(0),
+    /** 采购在途（已发未到仓）；不计入 available。 */
+    inTransit: integer("in_transit").notNull().default(0),
+    /** 待入 / 已到仓未上架；不计入 available。 */
+    pendingInbound: integer("pending_inbound").notNull().default(0),
+    version: integer("version").notNull().default(1),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
@@ -455,7 +582,12 @@ export const inventoryBalances = pgTable(
   },
   (t) => [
     index("inventory_balances_org_idx").on(t.organizationId),
-    uniqueIndex("inventory_balances_shop_variant_uidx").on(t.shopId, t.variantId),
+    uniqueIndex("inventory_balances_wh_bin_variant_uidx").on(
+      t.organizationId,
+      t.warehouseCode,
+      t.binCode,
+      t.variantId,
+    ),
   ],
 )
 
@@ -468,9 +600,8 @@ export const stockAlerts = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    shopId: text("shop_id")
-      .notNull()
-      .references(() => shops.id),
+    shopId: text("shop_id").references(() => shops.id),
+    warehouseCode: varchar("warehouse_code", { length: 64 }),
     variantId: text("variant_id")
       .notNull()
       .references(() => productVariants.id),
@@ -480,16 +611,16 @@ export const stockAlerts = pgTable(
   },
   (t) => [
     index("stock_alerts_org_idx").on(t.organizationId),
-    index("stock_alerts_shop_idx").on(t.shopId),
+    index("stock_alerts_variant_idx").on(t.variantId),
   ],
 )
 
 // ---------------------------------------------------------------------------
-// cost_components
+// sku_costs — ADD（替代已 DROP 的 cost_components；费用拆分占位）
 // ---------------------------------------------------------------------------
 
-export const costComponents = pgTable(
-  "cost_components",
+export const skuCosts = pgTable(
+  "sku_costs",
   {
     id: text("id")
       .primaryKey()
@@ -500,21 +631,22 @@ export const costComponents = pgTable(
     variantId: text("variant_id")
       .notNull()
       .references(() => productVariants.id),
-    component: varchar("component", { length: 32 }).notNull(),
+    kind: varchar("kind", { length: 32 }).notNull(),
     amount: numeric("amount", { precision: 18, scale: 4 }).notNull(),
-    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    currency: varchar("currency", { length: 3 }).notNull().default("CNY"),
     note: text("note"),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    index("cost_components_org_idx").on(t.organizationId),
-    index("cost_components_variant_idx").on(t.variantId),
+    index("sku_costs_org_idx").on(t.organizationId),
+    index("sku_costs_variant_idx").on(t.variantId),
   ],
 )
 
 // ---------------------------------------------------------------------------
-// settlements / settlement_lines
+// settlements / settlement_lines — KEEP + MERGE（费用类型拆分列）
 // ---------------------------------------------------------------------------
 
 export const settlements = pgTable(
@@ -533,6 +665,8 @@ export const settlements = pgTable(
     periodStart: timestamp("period_start", { withTimezone: true }),
     periodEnd: timestamp("period_end", { withTimezone: true }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    billAmount: numeric("bill_amount", { precision: 18, scale: 4 }),
+    status: varchar("status", { length: 32 }).notNull().default("pending"),
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -556,6 +690,8 @@ export const settlementLines = pgTable(
       .references(() => organization.id),
     orderId: text("order_id").references(() => orders.id),
     variantId: text("variant_id").references(() => productVariants.id),
+    /** platform / logistics / ads / jsb / refund / fx / other */
+    feeKind: varchar("fee_kind", { length: 32 }),
     amount: numeric("amount", { precision: 18, scale: 4 }),
     currency: varchar("currency", { length: 3 }),
     note: text("note"),
@@ -567,7 +703,7 @@ export const settlementLines = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// pending_actions
+// pending_actions / product_candidates — KEEP（连接器 / 人审队列）
 // ---------------------------------------------------------------------------
 
 export const pendingActions = pgTable(
@@ -604,10 +740,6 @@ export const pendingActions = pgTable(
   ],
 )
 
-// ---------------------------------------------------------------------------
-// product_candidates
-// ---------------------------------------------------------------------------
-
 export const productCandidates = pgTable(
   "product_candidates",
   {
@@ -632,9 +764,8 @@ export const productCandidates = pgTable(
   ],
 )
 
-
 // ---------------------------------------------------------------------------
-// platform_brands / platform_categories (per-shop cache for console filters)
+// platform_brands / platform_categories — KEEP（平台缓存）
 // ---------------------------------------------------------------------------
 
 export const platformBrands = pgTable(
@@ -686,12 +817,46 @@ export const platformCategories = pgTable(
   ],
 )
 
+// ---------------------------------------------------------------------------
+// audit_events — ADD（精简占位；对齐设计 audit_events）
+// ---------------------------------------------------------------------------
+
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    actorUserId: text("actor_user_id"),
+    actorLabel: text("actor_label"),
+    action: varchar("action", { length: 64 }).notNull(),
+    entityType: varchar("entity_type", { length: 32 }).notNull(),
+    entityId: text("entity_id"),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    result: varchar("result", { length: 32 }),
+    detail: text("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("audit_events_org_created_idx").on(t.organizationId, t.createdAt),
+    index("audit_events_entity_idx").on(t.entityType, t.entityId),
+  ],
+)
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
 export type Listing = typeof listings.$inferSelect
+export type SellerSkuMapping = typeof sellerSkuMappings.$inferSelect
+export type MappingException = typeof mappingExceptions.$inferSelect
 export type Order = typeof orders.$inferSelect
 export type OrderLine = typeof orderLines.$inferSelect
+export type SkuCost = typeof skuCosts.$inferSelect
+export type AuditEvent = typeof auditEvents.$inferSelect
 export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect

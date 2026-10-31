@@ -10,6 +10,7 @@ import {
   matchesKeyword,
 } from '@/components/console/list'
 import { MOCK_COSTS, costLandedTotal } from '@/lib/crossborder/mock-data'
+import { useCosts } from '@/lib/crossborder/finance-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -29,6 +30,7 @@ const CURRENCIES = [...new Set(MOCK_COSTS.map((r) => r.currency))]
 export default function CostsPage() {
   const [keyword, setKeyword] = React.useState('')
   const [currency, setCurrency] = React.useState('all')
+  const sessionCosts = useCosts()
 
   const rows = MOCK_COSTS.filter((row) => {
     if (!matchesKeyword(keyword, row.sku, row.title)) return false
@@ -71,6 +73,39 @@ export default function CostsPage() {
           },
         ]}
       />
+
+      <ConsoleListSection title="会话成本行（财务 store）" description={`共 ${sessionCosts.length} 条 · 费用拆分关联利润核算`}>
+        {sessionCosts.length === 0 ? (
+          <ConsoleTableEmpty />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>名称</TableHead>
+                <TableHead>类型</TableHead>
+                <TableHead>金额</TableHead>
+                <TableHead>生效</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sessionCosts.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium">{row.id}</TableCell>
+                  <TableCell>{row.sku}</TableCell>
+                  <TableCell>{row.name}</TableCell>
+                  <TableCell>{row.kind}</TableCell>
+                  <TableCell className="tabular-nums">{row.amount.toLocaleString()} {row.currency}</TableCell>
+                  <TableCell>{row.effectiveFrom}</TableCell>
+                  <TableCell><Badge variant="secondary">{row.status}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ConsoleListSection>
 
       <ConsoleListSection title="成本记录（示例）" description={`共 ${rows.length} 条 · 点击 SKU 看详情`}>
         {rows.length === 0 ? (

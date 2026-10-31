@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   KeyRound,
   ScrollText,
+  History,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -43,6 +44,7 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   '/console/settings/import-templates': <FileSpreadsheet className="size-4" />,
   '/console/settings/integration-log': <ScrollText className="size-4" />,
   '/console/settings/erp-access': <ShieldCheck className="size-4" />,
+  '/console/settings/audit': <History className="size-4" />,
   '/console/settings/members': <Users className="size-4" />,
   '/console/settings/notifications': <Bell className="size-4" />,
   '/console/settings/preferences': <Settings className="size-4" />,
@@ -90,7 +92,7 @@ export function SectionSidebar({
                   <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                     <LocaleLink href={item.url}>
                       {getSectionIcon(item.url)}
-                      <span>{t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
+                      <span>{t(item.titleKey as 'settings.shops' | 'settings.platformBasics' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.audit' | 'settings.credentials' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
                     </LocaleLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

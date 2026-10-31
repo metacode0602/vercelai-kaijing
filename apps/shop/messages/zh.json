@@ -385,6 +385,7 @@
       "imports": "数据导入",
       "importTemplates": "导入模板",
       "integrationLog": "接口日志",
+      "audit": "变更审计",
       "erpAccess": "角色与数据范围",
       "credentials": "平台凭证",
       "notifications": "通知 / 钉钉",

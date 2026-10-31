@@ -44,7 +44,7 @@ export default function SyncTasksPage() {
   return (
     <UedWorkspace
       title="发布与同步任务"
-      description="发布 / 库存 / 价格 / 状态 / 订单 / 评论同步任务：进度、错误摘要与人工重试；通过 request id 关联接口日志。"
+      description="发布 / 库存 / 价格 / 状态 / 订单 / 评论同步：进度、错误摘要、人工重试；失败与部分失败计入仪表盘「接口异常」。"
       rows={tasks}
       detailHref={(row) => `/console/sync-tasks/${encodeURIComponent(row.id)}`}
       searchKeys={['id', 'type', 'target', 'shop', 'error', 'status', 'requestId']}
