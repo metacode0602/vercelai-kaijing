@@ -60,7 +60,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
 
   if (!request) {
     return (
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/purchase-requests"
           title={mounted ? '未找到采购申请' : '加载采购申请…'}
@@ -84,7 +84,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
   const canWithdraw = current.status === '待审核'
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbs
         items={[
           { label: '采购申请', href: '/console/purchase-requests' },

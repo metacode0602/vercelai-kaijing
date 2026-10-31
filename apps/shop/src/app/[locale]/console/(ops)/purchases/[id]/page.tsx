@@ -12,7 +12,7 @@ export default function PurchasesDetailRedirect({ params }: { params: Promise<{ 
     router.replace(`/console/purchase-requests/${encodeURIComponent(id)}`)
   }, [id, router])
   return (
-    <p className="mx-auto max-w-7xl p-6 text-sm text-muted-foreground">
+    <p className="p-6 text-sm text-muted-foreground">
       正在跳转到采购申请详情…
     </p>
   )

@@ -60,7 +60,7 @@ export function UedWorkspace<T>(props: {
     URL.revokeObjectURL(url)
   }
 
-  return <section className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+  return <section className="flex w-full flex-col gap-5">
     <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-xl font-semibold tracking-tight">{props.title}</h1><p className="mt-1 text-sm text-muted-foreground">{props.description}</p></div><div className="flex gap-2"><Button variant="outline" onClick={props.onExport ?? exportDemoRows}><Download data-icon="inline-start" />导出演示清单</Button>{props.onAdd ? <Button onClick={props.onAdd}><Plus data-icon="inline-start" />{props.addLabel ?? '新增'}</Button> : null}</div></header>
     {props.children}
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={props.searchPlaceholder ?? '搜索编码、名称或状态'} className="pl-9" /></div><div className="flex flex-wrap items-center gap-3"><span className="text-sm text-muted-foreground">{rows.length} 条示例</span>{filterDefs.map((item, index) => <NativeSelect key={`${item.label}-${index}`} value={filterValues[index] ?? '全部'} onChange={(event) => setFilterValues((current) => ({ ...current, [index]: event.target.value }))} className="w-40"><NativeSelectOption value="全部">全部{item.label}</NativeSelectOption>{item.options.map((option) => <NativeSelectOption key={option} value={option}>{option}</NativeSelectOption>)}</NativeSelect>)}<Badge variant="outline">示例数据</Badge></div></div>

@@ -60,7 +60,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
 
   if (!product) {
     return (
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/master-products"
           title={mounted ? '未找到商品 SPU' : '加载商品…'}
@@ -84,7 +84,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const pendingSkus = current.variants.filter((item) => item.status === '待确认').length
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbs
         items={[
           { label: '商品 SPU / SKU', href: '/console/master-products' },

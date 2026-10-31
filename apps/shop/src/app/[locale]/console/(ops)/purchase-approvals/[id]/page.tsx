@@ -53,7 +53,7 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
 
   if (!request) {
     return (
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/purchase-approvals"
           title={mounted ? '未找到审核单' : '加载审核单…'}
@@ -71,7 +71,7 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
   const pending = current.status === '待审核'
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbs
         items={[
           { label: '采购审核', href: '/console/purchase-approvals' },

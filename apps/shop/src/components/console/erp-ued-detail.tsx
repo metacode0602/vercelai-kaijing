@@ -538,7 +538,7 @@ export function UedRecordDetail({
   const breadcrumbCurrent = String(title)
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbs
         items={[
           { label: moduleTitle, href: backHref },
