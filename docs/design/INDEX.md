@@ -1,165 +1,49 @@
 # 设计文档索引
 
-> 全仓设计文档（design）清单。**跨模块设计在本目录，模块内设计就地存放在 `<app>/content/design/`。**
->
-> 状态列取值：`生效` / `已取代→<目标>` / `过期·待重写` / `候选·未采纳` / `规划`。
-> 裁决依据见 [audit/doc-contradictions.md](audit/doc-contradictions.md)（5 大重复主题逐条裁决）与 [audit/doc-health-scan.md](audit/doc-health-scan.md)（机器扫描）。
-
-## 0. Waverless 跨模块集（`docs/` 根目录，2026-10-17）
-
-外采任务型 Serverless。权威分层见 [waverless-product-decisions-2026-10-17.md](../waverless-product-decisions-2026-10-17.md)。
-
-| 文档 | 状态 | 定位 |
-| --- | --- | --- |
-| [waverless-product-decisions-2026-10-17.md](../waverless-product-decisions-2026-10-17.md) | **生效（一期范围权威）** | 拍板 #1–#11 |
-| [waverless-autoscaler-provider-decoupling-2026-10-17.md](../waverless-autoscaler-provider-decoupling-2026-10-17.md) | **生效（实现权威）** | Gongji Provider + Autoscaler 解耦 |
-| [waverless-provider-hub-placement-final-2026-10-17.md](../waverless-provider-hub-placement-final-2026-10-17.md) | **生效（§8 已拍板；M2a 权威）** | 拼池 + Traefik http_service |
-| [waverless-cn-provider-implementation-plan.md](../waverless-cn-provider-implementation-plan.md) | **生效** | P0 单厂闭环任务 |
-| [waverless-cloud-skypilot-integration-recommendation.md](../waverless-cloud-skypilot-integration-recommendation.md) | **生效（目标架构）** | §9–§10 现行；§1–§8 早期分析 |
-| [waverless-runpod-ui-parity-and-priority.md](../waverless-runpod-ui-parity-and-priority.md) | **生效** | UI / 优先级 |
-| [waverless-design-logic-review-2026-10-17.md](../waverless-design-logic-review-2026-10-17.md) | 快照评审 | 不作为开工范围 |
-| [waverless-cn-provider-code-design-review.md](../waverless-cn-provider-code-design-review.md) | 快照评审 | 不作为开工范围 |
+> Open Shop 当前只维护跨境运营域的设计文档。跨模块设计在本目录，模块内设计就地存放在 `<app>/content/design/`。
 
 ## 1. 跨模块设计（`docs/design/`）
 
 | 文档 | 状态 | 定位 |
 | --- | --- | --- |
-| [merchant-open-items-design.md](merchant-open-items-design.md) | **生效**（资金/毛利终版） | 商户平台开放项：对账中心、白牌主题、access_mode 派生、资金毛利口径（Q1–Q18 决策）。**计费与商户账单类设计的裁决基准** |
-| [onboarding-pipeline-p2.md](onboarding-pipeline-p2.md) | 生效 | 入驻流水线 P2 |
-| [supplier-upload-strategy-p0.md](../../apps/supplier/content/design/supplier-upload-strategy-p0.md) | 生效 | 供应商上传策略 P0 |
-| [invoice-upload-design.md](invoice-upload-design.md) | 生效 | 发票文件上传实现方案 |
+| [crossborder-mvp-overview.md](crossborder-mvp-overview.md) | **生效** | 改造总览：模块边界、组织角色、Desktop/OKF 商业闭环与实施顺序 |
+| [crossborder-database-design.md](crossborder-database-design.md) | **现状基线（目标演进见 haoshiyun-erp-database-schema.md）** | 跨境运营域 Drizzle / PostgreSQL schema 现状记录；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage；库存/成本/映射写路径已由权威 schema 重定义 |
+| [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
+| [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
+| [platform-apis/](platform-apis/README.md) | **证据基线（2026-10-31）** | 各平台官方 Open API：授权后可读/可写范围；Daraz/Lazada/Shopee/TikTok；Q38 客服 / Q43 字段 / Q44 券 |
+| [erp-requirements-q01-q35-dev-replies.md](erp-requirements-q01-q35-dev-replies.md) | **开发答复 · 第二轮（2026-10-31，`a51b142`）** | Q01–Q35 客户可读开发答复；本轮已定 Q04/Q09/Q10/Q12/Q15/Q17/Q30/Q33；仍待确认见文末清单；含 #36 费用模板 |
+| [haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md) | **初步设计，待业务/IT确认** | 好时运 ERP 需求 Excel（9 张表）覆盖分析、当前仓库证据、目标模型与分阶段整改方案 |
+| [haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md) | **调研结论，待业务/IT确认** | 好时运 ERP 需求 × Open Shop 现状 × Open Mercato 复用评估：推荐「概念参考 + 自研 Drizzle schema」，含差距表、三类复用建议与 S1–S7 优先级 |
+| [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) | **设计稿，待业务/IT确认后 db:generate** | 好时运 ERP 完整数据库表结构（约 75 表）：平台主数据、商品供应商、Seller SKU 映射、采购互审、共享库存流水（借鉴 OM wms）、订单履约 LGS/JSB、售后、成本汇率利润、RBAC/审计/导入、评论口碑（product_reviews / 分析 / HTML 报告快照）、运费测算（freight_estimates 快照 + 货代报价/牌价/HS 税率版本，对齐 freight-estimation-design）；含现有表迁移与业务不变量 |
+| [haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md) | **UED 初版，待评审** | 平台/国家站点/仓库/币种主数据及可复用基础字典交互与数据库落地边界 |
+| [haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) | **D1 UED 原型，部分交互待深化** | 好时运 ERP 页面 IA 与交互状态：店铺多仓、商品、供应商、采购、库存、订单履约、售后、报表、导入、日志和权限 |
+| [haoshiyun-erp-target-function-matrix.md](haoshiyun-erp-target-function-matrix.md) | **目标功能基线，D1 原型** | 按 P0/P1 域追踪 D0 规格、D1 原型、D2 业务接入、D3 验收上线及后端依赖/验收证据 |
+| [haoshiyun-erp-console-menu-ia.md](haoshiyun-erp-console-menu-ia.md) | **IA 设计稿** | 控制台左侧菜单合并稿（Excel 菜单蓝图 × 现有导航）：9 组 35 页线框、功能明细、域 A–K 全表展示路径、设置区 Tab 与旧路由迁移 |
+| [console-dropdown-data-maintenance.md](console-dropdown-data-maintenance.md) | **调研清单，待业务确认** | 控制台下拉框数据维护审计：已有维护入口但原型硬编码的数据、缺少维护入口的枚举清单、建议菜单位置与待确认项；确认后再生成维护页面 |
+| [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算：先做可交互 UED 并确认使用习惯，再接业务 API/tRPC；覆盖空运 DDP、海运 LCL/FCL；按有效报价和规则计算、展示费用边界/数据来源/历史快照；HS/税率/规则/费率/汇率版本化维护与消费方解耦 |
+| [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
+| [comment-scraping-and-report-design.md](comment-scraping-and-report-design.md) | **设计稿** | 评论抓取与入口设计：API 优先（Lazop Review）、AI 辅助兜底，统一 DomainReview，生成 HTML 报告（涵盖 KPI/评分分布/关键发现/负向中性/全部评价；规划输出目录 `docs/comments/`，样例在 `docs/design/comments/`） |
 
-## 2. 审计与差距（`docs/design/audit/`）
+## 2. 模块内设计
 
-| 文档 | 状态 | 定位 |
-| --- | --- | --- |
-| [doc-contradictions.md](audit/doc-contradictions.md) | **生效**（2026-10-06 裁决） | ★ 文档矛盾台账：计费 / 设备生命周期 / 飞书集成 / 月度成本 / 大盘报表 5 主题，39 条矛盾与处置标签 |
-| [doc-health-scan.md](audit/doc-health-scan.md) | **生效**（可复跑） | ★ 机器扫描：§引用失效、断链、状态标记、表名与 schema 交集 |
-| [p0-p1-audit.md](audit/p0-p1-audit.md) | 生效 | P0/P1 缺口审计与闭合清单 |
-| [supplier-settlement-closure-audit.md](../../apps/supplier/content/design/supplier-settlement-closure-audit.md) | 生效 | 供应商结算闭环审计（证据与结论） |
-| [supplier-settlement-open-items.md](../../apps/supplier/content/design/supplier-settlement-open-items.md) | 生效 | 供应商结算**未闭合项**清单 |
-| [design-vs-schema-conflicts.md](audit/design-vs-schema-conflicts.md) | **过期**（已由 doc-health-scan 取代） | 旧的 schema 冲突记录，全篇结论已失效，见 `docs/archive/README.md` |
-| [merchant-console-followups.md](audit/merchant-console-followups.md) | 生效 | 商户控制台遗留项 |
-| [mode-a-p0-middleware.md](audit/mode-a-p0-middleware.md) | 生效 | Mode A P0 中间件 |
-| [gpus-commercialization-gap-analysis.md](../../apps/gpus/content/design/gpus-commercialization-gap-analysis.md) | 生效 | GPU 商业化差距分析 |
-| [serverless-commercialization-gap.md](audit/serverless-commercialization-gap.md) | 生效 | Serverless 商业化差距 |
-
-## 3. 平台架构（`docs/design/{cloud,k8s}`）
-
-| 目录 | 文档数 | 入口 |
-| --- | --- | --- |
-| `cloud/` | 35 | **[cloud/INDEX.md](cloud/INDEX.md)**（含 [cloud/00-overview.md](cloud/00-overview.md) 总览、[cloud/database-design.md](cloud/database-design.md) 数据库设计） |
-| `k8s/` | 4 | [k8s/cloud-native-integration.md](k8s/cloud-native-integration.md)、[k8s/image-registry-optimization.md](k8s/image-registry-optimization.md)、[k8s/image-registry-cost-optimization.md](k8s/image-registry-cost-optimization.md)、[k8s/image-tenant-workflow.md](k8s/image-tenant-workflow.md) |
-
-`cloud/` 内的**商业化类**文档已按分类规则移至 [`docs/business/`](../business/INDEX.md)（产品线 taxonomy、裸金属商业化、镜像预热激励），**机房交付清单**移至 [`docs/guide/`](../guide/INDEX.md)，**商业化差距分析**移入本目录 `audit/`。
-
-`cloud/` 已裁决状态：
-
-| 文档 | 状态 |
-| --- | --- |
-| [merchant-billing-system-design.md](cloud/merchant-billing-system-design.md) | **已取代** → [`merchant-open-items-design.md`](merchant-open-items-design.md)（毛利公式、券成本、`commission_rate`、`funding_mode` 四处口径变更） |
-| [openmeter-billing-design.md](cloud/openmeter-billing-design.md) | **候选 · 未采纳**（仅 L2 §5.4 与存储计费段可复用；实际走上游 OpenAPI 镜像） |
-| [tenant-billing-system-design.md](cloud/tenant-billing-system-design.md) | **权威**（镜像读路径，已实施）· §9.2-9.3 归因段待改指 open-items |
-| [tenant-balance-unification.md](cloud/tenant-balance-unification.md) | **权威**（`cloud/INDEX.md §1.1` 语义权威） |
-| [recharge-flow-and-database-design.md](cloud/recharge-flow-and-database-design.md) | **权威** · §8.1 事务与 `scene` 枚举待按实现改写 |
-| [tenant-balance-snapshot-design.md](../../apps/web/content/design/tenant-balance-snapshot-design.md) | **权威** · §G4/§3.6 真值口径待改为「派生自上游」 |
-
-> 仍为 `生效` 的 `cloud/` 其余 31 份见 [cloud/INDEX.md](cloud/INDEX.md)；其中 [cloud/INDEX.md](cloud/INDEX.md) §文档清单的 3 个商业类条目已随文件移动改为 `../../business/` 相对链接。
-
-## 4. `apps/web` 设计（`apps/web/content/design/`，79 份）
-
-### 认证与权限
-
-`auth-system-design.md` · `auth-closed-registration-password-policy.md` · `auth-risk-isolation-analysis.md` · `rbac-design.md` · `role-menu-data-access-design.md` · `merchant-review-contact-and-cross-app-auth-design.md`
-
-### CRM 与线索
-
-`crm-database.md` · `crm-sales-leads-design.md` · `crm-workbench-implementation-plan.md` · `crm-workbench-metrics-caliber.md` · `opportunity-import-design.md` · `supply-chain-leads-design.md` · `supply-chain-leads-bitable-import-design.md` · `entity-contacts-design.md` · `feishu-bitable-automation-inbound-design.md` · `feishu-integration-design.md` · `feishu-work-order-module-category-design.md`
-
-### 财务与计费
-
-`billing-period-import-design.md` · `cost-compute-v3-redesign-with-examples.md` · `finance-personal-income-design.md` · `finance-personal-income-baremetal-source-v2-design.md` · `finance-single-period-income-design.md` · `finance-cost-regenerate-baremetal-source-design.md` · `finance-create-billing-period-dialog-plan.md` · `monthly-cost-from-gpu-consumption-design.md` · `monthly-cost-confirm-and-legacy-cost-removal-plan.md` · `platform-cost-commission-phase-derive-design.md` · `platform-pricing-design.md` · `discount-coupon-sync-design.md` · `project-billing-scheduled-sync-design.md` · `project-monthly-cost-snapshot-design.md` · `tenant-balance-snapshot-design.md` · `tenant-bill-daily-sync-design.md` · `tenant-billing-import-design.md`
-
-### 大盘与报表
-
-**大盘报表已于 2026-10-06 整体下线**（`/dashboard`、`/dashboard/global` 及其后端、DB 表全删）。原 16 份设计与实施计划已移入 [`archive/`](archive/)（标 `已废止`），不再描述现网能力。
-
-现存：`gpu-card-types-filter-and-detail-design.md` · `project-tenant-daily-consumption-design.md` · `project-revenue-department-design.md` · `tenant-region-gpu-consumption-daily-monthly-design.md` · `tenant-region-gpu-consumption-monthly-import-design.md`
-
-月报指标口径见 [`reports/`](../../apps/web/content/design/reports/)（2 份），SLA 见 [`sla/`](../../apps/web/content/design/sla/)（3 份设计 + 1 份 SQL），设计-实现差距见 [`audit/design-implementation-gap-audit.md`](../../apps/web/content/design/audit/design-implementation-gap-audit.md)。
-
-### 供应商与设备
-
-`supplier-database.md` · `supplier-import-design.md` · `supplier-datacenter-import-design.md` · `supplier-device-import-schema.md` · `supplier-device-data-cleanup-sql.md` · `supplier-device-ops-pool-masterdata-design.md` · `supplier-device-platform-probe-design.md` · `supplier-device-retire-design.md` · `supplier-device-management-ops-panorama.md` · `supplier-internal-occupancy-batch-design.md` · `supplier-onboarding-plan-changelog-tracking-design.md` · `supplier-overview-scenarios-from-zero.md` · `supplier-planned-batches-hub-design.md` · `datacenter-device-retire-design.md` · `device-platform-orphan-import-rules-design.md`
-
-### 商户与项目
-
-`merchant-management-design.md` · `merchant-am-data-access-design.md` · `project-import-design.md` · `site-messages-design.md` · `tenant-blacklist-management-design.md` · `tenant-customer-reassignment-design.md`
-
-### 裸金属与 IDC
-
-`bare-metal-order-schema-design.md` · `bare-metal-order-discount-fields-sync-plan.md` · `commerce-order-bare-metal-merge.md` · `platform-metal-order-api-field-mapping.md` · `idc-auto-onboarding-design.md` · `idc-auto-onboarding-implementation.md` · `idc-edge-agent-design.md`
-
-### 商业类（已归入模块 business）
-
-见 [`apps/web/content/business/`](../../apps/web/content/business/)：`spot-sales-operations-sop.md`、`supplier-lifecycle-product-plan.md`、`supplier-contract-management-design.md`
-
-### 已裁决文档状态（2026-10-06）
-
-| 文档 | 状态 | 归属主题 |
-| --- | --- | --- |
-| `supplier-device-retire-design.md` | **已取代** → `datacenter-device-retire-design.md` | §2 设备生命周期 |
-| `supplier-overview-scenarios-from-zero.md` | **过期 · 待重写** | §2 设备生命周期 |
-| `cost-compute-v3-redesign-with-examples.md` | **已取代** → `monthly-cost-confirm-and-legacy-cost-removal-plan.md` | §4 月度成本 |
-| `platform-cost-commission-phase-derive-design.md` | **已取代** → `monthly-cost-from-gpu-consumption-design.md` | §4 月度成本 |
-| `project-monthly-cost-snapshot-design.md` | **过期 · 待重写** | §4 月度成本 |
-| `finance-cost-regenerate-baremetal-source-design.md` | **过期 · 待重写** | §4 月度成本 |
-| `archive/global-dashboard-period-composition-m7-dws-acceleration.md` | **已废止 · 已归档**（大盘下线） | §5 大盘报表 |
-| `monthly-cost-confirm-and-legacy-cost-removal-plan.md` | **权威** | §4 月度成本 |
-| `monthly-cost-from-gpu-consumption-design.md` | **权威**（新真源） | §4 月度成本 |
-| `finance-single-period-income-design.md` | **权威** | §4 月度成本 |
-| `archive/global-dashboard-kpi-caliber-spec.md` | **已废止 · 已归档**（原权威） | §5 大盘报表 |
-| `archive/global-dashboard-period-composition-card-hours-design.md` | **已废止 · 已归档**（原权威） | §5 大盘报表 |
-| `archive/global-dashboard-resource-composition-chart-design.md` | **已废止 · 已归档**（原权威） | §5 大盘报表 |
-| `archive/operational-dashboard-implementation-plan.md` | **已废止 · 已归档**（原权威·运营大盘总纲） | §5 大盘报表 |
-| `datacenter-device-retire-design.md` | **权威** | §2 设备生命周期 |
-| `supplier-device-ops-pool-masterdata-design.md` | **权威**（§3「12 条字典」实为 11 条，待订正） | §2 设备生命周期 |
-| `supplier-device-platform-probe-design.md` | **权威**（头部状态行待改） | §2 设备生命周期 |
-| `device-platform-orphan-import-rules-design.md` | **子文档** → `supplier-device-platform-probe-design.md` | §2 设备生命周期 |
-| `feishu-integration-design.md` | **权威**（§5.11.2/§12-F13/§14 待勘误） | 飞书集成 |
-| `feishu-bitable-automation-inbound-design.md` | **子文档** → `feishu-integration-design.md` | 飞书集成 |
-| `feishu-work-order-module-category-design.md` | **子文档** → `feishu-integration-design.md` | 飞书集成 |
-| `archive/global-dashboard-implementation-plan.md` 等 4 份 | **已废止 · 已归档**（原子文档） | §5 大盘报表 |
-| `archive/operational-dashboard-*.md` 其余 7 份 | **已废止 · 已归档**（原子文档） | §5 大盘报表 |
-
-> 完整矛盾清单（含 `文件 §章节` 出处）见 [`audit/doc-contradictions.md`](audit/doc-contradictions.md)。
-
-## 5. `apps/merchant` 设计（`apps/merchant/content/design/`）
+### `apps/shop` — 租户端（`apps/shop/content/design/`）
 
 | 文档 | 状态 | 定位 |
 | --- | --- | --- |
-| [merchant-module-review-and-design.md](../../apps/merchant/content/design/merchant-module-review-and-design.md) | 生效（含 20 处待定标记） | 商户模块审查与设计（§3.2/§3.4/§3.6/§3.7/§5.6/§6.5–6.6 被代码引用） |
-| [merchant-funding-addendum.md](../../apps/merchant/content/design/merchant-funding-addendum.md) | 生效 | 资金模式补充设计 |
+| [crossborder-shop-ued-product-design.md](../../apps/shop/content/design/crossborder-shop-ued-product-design.md) | **生效** | 租户端 IA、动态 Skill execution/OKF 知识复核与 Desktop 商业闭环 UED |
+| [cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md) | **生效** | 斯里兰卡成本计算工作台：先交互 UED 再接业务；空运 DDP / LCL / FCL 成本情景、税项与建议售价 |
+| [fee-templates-ued.md](../../apps/shop/content/design/fee-templates-ued.md) | **UED 初版** | 费用模板（import_tax / platform_fee）：履约两级、优先级解析、localStorage 列表/详情；成本测算按平台+国家+履约+asOf 命中版本并快照 |
+| [comment-review-ued.md](../../apps/shop/content/design/comment-review-ued.md) | **UED 初版** | 评论分析报告 UED：KPI、评分分布、关键发现、负向中性与全部评价区块规格 |
+| [openwork-desktop-workbench-plan.md](../../apps/shop/content/design/openwork-desktop-workbench-plan.md) | **设计稿** | OpenWork Desktop 工作台集成计划：Skill 能力索引、S1–S5 分步与读写路径 |
+| [console-inbox-sheet.md](../../apps/shop/content/design/console-inbox-sheet.md) | Demo | 控制台站内信 Sheet 交互 |
+| [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md) | **生效（P0 原型）** | Daraz LK 架构差分（非厦门共享池）、F22 柜次/清关库存、F33 汇率、F32 柜次成本版本；P1 壳；P2 推迟；官方 API 能力见 [platform-apis/](platform-apis/README.md) |
 
-定价见 [`apps/merchant/content/business/merchant-pricing-design.md`](../../apps/merchant/content/business/merchant-pricing-design.md)。
+### `apps/web` — 平台运营后台
 
-## 6. 梳理进度
+当前无独立设计文档；租户/店铺审核、同步健康、待审抽检见总览中的模块边界。
 
-**已完成（2026-10-06 第二阶段）**
+## 3. 撰写约定
 
-1. ✅ 5 大重复主题逐条裁决 → [`audit/doc-contradictions.md`](audit/doc-contradictions.md)（39 条矛盾、46 份文档处置标签）
-2. ✅ 机器扫描 → [`audit/doc-health-scan.md`](audit/doc-health-scan.md)（§引用 7 处失效、断链 36、状态标记 105 文件、表名未命中 116）
-3. ✅ 9 份文档头部已加 `已取代` / `过期·待重写` / `候选·未采纳` 标注（原位保留，不移动）
-4. ✅ 状态列补齐（本文件 §1/§2/§5 与 §4 已裁决表）
-
-5. ✅ 按 [`audit/doc-contradictions.md §6`](audit/doc-contradictions.md) 订正权威文档错误段落（2026-10-06）：`tenant-billing` §9.2/9.3 归因、`tenant-balance-snapshot` 真值口径、`recharge` scene 枚举与 §8.1 事务、`tenant-balance-unification` §5 字段、`ops-pool` 字典条数、`probe` CM-7 状态、飞书 9 处（入站通道/默认分类/已删组件/Excel 废弃）、`p0-metrics` §3.1 毛利路径、`metrics:79` 部门字段、`card-hours`/`period-analytics` 状态行
-6. ✅ 断链修复：**42 → 0**（28 处层级笔误改写、13 处死链转纯文本标注、5 处含括号路径改 `<...>` 包裹）
-7. ✅ 跨文档 `§` 引用：3 处真失效改锚；4 处确认为中文数字章节的扫描误报，引用有效
-8. ✅ `tenant-balance-unification` 补「两列职责声明」（双真值收口前的过渡口径）
-
-**待办（剩余）**
-
-1. schema 缺口回填：余额双真值收口、`commission_rate` 单位 —— 属代码改动，非文档
-2. 业务确认：提成分段「月序 vs 客群」需业务书面定稿（台账 §6 第 1 条）
-3. 表名断言 116 处 / 49 文件待人工区分「规划中新表」与「过期描述」（低优先级）
-
+- 流程图用 mermaid，线框图保持原格式。
+- 文档只描述跨境运营域，不再新增历史业务域内容。
+- 代码里用 `@see <仓库根相对路径> §章节号` 指向设计文档。

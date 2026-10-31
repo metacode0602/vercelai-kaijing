@@ -14,8 +14,8 @@
 | 文件 | 适用 |
 | --- | --- |
 | `base.json` | 基础配置，其余预设都继承它 |
-| `node.json` | Node.js 应用与包（`api`、`db`、`auth`、`billing`…） |
-| `nextjs.json` | Next.js 应用（`web`、`merchant`、`supplier`、`gpus`、`docs`） |
+| `node.json` | Node.js 应用与包（`api`、`db`、`auth`…） |
+| `nextjs.json` | Next.js 应用（`shop`、`web`、`docs`） |
 | `react-library.json` | React 组件库（`ui`） |
 
 ## 使用

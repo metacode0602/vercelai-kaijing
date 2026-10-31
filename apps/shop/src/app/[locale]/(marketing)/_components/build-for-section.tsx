@@ -54,7 +54,7 @@ const useCases = [
 ]
 
 const useCaseCardClassName =
-  "glass-card relative flex h-[240px] flex-col overflow-hidden border-0 py-0 ring-0 dark:border dark:border-border/30 dark:bg-card/70"
+  "glass-card relative flex min-h-[240px] flex-col overflow-hidden border-0 py-0 ring-0 dark:border dark:border-border/30 dark:bg-card/70"
 
 export function BuildForSection() {
   return (

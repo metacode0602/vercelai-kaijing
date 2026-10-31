@@ -14,7 +14,53 @@
  *   Shopee SG: gw9fqrrft8zrmvri020o73mb  (preview only; no connector yet)
  */
 
+import { DEMO_IMAGES } from './demo-images'
+
 export type MockPlatform = "daraz" | "lazada" | "shopee" | "tiktok_shop"
+
+export type ReviewItem = {
+  reviewId: string
+  platform: 'daraz' | 'lazada' | 'tiktok_shop'
+  itemId: string
+  sku?: string
+  rating: number
+  title?: string
+  content?: string
+  contentZh?: string
+  buyerName?: string
+  createdAt?: string
+  purchasedAt?: string
+  images?: Array<{ url: string }>
+  tags?: string[]
+  sentiment?: 'pos' | 'neu' | 'neg' | 'void'
+  source: 'api' | 'ai_scrape' | 'mixed'
+}
+
+export type ProductReviewsData = {
+  product: {
+    itemId: string
+    sku: string
+    title: string
+    imageUrl?: string
+    platformUrl?: string
+  }
+  kpis: {
+    total: number
+    avg: number
+    pos: number
+    neu: number
+    neg: number
+    withImage: number
+  }
+  ratingDist: Array<{ star: 1 | 2 | 3 | 4 | 5; count: number; pct: number; actualCount: number }>
+  reviews: ReviewItem[]
+  meta: {
+    fetchedAt: string | null
+    source: 'api' | 'ai_scrape' | 'mixed' | null
+    totalFetched: number
+    deduped: number
+  }
+}
 
 export const MOCK_SHOPS = [
   {
@@ -148,6 +194,13 @@ export const MOCK_CANDIDATES = [
     goNoGo: "GO",
     recommendedShops: ["b5ofcwj2mzauov29y08m0q99"],
     aiSignals: ["高搜索意图", "低退货类目", "可拼柜"],
+    evidenceStatus: "assumption" as const,
+    evidenceLabel: "示例数据 · 待核实",
+    evidenceSources: [
+      { label: "市场需求", status: "assumption", detail: "示例内容，未附原始搜索数据" },
+      { label: "运费/税率", status: "estimated", detail: "使用演示输入，需复核有效报价和税率" },
+    ],
+    reviewReason: "市场需求和报价数据尚未提供可核验来源。",
   },
   {
     id: "c2",
@@ -171,6 +224,13 @@ export const MOCK_CANDIDATES = [
     goNoGo: "CONDITIONAL",
     recommendedShops: ["b5ofcwj2mzauov29y08m0q99", "s8v7xkqw0asyz4zhswxwzdd3"],
     aiSignals: ["竞品价差 8%", "需样品质检", "HS 8544 提示"],
+    evidenceStatus: "estimated" as const,
+    evidenceLabel: "估算 · 待补证",
+    evidenceSources: [
+      { label: "竞品价差", status: "assumption", detail: "演示差异，需补竞品链接和采集时间" },
+      { label: "成本", status: "estimated", detail: "需核实供应商报价、物流和平台费用" },
+    ],
+    reviewReason: "请确认产品兼容性、样品质量，并补充竞品和采购报价证据。",
   },
   {
     id: "c3",
@@ -194,10 +254,20 @@ export const MOCK_CANDIDATES = [
     goNoGo: "HOLD",
     recommendedShops: ["b5ofcwj2mzauov29y08m0q99"],
     aiSignals: ["库龄≥90d", "建议闪购", "暂缓加订"],
+    evidenceStatus: "assumption" as const,
+    evidenceLabel: "示例数据 · 待核实",
+    evidenceSources: [
+      { label: "库存风险", status: "assumption", detail: "示例库存信号，并非实时店铺数据" },
+      { label: "利润", status: "estimated", detail: "示例成本口径，需核实实际费用" },
+    ],
+    reviewReason: "当前库存和销售数据为示例，不应据此下补货或促销决策。",
   },
 ] as const
 
 export type MockCandidate = (typeof MOCK_CANDIDATES)[number]
+
+/** Demo-only candidate review state. This does not write to a backend. */
+export const MOCK_CANDIDATE_REVIEW_STATE: Record<string, { decision: string; reason: string }> = {}
 
 export const MOCK_PENDING = [
   {
@@ -235,6 +305,7 @@ export const MOCK_PRODUCTS = [
     categoryHint: "Apparel > Men > T-Shirts",
     barcode: "8901001001001",
     attrs: { color: "Black", size: "L" },
+    coverImage: DEMO_IMAGES.teeBlack,
     images: [
       { url: "https://cdn.example.com/tee-001-main.jpg", sort: 0 },
       { url: "https://cdn.example.com/tee-001-back.jpg", sort: 1 },
@@ -296,6 +367,31 @@ export const MOCK_PRODUCTS = [
         updatedAt: "2026-10-19",
         payload: { qcStatus: "pending" },
       },
+      {
+        id: "lst-tee-white-daraz",
+        shopId: "b5ofcwj2mzauov29y08m0q99",
+        shopName: "Daraz LK · Demo",
+        platform: "daraz" as MockPlatform,
+        status: "live",
+        publishState: "ACTIVE",
+        title: "Oversized Cotton Tee · White L",
+        priceAmount: 12.9,
+        priceCurrency: "USD",
+        platformSku: "DZ-TEE-001-WH",
+        externalItemId: "dz-item-tee-wh" as string | null,
+        brandExternalId: "br-openbasics",
+        brandName: "OpenBasics",
+        categoryExternalId: "cat-apparel-tee",
+        categoryPath: "Fashion > Men > T-Shirts",
+        stockOnHand: 8,
+        warehouseCode: "CMB-01",
+        logisticsChannel: "Daraz Standard",
+        lastError: null as string | null,
+        submittedAt: "2026-10-12 09:00" as string | null,
+        liveAt: "2026-10-13 11:00" as string | null,
+        updatedAt: "2026-10-18",
+        payload: { description: "White L variant (mock)", note: "示例数据 · 对应内部 SKU HSY000001002" },
+      },
     ],
   },
   {
@@ -310,6 +406,7 @@ export const MOCK_PRODUCTS = [
     categoryHint: "Electronics > Computer Accessories",
     barcode: "8901001002002",
     attrs: { ports: "7", pd: "100W" },
+    coverImage: DEMO_IMAGES.hub,
     images: [{ url: "https://cdn.example.com/hub-01.jpg", sort: 0 }],
     weightGrams: 95,
     lengthMm: 110,
@@ -382,6 +479,7 @@ export const MOCK_PRODUCTS = [
     categoryHint: "Sports > Yoga",
     barcode: "8901001003003",
     attrs: { thickness: "6mm", material: "TPE" },
+    coverImage: DEMO_IMAGES.mat,
     images: [{ url: "https://cdn.example.com/mat-02.jpg", sort: 0 }],
     weightGrams: 1100,
     lengthMm: 1830,
@@ -453,6 +551,8 @@ export const MOCK_PRODUCT_LIST_ROWS = MOCK_PRODUCTS.map((p) => {
     id: p.id,
     sku: p.sku,
     title: p.title,
+    coverImage: p.coverImage,
+    images: p.images.map((image) => image.url),
     shop: primary.shopName,
     shopId: primary.shopId,
     platform: primary.platform,
@@ -1104,6 +1204,13 @@ export type DashboardTrendPoint = {
   day: string
   orders: number
   revenue: number
+  units: number
+  aov: number
+  refundRate: number
+  grossProfit: number
+  grossMargin: number
+  netProfit: number
+  netMargin: number
 }
 
 /** Deterministic mock series ending 2026-10-21 (box-local demo date). */
@@ -1116,11 +1223,29 @@ function buildDashboardTrend(days: number): DashboardTrendPoint[] {
     const dd = String(t.getUTCDate()).padStart(2, "0")
     // Stable pseudo-random from day index
     const n = days - i
-    const wave = Math.sin(n / 3.2) * 6 + Math.cos(n / 5.1) * 4
-    const weekend = t.getUTCDay() === 0 || t.getUTCDay() === 6 ? -4 : 2
-    const orders = Math.max(8, Math.round(22 + wave + weekend + (n % 7) - 2))
-    const revenue = Math.round(orders * (58 + (n % 5) * 3 + Math.abs(wave) * 2))
-    points.push({ day: `${mm}-${dd}`, orders, revenue })
+    const wave = Math.sin(n / 3.2) * 26 + Math.cos(n / 5.1) * 18
+    const weekend = t.getUTCDay() === 0 || t.getUTCDay() === 6 ? -24 : 12
+    const orders = Math.max(150, Math.round(260 + wave + weekend + (n % 7) * 6 - 18))
+    const aov = Math.round(690 + Math.sin(n / 4.7) * 28 + (n % 5) * 4)
+    const revenue = orders * aov
+    const units = Math.round(orders * (1.55 + (n % 4) * 0.06))
+    const refundRate = Number((2.8 + Math.abs(Math.sin(n / 4.3)) * 1.8).toFixed(1))
+    const grossMargin = Number((26 + Math.sin(n / 6) * 2.2 + (n % 3) * 0.2).toFixed(1))
+    const netMargin = Number((grossMargin - (11 + Math.cos(n / 5) * 1.2)).toFixed(1))
+    const grossProfit = Math.round((revenue * grossMargin) / 100)
+    const netProfit = Math.round((revenue * netMargin) / 100)
+    points.push({
+      day: `${mm}-${dd}`,
+      orders,
+      revenue,
+      units,
+      aov,
+      refundRate,
+      grossProfit,
+      grossMargin,
+      netProfit,
+      netMargin,
+    })
   }
   return points
 }
@@ -1138,6 +1263,78 @@ export function getDashboardTrend(range: DashboardTrendRange = 7): DashboardTren
   return MOCK_DASHBOARD_TREND_BY_RANGE[range]
 }
 
+export type DashboardSummary = {
+  revenue: number
+  orders: number
+  units: number
+  aov: number
+  refundRate: number
+  grossProfit: number
+  grossMargin: number
+  netProfit: number
+  netMargin: number
+}
+
+export function getDashboardSummary(range: DashboardTrendRange = 7): DashboardSummary {
+  const points = getDashboardTrend(range)
+  const revenue = points.reduce((sum, point) => sum + point.revenue, 0)
+  const orders = points.reduce((sum, point) => sum + point.orders, 0)
+  const units = points.reduce((sum, point) => sum + point.units, 0)
+  const grossProfit = points.reduce((sum, point) => sum + point.grossProfit, 0)
+  const netProfit = points.reduce((sum, point) => sum + point.netProfit, 0)
+  const refundRate =
+    points.reduce((sum, point) => sum + point.refundRate, 0) / Math.max(points.length, 1)
+
+  return {
+    revenue,
+    orders,
+    units,
+    aov: Math.round(revenue / Math.max(orders, 1)),
+    refundRate: Number(refundRate.toFixed(1)),
+    grossProfit,
+    grossMargin: Number(((grossProfit / Math.max(revenue, 1)) * 100).toFixed(1)),
+    netProfit,
+    netMargin: Number(((netProfit / Math.max(revenue, 1)) * 100).toFixed(1)),
+  }
+}
+
+export const MOCK_DASHBOARD_KPI_DELTAS = {
+  revenue: { value: "+8.2%", tone: "positive" as const },
+  orders: { value: "+6.1%", tone: "positive" as const },
+  units: { value: "+5.4%", tone: "positive" as const },
+  aov: { value: "+2.0%", tone: "positive" as const },
+  refundRate: { value: "-0.4pp", tone: "positive" as const },
+  grossProfit: { value: "+9.1%", tone: "positive" as const },
+  netProfit: { value: "+5.1%", tone: "positive" as const },
+}
+
+export const MOCK_DASHBOARD_PLATFORM_MIX = [
+  { platform: "Daraz LK", share: 82 },
+  { platform: "Daraz MY", share: 12 },
+  { platform: "未开通 / 其他", share: 6 },
+] as const
+
+export const MOCK_DASHBOARD_INVENTORY = {
+  totalStock: 8420,
+  turnoverDays: 28.6,
+  shortageSkuCount: 6,
+  inTransitUnits: 2300,
+  categories: [
+    { category: "服饰", stock: 3200, inTransit: 900, turnoverDays: 32 },
+    { category: "3C 配件", stock: 2100, inTransit: 600, turnoverDays: 24 },
+    { category: "家居", stock: 1800, inTransit: 450, turnoverDays: 30 },
+    { category: "运动户外", stock: 1320, inTransit: 350, turnoverDays: 21 },
+  ],
+  shortages: [
+    { sku: "TEE-001", title: "Oversized Cotton Tee", gap: 8, eta: "2026-11-03" },
+    { sku: "HUB-01", title: "USB-C Hub 7-in-1", gap: 14, eta: "2026-11-05" },
+    { sku: "MAT-02", title: "Yoga Mat Pro", gap: 6, eta: "2026-11-02" },
+    { sku: "BAG-03", title: "Canvas Tote Bag", gap: 21, eta: "2026-11-08" },
+    { sku: "LMP-04", title: "LED Desk Lamp", gap: 5, eta: "2026-11-06" },
+    { sku: "SOK-05", title: "Cotton Crew Socks", gap: 32, eta: "2026-11-10" },
+  ],
+}
+
 /** SKU presets for landed-cost calculator Demo（箱规 / HS / 默认批量） */
 export const MOCK_COST_CALC_PRESETS = [
   {
@@ -1150,6 +1347,7 @@ export const MOCK_COST_CALC_PRESETS = [
     cartonWcm: 40,
     cartonHcm: 35,
     kgPerCarton: 12,
+    airVolumetricDivisor: 6000,
     firstMileTotal: 80,
     clearanceMiscTotal: 45,
     tariffProfileId: "apparel" as const,
@@ -1169,6 +1367,7 @@ export const MOCK_COST_CALC_PRESETS = [
     cartonWcm: 35,
     cartonHcm: 30,
     kgPerCarton: 10,
+    airVolumetricDivisor: 6000,
     firstMileTotal: 95,
     clearanceMiscTotal: 55,
     tariffProfileId: "electronics" as const,
@@ -1188,6 +1387,7 @@ export const MOCK_COST_CALC_PRESETS = [
     cartonWcm: 25,
     cartonHcm: 25,
     kgPerCarton: 14,
+    airVolumetricDivisor: 6000,
     firstMileTotal: 70,
     clearanceMiscTotal: 40,
     tariffProfileId: "home_sports" as const,
@@ -1205,13 +1405,6 @@ export function getCostCalcPreset(sku: string) {
   return MOCK_COST_CALC_PRESETS.find((p) => p.sku === sku) ?? MOCK_COST_CALC_PRESETS[0]!
 }
 
-export const MOCK_DASHBOARD_KPIS = [
-  { label: "GMV（近 7 天）", value: "11,280 USD", delta: "+8.2% 示例" },
-  { label: "订单数", value: "186", delta: "+14 示例" },
-  { label: "净利润", value: "4,720 USD", delta: "+5.1% 示例" },
-  { label: "在售 SKU", value: "42", delta: "+3 示例" },
-]
-
 export const MOCK_DASHBOARD_ALERTS = [
   { type: "库存", message: "TEE-001 低于阈值（12 / 20）", href: "/console/inventory/TEE-001" },
   { type: "待审", message: "2 条动作等待确认", href: "/console/pending" },
@@ -1226,6 +1419,8 @@ export const MOCK_DASHBOARD_TODOS = [
 
 export const MOCK_PENDING_COUNT = MOCK_PENDING.filter((p) => p.status === "pending").length
 export const MOCK_INVENTORY_ALERT_COUNT = MOCK_INVENTORY_LIST_ROWS.filter((i) => i.alert).length
+export const MOCK_APPROVAL_PENDING_COUNT = 2
+export const MOCK_ORDER_EXCEPTION_COUNT = 4
 
 
 export function getListingById(id: string) {
@@ -1237,7 +1432,97 @@ export function getShopById(id: string) {
 }
 
 export function getProductBySku(sku: string) {
-  return MOCK_PRODUCTS.find((p) => p.sku === sku)
+  return MOCK_PRODUCTS.find((p) => p.sku === sku) ?? null
+}
+
+export const MOCK_PRODUCT_REVIEWS: Record<string, ProductReviewsData> = {
+  'TEE-001': {
+    product: {
+      itemId: '593629355',
+      sku: 'TEE-001',
+      title: 'DIY Luminous T13 Multi-Jointed Movable Shapeshift Robot 3D Printed Mannequin',
+      imageUrl: 'https://lk-live-21.slatic.net/kf/Sa899876a2a1a445b8eaf1abd6623ac8dO.png',
+      platformUrl: 'https://www.daraz.lk/products/diy-luminous-t13-multi-jointed-movable-shapeshift-robot-3d-printed-mannequin-lucky-robot-and-dog-action-figures-toys-kids-gifts-i593629355-s2725029270.html',
+    },
+    kpis: { total: 26, avg: 4.69, pos: 12, neu: 4, neg: 6, withImage: 16 },
+    ratingDist: [
+      { star: 5, count: 28, pct: 87.5, actualCount: 22 },
+      { star: 4, count: 1, pct: 3.1, actualCount: 1 },
+      { star: 3, count: 2, pct: 6.2, actualCount: 2 },
+      { star: 2, count: 1, pct: 3.1, actualCount: 1 },
+      { star: 1, count: 0, pct: 0, actualCount: 0 },
+    ],
+    reviews: [
+      {
+        reviewId: 'r1',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:Blue, Size:25cm',
+        rating: 5,
+        content: 'Do not buy this. The quality of the product is very poor. Not worth for the price.',
+        contentZh: '（5星但内容差评）别买。产品质量非常差，这个价格完全不值。',
+        buyerName: '******008',
+        createdAt: '25 May 2026',
+        images: [],
+        tags: ['高分差评'],
+        sentiment: 'neg',
+        source: 'api',
+      },
+      {
+        reviewId: 'r2',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:green, Size:25cm',
+        rating: 5,
+        content: 'Poor quality. Parts do not fit together. Waste of money.',
+        contentZh: '（5星但内容差评）谁都别买这个，根本装不起来，零件之间对不上，纯属浪费钱。',
+        buyerName: '0***5',
+        createdAt: '14 Mar 2026',
+        images: [{ url: 'https://lzd-u.slatic.net/673d9b56d688469bb78bbc76bd917cd8_740dabaf59894162bf99801b9dfc2ce7.jpg' }],
+        tags: ['高分差评'],
+        sentiment: 'neg',
+        source: 'api',
+      },
+      {
+        reviewId: 'r3',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:Yellow, Size:25cm',
+        rating: 5,
+        content: 'I ordered yellow but got orange. Good product but plastic quality is low.',
+        contentZh: '我下单的是黄色，发来的是橙色。东西本身确实不错，但塑料质感偏低。',
+        buyerName: '0***4',
+        createdAt: '27 Apr 2026',
+        images: [
+          { url: 'https://lzd-u.slatic.net/41479ebde8a04c559cd913045925a140_a9f34d9537264c6e8cd95688094824c0.jpg' },
+          { url: 'https://lzd-u.slatic.net/41479ebde8a04c559cd913045925a140_8b15a3e9c1f74fe2b23c92f1df8af639.jpg' },
+        ],
+        tags: [],
+        sentiment: 'neu',
+        source: 'api',
+      },
+      {
+        reviewId: 'r4',
+        platform: 'daraz',
+        itemId: '593629355',
+        sku: 'Color:DEEP BLUE, Size:25cm',
+        rating: 5,
+        content: 'Good product. Material is smooth but size is smaller than described.',
+        contentZh: '东西不错，材质有点像橡胶，摸起来很顺滑。但是尺寸不对，标 25cm 实际大概只有 15cm。',
+        buyerName: 'Hijas',
+        createdAt: '07 Apr 2026',
+        images: [{ url: 'https://lzd-u.slatic.net/d586aba1f47044cf9e704bc7922d49b3_5045d8d965d843eab95ddbf4766fb3c1.jpg' }],
+        tags: [],
+        sentiment: 'neu',
+        source: 'api',
+      },
+    ],
+    meta: { fetchedAt: '2026-10-28T06:32:00Z', source: 'api', totalFetched: 26, deduped: 26 },
+  },
+}
+
+export function getProductReviewsBySku(sku: string): ProductReviewsData | null {
+  return MOCK_PRODUCT_REVIEWS[sku] ?? null
 }
 
 export function getOrderById(id: string) {

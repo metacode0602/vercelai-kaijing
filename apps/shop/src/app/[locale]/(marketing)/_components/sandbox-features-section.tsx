@@ -41,7 +41,7 @@ export function SandboxFeaturesSection() {
                 key={feature.title}
                 className="flex min-w-0 flex-col gap-10 pb-10"
               >
-                <div className="glass-surface relative h-[320px] w-full overflow-hidden rounded-xl border border-border/30">
+                <div className="glass-surface relative h-[220px] w-full overflow-hidden rounded-xl border border-border/30 sm:h-[280px] lg:h-[320px]">
                   <Image
                     src={feature.image}
                     alt={feature.alt}
@@ -66,7 +66,7 @@ export function SandboxFeaturesSection() {
             ))}
           </div>
 
-          <div className="glass-panel relative flex min-h-[360px] flex-col overflow-hidden bg-primary/5 px-6 py-8 md:px-12 lg:min-h-[389px] lg:flex-row lg:items-center lg:justify-between lg:pl-[100px] lg:pr-20 lg:py-10">
+          <div className="glass-panel relative flex min-h-0 flex-col overflow-hidden bg-primary/5 px-6 py-8 md:px-12 lg:min-h-[389px] lg:flex-row lg:items-center lg:justify-between lg:pl-[100px] lg:pr-20 lg:py-10">
             <Image
               src="/sandbox1/page/operation-bg.png"
               alt=""

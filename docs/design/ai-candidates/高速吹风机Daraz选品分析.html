@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>高速吹风机 Daraz SL 选品分析报告（实测版）</title>
+<style>
+  :root {
+    --primary: #0B6E4F;
+    --primary-light: #E3F1EB;
+    --accent: #F2A900;
+    --danger: #C0392B;
+    --warn: #E67E22;
+    --ok: #27AE60;
+    --bg: #F7F9F8;
+    --card: #FFFFFF;
+    --text: #1F2D3D;
+    --muted: #6B7C8F;
+    --border: #E1E8ED;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0 0 60px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  header {
+    background: linear-gradient(135deg, #0B6E4F 0%, #0E8A63 100%);
+    color: #fff;
+    padding: 48px 24px 40px;
+    text-align: center;
+  }
+  header h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  header p { opacity: 0.9; font-size: 15px; }
+  .badge {
+    display: inline-block; background: rgba(255,255,255,0.18);
+    padding: 4px 14px; border-radius: 20px; font-size: 13px; margin-top: 14px;
+  }
+  .section { background: var(--card); border-radius: 14px; padding: 28px 32px; margin: 24px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+  .section h2 { font-size: 21px; color: var(--primary); margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .section h2 .step { background: var(--primary); color: #fff; width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .section h3 { font-size: 16px; margin: 20px 0 8px; color: var(--text); }
+  .section p { margin: 8px 0; color: #34495E; }
+  .lead { color: var(--muted); font-size: 14px; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--primary-light); color: var(--primary); font-weight: 600; font-size: 13px; }
+  tr:hover { background: #FAFCFB; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .tag.green { background: #E8F6EF; color: var(--ok); }
+  .tag.red { background: #FDEDEC; color: var(--danger); }
+  .tag.amber { background: #FEF5E7; color: var(--warn); }
+  .tag.blue { background: #EAF2FB; color: #2E86DE; }
+  .conclusion {
+    background: linear-gradient(135deg, #0B6E4F 0%, #0E8A63 100%);
+    color: #fff; border-radius: 14px; padding: 28px 32px; margin: 24px 0;
+  }
+  .conclusion h2 { color: #fff; }
+  .conclusion .verdict { font-size: 22px; font-weight: 700; margin: 6px 0 14px; }
+  .conclusion ul { margin-left: 20px; }
+  .conclusion li { margin: 6px 0; }
+  .scorecard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 16px 0; }
+  .score-item { background: var(--bg); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid var(--border); }
+  .score-item .num { font-size: 32px; font-weight: 800; color: var(--primary); }
+  .score-item .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .score-item .stars { color: var(--accent); font-size: 14px; margin-top: 6px; }
+  .callout { border-left: 4px solid var(--accent); background: #FFFBF2; padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 14px 0; }
+  .callout.danger { border-left-color: var(--danger); background: #FDF5F4; }
+  .callout.info { border-left-color: var(--primary); background: var(--primary-light); }
+  .callout.win { border-left-color: var(--ok); background: #E8F6EF; }
+  .calc-table td:nth-child(2), .calc-table td:nth-child(3) { font-variant-numeric: tabular-nums; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  .pill { background: var(--primary-light); color: var(--primary); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+  .timeline { border-left: 3px solid var(--primary-light); margin: 16px 0 16px 12px; padding-left: 24px; }
+  .timeline .item { position: relative; margin-bottom: 22px; }
+  .timeline .item::before { content: ""; position: absolute; left: -31px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); }
+  .timeline .item .t { font-weight: 700; color: var(--primary); font-size: 15px; }
+  .timeline .item .d { color: var(--muted); font-size: 13px; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
+  code { background: #EEF2F5; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #C0392B; }
+  .highlight { background: #FFF6E0; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+  .update-note { background: #FFF6E0; border: 1px solid #F2D98C; border-radius: 10px; padding: 12px 16px; margin: 12px 0; font-size: 13px; color: #8B6914; }
+</style>
+</head>
+<body>
+<header>
+  <h1>高速吹风机 · Daraz SL 选品分析报告（实测版）</h1>
+  <p>基于「七步差异化选品法」+ 官方2026关税指南 + SLSI强制认证清单 + Daraz实测竞品</p>
+  <span class="badge">分析方法论版本 V2.0 · 数据基准 2026-07-18 更新</span>
+</header>
+
+<div class="wrap">
+
+  <div class="update-note">
+    <b>证据状态说明：</b>本报告为 UED 样例，不作为已核验的上架结论。前 20 商品、税率/SLSI判断及所有价格/运费数据，正式使用前须附可访问来源、采集/核对日期和适用条件；未附来源的痛点、供需、采购价、销量目标与利润均为“假设/示例”。示例数据不会默认进入生产 AI 评分或推荐。
+  </div>
+
+  <div class="update-note">
+    🔧 <b>报告记录时间：2026-07-18。</b>原文声称参考 2026 关税指南并采集 Daraz 前 20 商品；当前附件未逐条保存官方原表/商品来源和采集条件，故这些信息在本产品中标记为“待复核样例”，不能直接作为已核实生产数据。
+  </div>
+
+  <!-- 核心结论 -->
+  <div class="conclusion">
+    <h2>📌 核心结论</h2>
+    <div class="verdict">✅ 适合上架，三个硬性条件 + 一个实测利好</div>
+    <ul>
+      <li><b>关税/合规待复核：</b>报告引用 HS 8516.31 与 29.8% 示例税率，但须在产品决策前核对现行 HS 子目、PAL 适用区域、官方税率来源和 SLSI 清单版本；目前不作为已确认的生产税率/认证结论。</li>
+      <li><b>待验证的市场机会：</b>本次记录称 Daraz SL 前 20 名未见高速吹风机，但这只是特定关键词/排序/采集时点的样本，不能证明 Rs.4,000–25,000 全市场无竞品或已有需求。请在决策前复查搜索、类目与站外替代品。</li>
+      <li><b>采购价与利润结论属于示例测算：</b>¥80、¥150、¥280 等采购价和利润结果依赖未附原始有效供应商报价及统一费用口径，不能当作已核实采购成本或确定亏盈线。</li>
+      <li><b>空运/LCL/FCL 均需同口径有效报价：</b>文中运费与毛利数字标为“示例估算”；在确认报价含税/清关/派送边界、计费规则、时效和有效期前，不得把物流建议表述为已验证的最优方案。</li>
+    </ul>
+  </div>
+
+  <!-- 步骤1 -->
+  <div class="section">
+    <h2><span class="step">1</span>品类预筛：关税 + 合规 + 物流可行性</h2>
+    <p class="lead">方法论第一步：先查 HS 编码算关税 → 查 SLSI/TRCSL 合规 → 判断物流可行性。本文税率和合规判断为报告所述数据，进入产品前须补可访问官方来源、适用地域/港口条件和核对日期；当前状态为待核实，不自动视为生产有效规则。</p>
+
+    <h3>① 关税测算（来源：sl_tariff_lookup.py · Import Tariff Guide 14.01.2026.pdf · 已核对原始表格列映射）</h3>
+    <table>
+      <tr><th>HS 编码</th><th>产品</th><th>CID</th><th>PAL</th><th>VAT</th><th>SSCL</th><th>有效税率</th></tr>
+      <tr><td><b>8516.31</b></td><td>Hair dryers（报告所列）</td><td><span class="tag amber">需核实</span></td><td>5% / 6%(SG) · 需核实</td><td>需核实</td><td>需核实</td><td><b>29.8% 示例*</b></td></tr>
+      <tr><td colspan="7" style="color:var(--muted);font-size:13px;">对比同章节：8516.79 电水壶 59% · 8516.60 空气炸锅 65% → 吹风机关税明显更低。⚠️ PAL 有 Gen/SG 两档，科伦坡港（西部省）进口适用 SG 6%，已保守计入。</td></tr>
+    </table>
+    <div class="callout info">💡 <b>待复核洞察：</b>报告所列 CID/PAL/VAT/SSCL 与 29.8% 仅为引用示例。必须核对现行官方税则、港口/适用区域、级联税基及从量/附加税，再用于成本计算；未核实前不应据此说“不构成门槛”。</div>
+
+    <h3>② 合规认证（来源：slsi_gazette.pdf · 122项强制清单）</h3>
+    <table>
+      <tr><th>认证类型</th><th>是否适用</th><th>说明</th></tr>
+      <tr><td>SLSI 强制认证</td><td><span class="tag green">不需要</span></td><td>8516 章仅 8516.10 浸水式热水器、8516.60 电炉、8516.79.20 电水壶需认证；吹风机豁免</td></tr>
+      <tr><td>TRCSL 无线认证</td><td><span class="tag green">不需要</span></td><td>纯电机产品无 WiFi/4G/蓝牙，不涉及</td></tr>
+      <tr><td>安全认证（CE/CB）</td><td><span class="tag amber">建议做</span></td><td>非强制，但做大货建议具备 CE/CB 以提升信任度、规避查验风险</td></tr>
+    </table>
+
+    <h3>③ 物流可行性</h3>
+    <div class="pill-row">
+      <span class="pill">⚡ 带电产品（内置电机）</span>
+      <span class="pill">⚖ 单台约 400-600g</span>
+      <span class="pill">📦 彩盒体积约 0.003cbm</span>
+      <span class="pill">🌊 海运可行</span>
+      <span class="pill">✈ 空运需带电专线</span>
+    </div>
+    <p>吹风机内置电机不含纯电池，<b>海运无限制</b>；空运需走带电产品专线（DDP），运费显著高于普通小包。结合 29.8% 关税，物流决策指向：<span class="highlight">测款用空运 DDP 小批验证，放量转海运 LCL/FCL</span>。</p>
+  </div>
+
+  <!-- 步骤2 -->
+  <div class="section">
+    <h2><span class="step">2</span>竞品全景：Daraz SL 实测前 20 名</h2>
+    <p class="lead">方法论第二步：收集 Daraz SL 前 20 竞品，分析价格带、品牌格局、卖点空白。以下为报告标记为 <b>2026-07-18 抓取的样例数据</b>；正式复用前需保存逐条商品链接/商品 ID、排序与筛选条件、采集时间及原始快照。单个关键词的前 20 名不代表整个市场。</p>
+
+    <h3>实测价格带分布（前 20 名）</h3>
+    <table>
+      <tr><th>价格带</th><th>代表产品/品牌</th><th>特点</th><th>差异化机会</th></tr>
+      <tr><td>Rs.544–1,023</td><td>Nova 可折叠普通款（折扣67-80%）</td><td>2-3万转、非高速、价格战惨烈</td><td>—</td></tr>
+      <tr><td>Rs.1,128–2,671</td><td>5合1造型梳 / 热风梳 / 组合装</td><td>配件堆砌，非核心吹风机升级</td><td>—</td></tr>
+      <tr><td>Rs.3,160–3,990</td><td>Geemy GM-1787 / Gemei 1800W</td><td>所谓"专业款"上限，评价仅 132</td><td>—</td></tr>
+      <tr><td><b>Rs.4,000–25,000</b></td><td><span class="tag blue">完全空白</span></td><td>无任何产品</td><td><b>★ 我们的切入带</b></td></tr>
+      <tr><td>Rs.25,000+</td><td>Dreame / Dyson（若有）</td><td>高速但价格劝退</td><td>—</td></tr>
+    </table>
+
+    <h3>实测关键发现</h3>
+    <div class="callout win">🎯 <b>蓝海确认：</b>前 20 名中 <b>Nova 占约 13 款</b>（绝对主导），Geemy/Gemei 次之，<b>全部是普通吹风机</b>。标题高频词为"可折叠/多功率/沙龙级"，<b>"高速/11万转/负离子"一词未出现</b>——高速吹风机在 Daraz SL 是<strong>零竞品品类</strong>。</div>
+    <div class="callout danger">⚠️ <b>风险提示：</b>Nova 部分款评价数高达 1,747，说明普通款需求大且品牌忠诚度高。我们的 Rs.11,990 定价是 Nova 最高价（Rs.3,990）的 3 倍，<strong>必须用"高速干发+负离子护发+高质感主图"形成代际差</strong>，不能只靠低价。</div>
+    <div class="callout info">💡 <b>发货地观察：</b>多数竞品发货地为 Western（斯里兰卡本地仓），少数为 Overseas。我们走 China→Colombo 海运，时效 15-25 天，需在详情页明确"预购/发货周期"管理预期。</div>
+  </div>
+
+  <!-- 步骤3 -->
+  <div class="section">
+    <h2><span class="step">3</span>痛点挖掘：普通吹风机差评 PPS 评分</h2>
+    <p class="lead">方法论第三步：收集竞品差评 → 标注痛点类别 → PPS = 频率×严重度×可解决度 → 排序。本次实测未抓取差评文本（需进商品页），以下为基于普通吹风机通病的框架假设，待你提供差评截图后做精确 PPS。</p>
+
+    <h3>典型痛点假设（基于普通吹风机通病）</h3>
+    <table>
+      <tr><th>痛点</th><th>频率</th><th>严重度</th><th>可解决度</th><th>PPS</th><th>等级</th></tr>
+      <tr><td>干发太慢（风速低）</td><td>假设 5</td><td>假设 4</td><td>假设 1.5</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>高温伤发、头发毛躁</td><td>假设 4</td><td>假设 5</td><td>假设 1.3</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>噪音大刺耳</td><td>假设 4</td><td>假设 3</td><td>假设 1.2</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>机身重、手持累</td><td>假设 3</td><td>假设 3</td><td>假设 1.2</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>易过热自动断电</td><td>假设 3</td><td>假设 4</td><td>假设 1.1</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+      <tr><td>线太短、够不着镜子</td><td>假设 3</td><td>假设 2</td><td>假设 1.0</td><td>不计分</td><td><span class="tag amber">待核实</span></td></tr>
+    </table>
+    <div class="callout info">💡 <b>状态：假设/待验证，不计入实测 PPS。</b>本报告没有抓取并核验差评原文，“干发慢”“伤发”等频率与严重度是产品假设。需补充可追溯的评论链接/原文、星级和采集日期，再按统一 PPS 公式评分。方法论口径：频率(1–5) × 严重度(1–5) × 可解决度(0.5–1.5)；当前表中的得分仅作演示，不代表真实用户反馈。</div>
+  </div>
+
+  <!-- 步骤4 -->
+  <div class="section">
+    <h2><span class="step">4</span>升级匹配：六大策略对应痛点</h2>
+    <p class="lead">方法论第四步：痛点 → 产品特征 → 1688 搜索验证 → 确认"可见性/成本可控/一击致命"。</p>
+    <table>
+      <tr><th>痛点(S级)</th><th>升级策略</th><th>产品特征</th><th>1688 验证</th><th>可见性</th></tr>
+      <tr><td>干发太慢</td><td>性能提升</td><td>11万转高速数码马达（普通2-3万转）</td><td>白牌高速款 ¥70-90 大量存在</td><td><span class="tag green">主图可展示风速对比</span></td></tr>
+      <tr><td>高温伤发</td><td>功能升级</td><td>负离子护发 + 智能恒温（≤57℃）</td><td>负离子模块已成标配</td><td><span class="tag green">主图可展示发丝对比</span></td></tr>
+      <tr><td>噪音大</td><td>材质/设计</td><td>低噪风道设计</td><td>部分白牌已标注"低噪"</td><td><span class="tag amber">需视频展示</span></td></tr>
+      <tr><td>机身重</td><td>设计升级</td><td>轻量化机身（&lt;500g）</td><td>高速款普遍轻于普通款</td><td><span class="tag green">主图可标注克重</span></td></tr>
+    </table>
+    <div class="callout danger">⚠️ <b>成本红线：</b>升级款采购价必须控制在 <b>¥80-90</b>。超过 ¥100 在 Rs.11,990 售价下毛利转负（见步骤6情景③）。优先解决 2 个 S 级痛点（高速+护发），不做全功能堆砌。</div>
+  </div>
+
+  <!-- 步骤5 -->
+  <div class="section">
+    <h2><span class="step">5</span>物流决策：关税 29.8% 下的方案选择</h2>
+  <p class="lead">方法论第五步：关税 15-30% 区间，需算盈亏平衡点。带电产品 + 600g 重量，以下运费均为待核实示例估算，不是当前有效报价：</p>
+    <table>
+      <tr><th>方案</th><th>运费(单台)</th><th>时效</th><th>关税处理</th><th>适用阶段</th><th>推荐度</th></tr>
+      <tr><td>空运 DDP 带电专线（示例）</td><td>¥78 (¥130/kg)*</td><td>5-7天*</td><td>报价称包税；税项拆分待核实</td><td>由用户决定测试量</td><td><span class="tag amber">待报价核实</span></td></tr>
+      <tr><td>海运 LCL 拼柜（示例）</td><td>¥12*</td><td>15-25天*</td><td>进口税费另计（税率待核实）</td><td>按有效报价比较</td><td><span class="tag amber">待报价核实</span></td></tr>
+      <tr><td>海运 FCL 整柜（示例）</td><td>¥2 分摊*</td><td>15-25天*</td><td>进口税费另计（税率待核实）</td><td>先校验柜容/资金风险</td><td><span class="tag amber">待报价核实</span></td></tr>
+    </table>
+    <div class="callout info">💡 <b>决策逻辑（待数据）：</b>目前三种方案的金额和时效均是示例，费用范围也不一致，不能比较优劣。补齐真实报价、计费规则、DDP 含税边界、附加费、时效和有效期后，再按完整到仓成本与现金/库存风险比较。</div>
+  </div>
+
+  <!-- 步骤6 -->
+  <div class="section">
+    <h2><span class="step">6</span>利润测算：五情景盈亏模拟（关税 29.8%）</h2>
+  <p class="lead">方法论第六步：旧版场景估算。采购、货代报价、平台/支付/仓库费、广告、退货和汇率均未附可复核的有效来源；表格只作 UED 演示，不代表准确利润。正式决策需逐项补录来源和包含/排除范围。</p>
+    <table class="calc-table">
+      <tr><th>情景（样例）</th><th>报告称成本(LKR)</th><th>报告称平台+其他费(LKR)</th><th>样例售价(LKR)</th><th>样例利润(LKR)</th><th>报告称毛利率*</th></tr>
+      <tr><td><b>①主推 白牌¥80+LCL</b></td><td>5,923</td><td>4,227</td><td>11,990</td><td>1,840</td><td><span class="tag green">15.3%</span></td></tr>
+      <tr><td>②测款 白牌¥80+空运DDP</td><td>7,837</td><td>4,857</td><td>13,990</td><td>1,296</td><td><span class="tag amber">9.3%</span></td></tr>
+      <tr><td>③中端¥150+LCL（示例）</td><td>10,430</td><td>4,542</td><td>12,990</td><td>-1,982</td><td><span class="tag red">-15.3%*</span></td></tr>
+      <tr><td>④高端¥280+LCL（示例）</td><td>18,799</td><td>6,117</td><td>17,990</td><td>-6,926</td><td><span class="tag red">-38.5%*</span></td></tr>
+      <tr><td><b>⑤大货 白牌¥80+FCL（示例）</b></td><td>5,279</td><td>4,227</td><td>11,990</td><td>2,484</td><td><span class="tag green">20.7%*</span></td></tr>
+    </table>
+    <div class="callout danger">⚠️ <b>当前不可得出确定红线：</b>情景③④是基于示例输入的计算，不足以证明“采购价超过 ¥100 必亏”。正式使用时须保存供应商报价、物流报价/包含项、税率版本、平台费率和完整计算公式，再由运营设定可接受利润门槛。</div>
+    <div class="callout info">💡 <b>当前无已验证的最优路径：</b>情景金额和利润率仅用于交互展示。正式系统须基于同一币种、同一费用范围和有效报价复算；未提供的平台/运营费用标为缺项，结果不得称为确定净利。</div>
+  </div>
+
+  <!-- 步骤7 -->
+  <div class="section">
+    <h2><span class="step">7</span>风险与合规排查</h2>
+    <table>
+      <tr><th>风险项</th><th>等级</th><th>说明 / 应对</th></tr>
+      <tr><td>电压适配</td><td><span class="tag amber">待核实</span></td><td>报告中的电压兼容结论需以产品铭牌/供应商规格及目的地要求核实；来源与核对日期补齐前不作为已验证合规结论</td></tr>
+      <tr><td>插头类型</td><td><span class="tag amber">待核实</span></td><td>核实目标市场插座类型、产品插头及合法适配方式；不得仅凭一般描述认定可直接销售</td></tr>
+      <tr><td>SLSI 认证</td><td><span class="tag amber">待核实</span></td><td>8516.31 不在强制清单的说法需附官方清单/税则来源和核对日期；没有依据时不得显示“无需认证”</td></tr>
+      <tr><td>安全认证</td><td><span class="tag amber">中</span></td><td>建议具备 CE/CB/ROHS，提升详情页信任度，规避海关查验滞留</td></tr>
+      <tr><td>外观侵权</td><td><span class="tag red">高</span></td><td>严禁模仿 Dyson/ Dreame 外观；用中性白牌设计，避免风力网罩等标志性造型</td></tr>
+      <tr><td>带电产品物流</td><td><span class="tag amber">中</span></td><td>空运须走带电专线(DDP)；海运无限制但需防潮包装</td></tr>
+      <tr><td>品牌壁垒(Nova)</td><td><span class="tag amber">中</span></td><td>实测 Nova 评价数最高 1,747，需强差异化卖点+高质感主图突破，勿打价格战</td></tr>
+    </table>
+  </div>
+
+  <!-- 选品评分卡 -->
+  <div class="section">
+  <h2>📊 选品评分卡（示例评分，不构成结论）</h2>
+    <div class="scorecard">
+      <div class="score-item"><div class="num">9.0*</div><div class="label">市场机会（演示）</div><div class="stars">待核实</div></div>
+      <div class="score-item"><div class="num">7.0*</div><div class="label">利润空间（估算）</div><div class="stars">待报价/费用核实</div></div>
+      <div class="score-item"><div class="num">—</div><div class="label">竞争压力</div><div class="stars">待补全市场样本</div></div>
+      <div class="score-item"><div class="num">—</div><div class="label">合规状态</div><div class="stars">未核实</div></div>
+    </div>
+    <p class="lead">综合评分 <b>8.4/10（演示评分，待证据核实）</b> · 当前结论：<b>建议继续验证，不建议据此直接大批备货/上架</b>。市场空档、痛点、售价接受度、供应商成本和运费均需补充原始证据。高分不等于结论可靠；合规状态单独使用“已核实/有风险/未核实/不适用”，竞争压力单独使用“低/中/高”。</p>
+  </div>
+
+  <!-- 行动建议 -->
+  <div class="section">
+    <h2>🎯 行动建议与上架节奏</h2>
+    <div class="timeline">
+      <div class="item">
+        <div class="t">第 1 周 · 选型定样</div>
+        <div class="d">获取并保存可核实的供应商报价/规格/MOQ/有效期，打样确认性能、插头和安全；补齐 Daraz 竞品及真实差评样本并逐条留存来源。当前所有示例采购价与规格均为待验证假设，不作采购承诺。</div>
+      </div>
+      <div class="item">
+        <div class="t">第 2 周 · 空运测款</div>
+        <div class="d">只有在供应商样品、费用边界、法规和需求测试计划通过后，才由运营决定小批试卖数量与售价。100–200 台及 Rs.13,990 是旧样例假设，不是系统建议值。先比较同口径 DDP/LCL/FCL 真实报价。</div>
+      </div>
+      <div class="item">
+        <div class="t">第 3-5 周 · 数据验证</div>
+        <div class="d">采集实际曝光、点击、转化、退款/退货、差评、成交价和投放费用，由运营预先设定可接受门槛。周销 &gt;50 台、评分 &gt;4.3 是示例目标，需业务确认后才可用于测试判断；达标后仍应评估资金与库存风险再备货。</div>
+      </div>
+      <div class="item">
+        <div class="t">第 6 周起 · 放量转海运</div>
+        <div class="d">仅在真实销售、有效运价、可用现金和库存周转数据支持时评估从 LCL 转 FCL。2 万台及 15.3%/20.7% 为旧示例估算，不是放量门槛或利润承诺；FCL 应显示柜容、未含费用及滞销资金风险。</div>
+      </div>
+    </div>
+    <div class="callout win">📌 <b>一句话总结：</b>当前报告提供了一个值得研究的方向，但证据不足以判定“蓝海”或“适合上架”。先核实竞品与差评、供应商报价、三种物流费用范围、HS/合规信息，再用可复算的完整成本与小批测试结果决定是否继续；示例数据不得直接当作备货或利润承诺。</div>
+  </div>
+
+  <footer>
+    本报告的税率/合规和竞品数据需补来源与核对日期；利润数据为示例估算，不作为上架承诺<br>
+    关税工具已修正 PAL SG 档（29.8%）· 生成时间：2026-07-18 · 选品方法论 V2.0
+  </footer>
+
+</div>
+</body>
+</html>

@@ -37,10 +37,10 @@ const enterpriseStats = [
 ]
 
 const featureCardClassName =
-  "glass-card relative flex h-[240px] flex-1 flex-col justify-between overflow-hidden p-6 dark:border dark:border-border/30 dark:bg-card/70"
+  "glass-card relative flex min-h-[240px] flex-1 flex-col justify-between gap-6 overflow-hidden p-6 dark:border dark:border-border/30 dark:bg-card/70"
 
 const enterprisePanelClassName =
-  "glass-card relative overflow-hidden p-8 md:p-12 lg:p-20 dark:border dark:border-border/30 dark:bg-gradient-to-br dark:from-primary/10 dark:via-card/50 dark:to-background"
+  "glass-card relative overflow-hidden p-6 sm:p-8 md:p-12 lg:p-20 dark:border dark:border-border/30 dark:bg-gradient-to-br dark:from-primary/10 dark:via-card/50 dark:to-background"
 
 const statCardClassName =
   "glass-card w-full border-0 ring-0 lg:w-[440px] dark:border dark:border-border/30 dark:bg-card/70"
@@ -53,16 +53,16 @@ export function BuildWithSection() {
           <SectionLabel>基于 GPURun Cloud 构建</SectionLabel>
 
           <div className="flex flex-col gap-4 py-4">
-            <h2 className={cn("marketing-heading", "md:whitespace-nowrap")}>
+            <h2 className={cn("marketing-heading", "lg:whitespace-nowrap")}>
               开始使用 Agent Sandbox 构建
             </h2>
-            <p className={cn("marketing-subheading", "md:whitespace-nowrap")}>
+            <p className={cn("marketing-subheading", "lg:whitespace-nowrap")}>
               通过快速入门、可复用模板和隔离的沙盒存储开始使用。
             </p>
           </div>
 
           <div className="pt-4">
-            <div className="flex flex-col gap-6 md:flex-row">
+            <div className="flex flex-col gap-6 lg:flex-row">
               {buildWithItems.map((item) => (
                 <div key={item.number} className={featureCardClassName}>
                   {item.bgImage && (

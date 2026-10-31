@@ -6,3 +6,8 @@ export {
   type ConsoleFilterSelect,
 } from './console-filter-bar'
 export { ConsoleTableEmpty } from './console-table-empty'
+export {
+  ConsolePagination,
+  useConsolePagination,
+  type ConsolePaginationProps,
+} from './console-pagination'

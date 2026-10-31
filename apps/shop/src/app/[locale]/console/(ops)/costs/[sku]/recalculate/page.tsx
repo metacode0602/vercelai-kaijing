@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Calculator } from 'lucide-react'
-import { ConsoleBreadcrumbs } from '@/components/console/detail'
+import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { CostCalculatorWorkbench } from '@/components/console/cost-calculator-workbench'
 import { getCostBySku } from '@/lib/crossborder/mock-data'
 import { Badge } from '@workspace/ui/components/badge'
@@ -16,8 +16,7 @@ export default async function CostRecalculatePage({ params }: CostRecalculatePag
 
   return (
     <div className="space-y-4">
-      {/* Breadcrumbs at the very top of the right content area */}
-      <ConsoleBreadcrumbs
+      <ConsoleBreadcrumbRegistration
         items={[
           { label: '成本', href: '/console/costs' },
           { label: cost.sku, href: `/console/costs/${cost.sku}` },
@@ -35,6 +34,7 @@ export default async function CostRecalculatePage({ params }: CostRecalculatePag
           <Badge variant="outline">待复核</Badge>
         </div>
         <p className="text-sm text-muted-foreground">{cost.title}</p>
+        <p className="text-xs text-muted-foreground">页面计算使用示例费率/报价；输入可交互调整，但演示结果不会写入业务数据库。</p>
       </div>
 
       <CostCalculatorWorkbench variant="page" initialSku={cost.sku} />

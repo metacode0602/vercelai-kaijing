@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto'
+import { getS3Config } from './s3'
 
 /**
- * 统一存储配置与阿里云 OSS 客户端（Signature V1）。
+ * 统一存储配置：阿里云 OSS（Signature V1）、S3 / S3 兼容存储（Signature V4）与本地磁盘。
  *
  * 支持的环境变量（同一变量可提供多个名称，取第一个非空值）：
  * - STORAGE_ACCESS_KEY_ID / OSS_ACCESS_KEY_ID
@@ -12,10 +13,10 @@ import { createHmac } from 'node:crypto'
  * - STORAGE_PUBLIC_URL / OSS_PUBLIC_BASE_URL（对象可公开访问的基地址）
  * - STORAGE_OSS_INTERNAL（默认 false，使用内网 endpoint 提升性能）
  * - STORAGE_OSS_SECURE（默认 true，使用 HTTPS）
- * - STORAGE_DRIVER（可选：local | oss；默认在 OSS 已配置时使用 oss，否则回退 local）
+ * - STORAGE_DRIVER（可选：local | oss | s3；默认在 OSS 已配置时使用 oss，否则在 S3 已配置时使用 s3，最后回退 local）
  */
 
-export type StorageDriver = 'oss' | 'local'
+export type StorageDriver = 'oss' | 's3' | 'local'
 
 export const OSS_SCHEME = 'oss://'
 export const LOCAL_SCHEME = 'local://'
@@ -98,15 +99,18 @@ export function getOssConfig(): OssConfig | null {
  */
 export function resolveStorageDriver(legacyEnvName?: string): StorageDriver {
   const legacy = legacyEnvName ? env(legacyEnvName) : undefined
-  if (legacy === 'local' || legacy === 'oss') {
-    return legacy === 'oss' ? (getOssConfig() ? 'oss' : 'local') : 'local'
+  if (legacy === 'local' || legacy === 'oss' || legacy === 's3') {
+    if (legacy === 'local') return 'local'
+    if (legacy === 'oss') return getOssConfig() ? 'oss' : 'local'
+    return getS3Config() ? 's3' : 'local'
   }
 
   const global = env('STORAGE_DRIVER')
   if (global === 'local') return 'local'
   if (global === 'oss') return getOssConfig() ? 'oss' : 'local'
+  if (global === 's3') return getS3Config() ? 's3' : 'local'
 
-  return getOssConfig() ? 'oss' : 'local'
+  return getOssConfig() ? 'oss' : getS3Config() ? 's3' : 'local'
 }
 
 export type StorageUri = string
@@ -347,3 +351,5 @@ export function generateStoredFileName(originalName: string): string {
 }
 
 export { normalizeRegionHost }
+
+export * from './s3'

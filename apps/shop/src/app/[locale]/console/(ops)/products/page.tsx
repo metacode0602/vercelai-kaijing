@@ -6,8 +6,10 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
 import { MOCK_PRODUCT_LIST_ROWS } from '@/lib/crossborder/mock-data'
+import { ProductCoverCell } from '@/components/console/product-images'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import {
@@ -44,6 +46,7 @@ export default function ProductsPage() {
     if (platform !== 'all' && row.platform !== platform) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
@@ -84,6 +87,7 @@ export default function ProductsPage() {
       <ConsoleListSection
         title="商品列表"
         description={`共 ${rows.length} 条`}
+        pagination={pagination}
       >
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
@@ -91,6 +95,7 @@ export default function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">封面</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>标题</TableHead>
                 <TableHead>主店</TableHead>
@@ -103,8 +108,11 @@ export default function ProductsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.sku}>
+                  <TableCell>
+                    <ProductCoverCell imageKey={`product:${row.sku}`} fallback={{ cover: row.coverImage, images: row.images }} alt={row.title} />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">
                     <LocaleLink
                       href={`/console/products/${row.sku}`}

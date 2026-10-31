@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 
 export type DetailField = {
   label: string
@@ -9,12 +9,16 @@ export type DetailField = {
 
 export function DetailFieldGrid({
   title,
+  description,
   fields,
   columns = 3,
+  action,
 }: {
   title?: string
+  description?: string
   fields: DetailField[]
   columns?: 2 | 3 | 4
+  action?: ReactNode
 }) {
   const colClass =
     columns === 2
@@ -26,20 +30,24 @@ export function DetailFieldGrid({
   return (
     <Card>
       {title ? (
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{title}</CardTitle>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-2">
+          <div className="space-y-1">
+            <CardTitle className="text-base">{title}</CardTitle>
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
+          {action}
         </CardHeader>
       ) : null}
       <CardContent className={title ? undefined : 'pt-6'}>
         <dl className={`grid gap-4 ${colClass}`}>
-          {fields.map((field) => (
-            <div key={field.label} className="min-w-0 space-y-1">
+          {fields.map((field, index) => (
+            <div key={`${field.label}-${index}`} className="min-w-0 space-y-1">
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</dt>
               <dd
                 className={
                   field.mono
-                    ? 'truncate font-mono text-sm'
-                    : 'truncate text-sm font-medium tabular-nums'
+                    ? 'break-all font-mono text-sm'
+                    : 'break-words text-sm font-medium tabular-nums'
                 }
               >
                 {field.value ?? '—'}

@@ -52,6 +52,12 @@ import {
   type MockCostCalcPreset,
 } from '@/lib/crossborder/mock-data'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
+import { getOceanLots } from '@/lib/crossborder/ocean-container-store'
+import {
+  listSkuCostVersions,
+  saveSkuCostVersionFromCalculator,
+  useSkuCostVersions,
+} from '@/lib/crossborder/sku-cost-version-store'
 
 function presetToInput(preset: MockCostCalcPreset, overrides?: Partial<CostCalculatorInput>): CostCalculatorInput {
   return {
@@ -67,8 +73,15 @@ function presetToInput(preset: MockCostCalcPreset, overrides?: Partial<CostCalcu
     cartonHcm: preset.cartonHcm,
     unitsPerCarton: preset.unitsPerCarton,
     kgPerCarton: preset.kgPerCarton,
+    airVolumetricDivisor: 6000,
+    airQuoteIncludesTax: true,
     freightMode: 'LCL',
     tariffProfileId: preset.tariffProfileId,
+    platform: 'daraz',
+    country: 'LK',
+    fulfillmentPool: 'daraz_lk_sea_lot',
+    fulfillmentLogistics: '',
+    asOf: new Date().toISOString().slice(0, 10),
     clearanceMiscTotal: preset.clearanceMiscTotal,
     targetNetMarginPct: preset.defaultMarginPct,
     platformCommissionPct: preset.platformCommissionPct,
@@ -102,7 +115,7 @@ function applyBridgeAction(
       break
     case 'set_freight':
       next = { ...prev, freightMode: action.mode }
-      hint = `已切换海运模式为 ${action.mode}`
+      hint = `已切换运输方案为 ${action.mode}`
       break
     case 'set_margin':
       next = { ...prev, targetNetMarginPct: action.pct }
@@ -110,11 +123,11 @@ function applyBridgeAction(
       break
     case 'set_tariff':
       next = { ...prev, tariffProfileId: action.profileId }
-      hint = `已套用税率档「${TARIFF_PROFILES[action.profileId].labelZh}」（示例·待复核）`
+      hint = `已套用税率档「${TARIFF_PROFILES[action.profileId].labelZh}」（费用模板 formulaProfile · 待复核）`
       break
     case 'compare_lcl_fcl':
       next = { ...prev, freightMode: prev.freightMode === 'LCL' ? 'FCL20' : 'LCL' }
-      hint = '已切换 LCL / FCL 以便对比；右侧对比表始终展示三种模式'
+      hint = '已切换 LCL / FCL；右侧展示空运 DDP、LCL、FCL 示例运费，费用口径不同不可直接判优'
       break
     case 'compute':
       hint = '已按当前输入重新测算'
@@ -153,6 +166,13 @@ export function CostCalculatorWorkbench({
   )
   const [formulasOpen, setFormulasOpen] = React.useState(true)
   const [copilotHint, setCopilotHint] = React.useState<string | null>(null)
+  const allVersions = useSkuCostVersions()
+  const [lotId, setLotId] = React.useState(() => getOceanLots()[0]?.id ?? '')
+  const [saveHint, setSaveHint] = React.useState<string | null>(null)
+  const skuVersions = React.useMemo(
+    () => allVersions.filter((row) => row.sku === input.sku),
+    [allVersions, input.sku],
+  )
 
   const applySku = React.useCallback((sku: string, extras?: Partial<CostCalculatorInput>) => {
     const preset = getCostCalcPreset(sku)
@@ -242,6 +262,28 @@ export function CostCalculatorWorkbench({
   const formulas = result ? getFormulaDocs(result.tax.rates) : null
   const tariff = TARIFF_PROFILES[input.tariffProfileId]
 
+  const handleSaveVersion = React.useCallback(() => {
+    if (!result || !lotId) {
+      setSaveHint('请先测算并选择柜次')
+      return
+    }
+    const lot = getOceanLots().find((row) => row.id === lotId)
+    if (!lot) {
+      setSaveHint('柜次不存在')
+      return
+    }
+    const row = saveSkuCostVersionFromCalculator({
+      input,
+      result,
+      containerLotId: lot.id,
+      lotCode: lot.lotCode,
+      createdBy: '杨洁',
+    })
+    setSaveHint(
+      `已保存 ${row.id} · 到仓 ${row.landedUnitCost} USD/件 · 费用模板版本 ${row.feeTemplateVersionId ?? '—'} · 审批参考 杨洁/黄发聪`,
+    )
+  }, [input, result, lotId])
+
   const formPanel = (
     <CostCalculatorFormPanel
       input={input}
@@ -265,11 +307,12 @@ export function CostCalculatorWorkbench({
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Calculator className="size-4 text-primary" />
         <span>
-          {input.title} · 税率表 {result?.meta.tariffTableVersion ?? 'v2026.10-mock'} · 汇率{' '}
-          {result?.meta.fxRateDate ?? '2026-10-21'} · 估算·需报关/法务复核
+          {input.title} · 费用模板 {result?.meta.feeTemplateCode ?? result?.meta.tariffTableVersion ?? '未解析'} · 汇率{' '}
+          {result?.meta.fxRateDate ?? '2026-10-21'} · 示例计算·需报关/法务复核
         </span>
         <Badge variant="secondary">示例</Badge>
         <Badge variant="outline">待复核</Badge>
+        <Badge variant="secondary">演示 · 可保存柜次成本版本（localStorage）</Badge>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">{formPanel}</div>
@@ -280,6 +323,11 @@ export function CostCalculatorWorkbench({
             formulas={formulas}
             formulasOpen={formulasOpen}
             onFormulasOpenChange={setFormulasOpen}
+            lotId={lotId}
+            onLotIdChange={setLotId}
+            onSaveVersion={handleSaveVersion}
+            saveHint={saveHint}
+            versions={skuVersions}
           />
         </div>
       </div>
@@ -312,11 +360,14 @@ function CostCalculatorFormPanel({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">输入（少打字 · 预设优先）</CardTitle>
-        <CardDescription className="text-xs">
-          从示例 SKU 选择即可预填 FOB / 箱规 / HS 档
-        </CardDescription>
+          <CardDescription className="text-xs">
+            从示例 SKU 选择即可预填 FOB / 箱规 / HS 档；可操作计算仅供 UED 验证
+          </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+          示例报价和税率未核实。更改输入可看到演示计算结果，但不会保存到业务数据库；目前三种方案的费用范围不同，系统不会自动推荐最优方案。
+        </div>
         <div className="space-y-1.5">
           <Label>货号 SKU</Label>
           <Select
@@ -339,12 +390,12 @@ function CostCalculatorFormPanel({
         </div>
 
         <div className="space-y-1.5">
-          <Label>海运模式</Label>
+          <Label>运输情景</Label>
           <ToggleGroup
             type="single"
             value={input.freightMode}
             onValueChange={(v) => {
-              if (v === 'LCL' || v === 'FCL20' || v === 'FCL40') {
+              if (v === 'AIR_DDP' || v === 'LCL' || v === 'FCL20' || v === 'FCL40') {
                 setInput((s) => ({ ...s, freightMode: v as FreightMode }))
               }
             }}
@@ -353,23 +404,33 @@ function CostCalculatorFormPanel({
             spacing={0}
             className="flex flex-wrap"
           >
+            <ToggleGroupItem value="AIR_DDP" className="px-3 text-xs">
+              空运 DDP
+            </ToggleGroupItem>
             <ToggleGroupItem value="LCL" className="px-3 text-xs">
-              LCL 拼柜
+              海运 LCL
             </ToggleGroupItem>
             <ToggleGroupItem value="FCL20" className="px-3 text-xs">
-              FCL 20&apos;
+              海运 FCL 20&apos;
             </ToggleGroupItem>
             <ToggleGroupItem value="FCL40" className="px-3 text-xs">
-              FCL 40&apos;
+              海运 FCL 40&apos;
             </ToggleGroupItem>
           </ToggleGroup>
+          <div className="rounded-md border bg-muted/30 p-2 text-[11px] text-muted-foreground">
+            {input.freightMode === 'AIR_DDP'
+              ? '空运 DDP（示例）：按实重/材积重较高者、示例最低收费计算。此示例报价称含税，但来源及清关/派送范围未核实。'
+              : input.freightMode === 'LCL'
+                ? '海运 LCL（示例）：按 CBM/计费吨取高并加示例附加费；不含进口税费。'
+                : '海运 FCL（示例）：按整柜价及 THC 分摊；不含进口税费，需检查柜容。'}
+          </div>
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <Label>HS / 税率档</Label>
+            <Label>HS / 税率档（费用模板 formulaProfile）</Label>
             <Badge variant="outline" className="text-[10px]">
-              示例·待复核
+              费用模板·待复核
             </Badge>
           </div>
           <ToggleGroup
@@ -395,7 +456,55 @@ function CostCalculatorFormPanel({
             HS 示意 {tariff.hsHint} · 关税 {(tariff.customs * 100).toFixed(0)}% / CESS{' '}
             {(tariff.cess * 100).toFixed(0)}% / PAL {(tariff.pal * 100).toFixed(0)}% / VAT{' '}
             {(tariff.vat * 100).toFixed(0)}% / SSCL {(tariff.sscl * 100).toFixed(1)}%
+            （按平台+国家+履约+asOf 解析费用模板版本）
           </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[11px]">平台</Label>
+              <Select
+                value={input.platform}
+                onValueChange={(v) => {
+                  if (v) setInput((s) => ({ ...s, platform: v }))
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daraz">Daraz</SelectItem>
+                  <SelectItem value="lazada">Lazada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px]">国家</Label>
+              <Select
+                value={input.country}
+                onValueChange={(v) => {
+                  if (v) setInput((s) => ({ ...s, country: v }))
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LK">LK</SelectItem>
+                  <SelectItem value="MY">MY</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-[11px]">履约池</Label>
+              <Select
+                value={input.fulfillmentPool}
+                onValueChange={(v) => {
+                  if (v) setInput((s) => ({ ...s, fulfillmentPool: v }))
+                }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daraz_lk_sea_lot">daraz_lk_sea_lot</SelectItem>
+                  <SelectItem value="lazada_cn_spot_xmn">lazada_cn_spot_xmn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -459,6 +568,19 @@ function CostCalculatorFormPanel({
           </div>
         </div>
 
+        {input.freightMode === 'AIR_DDP' ? (
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="air-divisor">材积系数（示例，必须以货代报价为准）</Label>
+              <Input id="air-divisor" type="number" min={1} step={1} value={input.airVolumetricDivisor} onChange={(event) => setInput((s) => ({ ...s, airVolumetricDivisor: Math.max(1, Number(event.target.value) || 1) }))} />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={input.airQuoteIncludesTax} onChange={(event) => setInput((s) => ({ ...s, airQuoteIncludesTax: event.target.checked }))} />
+              示例 DDP 报价称已含进口税（仅演示开关，须核对真实报价范围）
+            </label>
+          </div>
+        ) : null}
+
         <p className="text-[11px] text-muted-foreground">
           箱规已预填：{input.cartonLcm}×{input.cartonWcm}×{input.cartonHcm} cm ·{' '}
           {input.unitsPerCarton} 件/箱 · 头程 {input.firstMileTotal} USD · 清关杂费{' '}
@@ -498,12 +620,22 @@ function CostCalculatorResultsPanel({
   formulas,
   formulasOpen,
   onFormulasOpenChange,
+  lotId,
+  onLotIdChange,
+  onSaveVersion,
+  saveHint,
+  versions,
 }: {
   input: CostCalculatorInput
   result: CostCalculatorResult | null
   formulas: ReturnType<typeof getFormulaDocs> | null
   formulasOpen: boolean
   onFormulasOpenChange: (open: boolean) => void
+  lotId: string
+  onLotIdChange: (id: string) => void
+  onSaveVersion: () => void
+  saveHint: string | null
+  versions: ReturnType<typeof listSkuCostVersions>
 }) {
   if (!result) {
     return (
@@ -517,23 +649,82 @@ function CostCalculatorResultsPanel({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
-        <Kpi label="到仓 / 件" value={formatUsd(result.landedUnit, 2)} />
+      <div className="grid grid-cols-4 gap-2">
+        <Kpi label="到仓成本 / 件（示例）" value={formatUsd(result.landedUnit, 2)} hint="运价/税率未核实" />
         <Kpi
           label="建议售价"
           value={result.suggestPrice != null ? formatUsd(result.suggestPrice) : '—'}
           hint={result.suggestPriceError ?? undefined}
         />
         <Kpi
-          label="净利率"
+          label="经营净利率（估算）"
           value={result.netMarginPct != null ? `${result.netMarginPct}%` : '—'}
         />
-        <Kpi label="海运模式" value={input.freightMode} />
+        <Kpi label="运输情景" value={input.freightMode} />
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">到仓成本瀑布</CardTitle>
+          <CardTitle className="text-sm">保存为柜次成本版本（F32）</CardTitle>
+          <CardDescription className="text-xs">
+            写入本机 localStorage · 按 SKU + 柜次递增 versionNo · 税模版 LK PAL/CESS/VAT/SSCL
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">关联海运柜次</Label>
+            <Select value={lotId} onValueChange={onLotIdChange}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="选择柜次" />
+              </SelectTrigger>
+              <SelectContent>
+                {getOceanLots().map((lot) => (
+                  <SelectItem key={lot.id} value={lot.id}>
+                    {lot.lotCode} · {lot.status} · {lot.containerNo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={onSaveVersion} disabled={!lotId}>
+              保存到柜次成本版本
+            </Button>
+            <Badge variant="outline">审批参考：杨洁 / 黄发聪</Badge>
+          </div>
+          {saveHint ? <p role="status" className="text-xs text-muted-foreground">{saveHint}</p> : null}
+          {versions.length > 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>版本</TableHead>
+                    <TableHead>柜次</TableHead>
+                    <TableHead className="text-right">到仓/件</TableHead>
+                    <TableHead>生效</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {versions.slice(0, 5).map((v) => (
+                    <TableRow key={v.id}>
+                      <TableCell className="font-mono text-xs">v{v.versionNo}</TableCell>
+                      <TableCell className="text-xs">{v.lotCode}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">{v.landedUnitCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs">{v.effectiveFrom}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">该 SKU 尚无柜次成本版本。</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">费用瀑布（示例）</CardTitle>
           <CardDescription className="text-xs">
             单件 → 合计 · CIF {formatUsd(result.tax.cifTotalUsd)}（
             {result.tax.cifTotalLkr.toLocaleString()} LKR）
@@ -564,7 +755,7 @@ function CostCalculatorResultsPanel({
                 </TableRow>
               ))}
               <TableRow className="bg-muted/40 font-medium">
-                <TableCell className="text-xs">到仓合计 landed</TableCell>
+                <TableCell className="text-xs">到仓成本合计 landed（示例口径）</TableCell>
                 <TableCell className="text-right tabular-nums text-xs">
                   {result.landedUnit.toFixed(3)}
                 </TableCell>
@@ -579,43 +770,47 @@ function CostCalculatorResultsPanel({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">LCL vs FCL 对比</CardTitle>
-          <CardDescription className="text-xs">{result.comparison.noteZh}</CardDescription>
+          <CardTitle className="text-sm">空运 DDP / 海运 LCL / 海运 FCL 对比（示例报价）</CardTitle>
+          <CardDescription className="text-xs">{result.comparison.noteZh} {result.comparison.nonComparableReason}</CardDescription>
         </CardHeader>
+        <CardContent className="pt-0 text-xs text-muted-foreground">
+          空运 DDP 计费重示例 {result.chargeableWeightKg.toFixed(2)} kg · {result.freightIncludesTax ? '当前情景将税项设为已包含，避免重复计算' : '当前情景不假设运价含税'}。该切换仅用于演示，不代表已有货代报价。
+          {result.comparison.exceedsFcl20 || result.comparison.exceedsFcl40 ? ` 当前体积 ${result.cbmTotal.toFixed(2)} CBM 超过示例柜容，FCL 金额已按${result.comparison.fcl20Containers}个20尺柜 / ${result.comparison.fcl40Containers}个40尺柜估算。` : ''}
+          {' '}表内 FCL20/FCL40 金额均按整批多柜数量计算；未含其他港口/清关费用。
+        </CardContent>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>模式</TableHead>
-                <TableHead className="text-right">运费合计</TableHead>
+                <TableHead className="text-right">示例运费合计</TableHead>
                 <TableHead className="text-right">/件</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(
                 [
-                  ['LCL', result.comparison.lclOceanTotal],
-                  ['FCL20', result.comparison.fcl20OceanTotal],
-                  ['FCL40', result.comparison.fcl40OceanTotal],
+                  ['AIR_DDP', result.comparison.airDdpTotal, result.comparison.airDdpUnit],
+                  ['LCL', result.comparison.lclOceanTotal, result.comparison.lclOceanUnit],
+                  ['FCL20', result.comparison.fcl20OceanTotal, result.comparison.fcl20OceanUnit],
+                  ['FCL40', result.comparison.fcl40OceanTotal, result.comparison.fcl40OceanUnit],
                 ] as const
-              ).map(([mode, total]) => (
+              ).map(([mode, total, perUnit]) => (
                 <TableRow
                   key={mode}
-                  className={cn(mode === result.comparison.preferred && 'bg-primary/5')}
+                  className={cn(result.comparison.comparable && mode === result.comparison.preferred && 'bg-primary/5')}
                 >
                   <TableCell className="text-xs font-medium">
-                    {mode}
-                    {mode === result.comparison.preferred ? (
-                      <Badge variant="secondary" className="ml-2 text-[10px]">
-                        更优
-                      </Badge>
-                    ) : null}
+                    {mode === 'AIR_DDP' ? '空运 DDP' : mode === 'LCL' ? '海运 LCL' : mode === 'FCL20' ? '海运 FCL 20尺' : '海运 FCL 40尺'}
+                    {mode === 'AIR_DDP' ? <Badge variant="outline" className="ml-2 text-[10px]">示例称含税</Badge> : <Badge variant="outline" className="ml-2 text-[10px]">税费另计</Badge>}
+                    {mode === 'FCL20' && result.comparison.exceedsFcl20 ? <Badge variant="secondary" className="ml-2 text-[10px]">{result.comparison.fcl20Containers} 柜</Badge> : null}
+                    {mode === 'FCL40' && result.comparison.exceedsFcl40 ? <Badge variant="secondary" className="ml-2 text-[10px]">{result.comparison.fcl40Containers} 柜</Badge> : null}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs">
                     {total.toFixed(2)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs">
-                    {(total / result.input.units).toFixed(3)}
+                    {perUnit.toFixed(3)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -626,7 +821,7 @@ function CostCalculatorResultsPanel({
 
       {result.grossMarginOnLandedPct != null ? (
         <p className="text-[11px] text-muted-foreground">
-          毛利率（相对 landed、未扣平台费）{result.grossMarginOnLandedPct}% · 净利率（经营主口径）
+          毛利率（相对到仓成本、未扣平台费）{result.grossMarginOnLandedPct}% · 经营净利率（估算）
           {result.netMarginPct}% · CBM {result.cbmTotal.toFixed(3)} · {result.cartons} 箱
         </p>
       ) : null}

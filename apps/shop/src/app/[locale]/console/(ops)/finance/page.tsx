@@ -6,11 +6,13 @@ import {
   ConsoleListSection,
   ConsoleTableEmpty,
   matchesKeyword,
+  useConsolePagination,
 } from '@/components/console/list'
-import { MOCK_FINANCE } from '@/lib/crossborder/mock-data'
+import { DetailKpiRow } from '@/components/console/detail'
+import { financeOverview, useFinanceState, useSettlements } from '@/lib/crossborder/finance-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { Badge } from '@workspace/ui/components/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import {
   Table,
   TableBody,
@@ -20,97 +22,108 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 
-const active = MOCK_FINANCE.find((r) => !r.disabled) ?? MOCK_FINANCE[0]
-
 export default function FinancePage() {
+  const state = useFinanceState()
+  const settlements = useSettlements()
+  const overview = React.useMemo(() => financeOverview(state), [state])
   const [keyword, setKeyword] = React.useState('')
-  const [access, setAccess] = React.useState('all')
+  const [status, setStatus] = React.useState('all')
 
-  const rows = MOCK_FINANCE.filter((row) => {
-    if (!matchesKeyword(keyword, row.platform, row.platformKey)) return false
-    if (access === 'mvp' && row.disabled) return false
-    if (access === 'disabled' && !row.disabled) return false
+  const rows = settlements.filter((row) => {
+    if (!matchesKeyword(keyword, row.platform, row.shop, row.id, row.period)) return false
+    if (status !== 'all' && row.status !== status) return false
     return true
   })
+  const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">财务中心</h2>
-        <p className="text-sm text-muted-foreground">营收 / 成本 / 利润粗览 · 点击平台看结算明细</p>
+        <p className="text-sm text-muted-foreground">
+          营收 / 成本 / 利润粗览 · 结算批次来自财务会话 · 费用拆分占位
+        </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: '总营收', value: active.revenue.toLocaleString() },
-          { label: '总成本', value: active.cost.toLocaleString() },
-          { label: '净利润', value: active.profit.toLocaleString() },
-          { label: '利润率', value: active.margin },
-        ].map((k) => (
-          <Card key={k.label}>
-            <CardHeader className="pb-1">
-              <CardTitle className="text-sm text-muted-foreground">{k.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-semibold tabular-nums">{k.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <UedPrototypeNotice>
+        KPI 与结算列表聚合本地财务会话（无 tRPC / DB）。费用拆分：平台 / 物流 / 推广 / JSB / 退款 / 汇兑。
+      </UedPrototypeNotice>
+      <DetailKpiRow
+        items={[
+          { label: '订单营收（会话）', value: overview.revenue.toLocaleString() },
+          { label: '商品成本', value: overview.cost.toLocaleString() },
+          { label: '费用合计', value: overview.fees.toLocaleString() },
+          { label: '净利润', value: overview.profit.toLocaleString() },
+          { label: '利润率', value: overview.margin },
+        ]}
+      />
+
+      <div className="flex flex-wrap gap-2 text-sm">
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/settlements">
+          平台结算对账
+        </LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/profits">
+          订单 / SKU 利润
+        </LocaleLink>
+        <LocaleLink className="underline-offset-2 hover:underline" href="/console/costs">
+          成本表
+        </LocaleLink>
       </div>
 
       <ConsoleFilterBar
         keyword={keyword}
         onKeywordChange={setKeyword}
-        keywordPlaceholder="平台"
+        keywordPlaceholder="账单号 / 平台 / 店铺"
         filters={[
           {
-            id: 'access',
-            label: '接入状态',
-            value: access,
-            onChange: setAccess,
+            id: 'status',
+            label: '结算状态',
+            value: status,
+            onChange: setStatus,
             options: [
-              { value: 'mvp', label: '已接入' },
-              { value: 'disabled', label: '未接入' },
+              { value: '待匹配', label: '待匹配' },
+              { value: '差异待处理', label: '差异待处理' },
+              { value: '已确认', label: '已确认' },
             ],
           },
         ]}
       />
 
-      <ConsoleListSection title="平台财务" description={`共 ${rows.length} 条`}>
+      <ConsoleListSection title="结算批次" description={`共 ${rows.length} 条 · 会话内 ${overview.settlementCount} 批`} pagination={pagination}>
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>账单号</TableHead>
                 <TableHead>平台</TableHead>
-                <TableHead>营收</TableHead>
-                <TableHead>成本</TableHead>
-                <TableHead>利润</TableHead>
-                <TableHead>利润率</TableHead>
+                <TableHead>店铺</TableHead>
+                <TableHead>周期</TableHead>
+                <TableHead>金额</TableHead>
+                <TableHead>差异</TableHead>
                 <TableHead>状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.platform} className={row.disabled ? 'opacity-60' : undefined}>
+              {pagedRows.map((row) => (
+                <TableRow key={row.id}>
                   <TableCell className="font-medium">
                     <LocaleLink
-                      href={`/console/finance/${row.platformKey}`}
+                      href={`/console/settlements/${encodeURIComponent(row.id)}`}
                       className="underline-offset-2 hover:underline"
                     >
-                      {row.platform}
+                      {row.id}
                     </LocaleLink>
                   </TableCell>
-                  <TableCell className="tabular-nums">{row.revenue.toLocaleString()}</TableCell>
-                  <TableCell className="tabular-nums">{row.cost.toLocaleString()}</TableCell>
-                  <TableCell className="tabular-nums">{row.profit.toLocaleString()}</TableCell>
-                  <TableCell className="tabular-nums">{row.margin}</TableCell>
+                  <TableCell>{row.platform}</TableCell>
+                  <TableCell>{row.shop}</TableCell>
+                  <TableCell>{row.period}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {row.billAmount.toLocaleString()} {row.currency}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{row.diffAmount}</TableCell>
                   <TableCell>
-                    {row.disabled ? (
-                      <Badge variant="outline">未接入</Badge>
-                    ) : (
-                      <Badge variant="default">已接入</Badge>
-                    )}
+                    <Badge variant={row.status === '已确认' ? 'secondary' : 'outline'}>{row.status}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,6 +1,5 @@
 /**
  * 飞书集成表结构
- * @see apps/web/content/design/feishu-integration-design.md §4
  */
 
 import { boolean, index, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core"

@@ -67,7 +67,7 @@ const paidTierFeatures = [
 ]
 
 const tierPanelClassName =
-  "glass-panel relative flex flex-col gap-4 overflow-hidden p-8 md:bg-[url('/sandbox1/page/pricing/bg.png')] md:bg-cover md:bg-center md:p-20 dark:md:bg-none dark:bg-gradient-to-br dark:from-primary/10 dark:via-card/50 dark:to-background"
+  "glass-panel relative flex flex-col gap-4 overflow-hidden p-5 sm:p-8 md:bg-[url('/sandbox1/page/pricing/bg.png')] md:bg-cover md:bg-center md:p-12 lg:p-20 dark:md:bg-none dark:bg-gradient-to-br dark:from-primary/10 dark:via-card/50 dark:to-background"
 
 const freeTierCardClassName =
   "glass-card w-full border-0 ring-0 md:w-1/2 dark:border dark:border-border/30 dark:bg-card/70"
@@ -127,7 +127,7 @@ export function PricingTierPanel({
           </Card>
         </div>
 
-        <p className="text-xl text-muted-foreground">
+        <p className="text-base text-muted-foreground md:text-xl">
           账户余额高于 $0 后，将自动解锁付费层。
         </p>
       </div>
@@ -146,7 +146,7 @@ export function PricingTable({
 }) {
   return (
     <>
-      <div className="hidden md:block">
+      <div className="hidden overflow-x-auto md:block">
         <Table>
           <TableHeader>
             <TableRow className="border-border/30 hover:bg-transparent dark:border-border/40">

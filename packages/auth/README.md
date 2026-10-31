@@ -1,13 +1,13 @@
 # @workspace/auth — 认证配置
 
-集中定义 **better-auth** 实例与选项，并负责生成对应的 Drizzle schema。`apps/web` 与 `apps/api` 共享同一份认证配置，保证两个入口的会话与用户模型一致。
+集中定义 **better-auth** 实例与选项，并负责生成对应的 Drizzle schema。`apps/web` 使用这份共享配置与 `@workspace/db` 的认证表。
 
 ## 定位
 
 | 项 | 说明 |
 | --- | --- |
 | 作用 | 提供认证实例工厂、路径常量与共享选项（邮箱密码登录、组织/成员等） |
-| 消费方 | `apps/web`、`apps/api`（`apps/merchant`、`apps/supplier` 经各自的组织模型接入） |
+| 消费方 | `apps/web` |
 | 依赖 | `@workspace/db`（Drizzle adapter） |
 
 ## 主要功能
@@ -55,12 +55,12 @@ pnpm --filter @workspace/db db:migrate
 ```
 BETTER_AUTH_SECRET=...
 BETTER_AUTH_URL=...
-BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:40041,http://localhost:8080
+BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000,http://localhost:8080
 ```
 
 ## 部署
 
-本包**不独立部署**，随宿主应用（`apps/web`、`apps/api`）构建发布。发布时确保各应用注入同一组 `BETTER_AUTH_*`，否则跨应用会话不互通。
+本包**不独立部署**，随宿主应用（`apps/web`）构建发布。发布时确保注入 `BETTER_AUTH_*` 环境变量。
 
 ## 脚本
 

@@ -1,103 +1,44 @@
+'use client'
+
+import * as React from 'react'
 import { notFound } from 'next/navigation'
-import {
-  DetailFieldGrid,
-  DetailKpiRow,
-  DetailPageHeader,
-  DetailSection,
-} from '@/components/console/detail'
+import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
 import { getFinanceByPlatform } from '@/lib/crossborder/mock-data'
-import { Badge } from '@workspace/ui/components/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@workspace/ui/components/table'
-import { labelField } from '@/lib/console/labels'
 
-interface FinanceDetailPageProps {
-  params: Promise<{ platform: string }>
-}
-
-export default async function FinanceDetailPage({ params }: FinanceDetailPageProps) {
-  const { platform } = await params
+export default function FinanceDetailPage({ params }: { params: Promise<{ platform: string }> }) {
+  const platform = decodeRouteParam(React.use(params).platform)
   const row = getFinanceByPlatform(platform)
   if (!row) notFound()
 
+  const flat = {
+    platform: row.platform,
+    platformKey: row.platformKey,
+    revenue: row.revenue,
+    cost: row.cost,
+    profit: row.profit,
+    margin: row.margin,
+    fees: row.fees,
+    disabled: row.disabled ? '是' : '否',
+    settlement: row.settlement,
+    shop: row.settlement?.shopName,
+    settlementId: row.settlement?.id,
+    period:
+      row.settlement != null
+        ? `${row.settlement.periodStart} → ${row.settlement.periodEnd}`
+        : '—',
+    currency: row.settlement?.currency ?? '—',
+  }
+
   return (
-    <div className="space-y-4">
-      <DetailPageHeader
-        backHref="/console/finance"
-        title={`${row.platform} · 财务`}
-        description="营收 / 成本 / 结算粗览（示例）"
-        badges={
-          row.disabled ? (
-            <Badge variant="outline">未接入</Badge>
-          ) : (
-            <Badge variant="default">已接入</Badge>
-          )
-        }
-      />
-
-      <DetailKpiRow
-        items={[
-          { label: '营收', value: row.revenue.toLocaleString() },
-          { label: '成本', value: row.cost.toLocaleString() },
-          { label: '净利润', value: row.profit.toLocaleString() },
-          { label: '利润率', value: row.margin },
-        ]}
-      />
-
-      {row.settlement ? (
-        <>
-          <DetailFieldGrid
-            title="结算单"
-            fields={[
-              { label: labelField('id'), value: row.settlement.id, mono: true },
-              {
-                label: labelField('externalSettlementId'),
-                value: row.settlement.externalSettlementId,
-                mono: true,
-              },
-              { label: labelField('shop'), value: row.settlement.shopName },
-              {
-                label: labelField('period'),
-                value: `${row.settlement.periodStart} → ${row.settlement.periodEnd}`,
-              },
-              { label: labelField('currency'), value: row.settlement.currency },
-              { label: '平台费用（粗）', value: row.fees.toLocaleString() },
-            ]}
-          />
-          <DetailSection title="结算明细" description="订单净额与费用拆分（示例）">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>关联</TableHead>
-                  <TableHead>金额</TableHead>
-                  <TableHead>备注</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {row.settlement.lines.map((line) => (
-                  <TableRow key={`${line.orderExternalId}-${line.note}`}>
-                    <TableCell className="font-mono text-xs">{line.orderExternalId}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {line.amount.toFixed(2)} {row.settlement!.currency}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{line.note}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DetailSection>
-        </>
-      ) : (
-        <DetailSection title="结算" description="依赖平台结算同步">
-          <p className="text-sm text-muted-foreground">该平台尚未接入，暂无结算数据。</p>
-        </DetailSection>
-      )}
-    </div>
+    <UedRecordDetail
+      backHref="/console/finance"
+      moduleTitle="财务总览"
+      module="finance"
+      idKey="platformKey"
+      titleKeys={['platform']}
+      row={flat as unknown as Record<string, unknown>}
+      notice="旧版财务总览详情已接入 UED 关联：店铺父链可点，结算明细行可进入订单。左侧菜单仍以结算/利润等子模块为准，本路由不新增到侧栏。"
+      description={`${row.platform} · 营收 / 成本 / 结算粗览（示例）`}
+    />
   )
 }

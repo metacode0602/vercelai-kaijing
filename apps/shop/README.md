@@ -1,78 +1,65 @@
-# apps/gpus — 最终用户控制台
+# apps/shop — 租户端
 
-面向**最终用户**（个人与企业客户）的 GPU 云控制台：选购与管理算力资源、查看用量与账单、充值与实名核验。
+面向**跨境卖家（租户）**的运营工作台：店铺连接、选品候选、待审队列、商品/刊登、订单、库存、到仓成本与财务粗览。
 
 ## 定位
 
 | 项 | 说明 |
 | --- | --- |
-| 使用者 | 最终用户（购买算力的一方），区别于商户（`apps/merchant`）、供应商（`apps/supplier`）、平台运营（`apps/web`） |
-| 作用 | 云资源的购买入口与运维入口，是整条计费链路的消费端 |
-| 技术栈 | Next.js 16 App Router + Turbopack、React 19、tRPC、`@workspace/ui` |
+| 使用者 | 卖家 / 租户运营 |
+| 作用 | 本组织跨境业务的数据查看与运营操作入口 |
+| 技术栈 | Next.js 16 App Router、next-intl、`@workspace/ui`、better-auth |
+| 当前阶段 | 控制台以 mock 数据展示；尚未接入业务 tRPC |
 
-## 主要功能
+## 主要路由
 
-| 目录 | 功能 |
+| 路径 | 功能 |
 | --- | --- |
-| `src/app/[locale]/(marketing)` | 对外营销页 |
-| `src/app/[locale]/(auth)` | 登录 / 注册 / 找回密码 |
+| `src/app/[locale]/(marketing)` | 对外营销页（暂保持现状） |
+| `src/app/[locale]/(auth)` | 登录 / 注册 / 找回密码 / 验证码登录 |
 | `src/app/[locale]/console` | 控制台主体 |
-| ├ `instances` / `apps` / `server` / `serverless` / `sandbox` / `metal` | 实例与各类算力产品（云主机、应用部署、裸金属、Serverless、沙箱）的列表、详情与操作 |
-| ├ `preloaded` / `templates` / `storage` | 预装镜像、模板、存储 |
-| ├ `billing` / `usage` / `recharge` | 账单、用量与充值 |
-| ├ `tasks` | 任务与异步操作进度 |
-| ├ `docs` | 站内文档入口 |
-| ├ `settings` / `verify` | 账号设置与实名核验 |
+| ├ `dashboard` | 运营仪表盘 |
+| ├ `candidates` | AI 选品候选 |
+| ├ `pending` | 待审队列 |
+| ├ `products` / `products/[sku]` | 商品与刊登 |
+| ├ `orders` / `orders/[id]` | 多店订单 |
+| ├ `inventory` / `inventory/[sku]` | 库存预警 |
+| ├ `costs` / `costs/[sku]` | 到仓成本与计算器入口 |
+| ├ `finance` / `finance/[platform]` | 财务粗览 |
+| ├ `settings/*` | 店铺连接、成员、通知、偏好 |
+| └ `profile/*` | 个人资料 |
+| `src/app/[locale]/(crossborder)` | `/crossborder/*` → `/console/*` 的过渡重定向 |
 
-数据链路遵循仓库统一分层：**UI → tRPC → mappers → dataaccess → Drizzle → `@workspace/db` → PostgreSQL**。
-列表一律使用数据库级分页（`count` + `limit/offset`）。
+数据链路目标：**UI → tRPC → mappers → dataaccess → Drizzle → `@workspace/db` → PostgreSQL**。
+列表使用数据库级分页（`count` + `limit/offset`）。
 
 ## 运行
 
 ```bash
-# 1) 前置：根目录 .env + Postgres + 迁移
 pnpm install
-cp .env.example .env          # 填充 DATABASE_URL / BETTER_AUTH_SECRET 等
+cp .env.example .env          # DATABASE_URL / BETTER_AUTH_SECRET 等
 docker compose up -d          # 本地 Postgres
 pnpm --filter @workspace/db db:migrate
-
-# 2) 启动
-pnpm --filter gpus dev        # 或 pnpm run dev:gpus
+pnpm --filter shop dev
 ```
 
-访问 `http://localhost:40031`。
-
-## 部署
-
-应用自带 Dockerfile（multi-stage + standalone），在**仓库根目录**构建：
-
-```bash
-# 方式一：应用脚本
-pnpm --filter gpus docker:build          # 镜像名 openroute-gpus:latest
-
-# 方式二：根脚本
-pnpm docker:build:gpus                   # 镜像名 gongji-crm-gpus:latest
-```
-
-```bash
-docker run --rm -p 3000:3000 <镜像名>    # 端口按部署环境调整
-```
-
-运行时必须注入与构建时一致的环境变量（`DATABASE_URL`、`BETTER_AUTH_SECRET`、`BETTER_AUTH_URL`、`BETTER_AUTH_TRUSTED_ORIGINS` 等）。
+端口以 `apps/shop/.env` 的 `PORT` 为准。
 
 ## 脚本
 
 | 脚本 | 说明 |
 | --- | --- |
-| `pnpm dev` | Turbopack 开发服务器（40031） |
+| `pnpm dev` | 开发服务器（Turbopack） |
 | `pnpm build` | 生产构建 |
 | `pnpm start` | 运行生产构建 |
 | `pnpm lint` | ESLint |
-| `pnpm docker:build` | 构建 Docker 镜像 |
+| `pnpm typecheck` | TypeScript |
 
 ## 相关文档
 
-- 模块协作关系：[根 README](../../README.md#模块协作关系)
+- 租户端 UED：[content/design/crossborder-shop-ued-product-design.md](content/design/crossborder-shop-ued-product-design.md)
+- 成本计算器：[content/design/cost-calculator-sl-landed-ued.md](content/design/cost-calculator-sl-landed-ued.md)
+- 改造总览：[../../docs/design/crossborder-mvp-overview.md](../../docs/design/crossborder-mvp-overview.md)
 - 仓库约定：[AGENTS.md](../../AGENTS.md)
 
 ## Marketplace sync (skeleton)

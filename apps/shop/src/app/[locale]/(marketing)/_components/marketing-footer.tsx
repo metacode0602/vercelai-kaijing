@@ -95,7 +95,7 @@ export function MarketingFooter() {
   return (
     <footer className="flex w-full flex-col items-center bg-foreground/95 text-background backdrop-blur-md [box-shadow:0_100vh_0_100vh_var(--foreground)] dark:border-t dark:border-border/30 dark:bg-card/95 dark:text-foreground dark:[box-shadow:0_100vh_0_100vh_var(--color-card)]">
       <div className="flex w-full max-w-[1360px] flex-col">
-        <div className="flex min-w-0 flex-col gap-20 overflow-x-hidden px-8 py-8 lg:flex-row lg:items-start lg:justify-between lg:gap-0 lg:overflow-visible">
+        <div className="flex min-w-0 flex-col gap-10 overflow-x-hidden px-5 py-8 sm:px-8 sm:gap-14 lg:flex-row lg:items-start lg:justify-between lg:gap-0 lg:overflow-visible">
           <div className="flex w-full min-w-0 shrink-0 flex-col gap-8 overflow-x-hidden lg:max-w-none lg:flex-1 lg:overflow-visible">
             <div className="flex flex-col gap-4 items-start">
               <LocaleLink
@@ -115,7 +115,7 @@ export function MarketingFooter() {
             </div>
           </div>
 
-          <div className="flex w-full min-w-0 flex-row items-stretch overflow-x-hidden lg:grid lg:w-[888px] lg:grid-cols-4 lg:flex-none lg:gap-y-10 lg:overflow-visible">
+          <div className="grid w-full min-w-0 grid-cols-2 gap-x-4 gap-y-8 overflow-x-hidden sm:grid-cols-4 lg:w-[888px] lg:flex-none lg:gap-y-10 lg:overflow-visible max-sm:[&>*:nth-child(odd)]:border-l-0 sm:[&>*:first-child]:border-l-0 sm:[&>*:first-child]:pl-0">
             <FooterColumn title="产品" links={productLinks} />
             <FooterColumn title="资源" links={resourceLinks} />
             <FooterColumn title="合作伙伴" links={partnerLinks} />
