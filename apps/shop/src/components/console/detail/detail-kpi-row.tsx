@@ -27,17 +27,17 @@ export function DetailKpiRow({
 
   const singleRowColumns =
     items.length === 4
-      ? 'grid-cols-4'
+      ? 'grid-cols-2 lg:grid-cols-4'
       : items.length === 5
-        ? 'grid-cols-5'
+        ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5'
         : items.length === 6
-          ? 'grid-cols-6'
+          ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-6'
           : undefined
 
   return (
     <div
       className={cn(
-        'grid gap-3',
+        'grid gap-2 sm:gap-3',
         singleRowColumns ?? 'grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]',
       )}
     >
@@ -47,7 +47,7 @@ export function DetailKpiRow({
             <CardTitle className="break-words text-xs text-muted-foreground">{item.label}</CardTitle>
           </CardHeader>
           <CardContent className="min-w-0">
-            <p className="break-words text-lg font-semibold tabular-nums leading-tight">
+            <p className="break-words text-base font-semibold tabular-nums leading-tight sm:text-lg">
               {item.value}
             </p>
             {item.hint ? (

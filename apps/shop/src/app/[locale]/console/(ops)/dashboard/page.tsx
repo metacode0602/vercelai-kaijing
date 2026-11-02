@@ -134,9 +134,11 @@ function OpsTodoKpiRow() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h3 className="text-sm font-medium">运营待办</h3>
-        <p className="text-xs text-muted-foreground">聚合订单 / 库存 / 采购 / 售后 / 映射 / 同步原型会话</p>
+        <p className="text-xs text-muted-foreground">
+          聚合订单 / 库存 / 采购 / 售后 / 映射 / 同步原型会话
+        </p>
       </div>
       <DetailKpiRow items={items} />
       <div className="flex flex-wrap gap-2 text-xs">
