@@ -115,19 +115,20 @@ export default function AftersaleReturnsPage() {
       columns={[
         { key: 'id', label: '售后单号' },
         { key: 'order', label: '原订单' },
-        { key: 'shop', label: '店铺' },
+        { key: 'shop', label: '店铺', className: 'hidden md:table-cell' },
         { key: 'sku', label: '内部 SKU' },
-        { key: 'tracking', label: '寄回运单' },
-        { key: 'receivedAt', label: '收货时间' },
+        { key: 'tracking', label: '寄回运单', className: 'hidden md:table-cell' },
+        { key: 'receivedAt', label: '收货时间', className: 'hidden md:table-cell' },
         {
           key: 'qty',
           label: '实收',
           render: (row) => String(row.qty),
         },
-        { key: 'qc', label: '质检' },
+        { key: 'qc', label: '质检', className: 'hidden lg:table-cell' },
         {
           key: 'restock',
           label: '回库 / 报损',
+          className: 'hidden lg:table-cell',
           render: (row) => `${row.restock} / ${row.scrap}`,
         },
         {
