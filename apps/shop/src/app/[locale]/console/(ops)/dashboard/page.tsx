@@ -86,12 +86,12 @@ function InventoryStat({
 }) {
   return (
     <div className="rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums">
+      <p className="break-words text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-lg font-semibold tabular-nums sm:text-xl">
         {value}
         {unit ? <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span> : null}
       </p>
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="mt-1 break-words text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }
@@ -336,7 +336,7 @@ export default function DashboardPage() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
         {kpis.map((kpi) => (
           <DashboardKpiCard
             key={kpi.key}
@@ -411,7 +411,7 @@ export default function DashboardPage() {
           <CardDescription>库存结构、周转与缺货 · 示例数据</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
             <InventoryStat
               label="库存总量"
               value={formatNumber(MOCK_DASHBOARD_INVENTORY.totalStock)}

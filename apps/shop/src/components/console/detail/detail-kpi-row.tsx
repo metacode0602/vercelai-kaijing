@@ -35,15 +35,24 @@ export function DetailKpiRow({
           : undefined
 
   return (
-    <div className={cn('grid gap-3', singleRowColumns ?? 'sm:grid-cols-2 xl:grid-cols-4')}>
+    <div
+      className={cn(
+        'grid gap-3',
+        singleRowColumns ?? 'grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]',
+      )}
+    >
       {items.map((item) => (
         <Card key={item.label} size="sm" className="min-w-0">
           <CardHeader className="pb-0">
-            <CardTitle className="text-xs text-muted-foreground">{item.label}</CardTitle>
+            <CardTitle className="break-words text-xs text-muted-foreground">{item.label}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold tabular-nums leading-tight">{item.value}</p>
-            {item.hint ? <p className="mt-0.5 text-xs text-muted-foreground">{item.hint}</p> : null}
+          <CardContent className="min-w-0">
+            <p className="break-words text-lg font-semibold tabular-nums leading-tight">
+              {item.value}
+            </p>
+            {item.hint ? (
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">{item.hint}</p>
+            ) : null}
           </CardContent>
         </Card>
       ))}
