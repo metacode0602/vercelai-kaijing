@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@workspace/ui/components/dropdown-menu'
+import { cn } from '@workspace/ui/lib/utils'
 import { websiteConfig } from '@/lib/config/website'
 import { useLocalePathname, useLocaleRouter } from '@/lib/i18n/navigation'
 import { Languages } from 'lucide-react'
@@ -14,7 +15,7 @@ import { type Locale, useLocale, useTranslations } from 'next-intl'
 import { useParams } from 'next/navigation'
 import { useTransition } from 'react'
 
-export function LocaleSwitcher() {
+export function LocaleSwitcher({ className }: { className?: string }) {
   const showLocaleSwitch = Object.keys(websiteConfig.i18n.locales).length > 1
   const router = useLocaleRouter()
   const pathname = useLocalePathname()
@@ -40,7 +41,7 @@ export function LocaleSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-9">
+        <Button variant="ghost" size="icon" className={cn('size-9', className)}>
           <Languages className="size-4" />
           <span className="sr-only">{t('language')}</span>
         </Button>

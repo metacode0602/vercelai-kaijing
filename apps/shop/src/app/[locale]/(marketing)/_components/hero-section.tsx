@@ -44,7 +44,7 @@ export function HeroSection() {
               为 AI 生成的代码、浏览器工作流、计算机使用和长时间运行任务提供安全、可编程的沙盒。
             </p>
 
-            <div className="mt-8 flex items-center gap-3 md:mt-6">
+            <div className="mt-8 flex flex-wrap items-center gap-3 md:mt-6">
               <Button asChild size="lg" className="w-fit rounded-full px-6">
                 <LocaleLink href="/console/sandbox">
                   免费开始，获赠 100 元额度*

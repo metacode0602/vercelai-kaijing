@@ -11,13 +11,14 @@ import { navigationMenuTriggerStyle } from "@workspace/ui/components/navigation-
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@workspace/ui/components/sheet"
 import { cn } from "@workspace/ui/lib/utils"
 import { LocaleSwitcher } from "@/components/locale-switcher"
-import { LocaleLink } from "@/lib/i18n/navigation"
+import { LocaleLink, useLocalePathname } from "@/lib/i18n/navigation"
 import { ChevronDown, Globe, Menu, Monitor } from "lucide-react"
 import type { ReactNode } from "react"
 import GPURunFullIcon from "@workspace/ui/components/icons/gpurun-full"
@@ -41,6 +42,19 @@ const navLinks = [
 
 function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://")
+}
+
+function isActivePath(pathname: string, href: string) {
+  if (isExternalHref(href)) return false
+  if (href === "/") return pathname === "/"
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+function mobileNavLinkClassName(active: boolean) {
+  return cn(
+    "h-11 w-full justify-start rounded-lg px-3 text-[15px] active:bg-accent",
+    active && "bg-accent font-medium text-accent-foreground",
+  )
 }
 
 function MarketingNavLink({
@@ -105,8 +119,13 @@ function NavDropdown({
 }
 
 export function MarketingHeader() {
+  const pathname = useLocalePathname()
+
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-0 z-[999] flex justify-center px-3 pt-3 lg:px-5 lg:pt-5">
+    <header
+      data-slot="marketing-header"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[999] flex justify-center px-3 pt-3 lg:px-5 lg:pt-5"
+    >
       <nav className="marketing-nav pointer-events-auto relative w-full max-w-6xl overflow-visible rounded-full">
         <div className="relative flex h-[52px] min-h-0 flex-row items-center justify-between pl-4 pr-3 sm:pl-5 lg:gap-10 lg:pl-5 lg:pr-1.5">
           <LocaleLink
@@ -182,18 +201,29 @@ export function MarketingHeader() {
                 <Menu className="size-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="marketing-popover w-[85vw] max-w-[300px]">
-              <SheetHeader>
+            <SheetContent
+              side="right"
+              className="marketing-popover data-[side=right]:w-[86vw] max-w-[340px] data-[side=right]:sm:max-w-[340px] gap-0 overflow-hidden pt-[env(safe-area-inset-top)]"
+            >
+              <SheetHeader className="shrink-0 pb-2 pr-14">
                 <SheetTitle>菜单</SheetTitle>
+                <SheetDescription className="sr-only">
+                  站点导航菜单
+                </SheetDescription>
               </SheetHeader>
-              <nav className="mt-6 flex flex-col gap-1">
+              <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-4 pb-4">
                 {navLinks.map((link) =>
                   link.href ? (
                     <Button
                       key={link.label}
                       asChild
                       variant="ghost"
-                      className="justify-start"
+                      className={mobileNavLinkClassName(
+                        isActivePath(pathname, link.href),
+                      )}
+                      aria-current={
+                        isActivePath(pathname, link.href) ? "page" : undefined
+                      }
                     >
                       <MarketingNavLink href={link.href}>{link.label}</MarketingNavLink>
                     </Button>
@@ -203,7 +233,12 @@ export function MarketingHeader() {
                         key={item.label}
                         asChild
                         variant="ghost"
-                        className="justify-start"
+                        className={mobileNavLinkClassName(
+                          isActivePath(pathname, item.href),
+                        )}
+                        aria-current={
+                          isActivePath(pathname, item.href) ? "page" : undefined
+                        }
                       >
                         {item.href.startsWith("http") ? (
                           <a
@@ -220,20 +255,22 @@ export function MarketingHeader() {
                     ))
                   ),
                 )}
-                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-4">
-                  <Globe className="size-4 text-muted-foreground" />
-                  <LocaleSwitcher />
+                <div className="mt-3 flex items-center gap-2 border-t border-border/40 px-1 pt-4">
+                  <Globe className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <LocaleSwitcher className="size-10" />
                 </div>
-                <Button asChild variant="outline" className="mt-2">
+              </nav>
+              <div className="flex shrink-0 flex-col gap-2 border-t border-border/40 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                <Button asChild variant="outline" className="h-11 w-full">
                   <LocaleLink href="/signin">登录</LocaleLink>
                 </Button>
-                <Button asChild className="mt-2">
+                <Button asChild className="h-11 w-full gap-2">
                   <LocaleLink href="/console">
                     <Monitor className="size-4" />
                     控制台
                   </LocaleLink>
                 </Button>
-              </nav>
+              </div>
             </SheetContent>
           </Sheet>
         </div>
