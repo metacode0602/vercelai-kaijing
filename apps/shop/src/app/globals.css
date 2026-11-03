@@ -120,6 +120,15 @@
   }
 }
 
+/**
+ * Sheet 打开期间把营销页固定 navbar 降到遮罩/面板之下，
+ * 避免 z-[999] 的浮动导航压住右侧菜单 sheet（标题、关闭按钮与遮罩点击）。
+ * :has 在 sheet 内容卸载后失效，关闭动画期间层级自然恢复。
+ */
+body:has([data-slot="sheet-content"]) [data-slot="marketing-header"] {
+  z-index: 40;
+}
+
 @layer utilities {
   .marketing-container {
     @apply mx-auto max-w-[1360px] px-5 md:px-12 lg:px-12;
