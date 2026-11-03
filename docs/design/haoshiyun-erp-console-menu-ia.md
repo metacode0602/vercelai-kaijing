@@ -196,7 +196,7 @@
 | 二级页 | 主要功能（子功能） | 核心数据表 | 权限 | 阶段 | 来源 |
 |---|---|---|---|---|---|
 | 库存汇总 | 按仓库/库位/SKU 查实际、可用、锁定、在途、残次；五国共享池视图 | inventory_balances（+inventory_reservations 摘要） | 共享池只读+权限 | P0 | 新增（与预警分离） |
-| 仓库与库位 | 建仓库/库位、SKU 绑定与解绑、停用、绑定历史 | commerce_warehouses、commerce_bins、绑定历史 | 一库位一启用 SKU | P0 | 现有 |
+| 仓库与库位 | 建仓库/库位、SKU 绑定与解绑、停用、**绑定履历（只读，禁物理删除）** | commerce_warehouses、commerce_bins、commerce_bin_bindings、bin_binding_history | 一库位一启用 SKU（C1/C2） | P0 | 现有 |
 | 入库单 | 采购收货、质检结果确认、上架库位、触发流水 | purchase_receipts 视角 + inventory_ledger（in） | 必须关联来源单据 | P0 | 新增 |
 | 出库单 | 拣货、复核、打包、称重、出库交接 | stock out 单据 + inventory_ledger（out） | 出库与流水一致 | P0 | 新增 |
 | 库存流水 | 全类型查询（采购入库/锁定/释放/出库/盘点/售后/报损）、按幂等键追溯 | inventory_ledger | 历史不可删除 | P0 | 现有（剥离调整） |

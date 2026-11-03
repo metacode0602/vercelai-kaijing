@@ -171,7 +171,7 @@ erDiagram
 | status | varchar(16) | `active` / `disabled` |
 | **UNIQUE** | | `(organization_id, warehouse_id, code)` — R07 同仓唯一 |
 
-**绑定约束（R07）**：一个启用库位在同一时刻最多绑定一个启用 SKU —— 由 `inventory_balances` 上的部分唯一索引保证（见 §5.1）：仅 `on_hand + reserved > 0` 的行参与"一库位一启用 SKU"校验时，可用应用层事务 + 可选 `CHECK`；强 DB 约束采用「每个 bin 至多一条 active 占用行」的替代方案见 Q10 确认项。
+**绑定约束（R07，2026-11-03 C2 已定）**：一个库位同一时点最多绑定一个有效内部 SKU —— **双保险**：① `commerce_bin_bindings` 上 partial unique index `(organization_id, bin_id) WHERE state = 'active'` 兜底；② 服务层事务校验给出友好报错。绑定有效态与履历见 `commerce_bin_bindings` + `bin_binding_history`（追加式只读，禁止物理删除，C1）——完整表结构与不变量见 `docs/design/erp-rectification-2026-11-03.md` §2.2。
 
 ### 1.7 `inventory_pools` — 库存池（可选抽象，org）
 
@@ -1038,17 +1038,19 @@ better-auth org/member 不动；业务权限独立：
 
 `(organization_id, user_id, role_id)` UNIQUE。蔡值=仅 `viewer`；外部 IT=`it_tech`（可停用技术账号，R11）。
 
-#### `erp_role_scopes` — 数据范围（Q23）
+#### `erp_role_scopes` — 数据范围（Q23，2026-11-03 C5 修订）
 
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
 | id | text PK | |
 | organization_id / role_id / user_id | text | user 级覆盖可空 |
-| scope_type | varchar(16) | `all` / `platform` / `marketplace` / `shop` / `warehouse` |
-| scope_ref_id | text | marketplace_id / shop_id / warehouse_id |
-| actions | jsonb | 或拆行；P0 可用 `["read","write","approve","export"]` |
+| scope_type | varchar(16) | `all` / `platform` / `country` / `marketplace` / `shop` / `warehouse`（**C5 新增 `country`**） |
+| scope_ref_id | text | country_id / marketplace_id / shop_id / warehouse_id |
+| actions | jsonb | 六动作子集 `["read","create","update","approve","export","configure"]`（C5：对应查看/新增/修改/审核/导出/配置） |
 
-服务端每个 tRPC 查询/写入同时校验：org 成员 + role permission + scope 命中。
+`erp_role_permissions.permission` 统一 `module.action` 六动作码（如 `inventory.read`、`purchase.approve`、`report.export`、`settings.configure`）；`it.impersonate` 等保留为 `it.*` 特殊 action。
+
+服务端每个 tRPC 查询/写入同时校验：org 成员 + role permission（module.action）+ scope 命中（平台/国家/站点/店铺/仓库）。模型细节与测试账号演示见 `docs/design/erp-rectification-2026-11-03.md` §3。
 
 ### 9.2 `audit_events` — 业务审计（借鉴 OM audit_logs，R12）
 
@@ -1729,12 +1731,12 @@ freight_charge_item_defs.code ←── order_fees.fee_type（事实层对齐）
 | --- | --- |
 | Q07/Q08 锁库/释放状态节点 | 决定 order status → reservation 动作映射表（建议独立 `status_mappings` 配置行，不硬编码） |
 | Q09 是否允许负库存 | `inventory_balances` CHECK 与 available 计算 |
-| Q10 库位一 SKU 强约束实现 | 是否上 partial unique index |
+| Q10 库位一 SKU 强约束实现 | **已定（C2）**：`commerce_bin_bindings` partial unique index + 服务层事务双保险；履历表 `bin_binding_history`（见 erp-rectification-2026-11-03 §2） |
 | Q11 调整审批阈值 | `approval_rules.rule.amount_thresholds` |
 | Q14 成本算法 | `cost_template_versions.method` 取值与 `sku_costs` 重算作业 |
 | Q16 平台费用 API | `order_fees.source` 哪些可 `api` |
 | Q17 JSB | `packages.channel=jsb_th` 是否有 API 字段 |
-| Q23 权限粒度 | `erp_role_scopes.scope_type` 维度集合 |
+| Q23 权限粒度 | **已定（C5）**：`scope_type` = all/platform/**country**/marketplace/shop/warehouse；permission 六动作码（见 erp-rectification-2026-11-03 §3）；矩阵终稿/上线日期待确认 |
 | Q24 容量 | 分区策略：`inventory_ledger` / `audit_events` / `integration_logs` / `product_reviews` / `freight_estimates` 按月分区（设计预留，首期不分区） |
 | 评论域 §10.9 | content_zh 归属、负面率公式、回复审核流、媒体转存、同步频率 |
 | 运费域 §11.11 | 运价来源与采价方式、货代主档范围、默认计抛比、**税叠 uplift 口径基线**、LCL 计费量兜底、DDP 合规标注、柜容分摊、汇率时点、superseded 策略、import 行表命名 |

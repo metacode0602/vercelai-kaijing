@@ -3,16 +3,17 @@
 | 项 | 内容 |
 |----|------|
 | 文档范围 | `apps/shop` 控制台 · 费用模板列表/详情 · 成本测算解析 |
-| 版本 | **v1.0** |
-| 日期 | 2026-10-31（Asia/Shanghai） |
+| 版本 | **v1.1** |
+| 日期 | 2026-11-03（Asia/Shanghai） |
 | 实现 | localStorage UED（无 tRPC）；路由 `/console/fee-templates` |
-| 关联 | [`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)、[`daraz-lk-erp-p0-ued.md`](./daraz-lk-erp-p0-ued.md) |
+| 关联 | [`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)、[`daraz-lk-erp-p0-ued.md`](./daraz-lk-erp-p0-ued.md)、[`../../../docs/design/erp-rectification-2026-11-03.md`](../../../../docs/design/erp-rectification-2026-11-03.md) §4（整改 C8/C9 规则） |
 
 ### 修订记录
 
 | 版本 | 日期 | 变更摘要 |
 |------|------|----------|
 | v1.0 | 2026-10-31 | 初版：模板头+版本、两级履约、优先级解析、种子与工作台接线 |
+| v1.1 | 2026-11-03 | 整改 Q30 补充：版本审核状态机与审核字段（C8）、历史订单取值快照锁定规则（C9） |
 
 ---
 
@@ -40,7 +41,33 @@
 
 ### 2.2 版本 `FeeTemplateVersion`
 
-`versionNo` / `effectiveFrom` / `effectiveTo` / `priority` / `formulaProfile` / `components[]` / `published` / `reviewNeeded`
+`versionNo` / `effectiveFrom` / `effectiveTo` / `priority` / `formulaProfile` / `components[]` / `status`（v1.1，替代纯 `published`）/ `submittedBy/At` / `reviewedBy/At` / `reviewNote`
+
+### 2.2.1 版本审核状态机（v1.1 · 整改 Q30 / C8 已定）
+
+```text
+draft → in_review → published → disabled
+  ↑         │
+  └──驳回────┘（回 draft，保留驳回意见）
+```
+
+| 状态 | 含义 | 允许操作（RBAC `fee_template.*`） |
+| --- | --- | --- |
+| `draft` | 草稿，可编辑 | `create` / `update` |
+| `in_review` | 已提交审核，**冻结编辑** | `approve`（通过/驳回；驳回必填 `reviewNote`） |
+| `published` | 已发布，参与解析 | 只读；可转 `disabled` |
+| `disabled` | 停用，不再参与解析 | 只读（历史引用不受影响） |
+
+首期不接 `approval_instances` 通用审批（轻量状态机）；审核权 = `fee_template.approve`；首期允许自审（与采购 PUR 禁自审区分，业务可后续收紧）。
+
+### 2.2.2 历史订单取值规则（v1.1 · C9 已定：快照锁定）
+
+| 场景 | 规则 |
+| --- | --- |
+| 新测算 / 新柜次成本保存 | 按 asOf 解析命中版本，写入 `feeTemplateVersionId` + components **快照** |
+| 模板改版 / 停用 / 新增高优先级版本 | **已保存的订单费用、柜次成本、利润快照一律不变、永不重算**；可回查当时模板编码与版本号 |
+| 按新税率重估 | 只允许**新建**成本版本行（新 version_no），不覆盖旧行 |
+| 历史订单 `order_fees` | 事实层已落行不重刷；来源 `api/import/manual` 不变 |
 
 ### 2.3 解析规则
 
