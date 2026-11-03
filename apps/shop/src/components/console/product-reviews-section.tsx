@@ -98,30 +98,30 @@ export function ProductReviewsSection({ sku }: { sku: string }) {
         </div>
       }
     >
-      <div className="mb-4 grid grid-cols-6 gap-2">
-        <div className="rounded-lg border p-3">
+      <div className="mb-3 grid grid-cols-6 gap-2">
+        <div className="rounded-lg border px-2 py-1.5">
           <div className="text-xs text-muted-foreground">实抓</div>
-          <div className="text-lg font-semibold">{data.kpis.total}</div>
+          <div className="text-base font-semibold leading-tight">{data.kpis.total}</div>
         </div>
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border px-2 py-1.5">
           <div className="text-xs text-muted-foreground">样本平均分</div>
-          <div className="text-lg font-semibold">{data.kpis.avg.toFixed(2)}</div>
+          <div className="text-base font-semibold leading-tight">{data.kpis.avg.toFixed(2)}</div>
         </div>
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border px-2 py-1.5">
           <div className="text-xs text-muted-foreground">正向</div>
-          <div className="text-lg font-semibold text-green-600">{data.kpis.pos}</div>
+          <div className="text-base font-semibold leading-tight text-green-600">{data.kpis.pos}</div>
         </div>
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border px-2 py-1.5">
           <div className="text-xs text-muted-foreground">中性</div>
-          <div className="text-lg font-semibold text-amber-600">{data.kpis.neu}</div>
+          <div className="text-base font-semibold leading-tight text-amber-600">{data.kpis.neu}</div>
         </div>
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border px-2 py-1.5">
           <div className="text-xs text-muted-foreground">负向</div>
-          <div className="text-lg font-semibold text-red-600">{data.kpis.neg}</div>
+          <div className="text-base font-semibold leading-tight text-red-600">{data.kpis.neg}</div>
         </div>
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border px-2 py-1.5">
           <div className="text-xs text-muted-foreground">带图</div>
-          <div className="text-lg font-semibold">{data.kpis.withImage}</div>
+          <div className="text-base font-semibold leading-tight">{data.kpis.withImage}</div>
         </div>
       </div>
 

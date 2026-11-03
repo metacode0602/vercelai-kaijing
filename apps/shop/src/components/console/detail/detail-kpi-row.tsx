@@ -27,23 +27,32 @@ export function DetailKpiRow({
 
   const singleRowColumns =
     items.length === 4
-      ? 'grid-cols-4'
+      ? 'grid-cols-2 lg:grid-cols-4'
       : items.length === 5
-        ? 'grid-cols-5'
+        ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5'
         : items.length === 6
-          ? 'grid-cols-6'
+          ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-6'
           : undefined
 
   return (
-    <div className={cn('grid gap-3', singleRowColumns ?? 'sm:grid-cols-2 xl:grid-cols-4')}>
+    <div
+      className={cn(
+        'grid gap-2 sm:gap-3',
+        singleRowColumns ?? 'grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]',
+      )}
+    >
       {items.map((item) => (
-        <Card key={item.label} className="min-w-0">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm text-muted-foreground">{item.label}</CardTitle>
+        <Card key={item.label} size="sm" className="min-w-0">
+          <CardHeader className="pb-0">
+            <CardTitle className="break-words text-xs text-muted-foreground">{item.label}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-xl font-semibold tabular-nums">{item.value}</p>
-            {item.hint ? <p className="mt-1 text-xs text-muted-foreground">{item.hint}</p> : null}
+          <CardContent className="min-w-0">
+            <p className="break-words text-base font-semibold tabular-nums leading-tight sm:text-lg">
+              {item.value}
+            </p>
+            {item.hint ? (
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">{item.hint}</p>
+            ) : null}
           </CardContent>
         </Card>
       ))}

@@ -878,13 +878,13 @@ function Kpi({
   hint?: string
 }) {
   return (
-    <Card>
-      <CardHeader className="pb-1 pt-3">
+    <Card size="sm">
+      <CardHeader className="pb-0">
         <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
       </CardHeader>
-      <CardContent className="pb-3">
-        <p className="text-lg font-semibold tabular-nums leading-none">{value}</p>
-        {hint ? <p className="mt-1 text-[10px] text-destructive">{hint}</p> : null}
+      <CardContent>
+        <p className="text-base font-semibold tabular-nums leading-tight">{value}</p>
+        {hint ? <p className="mt-0.5 text-[10px] text-destructive">{hint}</p> : null}
       </CardContent>
     </Card>
   )

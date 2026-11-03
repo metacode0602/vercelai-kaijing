@@ -22,17 +22,19 @@ export function DashboardKpiCard({
   href,
 }: DashboardKpiCardProps) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+    <Card size="sm" className="min-w-0">
+      <CardHeader className="pb-0">
+        <CardTitle className="break-words text-xs font-medium text-muted-foreground">
+          {label}
+        </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-w-0">
         <LocaleLink
           href={href}
           className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <p className="text-2xl font-semibold tabular-nums">{value}</p>
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          <p className="break-words text-xl font-semibold tabular-nums leading-tight">{value}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
             <span
               className={cn(
                 tone === 'positive' && 'text-emerald-600 dark:text-emerald-400',
@@ -41,7 +43,7 @@ export function DashboardKpiCard({
             >
               {delta}
             </span>
-            <span>{hint}</span>
+            <span className="break-words">{hint}</span>
           </p>
           <span className="sr-only">查看对应明细</span>
         </LocaleLink>

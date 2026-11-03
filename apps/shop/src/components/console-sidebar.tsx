@@ -188,11 +188,9 @@ export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        <div className="mt-auto">
-          <NavList items={CONSOLE_FOOTER_NAV} />
-        </div>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border">
+        <NavList items={CONSOLE_FOOTER_NAV} />
         <div className="px-3 pb-2">
           <Badge variant="secondary" className="text-[10px]">
             {t('mockBadge')}

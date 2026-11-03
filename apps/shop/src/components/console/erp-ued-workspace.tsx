@@ -16,7 +16,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { ConsoleListSection, ConsoleTableEmpty } from '@/components/console/list'
 
-export type UedColumn<T> = { key: keyof T | string; label: string; render?: (row: T) => React.ReactNode }
+export type UedColumn<T> = {
+  key: keyof T | string
+  label: string
+  render?: (row: T) => React.ReactNode
+  /** 列级响应式类名，例如 `hidden md:table-cell` 在小屏隐藏次要素列。 */
+  className?: string
+}
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -106,7 +112,9 @@ export function UedWorkspace<T>(props: {
         <TableHeader>
           <TableRow>
             {props.columns.map((column) => (
-              <TableHead key={String(column.key)}>{column.label}</TableHead>
+              <TableHead key={String(column.key)} className={column.className}>
+                {column.label}
+              </TableHead>
             ))}
             {props.detailHref ? <TableHead className="w-24 text-right">详情</TableHead> : null}
           </TableRow>
@@ -117,7 +125,7 @@ export function UedWorkspace<T>(props: {
             return (
               <TableRow key={String(record.id ?? record.code ?? record.spu ?? record.sku ?? index)}>
                 {props.columns.map((column) => (
-                  <TableCell key={String(column.key)}>
+                  <TableCell key={String(column.key)} className={column.className}>
                     {column.render ? column.render(row) : String(record[String(column.key)] ?? '—')}
                   </TableCell>
                 ))}
@@ -160,7 +168,7 @@ export function UedWorkspace<T>(props: {
           <h1 className="text-xl font-semibold tracking-tight">{props.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{props.description}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={props.onExport ?? exportDemoRows}>
             <Download data-icon="inline-start" />
             导出演示清单
@@ -277,9 +285,9 @@ export function UedDialog(props: {
             })}
             {props.children ? <div className="flex flex-col gap-4 sm:col-span-2">{props.children}</div> : null}
           </div>
-          <footer className="flex items-center justify-between gap-2 border-t p-4">
+          <footer className="flex flex-col-reverse gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">带 <span className="text-destructive">*</span> 为必填字段；示例保存不写入数据库。</p>
-            <div className="flex gap-2"><Button type="button" variant="outline" onClick={props.onClose}>取消</Button><Button type="submit" disabled={missing}><Check data-icon="inline-start" />{props.saveLabel ?? '保存示例'}</Button></div>
+            <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={props.onClose}>取消</Button><Button type="submit" disabled={missing}><Check data-icon="inline-start" />{props.saveLabel ?? '保存示例'}</Button></div>
           </footer>
         </form>
       </section>
