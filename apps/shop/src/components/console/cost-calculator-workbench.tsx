@@ -36,9 +36,12 @@ import {
   TARIFF_PROFILES,
   type CostCalculatorInput,
   type CostCalculatorResult,
+  type FeeResolutionOverrides,
   type FreightMode,
   type TariffProfileId,
 } from '@/lib/crossborder/cost-calculator'
+import { adaptResolvedFromDto } from '@/lib/crossborder/fee-template-store'
+import { trpc } from '@/lib/trpc/client'
 import {
   clearCostCalcDraft,
   consumePendingCostCalcActions,
@@ -174,6 +177,50 @@ export function CostCalculatorWorkbench({
     [allVersions, input.sku],
   )
 
+  const logisticsForResolve = React.useMemo(() => {
+    if (input.fulfillmentLogistics) return input.fulfillmentLogistics
+    if (input.freightMode === 'AIR_DDP') return 'AIR_DDP'
+    if (input.freightMode === 'LCL') return 'LCL'
+    if (input.freightMode === 'FCL20' || input.freightMode === 'FCL40') return 'FCL'
+    return 'FCL'
+  }, [input.fulfillmentLogistics, input.freightMode])
+
+  const resolveBase = {
+    platform: input.platform || 'daraz',
+    country: input.country || 'LK',
+    fulfillmentPool: input.fulfillmentPool,
+    fulfillmentLogistics: logisticsForResolve,
+    asOf: input.asOf,
+    formulaProfile: input.tariffProfileId,
+  } as const
+
+  const importResolveQ = trpc.feeTemplates.resolve.useQuery({
+    ...resolveBase,
+    type: 'import_tax' as const,
+    templateCodeOrId: input.importTaxTemplateId,
+  })
+  const platformResolveQ = trpc.feeTemplates.resolve.useQuery({
+    ...resolveBase,
+    type: 'platform_fee' as const,
+    templateCodeOrId: input.platformFeeTemplateId,
+  })
+
+  const feeOverrides = React.useMemo((): FeeResolutionOverrides | undefined => {
+    const importTax = importResolveQ.data
+      ? adaptResolvedFromDto(importResolveQ.data)
+      : null
+    const platformFee = platformResolveQ.data
+      ? adaptResolvedFromDto(platformResolveQ.data)
+      : null
+    if (!importTax && !platformFee) return undefined
+    return { importTax, platformFee }
+  }, [importResolveQ.data, platformResolveQ.data])
+
+  const feeOverridesRef = React.useRef(feeOverrides)
+  React.useEffect(() => {
+    feeOverridesRef.current = feeOverrides
+  }, [feeOverrides])
+
   const applySku = React.useCallback((sku: string, extras?: Partial<CostCalculatorInput>) => {
     const preset = getCostCalcPreset(sku)
     setInput(presetToInput(preset, extras))
@@ -186,7 +233,7 @@ export function CostCalculatorWorkbench({
         onDialogCompute(src)
         return
       }
-      setResult(computeLandedCost(src))
+      setResult(computeLandedCost(src, feeOverridesRef.current))
     },
     [input, isDialog, onDialogCompute],
   )
@@ -199,7 +246,7 @@ export function CostCalculatorWorkbench({
     lastSkuRef.current = initialSku
     const next = presetToInput(getCostCalcPreset(initialSku))
     setInput(next)
-    if (!isDialog) setResult(computeLandedCost(next))
+    if (!isDialog) setResult(computeLandedCost(next, feeOverridesRef.current))
   }, [open, initialSku, isDialog])
 
   React.useEffect(() => {
@@ -214,7 +261,7 @@ export function CostCalculatorWorkbench({
       const base = presetToInput(getCostCalcPreset(draft.sku), draft)
       setInput(base)
       if (draft.autoCompute !== false) {
-        setResult(computeLandedCost(base))
+        setResult(computeLandedCost(base, feeOverridesRef.current))
       }
       clearCostCalcDraft()
       lastSkuRef.current = draft.sku
@@ -230,7 +277,7 @@ export function CostCalculatorWorkbench({
           lastHint = hint
         }
         setCopilotHint(lastHint || null)
-        setResult(computeLandedCost(cur))
+        setResult(computeLandedCost(cur, feeOverridesRef.current))
         return cur
       })
     }
@@ -245,7 +292,7 @@ export function CostCalculatorWorkbench({
       setInput((prev) => {
         const { next, hint } = applyBridgeAction(prev, action, source)
         setCopilotHint(hint || null)
-        setResult(computeLandedCost(next))
+        setResult(computeLandedCost(next, feeOverridesRef.current))
         return next
       })
     })
@@ -254,10 +301,10 @@ export function CostCalculatorWorkbench({
   // Smooth auto-recalc when controls change (after first result; page only)
   React.useEffect(() => {
     if (isDialog || !open || result === null) return
-    const t = window.setTimeout(() => setResult(computeLandedCost(input)), 120)
+    const t = window.setTimeout(() => setResult(computeLandedCost(input, feeOverridesRef.current)), 120)
     return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional debounce on input
-  }, [input, open, isDialog])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional debounce on input / feeOverrides
+  }, [input, open, isDialog, feeOverrides])
 
   const formulas = result ? getFormulaDocs(result.tax.rates) : null
   const tariff = TARIFF_PROFILES[input.tariffProfileId]

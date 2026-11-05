@@ -313,36 +313,52 @@ function logisticsFromFreightMode(mode: FreightMode): string {
   return mode
 }
 
-/** 按平台+国家+履约+asOf 解析进口税费用模板；失败则回退 TARIFF_PROFILES。 */
-export function resolveImportTaxRates(input: Pick<
-  CostCalculatorInput,
-  | 'platform'
-  | 'country'
-  | 'fulfillmentPool'
-  | 'fulfillmentLogistics'
-  | 'freightMode'
-  | 'asOf'
-  | 'tariffProfileId'
-  | 'importTaxTemplateId'
->): {
+/** 服务端 / tRPC resolve 结果注入；主路径读 DB，未注入时不再走 localStorage。 */
+export type FeeResolutionOverrides = {
+  importTax?: ResolvedFeeTemplate | null
+  platformFee?: ResolvedFeeTemplate | null
+}
+
+/** 按平台+国家+履约+asOf 解析进口税费用模板；优先用 overrides（DB），失败回退 TARIFF_PROFILES。 */
+export function resolveImportTaxRates(
+  input: Pick<
+    CostCalculatorInput,
+    | 'platform'
+    | 'country'
+    | 'fulfillmentPool'
+    | 'fulfillmentLogistics'
+    | 'freightMode'
+    | 'asOf'
+    | 'tariffProfileId'
+    | 'importTaxTemplateId'
+  >,
+  overrides?: FeeResolutionOverrides,
+): {
   rates: TariffRates
   resolved: ResolvedFeeTemplate | null
   resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
 } {
-  const logistics =
-    input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode)
-  const baseArgs = {
-    platform: input.platform || 'daraz',
-    country: input.country || 'LK',
-    fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
-    fulfillmentLogistics: logistics,
-    type: 'import_tax' as const,
-    asOf: input.asOf,
-    templateCodeOrId: input.importTaxTemplateId,
-  }
   const resolved =
-    resolveFeeTemplateVersion({ ...baseArgs, formulaProfile: input.tariffProfileId }) ??
-    resolveFeeTemplateVersion(baseArgs)
+    overrides && 'importTax' in overrides
+      ? (overrides.importTax ?? null)
+      : (() => {
+          const logistics =
+            input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode)
+          const baseArgs = {
+            platform: input.platform || 'daraz',
+            country: input.country || 'LK',
+            fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
+            fulfillmentLogistics: logistics,
+            type: 'import_tax' as const,
+            asOf: input.asOf,
+            templateCodeOrId: input.importTaxTemplateId,
+          }
+          // localStorage 主路径已停用；此处恒为 null，保留签名兼容
+          return (
+            resolveFeeTemplateVersion({ ...baseArgs, formulaProfile: input.tariffProfileId }) ??
+            resolveFeeTemplateVersion(baseArgs)
+          )
+        })()
   if (resolved) {
     const mapped = componentsToTariffRates(resolved.version, input.tariffProfileId)
     const rates: TariffRates = {
@@ -385,7 +401,10 @@ export function suggestSellPrice(
   return { price: round2(price), error: null }
 }
 
-export function computeLandedCost(input: CostCalculatorInput): CostCalculatorResult {
+export function computeLandedCost(
+  input: CostCalculatorInput,
+  overrides?: FeeResolutionOverrides,
+): CostCalculatorResult {
   const units = Math.max(1, Math.floor(input.units))
   const upc = Math.max(1, Math.floor(input.unitsPerCarton))
   const cartons = Math.ceil(units / upc)
@@ -413,7 +432,7 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   const firstMileInCif = input.firstMileInCif ? input.firstMileTotal : 0
   const cifTotal = fobTotal + insurance + (input.freightMode === 'AIR_DDP' ? 0 : selectedFreightTotal) + firstMileInCif
 
-  const { rates, resolved: importResolved, resolvedFrom } = resolveImportTaxRates(input)
+  const { rates, resolved: importResolved, resolvedFrom } = resolveImportTaxRates(input, overrides)
   const resolveMeta = {
     feeTemplateVersionId: importResolved?.version.id ?? null,
     feeTemplateCode: importResolved?.template.code ?? null,
@@ -424,15 +443,19 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
     ? computeLkTaxStack(0, rates, resolveMeta)
     : computeLkTaxStack(cifTotal, rates, resolveMeta)
 
-  const platformFeeResolved = resolveFeeTemplateVersion({
-    platform: input.platform || 'daraz',
-    country: input.country || 'LK',
-    fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
-    fulfillmentLogistics: input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode),
-    type: 'platform_fee',
-    asOf: input.asOf,
-    templateCodeOrId: input.platformFeeTemplateId,
-  })
+  const platformFeeResolved =
+    overrides && 'platformFee' in overrides
+      ? (overrides.platformFee ?? null)
+      : resolveFeeTemplateVersion({
+          platform: input.platform || 'daraz',
+          country: input.country || 'LK',
+          fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
+          fulfillmentLogistics:
+            input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode),
+          type: 'platform_fee',
+          asOf: input.asOf,
+          templateCodeOrId: input.platformFeeTemplateId,
+        })
   const platformFeePercents = getPlatformFeePercents(platformFeeResolved)
   const platformCommissionPct = platformFeeResolved
     ? platformFeePercents.commissionPct

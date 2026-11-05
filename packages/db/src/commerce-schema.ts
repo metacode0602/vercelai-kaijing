@@ -1664,12 +1664,28 @@ export const auditEvents = pgTable(
 
 
 // ---------------------------------------------------------------------------
-// fee_templates / fee_template_versions — DRAFT（UED 优先 localStorage；正式落库前勿 db:generate 强推）
+// fee_templates / fee_template_versions — 已落库（migration 0012_commerce_fee_templates）
+// UED 审核状态机：draft → in_review → published → disabled（驳回回 draft）
+// published / review_needed 与 status 同步维护；解析仅命中 status=published
 // @see apps/shop/content/design/fee-templates-ued.md
+// @see docs/design/shop-module5-fee-templates-trpc.md
 // ---------------------------------------------------------------------------
 
 export const feeTemplateTypes = ["import_tax", "platform_fee"] as const
 export type FeeTemplateTypeDb = (typeof feeTemplateTypes)[number]
+
+/** 模板头状态：draft / active / disabled */
+export const feeTemplateHeaderStatuses = ["draft", "active", "disabled"] as const
+export type FeeTemplateHeaderStatusDb = (typeof feeTemplateHeaderStatuses)[number]
+
+/** 版本审核状态机（UED v1.1 C8） */
+export const feeTemplateVersionStatuses = [
+  "draft",
+  "in_review",
+  "published",
+  "disabled",
+] as const
+export type FeeTemplateVersionStatusDb = (typeof feeTemplateVersionStatuses)[number]
 
 export const feeTemplates = pgTable(
   "fee_templates",
@@ -1722,15 +1738,25 @@ export const feeTemplateVersions = pgTable(
     priority: integer("priority").notNull().default(10),
     formulaProfile: varchar("formula_profile", { length: 64 }),
     components: jsonb("components").$type<Record<string, unknown>[]>().notNull(),
+    /** 与 status 同步：status=published 时为 true（兼容旧解析字段） */
     published: boolean("published").notNull().default(false),
     reviewNeeded: boolean("review_needed").notNull().default(true),
+    /** UED v1.1：draft / in_review / published / disabled */
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    submittedBy: text("submitted_by"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     uniqueIndex("fee_template_versions_tpl_ver_uidx").on(t.templateId, t.versionNo),
     index("fee_template_versions_org_idx").on(t.organizationId),
     index("fee_template_versions_eff_idx").on(t.templateId, t.effectiveFrom),
+    index("fee_template_versions_status_idx").on(t.templateId, t.status),
   ],
 )
 

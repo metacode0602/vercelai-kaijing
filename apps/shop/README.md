@@ -9,7 +9,7 @@
 | 使用者 | 卖家 / 租户运营 |
 | 作用 | 本组织跨境业务的数据查看与运营操作入口 |
 | 技术栈 | Next.js 16 App Router、next-intl、`@workspace/ui`、better-auth |
-| 当前阶段 | **模块1–4（商品 / 采购入库 / 订单占库→出库 / LGS·JSB 履约）已接 tRPC → dataaccess → PostgreSQL**；费用模板等仍为原型 |
+| 当前阶段 | **模块1–5（商品 / 采购入库 / 订单占库→出库 / LGS·JSB 履约 / 费用模板）已接 tRPC → dataaccess → PostgreSQL**；海运柜次等仍为原型 |
 
 ## 主要路由
 
@@ -101,9 +101,19 @@ pnpm --filter shop dev
 
 **已接库**：包裹列表/详情、从订单创建、追加轨迹（强制 source）、stub 同步写 attempt、LGS/JSB 交接批次建批/加包/提交/关闭。`shipment-store` 主路径 localStorage 已停用。
 
-**仍 mock / stub**：真实平台 OpenAPI、费用模板、海运柜次、售后回库、WMS 非订单出库、库存流水页完整 tRPC、Seller SKU 映射专页、供应商主数据等。
+**仍 mock / stub**：真实平台 OpenAPI、海运柜次业务化、售后回库、WMS 非订单出库、库存流水页完整 tRPC、Seller SKU 映射专页、供应商主数据等。费用模板已接 DB（见 `docs/design/shop-module5-fee-templates-trpc.md`）。
 
-详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)。
+### 模块5 · 费用模板（进口税 / 平台费）
+
+| 项 | 说明 |
+| --- | --- |
+| 迁移 | `packages/db/drizzle/0012_commerce_fee_templates.sql` |
+| tRPC | `feeTemplates.list/get/stats/create/update/createVersion/updateVersion/submit/publish/reject/disableVersion/disable/duplicate/resolve/meta` |
+| Console | `/console/fee-templates`、`/console/fee-templates/[id]` |
+| 测算 | `cost-calculator-workbench` → `feeTemplates.resolve` → `computeLandedCost(..., overrides)`；未命中回退 `TARIFF_PROFILES` |
+| Seed | `pnpm --filter @workspace/db db:seed:commerce-fee-templates` |
+
+详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)、[docs/design/shop-module5-fee-templates-trpc.md](../../docs/design/shop-module5-fee-templates-trpc.md)。
 
 ## 脚本
 

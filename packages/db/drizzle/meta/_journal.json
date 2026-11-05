@@ -85,6 +85,13 @@
       "when": 1794200000000,
       "tag": "0011_commerce_lgs_fulfillment",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0012_commerce_fee_templates",
+      "breakpoints": true
     }
   ]
 }

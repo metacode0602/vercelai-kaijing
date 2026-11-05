@@ -5,7 +5,7 @@
 | 文档范围 | `apps/shop` 控制台 · 费用模板列表/详情 · 成本测算解析 |
 | 版本 | **v1.1** |
 | 日期 | 2026-11-03（Asia/Shanghai） |
-| 实现 | localStorage UED（无 tRPC）；路由 `/console/fee-templates` |
+| 实现 | **已接 tRPC → dataaccess → PostgreSQL**（migration 0012）；路由 `/console/fee-templates`；见 [`shop-module5-fee-templates-trpc.md`](../../../../docs/design/shop-module5-fee-templates-trpc.md) |
 | 关联 | [`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)、[`daraz-lk-erp-p0-ued.md`](./daraz-lk-erp-p0-ued.md)、[`../../../docs/design/erp-rectification-2026-11-03.md`](../../../../docs/design/erp-rectification-2026-11-03.md) §4（整改 C8/C9 规则） |
 
 ### 修订记录
@@ -14,6 +14,7 @@
 |------|------|----------|
 | v1.0 | 2026-10-31 | 初版：模板头+版本、两级履约、优先级解析、种子与工作台接线 |
 | v1.1 | 2026-11-03 | 整改 Q30 补充：版本审核状态机与审核字段（C8）、历史订单取值快照锁定规则（C9） |
+| v1.2 | 2026-11-05 | 模块5 落地：migration 0012 + tRPC feeTemplates + Console/测算读 DB；localStorage 主路径停用 |
 
 ---
 
@@ -26,7 +27,7 @@
 | C3-C | 两套模板类型：`import_tax` 与 `platform_fee`；测算时可组合引用 |
 | C4 | 新系统；保存柜次成本写入 `feeTemplateVersionId` + `components` 快照即可，不做复杂重算覆盖产品逻辑 |
 | C5-A | Lazada 首期也做进口税叠（按国可配；种子占位税率标待复核） |
-| C6-A | 语义表 `fee_templates` + `fee_template_versions`；原型用 localStorage；`packages/db` 可有 schema 草稿 |
+| C6-A | 语义表 `fee_templates` + `fee_template_versions`；**已落库 migration 0012**；原型 localStorage 主路径停用 |
 | C7-A | 现 `TARIFF_PROFILES` LK 示例作初值，标「待报关行复核」 |
 | C8-A | 优先费用模板；采购/库位/流水不改 |
 | C9-A | 成本财务侧栏新增「费用模板」 |
