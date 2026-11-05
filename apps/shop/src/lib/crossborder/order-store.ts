@@ -1,9 +1,9 @@
 'use client'
 
 /**
- * 订单 + 拣货包裹原型会话 store（P0 商业闭环）。
- * 订单确认可写「订单锁定」流水；拣货终态调用 wms-store createStockOutbound / postStockOutbound 写出库流水。
- * 禁止直改库存余额。
+ * 订单 + 拣货包裹原型会话 store（历史 localStorage 原型）。
+ * 主路径已切 tRPC → dataaccess/order → PostgreSQL（见 routers/order、console/orders|picking|stock-outbounds）。
+ * 本文件仅保留类型/演示常量供未迁移页引用；订单/出库主流程请勿再写 localStorage。
  */
 
 import { createDemoStore } from '@/lib/crossborder/local-store'

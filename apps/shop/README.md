@@ -9,7 +9,7 @@
 | 使用者 | 卖家 / 租户运营 |
 | 作用 | 本组织跨境业务的数据查看与运营操作入口 |
 | 技术栈 | Next.js 16 App Router、next-intl、`@workspace/ui`、better-auth |
-| 当前阶段 | **模块1（商品）+ 模块2（采购申请→入库）已接 tRPC → dataaccess → PostgreSQL**；订单出库/LGS/费用等仍为 localStorage 原型 |
+| 当前阶段 | **模块1–3（商品 / 采购入库 / 订单占库→出库）已接 tRPC → dataaccess → PostgreSQL**；LGS/费用等仍为原型 |
 
 ## 主要路由
 
@@ -45,6 +45,7 @@ pnpm --filter @workspace/db db:migrate
 # 可选：种子演示组织 + 样例 SPU/SKU
 pnpm --filter @workspace/db db:seed:commerce-products
 pnpm --filter @workspace/db db:seed:commerce-purchase
+pnpm --filter @workspace/db db:seed:commerce-orders
 # 开发无登录时，把种子组织写入环境（与 seed 默认一致）
 # SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 pnpm --filter shop dev
@@ -75,9 +76,22 @@ pnpm --filter shop dev
 
 **已接库**：申请 CRUD/提交/撤回/取消、审批转 PO/驳回、登记到货、质检、确认上架写库存流水。对应 `purchase-*-store` localStorage 已停用。
 
-**仍 mock / localStorage**：Seller SKU / 刊登映射、订单出库、WMS 非采购入库、LGS、费用模板、供应商主数据、字典/品类/成员辅助选项等。
+### 模块3：订单同步 → 占库/拣货 → 出库（已接库）
 
-详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)。
+| 层 | 路径 |
+| --- | --- |
+| tRPC 路由 | `src/lib/server/routers/order.ts` |
+| dataaccess | `src/lib/server/dataaccess/order.ts` |
+| 表 | `orders` / `order_lines` / `inventory_*` / `stock_outbounds*`（migration 0010） |
+| 控制台页 | `orders` / `picking` / `stock-outbounds` |
+
+**已接库**：人工增量同步（平台 stub）/ 导入 upsert、确认占库、创建出库单、拣货推进、出库过账写 `order_ship` 流水。订单/出库主路径 localStorage 已停用。
+
+**Q07 默认**：`paid`/`ready_to_ship` 自动占库 + 人工补锁；扣减在出库过账。可用 `ORDER_RESERVE_MODE=manual_only` 关闭自动锁。
+
+**仍 mock / localStorage**：真实平台 OpenAPI、LGS、费用模板、WMS 非订单出库、库存流水页完整 tRPC、Seller SKU 映射专页、供应商主数据、字典/成员辅助选项等。
+
+详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)。
 
 ## 脚本
 

@@ -87,6 +87,9 @@ export const inventoryMovementTypes = [
   "reserve",
   "release",
   "ship",
+  "order_reserve",
+  "order_release",
+  "order_ship",
   "return_hold",
   "return_restock",
   "damage",
@@ -1941,6 +1944,95 @@ export const stockInbounds = pgTable(
 )
 
 
+
+// ---------------------------------------------------------------------------
+// stock_outbounds / stock_outbound_lines — 订单出库 / 拣货过账（模块3）
+// ---------------------------------------------------------------------------
+
+export const stockOutboundStatuses = [
+  "pending_pick",
+  "picking",
+  "reviewed",
+  "posted",
+  "cancelled",
+] as const
+export type StockOutboundStatus = (typeof stockOutboundStatuses)[number]
+
+export const stockOutboundTypes = [
+  "order",
+  "transfer",
+  "purchase_return",
+  "stocktake_loss",
+  "sample",
+  "other",
+] as const
+export type StockOutboundType = (typeof stockOutboundTypes)[number]
+
+export const stockOutbounds = pgTable(
+  "stock_outbounds",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    outboundNo: varchar("outbound_no", { length: 32 }).notNull(),
+    outboundType: varchar("outbound_type", { length: 32 }).notNull().default("order"),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("WH-CN-XMN-001"),
+    shopId: text("shop_id").references(() => shops.id),
+    orderId: text("order_id").references(() => orders.id),
+    externalOrderId: varchar("external_order_id", { length: 128 }),
+    packageId: varchar("package_id", { length: 64 }),
+    picker: text("picker"),
+    status: varchar("status", { length: 32 }).notNull().default("pending_pick"),
+    idempotencyKey: varchar("idempotency_key", { length: 191 }).notNull(),
+    reason: text("reason"),
+    remark: text("remark"),
+    pickedAt: timestamp("picked_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("stock_outbounds_org_no_uidx").on(t.organizationId, t.outboundNo),
+    uniqueIndex("stock_outbounds_org_idem_uidx").on(t.organizationId, t.idempotencyKey),
+    index("stock_outbounds_org_status_idx").on(t.organizationId, t.status),
+    index("stock_outbounds_order_idx").on(t.orderId),
+  ],
+)
+
+export const stockOutboundLines = pgTable(
+  "stock_outbound_lines",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    stockOutboundId: text("stock_outbound_id")
+      .notNull()
+      .references(() => stockOutbounds.id),
+    lineNo: integer("line_no").notNull(),
+    orderLineId: text("order_line_id").references(() => orderLines.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    binCode: varchar("bin_code", { length: 64 }).notNull(),
+    qty: integer("qty").notNull(),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    index("stock_outbound_lines_outbound_idx").on(t.stockOutboundId),
+    index("stock_outbound_lines_org_idx").on(t.organizationId),
+    uniqueIndex("stock_outbound_lines_outbound_line_uidx").on(t.stockOutboundId, t.lineNo),
+  ],
+)
+
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
@@ -1982,5 +2074,7 @@ export type PurchaseOrderRow = typeof purchaseOrders.$inferSelect
 export type PurchaseOrderLineRow = typeof purchaseOrderLines.$inferSelect
 export type PurchaseReceiptRow = typeof purchaseReceipts.$inferSelect
 export type PurchaseReceiptLineRow = typeof purchaseReceiptLines.$inferSelect
+export type StockOutboundRow = typeof stockOutbounds.$inferSelect
+export type StockOutboundLineRow = typeof stockOutboundLines.$inferSelect
 export type StockInboundRow = typeof stockInbounds.$inferSelect
 
