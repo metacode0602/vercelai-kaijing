@@ -10,17 +10,13 @@ import {
 } from '@/components/console/detail'
 import { useConsoleBreadcrumbs } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { UedDialog } from '@/components/console/erp-ued-workspace'
 import { ProductImageEditor } from '@/components/console/product-images'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import {
-  createVariant,
-  updateProduct,
-  useProducts,
-  type ProductRecord,
-} from '@/lib/crossborder/product-store'
 import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
+import type { UiProductStatus } from '@/lib/server/mappers/products'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -46,8 +42,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
     { label: '商品 SPU / SKU', href: '/console/master-products' },
     { label: id },
   ])
-  const products = useProducts()
-  const product = products.find((item) => item.spu === id)
+
   const dictionaries = useDictionaries()
   const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
   const colorOptions = activeDictionaryValues(dictionaries, 'product_color')
@@ -56,32 +51,62 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const [headerOpen, setHeaderOpen] = React.useState(false)
   const [variantOpen, setVariantOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
-  const [mounted, setMounted] = React.useState(false)
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const utils = trpc.useUtils()
+  const productQuery = trpc.products.bySpu.useQuery({ spu: id })
+  const updateMutation = trpc.products.update.useMutation({
+    onSuccess: async () => {
+      await utils.products.bySpu.invalidate({ spu: id })
+      await utils.products.list.invalidate()
+      await utils.products.stats.invalidate()
+      setHeaderOpen(false)
+      setNotice('SPU 主信息已保存到数据库。')
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const createVariantMutation = trpc.products.createVariant.useMutation({
+    onSuccess: async (created) => {
+      await utils.products.bySpu.invalidate({ spu: id })
+      await utils.products.listSkus.invalidate()
+      await utils.products.stats.invalidate()
+      await utils.products.listSkuCodes.invalidate()
+      setVariantOpen(false)
+      setNotice(`${created.code} 已写入 product_variants。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
 
-  if (!product) {
+  if (productQuery.isLoading) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/master-products"
-          title={mounted ? '未找到商品 SPU' : '加载商品…'}
+          title="加载商品…"
+          description={`正在从数据库读取 SPU ${id}…`}
+        />
+      </div>
+    )
+  }
+
+  if (productQuery.isError || !productQuery.data) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/master-products"
+          title="未找到商品 SPU"
           description={
-            mounted
-              ? `SPU ${id} 不存在，或仅存在于其他浏览器会话。`
-              : '正在读取本机原型会话中的商品主档…'
+            productQuery.error?.message ??
+            `SPU ${id} 不存在于当前组织，或尚未 migrate / seed。`
           }
         />
         <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          请返回列表重新选择，或新建 SPU 主信息后再添加 SKU。
+          请返回列表重新选择，或新建 SPU。确认 DATABASE_URL 与 SHOP_DEV_ORGANIZATION_ID。
         </p>
       </div>
     )
   }
 
-  const current: ProductRecord = product
+  const current = productQuery.data
   const related = buildUedRelatedInfo('master-products', current as unknown as Record<string, unknown>)
   const relatedSections = (related?.sections ?? []).filter((section) => section.title !== 'SKU 列表')
   const enabledSkus = current.variants.filter((item) => item.status === '启用').length
@@ -95,7 +120,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         description={`${current.brand} · ${current.category} · 负责人 ${current.owner}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">数据库</Badge>
             <Badge variant={statusVariant(current.status)}>{current.status}</Badge>
           </>
         }
@@ -116,7 +141,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
       <Alert>
         <AlertTitle>头行分离 · SPU 主信息 + SKU 规格行</AlertTitle>
         <AlertDescription>
-          对齐 schema products / product_variants：先维护款式主档，再按颜色 / 尺码 / 包装生成内部 SKU（SPU+三位流水）。平台 Seller SKU 在「映射」独立绑定。
+          对齐 schema products / product_variants：主信息与规格行均经 tRPC 持久化。平台 Seller SKU 在「映射」独立绑定（本模块仍可 stub）。
         </AlertDescription>
       </Alert>
 
@@ -158,7 +183,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         imageKey={`spu:${current.spu}`}
         fallback={{ cover: current.coverImage, images: current.images ?? [] }}
         title="SPU 商品图片"
-        description="维护款式封面与多角度截图；封面会出现在 SPU 列表。SKU 也可单独维护规格图。"
+        description="图片编辑器暂仍用本机会话缓存；封面 URL 可在后续版本随 update 写入 products.images。"
       />
 
       <DetailSection
@@ -215,19 +240,14 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         )}
       </DetailSection>
 
-      {relatedSections.length > 0 ? (
-        <DetailRelatedTables sections={relatedSections} />
-      ) : null}
+      {relatedSections.length > 0 ? <DetailRelatedTables sections={relatedSections} /> : null}
 
-      <UedPrototypeNotice>
-        关联映射 / 刊登 / 库存由系统按内部 SKU 自动带出，便于运营决策。正式环境写入 products / product_variants 表。
-      </UedPrototypeNotice>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
 
       {headerOpen ? (
         <UedDialog
           title="编辑 SPU 主信息"
-          description="SPU 编码只读；修改后仅作用于本次原型会话。"
+          description="SPU 编码只读；变更写入 products 表。"
           fields={[
             { key: 'spu', label: 'SPU', defaultValue: current.spu, readOnly: true },
             { key: 'name', label: '商品名称', defaultValue: current.name, required: true },
@@ -246,26 +266,25 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           ]}
           onClose={() => setHeaderOpen(false)}
           onSave={(values) => {
-            updateProduct(current.spu, {
+            updateMutation.mutate({
+              spu: current.spu,
               name: values.name || current.name,
               brand: values.brand || current.brand,
               category: values.category || current.category,
               material: values.material || current.material,
               style: values.style || current.style,
               owner: values.owner || current.owner,
-              status: (values.status as ProductRecord['status']) || current.status,
+              status: (values.status as UiProductStatus) || current.status,
             })
-            setHeaderOpen(false)
-            setNotice('SPU 主信息已更新（原型会话）。')
           }}
-          saveLabel="保存主信息"
+          saveLabel={updateMutation.isPending ? '保存中…' : '保存主信息'}
         />
       ) : null}
 
       {variantOpen ? (
         <UedDialog
           title="添加内部 SKU"
-          description={`归属 ${current.spu}；编号按 SPU+三位流水自动生成。`}
+          description={`归属 ${current.spu}；编号按 SPU+三位流水自动生成并写入 product_variants。`}
           fields={[
             {
               key: 'color',
@@ -297,19 +316,17 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           ]}
           onClose={() => setVariantOpen(false)}
           onSave={(values) => {
-            const created = createVariant({
+            createVariantMutation.mutate({
               spu: current.spu,
               color: values.color || '黑色',
               size: values.size || 'L',
               pack: values.pack || packOptions[0] || '单件',
               barcode: values.barcode,
               weight: Number(values.weight) || 0,
-              status: (values.status as ProductRecord['status']) || '待确认',
+              status: (values.status as UiProductStatus) || '待确认',
             })
-            setVariantOpen(false)
-            setNotice(created ? `${created.code} 已生成（原型会话）。` : '添加失败：未找到 SPU。')
           }}
-          saveLabel="生成 SKU"
+          saveLabel={createVariantMutation.isPending ? '生成中…' : '生成 SKU'}
         />
       ) : null}
     </div>

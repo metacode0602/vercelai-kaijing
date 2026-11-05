@@ -1,27 +1,51 @@
 'use client'
 
 import * as React from 'react'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
-import {
-  createVariant,
-  listSkuRows,
-  useProducts,
-} from '@/lib/crossborder/product-store'
 import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
 import { Badge } from '@workspace/ui/components/badge'
-import { Button } from '@workspace/ui/components/button'
+import { trpc } from '@/lib/trpc/client'
+import type { UiProductStatus } from '@/lib/server/mappers/products'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
+
+const PAGE_SIZE = 20
 
 export default function MasterSkusPage() {
-  const products = useProducts()
-  const rows = React.useMemo(() => listSkuRows(products), [products])
   const dictionaries = useDictionaries()
   const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
   const colorOptions = activeDictionaryValues(dictionaries, 'product_color')
   const sizeOptions = activeDictionaryValues(dictionaries, 'product_size')
+
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const [page, setPage] = React.useState(1)
+  const [q, setQ] = React.useState('')
+  const [status, setStatus] = React.useState('全部')
+
+  const utils = trpc.useUtils()
+  const listQuery = trpc.products.listSkus.useQuery({
+    page,
+    pageSize: PAGE_SIZE,
+    q: q || undefined,
+    status: status === '全部' ? undefined : status,
+  })
+  const productsQuery = trpc.products.list.useQuery({ page: 1, pageSize: 100 })
+  const createMutation = trpc.products.createVariant.useMutation({
+    onSuccess: async (created) => {
+      await utils.products.listSkus.invalidate()
+      await utils.products.stats.invalidate()
+      await utils.products.listSkuCodes.invalidate()
+      setOpen(false)
+      setNotice(`${created.code} 已写入数据库。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
+  const total = listQuery.data?.total ?? 0
+  const products = productsQuery.data?.items ?? []
 
   const kpiItems = React.useMemo(() => {
     const enabled = rows.filter((item) => item.status === '启用').length
@@ -34,31 +58,21 @@ export default function MasterSkusPage() {
     const spuCount = new Set(rows.map((item) => item.spu)).size
     const totalWeight = rows.reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
     return [
-      { label: 'SKU 数', value: String(rows.length), hint: '当前原型会话' },
-      { label: '启用', value: String(enabled) },
-      { label: '待确认', value: String(pending) },
-      { label: '停用', value: String(disabled) },
-      { label: '可刊登', value: String(listable), hint: '启用且条码齐全' },
-      { label: '缺条码', value: String(missingBarcode), hint: '缺条码不可刊登' },
-      { label: '覆盖 SPU', value: String(spuCount) },
-      { label: '总重量', value: `${(totalWeight / 1000).toFixed(1)} kg` },
+      { label: '本页 SKU', value: String(rows.length), hint: `库内共 ${total}` },
+      { label: '启用(页)', value: String(enabled) },
+      { label: '待确认(页)', value: String(pending) },
+      { label: '停用(页)', value: String(disabled) },
+      { label: '可刊登(页)', value: String(listable), hint: '启用且条码齐全' },
+      { label: '缺条码(页)', value: String(missingBarcode) },
+      { label: '覆盖 SPU(页)', value: String(spuCount) },
+      { label: '总重量(页)', value: `${(totalWeight / 1000).toFixed(1)} kg` },
     ]
-  }, [rows])
-
-  const filters = React.useMemo(() => {
-    const unique = (values: string[]) => [...new Set(values)]
-    return [
-      { label: '状态', key: 'status', options: ['启用', '待确认', '停用'] },
-      { label: '所属 SPU', key: 'spu', options: unique(rows.map((row) => row.spu)) },
-      { label: '颜色', key: 'color', options: unique(rows.map((row) => row.color)) },
-      { label: '尺码', key: 'size', options: unique(rows.map((row) => row.size)) },
-    ]
-  }, [rows])
+  }, [rows, total])
 
   const editor = open ? (
     <UedDialog
       title="生成内部 SKU"
-      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成；创建后可在详情页补充图片与关联信息。"
+      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成并写入 product_variants。"
       fields={[
         {
           key: 'spu',
@@ -101,7 +115,7 @@ export default function MasterSkusPage() {
           setNotice('请先创建 SPU 再生成 SKU。')
           return
         }
-        const created = createVariant({
+        createMutation.mutate({
           spu: product.spu,
           color: values.color || '黑色',
           size: values.size || 'L',
@@ -111,13 +125,10 @@ export default function MasterSkusPage() {
           lengthMm: Number(values.lengthMm) || 0,
           widthMm: Number(values.widthMm) || 0,
           heightMm: Number(values.heightMm) || 0,
-          status: (values.status as '待确认' | '启用' | '停用') || '待确认',
+          status: (values.status as UiProductStatus) || '待确认',
         })
-        if (created) {
-          setNotice(`${created.code} 已生成（原型会话）；实际编号规则由后端校验去重与流水号。`)
-        }
-        setOpen(false)
       }}
+      saveLabel={createMutation.isPending ? '生成中…' : '生成 SKU'}
     />
   ) : null
 
@@ -126,14 +137,27 @@ export default function MasterSkusPage() {
       {editor}
       <UedWorkspace
         title="内部 SKU"
-        description="维护真实交付规格（颜色/尺码/包装/条码/重量/长宽高 mm）；编码生成后不可修改、不可复用。"
+        description="product_variants 真实交付规格；列表经 tRPC 数据库分页。"
         rows={rows}
-        detailHref={(row) => `/console/master-skus/${encodeURIComponent(row.id)}`}
+        detailHref={(row) => `/console/master-skus/${encodeURIComponent(row.sku)}`}
         searchKeys={['sku', 'spu', 'name', 'color', 'size', 'barcode', 'status']}
-        searchPlaceholder="搜索 SKU、SPU、颜色或条码"
-        filters={filters}
-        addLabel="生成内部 SKU"
+        search={q}
+        onSearchChange={setQ}
+        onStatusFilterChange={setStatus}
+        filters={[
+          { label: '状态', key: 'status', options: ['启用', '待确认', '停用'] },
+        ]}
+        addLabel="生成 SKU"
         onAdd={() => setOpen(true)}
+        listTitle="内部 SKU 列表"
+        pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
+        emptyText={
+          listQuery.isError
+            ? `加载失败：${listQuery.error.message}`
+            : listQuery.isLoading
+              ? '正在从数据库加载 SKU…'
+              : '暂无内部 SKU。请先建 SPU 再生成规格行。'
+        }
         columns={[
           {
             key: 'cover',
@@ -153,41 +177,21 @@ export default function MasterSkusPage() {
           { key: 'size', label: '尺码' },
           { key: 'pack', label: '包装' },
           { key: 'barcode', label: '条码' },
-          { key: 'weight', label: '重量 g', render: (row) => String(row.weight) },
-          {
-            key: 'dims',
-            label: '尺寸 mm',
-            render: (row) => `${row.lengthMm || 0}×${row.widthMm || 0}×${row.heightMm || 0}`,
-          },
+          { key: 'weight', label: '重量 g' },
           {
             key: 'status',
             label: '状态',
-            render: (row) => (
-              <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
-            ),
+            render: (row) => <Badge variant="secondary">{row.status}</Badge>,
           },
         ]}
       >
         <DetailKpiRow items={kpiItems} />
-        <UedPrototypeNotice>
-          SKU 与 SPU 编号不可编辑、不可复用；停用保留历史。颜色与尺码从属性字典标准值选择，服装尺码不允许自造值。条码缺失的 SKU 不允许刊登。
-        </UedPrototypeNotice>
-        <div className="flex flex-wrap gap-2">
-          {rows
-            .filter((row) => row.status === '待确认')
-            .map((row) => (
-              <Button
-                key={row.sku}
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setNotice(`${row.sku}：补全条码并确认后才可被刊登与采购引用。`)
-                }
-              >
-                待确认 · {row.sku}
-              </Button>
-            ))}
-        </div>
+        <Alert>
+          <AlertTitle>已接库 · 内部 SKU</AlertTitle>
+          <AlertDescription>
+            本页 KPI 中标注「页」的为当前页统计；总数见分页。Seller SKU / 刊登映射仍为 stub。
+          </AlertDescription>
+        </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>

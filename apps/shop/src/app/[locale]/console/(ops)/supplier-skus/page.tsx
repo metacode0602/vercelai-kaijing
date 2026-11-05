@@ -5,15 +5,15 @@ import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/consol
 import { DetailKpiRow } from '@/components/console/detail'
 import { supplierNames, useSuppliers } from '@/lib/crossborder/supplier-store'
 import { addSupplierSku, useSupplierSkus } from '@/lib/crossborder/supplier-sku-store'
-import { skuCodeOptions, useProducts } from '@/lib/crossborder/product-store'
 import { Badge } from '@workspace/ui/components/badge'
+import { trpc } from '@/lib/trpc/client'
 import { Button } from '@workspace/ui/components/button'
 
 export default function SupplierSkusPage() {
   const suppliers = useSuppliers()
   const rows = useSupplierSkus()
-  const products = useProducts()
-  const skuOptions = React.useMemo(() => skuCodeOptions(products), [products])
+  const skuCodesQuery = trpc.products.listSkuCodes.useQuery()
+  const skuOptions = skuCodesQuery.data ?? []
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
   const supplierOptions = supplierNames(suppliers.filter((supplier) => supplier.status === '启用'))

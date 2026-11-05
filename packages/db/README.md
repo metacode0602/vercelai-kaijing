@@ -52,6 +52,9 @@ pnpm --filter @workspace/db db:check
 
 # 图形化查看数据
 pnpm --filter @workspace/db db:studio
+
+# 跨境演示：组织 + 样例 SPU/SKU（apps/shop 模块1）
+pnpm --filter @workspace/db db:seed:commerce-products
 ```
 
 ## 运行前置

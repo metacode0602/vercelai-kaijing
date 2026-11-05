@@ -41,24 +41,36 @@ export function UedWorkspace<T>(props: {
     total?: number
     onPageChange: (page: number) => void
   }
+  /** 服务端分页时由父组件控制搜索词 */
+  search?: string
+  onSearchChange?: (value: string) => void
+  onStatusFilterChange?: (value: string) => void
   children?: React.ReactNode
 }) {
-  const [query, setQuery] = React.useState('')
+  const [internalQuery, setInternalQuery] = React.useState('')
+  const query = props.search ?? internalQuery
   const [internalPage, setInternalPage] = React.useState(1)
   const filterDefs = props.filters ?? []
   const [filterValues, setFilterValues] = React.useState<Record<number, string>>({})
   const searchKeys = props.searchKeys ?? ['id', 'code', 'spu', 'sku', 'name', 'status']
-  const rows = props.rows.filter((row) => {
-    const record = row as Record<string, unknown>
-    const searchable = searchKeys.map((key) => String(record[String(key)] ?? '')).join(' ').toLowerCase()
-    if (!searchable.includes(query.toLowerCase())) return false
-    return filterDefs.every((item, index) => {
-      const selected = filterValues[index] ?? '全部'
-      if (selected === '全部') return true
-      const filterKey = item.key ?? 'status'
-      return String(record[filterKey] ?? record.status ?? '') === selected
-    })
-  })
+  /** 传入 pagination.total 时视为服务端分页：不再本地 filter/slice，避免二次分页。 */
+  const serverPaged = typeof props.pagination?.total === 'number'
+  const rows = serverPaged
+    ? props.rows
+    : props.rows.filter((row) => {
+        const record = row as Record<string, unknown>
+        const searchable = searchKeys
+          .map((key) => String(record[String(key)] ?? ''))
+          .join(' ')
+          .toLowerCase()
+        if (!searchable.includes(query.toLowerCase())) return false
+        return filterDefs.every((item, index) => {
+          const selected = filterValues[index] ?? '全部'
+          if (selected === '全部') return true
+          const filterKey = item.key ?? 'status'
+          return String(record[filterKey] ?? record.status ?? '') === selected
+        })
+      })
 
   const pageSize = Math.max(1, props.pagination?.pageSize ?? DEFAULT_PAGE_SIZE)
   const total = props.pagination?.total ?? rows.length
@@ -66,16 +78,21 @@ export function UedWorkspace<T>(props: {
   const page = props.pagination
     ? Math.min(Math.max(1, props.pagination.page), pageCount)
     : Math.min(Math.max(1, internalPage), pageCount)
-  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize)
+  const visibleRows = serverPaged ? rows : rows.slice((page - 1) * pageSize, page * pageSize)
   const onPageChange = props.pagination?.onPageChange ?? setInternalPage
 
   function updateQuery(value: string) {
-    setQuery(value)
+    if (props.onSearchChange) props.onSearchChange(value)
+    else setInternalQuery(value)
     onPageChange(1)
   }
 
   function updateFilter(index: number, value: string) {
     setFilterValues((current) => ({ ...current, [index]: value }))
+    const def = filterDefs[index]
+    if (def && (def.key ?? 'status') === 'status' && props.onStatusFilterChange) {
+      props.onStatusFilterChange(value)
+    }
     onPageChange(1)
   }
 
@@ -141,7 +158,7 @@ export function UedWorkspace<T>(props: {
   const tableCard = (
     <ConsoleListSection
       title={props.listTitle ?? `${props.title}列表`}
-      description={props.listDescription ?? `共 ${rows.length} 条`}
+      description={props.listDescription ?? `共 ${total} 条`}
       pagination={{
         page,
         pageSize,

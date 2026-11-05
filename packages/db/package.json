@@ -16,7 +16,8 @@
     "db:seed:images": "tsx src/scripts/seed-base-images.ts",
     "lint": "eslint",
     "format": "prettier --write \"**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:seed:commerce-products": "tsx src/scripts/seed-commerce-products.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",

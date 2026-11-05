@@ -9,7 +9,7 @@
 | 使用者 | 卖家 / 租户运营 |
 | 作用 | 本组织跨境业务的数据查看与运营操作入口 |
 | 技术栈 | Next.js 16 App Router、next-intl、`@workspace/ui`、better-auth |
-| 当前阶段 | 控制台以 mock 数据展示；尚未接入业务 tRPC |
+| 当前阶段 | **模块1（商品 SPU / 内部 SKU）已接 tRPC → dataaccess → PostgreSQL**；采购/订单/WMS/LGS/费用等仍为 localStorage 原型 |
 
 ## 主要路由
 
@@ -37,13 +37,35 @@
 
 ```bash
 pnpm install
-cp .env.example .env          # DATABASE_URL / BETTER_AUTH_SECRET 等
+cp .env.example .env          # 根目录：DATABASE_URL / BETTER_AUTH_SECRET 等
+# 本地 Postgres 密码与 compose 一致：postgres（不是 .env.example 里的 password）
+# DATABASE_URL=postgres://postgres:postgres@localhost:5432/studio
 docker compose up -d          # 本地 Postgres
 pnpm --filter @workspace/db db:migrate
+# 可选：种子演示组织 + 样例 SPU/SKU
+pnpm --filter @workspace/db db:seed:commerce-products
+# 开发无登录时，把种子组织写入环境（与 seed 默认一致）
+# SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 pnpm --filter shop dev
 ```
 
-端口以 `apps/shop/.env` 的 `PORT` 为准。
+端口以环境变量 `PORT` 为准（未设则 Next 默认 3000）。
+
+### 模块1：商品 SPU / 内部 SKU（已接库）
+
+| 层 | 路径 |
+| --- | --- |
+| tRPC 路由 | `src/lib/server/routers/products.ts` → `/api/trpc` |
+| dataaccess | `src/lib/server/dataaccess/products.ts` |
+| 表 | `products` / `product_variants`（`@workspace/db` commerce-schema） |
+| 控制台页 | `console/master-products`、`console/master-skus` |
+| 客户端 | `src/lib/trpc/*` + `Providers` 中 QueryClient |
+
+**已接库**：SPU / 内部 SKU 列表、详情、新建、编辑（含规格变体）。`product-store` 的 localStorage 读写已停用。
+
+**仍 mock / localStorage（本 PR 不接）**：Seller SKU / 刊登映射、供应商 SKU、采购、订单、WMS、LGS、费用模板、字典/品类/成员辅助选项等。映射页可从 DB 拉取内部 SKU 编码列表，映射关系本身仍为 stub。
+
+详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)。
 
 ## 脚本
 

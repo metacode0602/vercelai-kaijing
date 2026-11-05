@@ -8,8 +8,8 @@ import {
   countExceptionsKpi,
   useMappingExceptions,
 } from '@/lib/crossborder/mapping-exception-store'
-import { skuCodeOptions, useProducts } from '@/lib/crossborder/product-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -17,8 +17,8 @@ import { Button } from '@workspace/ui/components/button'
 export default function MappingsPage() {
   const rows = useMappings()
   const exceptions = useMappingExceptions()
-  const products = useProducts()
-  const skuOptions = React.useMemo(() => skuCodeOptions(products), [products])
+  const skuCodesQuery = trpc.products.listSkuCodes.useQuery()
+  const skuOptions = skuCodesQuery.data ?? []
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
   const exKpi = React.useMemo(() => countExceptionsKpi(exceptions), [exceptions])
