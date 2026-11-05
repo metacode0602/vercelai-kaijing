@@ -106,7 +106,7 @@ export default function AftersaleReturnsPage() {
       description="收货 → 质检 → 回库/报损。回库与报损经 wms-store 写流水投影余额，禁止直改库存。"
       rows={rows}
       detailHref={(row) => `/console/aftersale-returns/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'order', 'sku', 'tracking', 'shop', 'warehouse', 'bin', 'status', 'qc']}
+      searchKeys={['id', 'reverseOrderId', 'externalReturnId', 'order', 'sku', 'tracking', 'returnShipmentId', 'shop', 'warehouse', 'bin', 'status', 'qc', 'platformStatus']}
       searchPlaceholder="搜索售后单、订单、SKU 或运单"
       filters={[{ label: '状态', options: [...RETURN_STATUSES], key: 'status' }]}
       emptyText="暂无退货收货单。登记寄回运单收货后进入待质检。"
@@ -114,9 +114,11 @@ export default function AftersaleReturnsPage() {
       onAdd={() => setOpen(true)}
       columns={[
         { key: 'id', label: '售后单号' },
+        { key: 'reverseOrderId', label: '逆向单 ID' },
         { key: 'order', label: '原订单' },
         { key: 'shop', label: '店铺' },
         { key: 'sku', label: '内部 SKU' },
+        { key: 'returnShipmentId', label: '退货包裹' },
         { key: 'tracking', label: '寄回运单' },
         { key: 'receivedAt', label: '收货时间' },
         {
@@ -125,11 +127,14 @@ export default function AftersaleReturnsPage() {
           render: (row) => String(row.qty),
         },
         { key: 'qc', label: '质检' },
+        { key: 'qcDecision', label: '质检结论' },
         {
           key: 'restock',
           label: '回库 / 报损',
           render: (row) => `${row.restock} / ${row.scrap}`,
         },
+        { key: 'refundStatus', label: '退款状态' },
+        { key: 'platformStatus', label: '平台状态' },
         {
           key: 'status',
           label: '状态',
@@ -139,7 +144,7 @@ export default function AftersaleReturnsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        收货不增加可用库存。质检过账：合格件写「售后回库」流水，残次写「质检报损」流水；幂等键绑定售后单号。
+        收货不增加可用库存。退货包裹独立 shipment 记录，质检结论写 qc_decision；合格件写「售后回库」流水，残次写「质检报损」流水。
       </UedPrototypeNotice>
       {editor}
       {notice ? (

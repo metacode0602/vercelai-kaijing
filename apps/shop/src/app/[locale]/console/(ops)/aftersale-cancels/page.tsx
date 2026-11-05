@@ -106,7 +106,7 @@ export default function AftersaleCancelsPage() {
       description="取消订单 / 仅退款：审核后记账；取消类可经 WMS 流水释放预留库存。"
       rows={rows}
       detailHref={(row) => `/console/aftersale-cancels/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'order', 'shop', 'sku', 'type', 'status', 'reason']}
+      searchKeys={['id', 'reverseOrderId', 'externalReverseId', 'order', 'shop', 'sku', 'type', 'status', 'platformStatus', 'refundId', 'refundStatus', 'reason', 'reasonCode']}
       searchPlaceholder="搜索单号、订单或 SKU"
       filters={[{ label: '状态', options: [...CANCEL_STATUSES], key: 'status' }]}
       emptyText="暂无取消/退款单。"
@@ -114,31 +114,36 @@ export default function AftersaleCancelsPage() {
       onAdd={() => setOpen(true)}
       columns={[
         { key: 'id', label: '单号' },
+        { key: 'reverseOrderId', label: '逆向单 ID' },
+        { key: 'externalReverseId', label: '平台逆向单号' },
         { key: 'order', label: '原订单' },
         { key: 'shop', label: '店铺' },
         { key: 'sku', label: 'SKU' },
         { key: 'type', label: '类型' },
+        { key: 'reasonCode', label: '原因码' },
         {
           key: 'refund',
           label: '退款',
           render: (row) => `${row.refund} ${row.currency}`,
         },
+        { key: 'refundId', label: '退款单号' },
+        { key: 'refundStatus', label: '退款状态' },
         {
           key: 'releaseReserved',
           label: '释放锁定',
           render: (row) => String(row.releaseReserved),
         },
-        { key: 'platformSync', label: '平台同步' },
+        { key: 'platformStatus', label: '平台状态' },
         {
           key: 'status',
-          label: '状态',
+          label: '审核状态',
           render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge>,
         },
       ]}
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        审核「取消订单」且释放数量 &gt; 0 时写 order_release 流水；禁止直改锁定余额。
+        逆向单与退款单分表：审核「取消订单」且释放数量 &gt; 0 时写 order_release 流水；退款结果回写 refund_status，禁止直改锁定余额。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         {rows

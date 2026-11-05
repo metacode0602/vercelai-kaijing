@@ -121,6 +121,9 @@ export type InventoryLedgerEntry = {
   sourceType: string
   sourceId: string
   sourceLineId: string
+  shop: string
+  platform: string
+  externalShopId: string
   reason: string
   actor: string
   idempotencyKey: string
@@ -307,6 +310,9 @@ export const DEMO_LEDGER: InventoryLedgerEntry[] = [
     sourceType: 'purchase_receipt',
     sourceId: 'RCV-2026-0041',
     sourceLineId: 'RCVL-2026-0041-01',
+    shop: '',
+    platform: '',
+    externalShopId: '',
     reason: '合格入库上架',
     actor: '兰雨晨',
     idempotencyKey: 'ledger:purchase_stock_in:RCV-2026-0041:HSY000001001',
@@ -329,6 +335,9 @@ export const DEMO_LEDGER: InventoryLedgerEntry[] = [
     sourceType: 'order',
     sourceId: 'DZ-10021',
     sourceLineId: '',
+    shop: 'Daraz LK',
+    platform: 'daraz',
+    externalShopId: 'dz-lk-88021',
     reason: '订单预留',
     actor: '系统',
     idempotencyKey: 'ledger:order_reserve:DZ-10021:HSY000001001',
@@ -351,6 +360,9 @@ export const DEMO_LEDGER: InventoryLedgerEntry[] = [
     sourceType: 'adjustment',
     sourceId: 'ADJ-2026-OPEN',
     sourceLineId: '',
+    shop: '',
+    platform: '',
+    externalShopId: '',
     reason: '演示期初对齐可用量',
     actor: '系统',
     idempotencyKey: 'ledger:migration:HSY000001001:open',
@@ -373,6 +385,9 @@ export const DEMO_LEDGER: InventoryLedgerEntry[] = [
     sourceType: 'order',
     sourceId: 'DZ-10018',
     sourceLineId: '',
+    shop: 'Daraz LK',
+    platform: 'daraz',
+    externalShopId: 'dz-lk-88021',
     reason: '订单发货',
     actor: '系统',
     idempotencyKey: 'ledger:order_ship:DZ-10018:HSY000002001',
@@ -395,6 +410,9 @@ export const DEMO_LEDGER: InventoryLedgerEntry[] = [
     sourceType: 'purchase_receipt',
     sourceId: 'RCV-2026-OPEN',
     sourceLineId: '',
+    shop: '',
+    platform: '',
+    externalShopId: '',
     reason: '期初/历史入库投影',
     actor: '系统',
     idempotencyKey: 'ledger:migration:HSY000001002:open',
@@ -827,6 +845,9 @@ export function appendLedgerAndProject(input: {
   sourceType: string
   sourceId: string
   sourceLineId?: string
+  shop?: string
+  platform?: string
+  externalShopId?: string
   reason: string
   actor: string
   idempotencyKey: string
@@ -871,6 +892,9 @@ export function appendLedgerAndProject(input: {
     sourceType: input.sourceType,
     sourceId: input.sourceId,
     sourceLineId: input.sourceLineId || '',
+    shop: input.shop || '',
+    platform: input.platform || '',
+    externalShopId: input.externalShopId || '',
     reason: input.reason,
     actor: input.actor || '系统',
     idempotencyKey: input.idempotencyKey,
@@ -1551,6 +1575,9 @@ export function toRelatedLedgerShape(entry: InventoryLedgerEntry) {
     delta: entry.onHandAfter - entry.onHandBefore || entry.reservedAfter - entry.reservedBefore,
     after: entry.onHandAfter,
     source: entry.sourceId,
+    shop: entry.shop || '—',
+    platform: entry.platform || '—',
+    externalShopId: entry.externalShopId || '—',
     reason: entry.reason,
     actor: entry.actor,
     at: entry.occurredAt,
@@ -1651,6 +1678,9 @@ export function applyOrderReserve(input: {
   quantity: number
   sourceDoc: string
   sourceLineId?: string
+  shop?: string
+  platform?: string
+  externalShopId?: string
   actor: string
   idempotencyKey: string
   reason?: string
@@ -1671,6 +1701,9 @@ export function applyOrderReserve(input: {
     sourceType: 'order',
     sourceId: input.sourceDoc,
     sourceLineId: input.sourceLineId,
+    shop: input.shop,
+    platform: input.platform,
+    externalShopId: input.externalShopId,
     reason: input.reason || '订单确认占库',
     actor: input.actor,
     idempotencyKey: input.idempotencyKey,

@@ -55,17 +55,18 @@ export default function OrdersPage() {
     ['paid', 'ready_to_ship', 'created'].includes(o.status),
   ).length
   const reservedCount = listRows.filter((o) => o.reserved).length
+  const mappingExceptions = listRows.filter((o) => o.mappingStatus !== 'ok').length
   const openPackages = packages.filter((p) => p.status !== '已出库' && p.status !== '已取消').length
 
   const kpis = [
     { label: '已同步店铺', value: String(activeShops) },
     { label: '近 7 天订单', value: String(listRows.length) },
     { label: '待发货', value: String(pendingShip) },
-    { label: '已占库 / 未出库包裹', value: `${reservedCount} / ${openPackages}` },
+    { label: '占库 / 包裹 / 映射异常', value: `${reservedCount} / ${openPackages} / ${mappingExceptions}` },
   ]
 
   const rows = listRows.filter((row) => {
-    if (!matchesKeyword(keyword, row.externalOrderId, row.id, row.shop, row.city)) return false
+    if (!matchesKeyword(keyword, row.externalOrderId, row.orderNumber ?? '', row.id, row.shop, row.city)) return false
     if (status !== 'all' && row.status !== status) return false
     if (shop !== 'all' && row.shop !== shop) return false
     if (platform !== 'all' && row.platform !== platform) return false
@@ -130,21 +131,27 @@ export default function OrdersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>平台订单号</TableHead>
                 <TableHead>订单号</TableHead>
-                <TableHead>店铺</TableHead>
+                <TableHead>店铺 / 站点</TableHead>
                 <TableHead>平台</TableHead>
                 <TableHead>金额</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>占库</TableHead>
-                <TableHead>城市</TableHead>
-                <TableHead>下单时间</TableHead>
+                <TableHead>订单状态</TableHead>
+                <TableHead>映射</TableHead>
+                <TableHead>履约 / 包裹</TableHead>
+                <TableHead>最近同步</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pagedRows.map((row) => {
+                const mappingBlocked = row.mappingStatus === 'exception'
                 const canConfirm =
-                  row.status === 'created' || row.status === 'paid' || !row.reserved
+                  !mappingBlocked &&
+                  row.status !== 'shipped' &&
+                  row.status !== 'delivered' &&
+                  row.status !== 'cancelled' &&
+                  (row.status === 'created' || row.status === 'paid' || !row.reserved)
                 return (
                   <TableRow key={row.id}>
                     <TableCell className="font-mono text-xs">
@@ -155,23 +162,38 @@ export default function OrdersPage() {
                         {row.externalOrderId}
                       </LocaleLink>
                     </TableCell>
-                    <TableCell className="font-medium">{row.shop}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.orderNumber ?? '—'}</TableCell>
+                    <TableCell className="font-medium">{row.shop} · {row.externalShopId}</TableCell>
                     <TableCell>{row.platform}</TableCell>
                     <TableCell className="tabular-nums">
                       {row.totalAmount.toFixed(2)} {row.currency}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(row.status)}>{labelStatus(row.status)}</Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={statusVariant(row.status)}>{labelStatus(row.status)}</Badge>
+                        <span className="text-xs text-muted-foreground">{row.platformStatus}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={row.reserved ? 'secondary' : 'outline'}>
-                        {row.reserved ? '已锁定' : '未锁定'}
+                      <Badge variant={mappingBlocked ? 'destructive' : row.mappingStatus === 'pending' ? 'outline' : 'secondary'}>
+                        {mappingBlocked ? '映射异常' : row.mappingStatus === 'pending' ? '待确认' : '正常'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{row.city}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{row.placedAt}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <span>{labelStatus(row.fulfillmentStatus)} · {row.reserved ? '已锁库' : '未锁库'}</span>
+                        <span className="text-muted-foreground">{row.shipmentCount} 个包裹</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{row.lastSyncedAt ?? '—'}</TableCell>
                     <TableCell className="text-right">
-                      {canConfirm && row.status !== 'shipped' && row.status !== 'delivered' && row.status !== 'cancelled' ? (
+                      {mappingBlocked ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <LocaleLink href={`/console/mappings?order=${encodeURIComponent(row.externalOrderId)}`}>
+                            修复映射
+                          </LocaleLink>
+                        </Button>
+                      ) : canConfirm ? (
                         <Button size="sm" variant="outline" onClick={() => onConfirm(row.id)}>
                           确认占库
                         </Button>

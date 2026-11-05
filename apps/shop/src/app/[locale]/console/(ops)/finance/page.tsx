@@ -53,6 +53,10 @@ export default function FinancePage() {
           { label: '商品成本', value: overview.cost.toLocaleString() },
           { label: '费用合计', value: overview.fees.toLocaleString() },
           { label: '净利润', value: overview.profit.toLocaleString() },
+          {
+            label: '净打款（会话）',
+            value: settlements.reduce((sum, row) => sum + row.payoutAmount, 0).toLocaleString(),
+          },
           { label: '利润率', value: overview.margin },
         ]}
       />
@@ -131,6 +135,63 @@ export default function FinancePage() {
           </Table>
         )}
       </ConsoleListSection>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-lg border">
+          <div className="border-b px-4 py-3">
+            <h3 className="font-medium">账户流水</h3>
+            <p className="text-sm text-muted-foreground">按平台交易号去重；结算、运费、退款共用资金账户。</p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>交易号</TableHead>
+                <TableHead>店铺</TableHead>
+                <TableHead>类型</TableHead>
+                <TableHead>金额</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {state.accountTransactions.slice(0, 6).map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-mono text-xs">{row.transactionNumber}</TableCell>
+                  <TableCell>{row.shop}</TableCell>
+                  <TableCell>{row.type} / {row.subType}</TableCell>
+                  <TableCell className={row.amount < 0 ? 'text-destructive tabular-nums' : 'tabular-nums'}>
+                    {row.amount.toLocaleString()} {row.currency}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="rounded-lg border">
+          <div className="border-b px-4 py-3">
+            <h3 className="font-medium">物流费用明细</h3>
+            <p className="text-sm text-muted-foreground">尾程 / 燃油 / JSB 按订单行与包裹归集。</p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>订单</TableHead>
+                <TableHead>费用</TableHead>
+                <TableHead>金额</TableHead>
+                <TableHead>账单</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {state.logisticsFees.slice(0, 6).map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-mono text-xs">{row.externalOrderId}</TableCell>
+                  <TableCell>{row.feeName}</TableCell>
+                  <TableCell className="tabular-nums">{row.amount.toLocaleString()} {row.currency}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.settlementId}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   )
 }

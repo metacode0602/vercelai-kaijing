@@ -75,7 +75,7 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
     {
       at: row.receivedAt || '—',
       status: '收货',
-      note: row.tracking ? `运单 ${row.tracking}` : '待收货',
+      note: row.returnShipmentId ? `${row.returnShipmentId} · ${row.tracking}` : '待收货',
       current: row.status === '待收货确认',
     },
     {
@@ -147,13 +147,21 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
         description="aftersale_return_items 投影"
         fields={[
           { label: '售后单号', value: row.id, mono: true },
+          { label: '逆向单 ID', value: row.reverseOrderId, mono: true },
+          { label: '平台退货单号', value: row.externalReturnId, mono: true },
           ...parentFields,
           { label: '店铺', value: row.shop },
           { label: '原订单', value: row.order, mono: true },
           { label: '内部 SKU', value: row.sku, mono: true },
           { label: '仓库', value: row.warehouse, mono: true },
           { label: '库位', value: row.bin, mono: true },
+          { label: '退货包裹 ID', value: row.returnShipmentId, mono: true },
           { label: '寄回运单', value: row.tracking, mono: true },
+          { label: '平台状态', value: row.platformStatus },
+          { label: '质检结论', value: row.qcDecision },
+          { label: '质检时间', value: row.inspectedAt || '—' },
+          { label: '退款单号', value: row.refundId, mono: true },
+          { label: '退款状态', value: row.refundStatus },
           { label: '外包装', value: row.packageCondition },
           { label: '回库流水键', value: row.restockLedgerId || '—', mono: true },
           { label: '报损流水键', value: row.scrapLedgerId || '—', mono: true },

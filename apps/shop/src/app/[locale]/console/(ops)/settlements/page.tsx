@@ -8,6 +8,8 @@ import {
   sumFeeBreakdown,
   updateSettlementStatus,
   upsertSettlement,
+  useAccountTransactions,
+  useLogisticsFees,
   useSettlements,
 } from '@/lib/crossborder/finance-store'
 import { appendAuditEvent } from '@/lib/crossborder/audit-store'
@@ -20,6 +22,8 @@ function feeLabel(fees: FeeBreakdown) {
 
 export default function SettlementsPage() {
   const rows = useSettlements()
+  const accountTransactions = useAccountTransactions()
+  const logisticsFees = useLogisticsFees()
   const [open, setOpen] = React.useState(false)
   const [reviewTarget, setReviewTarget] = React.useState<FinanceSettlement | null>(null)
   const [notice, setNotice] = React.useState('')
@@ -57,15 +61,30 @@ export default function SettlementsPage() {
         }
         const row: FinanceSettlement = {
           id: `STL-IMP-${String(rows.length + 1).padStart(4, '0')}`,
+          externalSettlementId: `EXT-${values.file || 'IMPORT'}`,
           platform: values.platform || 'Daraz',
           shop: values.shop || 'Daraz LK',
+          shopId: '',
           period: values.period || '待填周期',
+          periodStart: values.periodStart || '',
+          periodEnd: values.periodEnd || '',
           billAmount: Number(values.billAmount || 0),
+          itemRevenue: 0,
+          otherRevenueTotal: 0,
+          refundsAmount: fees.refunds,
+          shipmentFee: fees.logistics,
+          feesTotal: sumFeeBreakdown(fees),
+          payoutAmount: Number(values.billAmount || 0) - sumFeeBreakdown(fees),
+          payoutStatus: 'pending',
+          paidAt: '',
           currency: values.currency || 'USD',
           matchedOrders: 0,
           diffAmount: 0,
           status: '待匹配',
+          platformStatus: 'IMPORTED',
+          platformUpdatedAt: '',
           fees,
+          lines: [],
         }
         upsertSettlement(row)
         appendAuditEvent({
@@ -146,16 +165,17 @@ export default function SettlementsPage() {
         description="导入平台账单 → 自动匹配订单 → 处理差异 → 确认锁定；费用拆分：平台 / 物流 / 推广 / JSB / 退款 / 汇兑。"
         rows={rows}
         detailHref={(row) => `/console/settlements/${encodeURIComponent(row.id)}`}
-        searchKeys={['id', 'platform', 'shop', 'period', 'status']}
-        searchPlaceholder="搜索账单号、平台或店铺"
+        searchKeys={['id', 'externalSettlementId', 'platform', 'shop', 'period', 'status', 'payoutStatus']}
+        searchPlaceholder="搜索账单号、平台结算 ID、平台或店铺"
         filters={[{ label: '状态', options: ['待匹配', '差异待处理', '已确认'] }]}
         addLabel="导入平台账单"
         onAdd={() => setOpen(true)}
         columns={[
           { key: 'id', label: '账单号' },
+          { key: 'externalSettlementId', label: '平台结算 ID', render: (row) => <span className="font-mono text-xs">{row.externalSettlementId}</span> },
           { key: 'platform', label: '平台' },
           { key: 'shop', label: '店铺' },
-          { key: 'period', label: '结算周期' },
+          { key: 'period', label: '结算周期', render: (row) => `${row.period} (${row.periodStart} ~ ${row.periodEnd})` },
           {
             key: 'billAmount',
             label: '账单金额',
@@ -169,6 +189,11 @@ export default function SettlementsPage() {
                 Σ {sumFeeBreakdown(row.fees).toLocaleString()}
               </span>
             ),
+          },
+          {
+            key: 'payoutAmount',
+            label: '净打款',
+            render: (row) => `${row.payoutAmount.toLocaleString()} ${row.currency} · ${row.payoutStatus}`,
           },
           { key: 'matchedOrders', label: '匹配订单', render: (row) => String(row.matchedOrders) },
           {
@@ -248,6 +273,68 @@ export default function SettlementsPage() {
                 <span className="text-muted-foreground">{feeLabel(row.fees)}</span>
               </div>
             ))}
+          </div>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/30 px-4 py-3">
+              <h2 className="font-medium">账户流水（account_transactions）</h2>
+              <p className="mt-1 text-sm text-muted-foreground">按平台交易号幂等导入；结算打款、运费、退款均进同一资金账户视图。</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">交易号</th>
+                    <th className="px-3 py-2 font-medium">店铺</th>
+                    <th className="px-3 py-2 font-medium">类型</th>
+                    <th className="px-3 py-2 font-medium">金额</th>
+                    <th className="px-3 py-2 font-medium">状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accountTransactions.map((item) => (
+                    <tr key={item.id} className="border-b last:border-0">
+                      <td className="px-3 py-2 font-mono text-xs">{item.transactionNumber}</td>
+                      <td className="px-3 py-2">{item.shop}</td>
+                      <td className="px-3 py-2">{item.type} / {item.subType}</td>
+                      <td className={`px-3 py-2 tabular-nums ${item.amount < 0 ? 'text-destructive' : ''}`}>
+                        {item.amount.toLocaleString()} {item.currency}
+                      </td>
+                      <td className="px-3 py-2">{item.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-lg border">
+            <div className="border-b bg-muted/30 px-4 py-3">
+              <h2 className="font-medium">物流费用明细（logistics_fee_details）</h2>
+              <p className="mt-1 text-sm text-muted-foreground">按订单行 / 包裹归集尾程、燃油、JSB 等费用，用于订单利润与结算差异定位。</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">订单 / 行</th>
+                    <th className="px-3 py-2 font-medium">费用</th>
+                    <th className="px-3 py-2 font-medium">金额</th>
+                    <th className="px-3 py-2 font-medium">账单</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logisticsFees.map((item) => (
+                    <tr key={item.id} className="border-b last:border-0">
+                      <td className="px-3 py-2 font-mono text-xs">{item.externalOrderId} · {item.externalOrderLineId}</td>
+                      <td className="px-3 py-2">{item.feeName}</td>
+                      <td className="px-3 py-2 tabular-nums">{item.amount.toLocaleString()} {item.currency}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{item.settlementId}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </UedWorkspace>

@@ -15,6 +15,14 @@ import {
   applyOrderReserve,
   type StockOutbound,
 } from '@/lib/crossborder/wms-store'
+import {
+  consumeOrderReservations,
+  createOrderReservations,
+} from '@/lib/crossborder/inventory-reservation-store'
+import {
+  appendTrackingEvent,
+  createShipment,
+} from '@/lib/crossborder/shipment-store'
 
 export const ORDER_STATUSES = [
   'created',
@@ -29,18 +37,39 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number]
 export const PACKAGE_STATUSES = ['待拣货', '拣货中', '已复核', '已出库', '已取消'] as const
 export type PackageStatus = (typeof PACKAGE_STATUSES)[number]
 
+export const MAPPING_STATUSES = ['ok', 'pending', 'exception'] as const
+export type MappingStatus = (typeof MAPPING_STATUSES)[number]
+
+export const INTEGRATION_SYNC_STATUSES = ['synced', 'pending', 'error'] as const
+export type IntegrationSyncStatus = (typeof INTEGRATION_SYNC_STATUSES)[number]
+
+/**
+ * 平台订单行按「商品单位」落库：每行 qty=1，展示时按 SKU 聚合。
+ * 字段对应 order_lines；平台侧行 ID 独立保留，不能用 sellerSku 代替。
+ */
 export type OrderLine = {
   id: string
+  externalLineId: string
   sku: string
   title: string
   qty: number
   unitPrice: number
+  paidPrice: number
+  taxAmount: number
+  discountAmount: number
+  shippingAmount: number
   sellerSku: string
+  shopSku: string
+  platformSkuId: string
   /** 建议拣货库位 */
   bin: string
   warehouse: string
   fulfillmentStatus: string
+  platformStatus: string
+  returnStatus: string | null
+  mappingStatus: MappingStatus
   packageId: string | null
+  shipmentId: string | null
   trackingNumber: string | null
 }
 
@@ -54,7 +83,9 @@ export type OrderTimelineStep = {
 export type ShopOrder = {
   id: string
   externalOrderId: string
+  orderNumber: string | null
   shopId: string
+  externalShopId: string
   shopName: string
   platform: string
   status: OrderStatus
@@ -67,12 +98,20 @@ export type ShopOrder = {
   shippingProvider: string | null
   trackingNumber: string | null
   packageId: string | null
+  shipmentIds: string[]
+  warehouseCode: string | null
   shippingSummary: string
   placedAt: string
   paidAt: string | null
+  platformUpdatedAt: string | null
+  lastSyncedAt: string | null
+  integrationStatus: IntegrationSyncStatus
   currency: string
   totalAmount: number
   shippingAmount: number
+  voucherAmount: number
+  buyerNote: string | null
+  isCancelPending: boolean
   /** 是否已占库（订单锁定流水） */
   reserved: boolean
   lines: OrderLine[]
@@ -88,14 +127,23 @@ export type PackageLine = {
 
 export type FulfillmentPackage = {
   id: string
+  externalPackageId: string
   order: string
   orderId: string
   shop: string
+  shopId: string
+  platform: string
   site: string
   items: number
   skus: string
   weight: string
   tracking: string
+  providerCode: string
+  providerType: string
+  platformStatus: string
+  rtsAt: string | null
+  shippedAt: string | null
+  deliveredAt: string | null
   picker: string
   status: PackageStatus
   outboundId: string
@@ -107,8 +155,10 @@ export type FulfillmentPackage = {
 export type OrderListRow = {
   id: string
   externalOrderId: string
+  orderNumber: string | null
   shop: string
   shopId: string
+  externalShopId: string
   platform: string
   status: OrderStatus
   platformStatus: string
@@ -123,6 +173,10 @@ export type OrderListRow = {
   placedAt: string
   city: string
   reserved: boolean
+  shipmentCount: number
+  lastSyncedAt: string | null
+  integrationStatus: IntegrationSyncStatus
+  mappingStatus: MappingStatus
 }
 
 function nowStamp() {
@@ -135,7 +189,9 @@ export const DEMO_ORDERS: ShopOrder[] = [
   {
     id: 'ord-10021',
     externalOrderId: 'DZ-10021',
+    orderNumber: 'DZ-10021',
     shopId: 'b5ofcwj2mzauov29y08m0q99',
+    externalShopId: 'dz-lk-88021',
     shopName: 'Daraz LK · Demo',
     platform: 'daraz',
     status: 'paid',
@@ -148,25 +204,68 @@ export const DEMO_ORDERS: ShopOrder[] = [
     shippingProvider: 'Daraz Logistics',
     trackingNumber: null,
     packageId: 'PKG-2026-0051',
+    shipmentIds: ['PKG-2026-0051'],
+    warehouseCode: 'WH-CN-XMN-001',
     shippingSummary: 'Colombo · Standard · ETA 2–3d（示例）',
     placedAt: '2026-10-20 08:12',
     paidAt: '2026-10-20 08:15',
+    platformUpdatedAt: '2026-10-20 08:15',
+    lastSyncedAt: '2026-10-20 20:40',
+    integrationStatus: 'synced',
     currency: 'USD',
     totalAmount: 36.5,
     shippingAmount: 2.5,
+    voucherAmount: 1.5,
+    buyerNote: 'Leave at the front desk, please.',
+    isCancelPending: false,
     reserved: true,
     lines: [
       {
-        id: 'ol-10021-1',
+        id: 'ol-10021-1-1',
+        externalLineId: 'DZL-10021-1',
         sku: 'HSY000001001',
         title: 'Oversized Cotton Tee · Black L',
-        qty: 2,
+        qty: 1,
         unitPrice: 12.5,
+        paidPrice: 11.75,
+        taxAmount: 0,
+        discountAmount: 0.75,
+        shippingAmount: 1.25,
         sellerSku: 'DZ-TEE-001',
+        shopSku: 'DZ-TEE-001',
+        platformSkuId: 'LK-SKU-5201-01',
         bin: 'A-01-01-01',
         warehouse: 'WH-CN-XMN-001',
         fulfillmentStatus: 'unfulfilled',
+        platformStatus: 'pending',
+        returnStatus: null,
+        mappingStatus: 'ok',
         packageId: 'PKG-2026-0051',
+        shipmentId: 'PKG-2026-0051',
+        trackingNumber: null,
+      },
+      {
+        id: 'ol-10021-1-2',
+        externalLineId: 'DZL-10021-2',
+        sku: 'HSY000001001',
+        title: 'Oversized Cotton Tee · Black L',
+        qty: 1,
+        unitPrice: 12.5,
+        paidPrice: 11.75,
+        taxAmount: 0,
+        discountAmount: 0.75,
+        shippingAmount: 1.25,
+        sellerSku: 'DZ-TEE-001',
+        shopSku: 'DZ-TEE-001',
+        platformSkuId: 'LK-SKU-5201-01',
+        bin: 'A-01-01-01',
+        warehouse: 'WH-CN-XMN-001',
+        fulfillmentStatus: 'unfulfilled',
+        platformStatus: 'pending',
+        returnStatus: null,
+        mappingStatus: 'ok',
+        packageId: 'PKG-2026-0051',
+        shipmentId: 'PKG-2026-0051',
         trackingNumber: null,
       },
     ],
@@ -181,7 +280,9 @@ export const DEMO_ORDERS: ShopOrder[] = [
   {
     id: 'ord-10018',
     externalOrderId: 'DZ-10018',
+    orderNumber: 'DZ-10018',
     shopId: 'b5ofcwj2mzauov29y08m0q99',
+    externalShopId: 'dz-lk-88021',
     shopName: 'Daraz LK · Demo',
     platform: 'daraz',
     status: 'shipped',
@@ -194,25 +295,44 @@ export const DEMO_ORDERS: ShopOrder[] = [
     shippingProvider: 'Daraz Express',
     trackingNumber: 'DZLK9981',
     packageId: 'PKG-2026-0044',
+    shipmentIds: ['PKG-2026-0044'],
+    warehouseCode: 'WH-CN-XMN-001',
     shippingSummary: 'Kandy · Express · tracking DZLK9981（示例）',
     placedAt: '2026-10-19 21:03',
     paidAt: '2026-10-19 21:05',
+    platformUpdatedAt: '2026-10-20 14:10',
+    lastSyncedAt: '2026-10-20 20:40',
+    integrationStatus: 'synced',
     currency: 'USD',
     totalAmount: 24.0,
     shippingAmount: 3.0,
+    voucherAmount: 0,
+    buyerNote: null,
+    isCancelPending: false,
     reserved: true,
     lines: [
       {
         id: 'ol-10018-1',
+        externalLineId: 'DZL-10018-1',
         sku: 'HSY000002001',
         title: 'USB-C Hub 7-in-1',
         qty: 1,
         unitPrice: 24.0,
+        paidPrice: 24.0,
+        taxAmount: 0,
+        discountAmount: 0,
+        shippingAmount: 3.0,
         sellerSku: 'DZ-HUB-01',
+        shopSku: 'DZ-HUB-01',
+        platformSkuId: 'LK-SKU-5201-01',
         bin: 'B-02-01-01',
         warehouse: 'WH-CN-XMN-001',
         fulfillmentStatus: 'shipped',
+        platformStatus: 'shipped',
+        returnStatus: 'return_requested',
+        mappingStatus: 'ok',
         packageId: 'PKG-2026-0044',
+        shipmentId: 'PKG-2026-0044',
         trackingNumber: 'DZLK9981',
       },
     ],
@@ -227,7 +347,9 @@ export const DEMO_ORDERS: ShopOrder[] = [
   {
     id: 'ord-10012',
     externalOrderId: 'DZ-10012',
+    orderNumber: 'DZ-10012',
     shopId: 'b5ofcwj2mzauov29y08m0q99',
+    externalShopId: 'dz-lk-88021',
     shopName: 'Daraz LK · Demo',
     platform: 'daraz',
     status: 'delivered',
@@ -240,25 +362,44 @@ export const DEMO_ORDERS: ShopOrder[] = [
     shippingProvider: 'Daraz Logistics',
     trackingNumber: 'DZLK7712',
     packageId: 'PKG-DZ-10012',
+    shipmentIds: ['PKG-DZ-10012'],
+    warehouseCode: 'WH-CN-XMN-001',
     shippingSummary: 'Galle · Standard · delivered（示例）',
     placedAt: '2026-10-18 14:22',
     paidAt: '2026-10-18 14:25',
+    platformUpdatedAt: '2026-10-20 11:05',
+    lastSyncedAt: '2026-10-20 20:40',
+    integrationStatus: 'synced',
     currency: 'USD',
     totalAmount: 18.9,
     shippingAmount: 2.0,
+    voucherAmount: 0,
+    buyerNote: null,
+    isCancelPending: false,
     reserved: true,
     lines: [
       {
         id: 'ol-10012-1',
+        externalLineId: 'DZL-10012-1',
         sku: 'HSY000001002',
         title: 'Oversized Cotton Tee · White L',
         qty: 1,
         unitPrice: 18.9,
+        paidPrice: 18.9,
+        taxAmount: 0,
+        discountAmount: 0,
+        shippingAmount: 2.0,
         sellerSku: 'DZ-TEE-001-WH',
+        shopSku: 'DZ-TEE-001-WH',
+        platformSkuId: 'LK-SKU-9011-WH',
         bin: 'A-01-01-02',
         warehouse: 'WH-CN-XMN-001',
         fulfillmentStatus: 'delivered',
+        platformStatus: 'delivered',
+        returnStatus: null,
+        mappingStatus: 'ok',
         packageId: 'PKG-DZ-10012',
+        shipmentId: 'PKG-DZ-10012',
         trackingNumber: 'DZLK7712',
       },
     ],
@@ -273,7 +414,9 @@ export const DEMO_ORDERS: ShopOrder[] = [
   {
     id: 'ord-lz-2201',
     externalOrderId: 'LZ-2201',
+    orderNumber: 'LZ-2201',
     shopId: 's8v7xkqw0asyz4zhswxwzdd3',
+    externalShopId: 'lz-my-10288',
     shopName: 'Lazada MY · Sandbox',
     platform: 'lazada',
     status: 'created',
@@ -286,25 +429,44 @@ export const DEMO_ORDERS: ShopOrder[] = [
     shippingProvider: null,
     trackingNumber: null,
     packageId: 'PKG-2026-0050',
+    shipmentIds: ['PKG-2026-0050'],
+    warehouseCode: 'WH-CN-XMN-001',
     shippingSummary: 'KL · 映射异常阻断占库（示例）',
     placedAt: '2026-10-20 16:01',
     paidAt: null,
+    platformUpdatedAt: '2026-10-20 16:01',
+    lastSyncedAt: '2026-10-20 16:05',
+    integrationStatus: 'error',
     currency: 'MYR',
     totalAmount: 55.0,
     shippingAmount: 5.0,
+    voucherAmount: 0,
+    buyerNote: null,
+    isCancelPending: true,
     reserved: false,
     lines: [
       {
         id: 'ol-lz-1',
+        externalLineId: 'LZL-2201-1',
         sku: 'HSY000002001',
         title: 'USB-C Hub 7-in-1',
         qty: 1,
         unitPrice: 55.0,
+        paidPrice: 55.0,
+        taxAmount: 0,
+        discountAmount: 0,
+        shippingAmount: 5.0,
         sellerSku: 'TEE-BLK-L',
+        shopSku: 'TEE-BLK-L',
+        platformSkuId: 'MY-SKU-8802-BLK-L',
         bin: 'B-02-01-01',
         warehouse: 'WH-CN-XMN-001',
         fulfillmentStatus: 'unfulfilled',
+        platformStatus: 'unpaid',
+        returnStatus: null,
+        mappingStatus: 'exception',
         packageId: 'PKG-2026-0050',
+        shipmentId: 'PKG-2026-0050',
         trackingNumber: null,
       },
     ],
@@ -319,7 +481,9 @@ export const DEMO_ORDERS: ShopOrder[] = [
   {
     id: 'ord-tts-901',
     externalOrderId: 'TTS-901',
+    orderNumber: 'TTS-901',
     shopId: 'kqw7alhkgefjmffogbib1z79',
+    externalShopId: 'tts-748812',
     shopName: 'TikTok Shop · Demo',
     platform: 'tiktok_shop',
     status: 'ready_to_ship',
@@ -332,25 +496,44 @@ export const DEMO_ORDERS: ShopOrder[] = [
     shippingProvider: 'TikTok FBT',
     trackingNumber: null,
     packageId: 'PKG-TTS-901',
+    shipmentIds: ['PKG-TTS-901'],
+    warehouseCode: 'WH-CN-XMN-001',
     shippingSummary: 'LA · FBT · awaiting label（示例）',
     placedAt: '2026-10-20 12:40',
     paidAt: '2026-10-20 12:41',
+    platformUpdatedAt: '2026-10-20 13:00',
+    lastSyncedAt: '2026-10-20 20:40',
+    integrationStatus: 'synced',
     currency: 'USD',
     totalAmount: 26.9,
     shippingAmount: 0,
+    voucherAmount: 0,
+    buyerNote: null,
+    isCancelPending: false,
     reserved: false,
     lines: [
       {
         id: 'ol-tts-1',
+        externalLineId: 'TTSL-901-1',
         sku: 'HSY000002001',
         title: 'USB-C Hub 7-in-1',
         qty: 1,
         unitPrice: 26.9,
+        paidPrice: 26.9,
+        taxAmount: 0,
+        discountAmount: 0,
+        shippingAmount: 0,
         sellerSku: 'TTS-HUB-01',
+        shopSku: 'TTS-HUB-01',
+        platformSkuId: 'TTS-SKU-HUB-01',
         bin: 'B-02-01-01',
         warehouse: 'WH-CN-XMN-001',
         fulfillmentStatus: 'ready_to_ship',
+        platformStatus: 'AWAITING_SHIPMENT',
+        returnStatus: null,
+        mappingStatus: 'pending',
         packageId: 'PKG-TTS-901',
+        shipmentId: 'PKG-TTS-901',
         trackingNumber: null,
       },
     ],
@@ -367,14 +550,23 @@ export const DEMO_ORDERS: ShopOrder[] = [
 export const DEMO_PACKAGES: FulfillmentPackage[] = [
   {
     id: 'PKG-2026-0051',
+    externalPackageId: 'DZ-PKG-2026-0051',
     order: 'DZ-10021',
     orderId: 'ord-10021',
     shop: 'Daraz LK',
+    shopId: 'b5ofcwj2mzauov29y08m0q99',
+    platform: 'daraz',
     site: 'LK',
     items: 2,
     skus: 'HSY000001001 ×2',
     weight: '待称重',
     tracking: '待生成',
+    providerCode: 'DARAZ_LOGISTICS',
+    providerType: 'platform',
+    platformStatus: 'pending',
+    rtsAt: null,
+    shippedAt: null,
+    deliveredAt: null,
     picker: '—',
     status: '待拣货',
     outboundId: 'OUT-2026-0087',
@@ -386,14 +578,23 @@ export const DEMO_PACKAGES: FulfillmentPackage[] = [
   },
   {
     id: 'PKG-2026-0050',
+    externalPackageId: 'LZ-PKG-2026-0050',
     order: 'LZ-2201',
     orderId: 'ord-lz-2201',
-    shop: 'Lazada TH',
-    site: 'TH',
+    shop: 'Lazada MY',
+    shopId: 's8v7xkqw0asyz4zhswxwzdd3',
+    platform: 'lazada',
+    site: 'MY',
     items: 1,
     skus: 'HSY000002001 ×1',
     weight: '480 g',
     tracking: 'THJSB-8821',
+    providerCode: 'LGS_MY',
+    providerType: 'lgs',
+    platformStatus: 'ready_to_ship',
+    rtsAt: '2026-10-28 09:10',
+    shippedAt: null,
+    deliveredAt: null,
     picker: '兰雨晨',
     status: '已复核',
     outboundId: '',
@@ -405,14 +606,23 @@ export const DEMO_PACKAGES: FulfillmentPackage[] = [
   },
   {
     id: 'PKG-2026-0044',
+    externalPackageId: 'DZ-PKG-2026-0044',
     order: 'DZ-10018',
     orderId: 'ord-10018',
     shop: 'Daraz LK',
+    shopId: 'b5ofcwj2mzauov29y08m0q99',
+    platform: 'daraz',
     site: 'LK',
     items: 1,
     skus: 'HSY000002001 ×1',
     weight: '460 g',
     tracking: 'DZLK9981',
+    providerCode: 'DARAZ_EXPRESS',
+    providerType: 'platform',
+    platformStatus: 'shipped',
+    rtsAt: '2026-10-20 10:05',
+    shippedAt: '2026-10-20 14:10',
+    deliveredAt: null,
     picker: '兰雨晨',
     status: '已出库',
     outboundId: '',
@@ -468,12 +678,67 @@ export function getPackageById(id: string) {
   return store.get().packages.find((item) => item.id === id)
 }
 
+export type OrderLineSummary = {
+  sku: string
+  title: string
+  sellerSku: string
+  shopSku: string
+  platformSkuId: string
+  quantity: number
+  unitPrice: number
+  paidPrice: number
+  mappingStatus: MappingStatus
+  returnStatus: string | null
+  lineIds: string[]
+  externalLineIds: string[]
+}
+
+/** 单位行 → SKU 聚合视图；下单/占库仍按单位行处理。 */
+export function aggregateOrderLines(lines: OrderLine[]): OrderLineSummary[] {
+  const grouped = new Map<string, OrderLineSummary>()
+  for (const line of lines) {
+    const key = `${line.sku}::${line.sellerSku}`
+    const current = grouped.get(key)
+    if (current) {
+      current.quantity += line.qty
+      current.paidPrice += line.paidPrice
+      current.lineIds.push(line.id)
+      current.externalLineIds.push(line.externalLineId)
+      if (line.mappingStatus === 'exception') current.mappingStatus = 'exception'
+      continue
+    }
+    grouped.set(key, {
+      sku: line.sku,
+      title: line.title,
+      sellerSku: line.sellerSku,
+      shopSku: line.shopSku,
+      platformSkuId: line.platformSkuId,
+      quantity: line.qty,
+      unitPrice: line.unitPrice,
+      paidPrice: line.paidPrice,
+      mappingStatus: line.mappingStatus,
+      returnStatus: line.returnStatus,
+      lineIds: [line.id],
+      externalLineIds: [line.externalLineId],
+    })
+  }
+  return [...grouped.values()]
+}
+
+export function orderMappingStatus(order: ShopOrder): MappingStatus {
+  if (order.lines.some((line) => line.mappingStatus === 'exception')) return 'exception'
+  if (order.lines.some((line) => line.mappingStatus === 'pending')) return 'pending'
+  return 'ok'
+}
+
 export function toOrderListRow(order: ShopOrder): OrderListRow {
   return {
     id: order.id,
     externalOrderId: order.externalOrderId,
+    orderNumber: order.orderNumber,
     shop: order.shopName,
     shopId: order.shopId,
+    externalShopId: order.externalShopId,
     platform: order.platform,
     status: order.status,
     platformStatus: order.platformStatus,
@@ -488,6 +753,10 @@ export function toOrderListRow(order: ShopOrder): OrderListRow {
     placedAt: order.placedAt,
     city: order.city,
     reserved: order.reserved,
+    shipmentCount: order.shipmentIds.length,
+    lastSyncedAt: order.lastSyncedAt,
+    integrationStatus: order.integrationStatus,
+    mappingStatus: orderMappingStatus(order),
   }
 }
 
@@ -500,26 +769,35 @@ export function toRelatedOrderShape(order: ShopOrder) {
     shop: order.shopName,
     platform: order.platform,
     status: order.status,
+    platformStatus: order.platformStatus,
     sku: first?.sku ?? '—',
     sellerSku: first?.sellerSku ?? '—',
     city: order.city,
     totalAmount: order.totalAmount,
     currency: order.currency,
     packageId: order.packageId ?? '—',
+    shipmentIds: order.shipmentIds.join(', ') || '—',
     reserved: order.reserved ? '是' : '否',
+    integrationStatus: order.integrationStatus,
+    lastSyncedAt: order.lastSyncedAt ?? '—',
   }
 }
 
 export function toRelatedPackageShape(pkg: FulfillmentPackage) {
   return {
     id: pkg.id,
+    externalPackageId: pkg.externalPackageId,
     order: pkg.order,
     shop: pkg.shop,
     site: pkg.site,
+    platform: pkg.platform,
     items: pkg.items,
     skus: pkg.skus,
     weight: pkg.weight,
     tracking: pkg.tracking,
+    providerCode: pkg.providerCode,
+    providerType: pkg.providerType as 'platform' | 'lgs' | 'jsb' | 'third_party' | 'manual',
+    platformStatus: pkg.platformStatus,
     picker: pkg.picker,
     status: pkg.status,
     outboundId: pkg.outboundId || '—',
@@ -561,6 +839,13 @@ export function confirmOrder(
     return { ok: false, reason: '订单已发货，无需再确认' }
   }
   if (!current.lines.length) return { ok: false, reason: '订单无明细行，无法确认' }
+  const mappingException = current.lines.find((line) => line.mappingStatus === 'exception')
+  if (mappingException) {
+    return {
+      ok: false,
+      reason: `Seller SKU ${mappingException.sellerSku} 映射异常，禁止自动占库；请先在映射页修复`,
+    }
+  }
 
   if (!current.reserved) {
     for (const line of current.lines) {
@@ -584,12 +869,30 @@ export function confirmOrder(
         quantity: line.qty,
         sourceDoc: current.externalOrderId,
         sourceLineId: line.id,
+        shop: current.shopName,
+        platform: current.platform,
+        externalShopId: current.externalShopId,
         actor: '系统',
-        idempotencyKey: `ledger:order_reserve:${current.externalOrderId}:${line.sku}`,
-        reason: '订单确认占库',
+        idempotencyKey: `ledger:order_reserve:${current.externalOrderId}:${line.id}`,
+        reason: `订单确认占库 · 平台行 ${line.externalLineId}`,
       })
       if (!result.ok) return result
     }
+    createOrderReservations({
+      orderId: current.id,
+      order: current.externalOrderId,
+      shopId: current.shopId,
+      externalShopId: current.externalShopId,
+      shop: current.shopName,
+      platform: current.platform,
+      lines: current.lines.map((line) => ({
+        id: line.id,
+        sku: line.sku,
+        warehouse: line.warehouse,
+        bin: line.bin,
+        qty: line.qty,
+      })),
+    })
   }
 
   const stamp = nowStamp()
@@ -620,6 +923,39 @@ export function confirmOrder(
     }),
   }))
   return { ok: true, order: updated }
+}
+
+/**
+ * 原型模拟从 Lazada / Daraz 重新拉取订单头。真实实现应走
+ * packages/marketplace 连接器 → orders / order_lines upsert。
+ */
+export function refreshOrderFromPlatform(
+  id: string,
+  platformStatus?: string,
+): { ok: true; order: ShopOrder; note: string } | { ok: false; reason: string } {
+  const current = getOrderById(id)
+  if (!current) return { ok: false, reason: '订单不存在' }
+  const stamp = nowStamp()
+  let updated!: ShopOrder
+  mutate((state) => ({
+    ...state,
+    orders: state.orders.map((item) => {
+      if (item.id !== current.id) return item
+      updated = {
+        ...item,
+        platformStatus: platformStatus || item.platformStatus,
+        platformUpdatedAt: stamp,
+        lastSyncedAt: stamp,
+        integrationStatus: 'synced',
+      }
+      return updated
+    }),
+  }))
+  return {
+    ok: true,
+    order: updated,
+    note: `已模拟从 ${updated.platform.toUpperCase()} 拉取订单 ${updated.externalOrderId}；平台状态 ${updated.platformStatus}`,
+  }
 }
 
 export function createPackage(input: {
@@ -660,14 +996,23 @@ export function createPackage(input: {
   const qty = Math.floor(input.quantity)
   const pkg: FulfillmentPackage = {
     id,
+    externalPackageId: `${order?.platform.toUpperCase() || 'MANUAL'}-${id}`,
     order: order?.externalOrderId || input.order.trim(),
     orderId: order?.id || '',
     shop: input.shop.trim(),
+    shopId: order?.shopId || '',
+    platform: order?.platform || 'manual',
     site: input.site.trim(),
     items: qty,
     skus: `${input.sku.trim()} ×${qty}`,
     weight: input.weight?.trim() || '待称重',
     tracking: '待生成',
+    providerCode: 'MANUAL',
+    providerType: 'manual',
+    platformStatus: 'pending',
+    rtsAt: null,
+    shippedAt: null,
+    deliveredAt: null,
     picker: input.picker?.trim() || '当前用户',
     status: '待拣货',
     outboundId: '',
@@ -684,12 +1029,33 @@ export function createPackage(input: {
       return {
         ...item,
         packageId: id,
+        shipmentIds: [...new Set([...item.shipmentIds, id])],
         lines: item.lines.map((line) =>
-          line.sku === input.sku.trim() ? { ...line, packageId: id } : line,
+          line.sku === input.sku.trim()
+            ? { ...line, packageId: id, shipmentId: id }
+            : line,
         ),
       }
     }),
   }))
+  createShipment({
+    id,
+    order: pkg.order,
+    shopId: pkg.shopId,
+    shop: pkg.shop,
+    platform: pkg.platform,
+    site: pkg.site,
+    warehouse,
+    providerCode: pkg.providerCode,
+    providerType: pkg.providerType as 'platform' | 'lgs' | 'jsb' | 'third_party' | 'manual',
+    mode: 'manual',
+    tracking: pkg.tracking,
+    weight: pkg.weight,
+    items: pkg.items,
+    skus: pkg.skus,
+    picker: pkg.picker,
+    remark: pkg.remark,
+  })
   return { ok: true, package: pkg }
 }
 
@@ -754,6 +1120,9 @@ export function advancePackage(
           status: '已出库',
           tracking,
           outboundId: posted.outbound.id,
+          platformStatus: 'shipped',
+          rtsAt: item.rtsAt || stamp,
+          shippedAt: stamp,
           picker: item.picker === '—' ? '当前用户' : item.picker,
           weight: item.weight === '待称重' ? '470 g' : item.weight,
         }
@@ -768,17 +1137,31 @@ export function advancePackage(
           platformStatus: 'shipped',
           trackingNumber: tracking,
           packageId: id,
+          shipmentIds: [...new Set([...order.shipmentIds, id])],
+          platformUpdatedAt: stamp,
+          lastSyncedAt: stamp,
+          integrationStatus: 'synced',
           shippingProvider: order.shippingProvider || '平台物流',
           timeline: markTimeline(order.timeline, 'shipped', stamp, '拣货出库完成 · 已写流水'),
           lines: order.lines.map((line) => ({
             ...line,
             fulfillmentStatus: 'shipped',
             packageId: id,
+            shipmentId: id,
             trackingNumber: tracking,
           })),
         }
       }),
     }))
+    appendTrackingEvent({
+      shipmentId: id,
+      statusCode: 'SHIPPED',
+      title: '仓库出库',
+      description: `拣货出库完成，运单 ${tracking}`,
+      eventTime: stamp,
+      source: 'manual',
+    })
+    consumeOrderReservations({ order: current.order, shipmentId: id })
     return { ok: true, package: updated, outbound: posted.outbound }
   }
 
@@ -808,5 +1191,14 @@ export function advancePackage(
       return updated
     }),
   }))
+  if (nextStatus === '已复核') {
+    appendTrackingEvent({
+      shipmentId: id,
+      statusCode: 'READY_TO_SHIP',
+      title: '仓库拣货完成',
+      description: '复核通过，等待平台 / 货代揽收',
+      source: 'manual',
+    })
+  }
   return { ok: true, package: updated }
 }

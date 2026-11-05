@@ -7,6 +7,12 @@ import {
   inventoryBucketsFromLots,
   useOceanLots,
 } from '@/lib/crossborder/ocean-container-store'
+import {
+  labelReservationStatus,
+  releaseReservation,
+  reservationKpi,
+  useInventoryReservations,
+} from '@/lib/crossborder/inventory-reservation-store'
 import { countBalancesKpi, useInventoryBalances } from '@/lib/crossborder/wms-store'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
@@ -15,8 +21,10 @@ import { Button } from '@workspace/ui/components/button'
 export default function InventoryBalancesPage() {
   const rows = useInventoryBalances()
   const lots = useOceanLots()
+  const reservations = useInventoryReservations()
   const oceanBuckets = React.useMemo(() => inventoryBucketsFromLots(lots), [lots])
   const kpi = React.useMemo(() => countBalancesKpi(rows), [rows])
+  const reservation = React.useMemo(() => reservationKpi(reservations), [reservations])
   const oceanKpi = React.useMemo(() => {
     return oceanBuckets.reduce(
       (acc, row) => {
@@ -47,9 +55,14 @@ export default function InventoryBalancesPage() {
         hint: 'Daraz LK 柜次状态=清关中；不计入可用',
       },
       { label: '残次', value: String(kpi.damagedTotal + oceanKpi.damaged), hint: 'WMS damaged + 柜次残次' },
+      {
+        label: '预留 / 店铺',
+        value: `${reservation.activeQty} / ${reservation.shops.length}`,
+        hint: `${reservation.active} 条锁定中；含 Daraz / Lazada`,
+      },
       { label: '低库存', value: String(kpi.lowStock), hint: '可用 < 安全库存' },
     ],
-    [kpi, oceanKpi],
+    [kpi, oceanKpi, reservation],
   )
 
   return (
@@ -97,8 +110,65 @@ export default function InventoryBalancesPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        WMS 不变量：available = on_hand − reserved − qc_hold − damaged。Daraz LK 另增「清关中」桶（customs_clearing），由海运柜次投影，不计入可用。厦门现货池不用于 Daraz。
+        WMS 不变量：available = on_hand − reserved − qc_hold − damaged。inventory_reservations 按订单单位行生成，出库变 consumed、取消变 released；映射异常订单不生成预留。
       </UedPrototypeNotice>
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-medium">预留明细（inventory_reservations）</h3>
+            <p className="text-xs text-muted-foreground">
+              锁定中 {reservation.active} 条 / {reservation.activeQty} 件 · 已出库 {reservation.consumedQty} 件 · 已释放 {reservation.releasedQty} 件
+            </p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="py-1 pr-3 font-medium">预留 ID</th>
+                <th className="py-1 pr-3 font-medium">订单 / 行</th>
+                <th className="py-1 pr-3 font-medium">店铺 / 平台</th>
+                <th className="py-1 pr-3 font-medium">SKU / 库位</th>
+                <th className="py-1 pr-3 font-medium">数量</th>
+                <th className="py-1 pr-3 font-medium">状态</th>
+                <th className="py-1 pr-3 font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reservations.map((item) => (
+                <tr key={item.id} className="border-b last:border-0">
+                  <td className="py-1.5 pr-3 font-mono text-xs">{item.id}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs">{item.order} · {item.orderLineId}</td>
+                  <td className="py-1.5 pr-3">{item.shop} · {item.platform}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs">{item.sku} · {item.bin}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{item.qty}</td>
+                  <td className="py-1.5 pr-3">
+                    <Badge variant={item.status === 'reserved' ? 'secondary' : 'outline'}>
+                      {labelReservationStatus(item.status)}
+                    </Badge>
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    {item.status === 'reserved' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const result = releaseReservation(item.id)
+                          setNotice(result.ok ? result.note : result.reason)
+                        }}
+                      >
+                        释放
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div className="rounded-lg border p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-medium">海运柜次库存投影（F22）</h3>
@@ -141,7 +211,7 @@ export default function InventoryBalancesPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setNotice('按店铺查看锁定明细：Lazada MY 锁定 8 件、Daraz LK 锁定 5 件（示例）。')}
+          onClick={() => setNotice(`预留按店铺：${reservation.shops.join('、') || '暂无'}；锁定中 ${reservation.activeQty} 件。`)}
         >
           按店铺看预留
         </Button>

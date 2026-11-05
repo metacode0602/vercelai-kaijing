@@ -95,10 +95,10 @@ export default function AftersalesPage() {
   return (
     <UedWorkspace
       title="售后管理"
-      description="退款与实物退货分开记录；只有质检可售数量经退货收货面进入可用库存。"
+      description="逆向单 / 退款单 / 退货包裹分离记录；只有质检可售数量经退货收货进入可用库存。"
       rows={rows}
       detailHref={(row) => `/console/aftersales/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'order', 'sku', 'type', 'reason', 'status', 'shop']}
+      searchKeys={['id', 'reverseOrderId', 'externalReverseId', 'order', 'sku', 'type', 'reason', 'status', 'platformStatus', 'refundStatus', 'shop']}
       searchPlaceholder="搜索售后单、订单或 SKU"
       filters={[
         { label: '状态', options: ['待确认', '已审核', '已驳回', '已入库'], key: 'status' },
@@ -109,25 +109,28 @@ export default function AftersalesPage() {
       onAdd={() => setOpen(true)}
       columns={[
         { key: 'id', label: '售后单号' },
+        { key: 'reverseOrderId', label: '逆向单 ID' },
         { key: 'order', label: '原订单' },
         { key: 'shop', label: '店铺' },
         { key: 'sku', label: '内部 SKU' },
         { key: 'type', label: '售后类型' },
-        { key: 'reason', label: '原因' },
+        { key: 'platformStatus', label: '平台状态' },
         {
           key: 'refund',
           label: '退款金额',
           render: (row) => `${row.refund} ${row.currency}`,
         },
+        { key: 'refundStatus', label: '退款状态' },
         {
           key: 'returned',
           label: '退货数量',
           render: (row) => String(row.returned),
         },
+        { key: 'returnShipmentId', label: '退货包裹', render: (row) => row.returnShipmentId || '—' },
         { key: 'qc', label: '质检 / 回库' },
         {
           key: 'status',
-          label: '状态',
+          label: '审核状态',
           render: (row) => (
             <Badge variant={row.status === '待确认' ? 'outline' : 'secondary'}>{row.status}</Badge>
           ),
@@ -136,7 +139,7 @@ export default function AftersalesPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        取消订单释放库存的精确平台节点待确认。仅退款不虚增库存；退货实物必须先收货、质检（见退货收货与质检）。
+        逆向单保存平台 reverse_order_id；退款通过 refund_id 独立记账。取消订单释放库存的精确平台节点待确认；仅退款不虚增库存。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" asChild>

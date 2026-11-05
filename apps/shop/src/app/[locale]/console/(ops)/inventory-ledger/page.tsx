@@ -31,7 +31,7 @@ export default function InventoryLedgerPage() {
       description="inventory_ledger：库存变化追加记账；余额是投影。修正一律创建反向流水，不允许编辑或删除历史。"
       rows={rows}
       detailHref={(row) => `/console/inventory-ledger/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'sku', 'warehouse', 'bin', 'type', 'sourceId', 'actor', 'idempotencyKey', 'eventType']}
+      searchKeys={['id', 'sku', 'warehouse', 'bin', 'type', 'sourceId', 'shop', 'platform', 'externalShopId', 'actor', 'idempotencyKey', 'eventType']}
       searchPlaceholder="搜索流水号、SKU、来源单或幂等键"
       filters={[{ label: '类型', options: [...LEDGER_EVENT_TYPES], key: 'eventType' }]}
       emptyText="暂无库存流水。入库上架、出库过账或调整过账后会出现在此。"
@@ -61,6 +61,8 @@ export default function InventoryLedgerPage() {
         },
         { key: 'onHandAfter', label: '变动后', render: (row) => String(row.onHandAfter) },
         { key: 'sourceId', label: '来源单' },
+        { key: 'shop', label: '店铺 / 平台', render: (row) => row.shop ? `${row.shop} · ${row.platform}` : '—' },
+        { key: 'externalShopId', label: '外部店铺 ID', render: (row) => row.externalShopId || '—' },
         { key: 'actor', label: '操作人' },
         { key: 'occurredAt', label: '时间' },
         {
@@ -72,7 +74,7 @@ export default function InventoryLedgerPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        幂等键（organization_id + idempotency_key）唯一：重复上架 / 出库 / 过账会被拦截。创建调整请前往「盘点与调整」，本页只读流水。
+        幂等键（organization_id + idempotency_key）唯一：重复上架 / 出库 / 过账会被拦截。订单类流水同时记录店铺与平台来源；创建调整请前往「盘点与调整」。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" onClick={() => router.push('/console/stock-adjustments')}>

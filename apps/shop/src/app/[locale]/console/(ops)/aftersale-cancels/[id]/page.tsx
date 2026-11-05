@@ -63,6 +63,8 @@ export default function AftersaleCancelDetailPage({ params }: { params: Promise<
           <>
             <Badge variant="outline">示例数据</Badge>
             <Badge variant={row.status === '已驳回' ? 'destructive' : 'secondary'}>{row.status}</Badge>
+            <Badge variant="outline">{row.platformStatus}</Badge>
+            <Badge variant={row.refundStatus === 'refunded' ? 'secondary' : 'outline'}>退款 {row.refundStatus}</Badge>
           </>
         }
         actions={
@@ -100,6 +102,8 @@ export default function AftersaleCancelDetailPage({ params }: { params: Promise<
         title="取消/退款主信息"
         fields={[
           { label: '单号', value: row.id, mono: true },
+          { label: '逆向单 ID', value: row.reverseOrderId, mono: true },
+          { label: '平台逆向单号', value: row.externalReverseId, mono: true },
           ...parentFields,
           { label: '店铺', value: row.shop },
           { label: '原订单', value: row.order, mono: true },
@@ -107,7 +111,13 @@ export default function AftersaleCancelDetailPage({ params }: { params: Promise<
           { label: '仓库', value: row.warehouse, mono: true },
           { label: '库位', value: row.bin, mono: true },
           { label: '类型', value: row.type },
+          { label: '原因码', value: row.reasonCode },
           { label: '原因', value: row.reason },
+          { label: '平台状态', value: row.platformStatus },
+          { label: '平台更新时间', value: row.platformUpdatedAt },
+          { label: '退款单号', value: row.refundId, mono: true },
+          { label: '退款状态', value: row.refundStatus },
+          { label: '退款完成', value: row.refundedAt || '—' },
           { label: '释放时间', value: row.releasedAt || '—' },
           { label: '释放流水键', value: row.releaseLedgerId || '—', mono: true },
           { label: '备注', value: row.remark || '—' },

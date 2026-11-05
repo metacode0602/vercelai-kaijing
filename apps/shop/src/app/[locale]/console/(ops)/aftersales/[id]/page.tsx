@@ -53,6 +53,8 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
           <>
             <Badge variant="outline">示例数据</Badge>
             <Badge variant={row.status === '待确认' ? 'outline' : 'secondary'}>{row.status}</Badge>
+            <Badge variant="outline">{row.platformStatus}</Badge>
+            <Badge variant={row.refundStatus === 'refunded' ? 'secondary' : 'outline'}>退款 {row.refundStatus}</Badge>
           </>
         }
         actions={
@@ -88,6 +90,8 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
         title="售后主信息"
         fields={[
           { label: '售后单号', value: row.id, mono: true },
+          { label: '逆向单 ID', value: row.reverseOrderId, mono: true },
+          { label: '平台逆向单号', value: row.externalReverseId, mono: true },
           ...parentFields,
           { label: '店铺', value: row.shop },
           { label: '仓库', value: row.warehouse, mono: true },
@@ -95,6 +99,15 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
           { label: '内部 SKU', value: row.sku, mono: true },
           { label: '类型', value: row.type },
           { label: '原因', value: row.reason },
+          { label: '平台状态', value: row.platformStatus },
+          { label: '平台更新时间', value: row.platformUpdatedAt },
+          { label: '退货包裹', value: row.returnShipmentId || '—', mono: true },
+          { label: '寄回运单', value: row.returnTracking || '—', mono: true },
+          { label: '质检结论', value: row.qcDecision },
+          { label: '退款单号', value: row.refundId, mono: true },
+          { label: '退款状态', value: row.refundStatus },
+          { label: '退款完成', value: row.refundedAt || '—' },
+          { label: '退款方式', value: row.refundMethod },
         ]}
       />
       <DetailRelatedTables sections={related.sections ?? []} />

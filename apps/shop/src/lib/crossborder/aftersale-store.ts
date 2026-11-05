@@ -21,12 +21,15 @@ export type CancelStatus = (typeof CANCEL_STATUSES)[number]
 
 export type AftersaleReturn = {
   id: string
+  reverseOrderId: string
+  externalReturnId: string
   order: string
   shop: string
   sku: string
   warehouse: string
   bin: string
   tracking: string
+  returnShipmentId: string
   receivedAt: string
   qty: number
   qcPass: number
@@ -35,6 +38,11 @@ export type AftersaleReturn = {
   restock: number
   scrap: number
   status: ReturnStatus | string
+  platformStatus: string
+  qcDecision: string
+  inspectedAt: string
+  refundId: string
+  refundStatus: string
   packageCondition: string
   remark: string
   restockLedgerId: string
@@ -43,6 +51,8 @@ export type AftersaleReturn = {
 
 export type AftersaleCancel = {
   id: string
+  reverseOrderId: string
+  externalReverseId: string
   order: string
   shop: string
   sku: string
@@ -50,11 +60,17 @@ export type AftersaleCancel = {
   bin: string
   type: string
   platformSync: string
+  platformStatus: string
+  platformUpdatedAt: string
+  refundId: string
+  refundStatus: string
+  refundedAt: string
   refund: number
   currency: string
   releaseReserved: number
   status: CancelStatus | string
   reason: string
+  reasonCode: string
   remark: string
   releasedAt: string
   releaseLedgerId: string
@@ -63,6 +79,18 @@ export type AftersaleCancel = {
 export type AftersaleTicket = DemoAfterSale & {
   shop: string
   warehouse: string
+  reverseOrderId: string
+  externalReverseId: string
+  platformStatus: string
+  platformUpdatedAt: string
+  returnShipmentId: string
+  returnTracking: string
+  refundId: string
+  refundStatus: string
+  refundedAt: string
+  refundMethod: string
+  qcDecision: string
+  isCancelPending: boolean
 }
 
 function nowStamp() {
@@ -74,12 +102,15 @@ function nowStamp() {
 const DEMO_RETURNS: AftersaleReturn[] = [
   {
     id: 'AS-2026-0081',
+    reverseOrderId: 'RV-2026-0081',
+    externalReturnId: 'DZ-RETURN-5521',
     order: 'DZ-10018',
     shop: 'Daraz LK',
     sku: 'HSY000002001',
     warehouse: 'WH-CN-XMN-001',
     bin: 'B-02-01-01',
     tracking: 'DZRT-5521',
+    returnShipmentId: 'RS-2026-0081',
     receivedAt: '2026-10-28 11:20',
     qty: 1,
     qcPass: 0,
@@ -88,6 +119,11 @@ const DEMO_RETURNS: AftersaleReturn[] = [
     restock: 0,
     scrap: 0,
     status: '待质检',
+    platformStatus: 'RETURN_RECEIVED',
+    qcDecision: 'pending',
+    inspectedAt: '',
+    refundId: 'RF-2026-0081',
+    refundStatus: 'pending',
     packageCondition: '完好',
     remark: '',
     restockLedgerId: '',
@@ -95,12 +131,15 @@ const DEMO_RETURNS: AftersaleReturn[] = [
   },
   {
     id: 'AS-2026-0077',
+    reverseOrderId: 'RV-2026-0077',
+    externalReturnId: 'LZ-RETURN-1180',
     order: 'LZ-2180',
     shop: 'Lazada MY',
     sku: 'HSY000001001',
     warehouse: 'WH-CN-XMN-001',
     bin: 'A-01-01-01',
     tracking: 'LZRT-1180',
+    returnShipmentId: 'RS-2026-0077',
     receivedAt: '2026-10-25 15:05',
     qty: 2,
     qcPass: 1,
@@ -109,6 +148,11 @@ const DEMO_RETURNS: AftersaleReturn[] = [
     restock: 1,
     scrap: 1,
     status: '已回库',
+    platformStatus: 'RETURN_RECEIVED',
+    qcDecision: 'partial_restock',
+    inspectedAt: '2026-10-25 17:40',
+    refundId: 'RF-2026-0077',
+    refundStatus: 'refunded',
     packageCondition: '轻微破损',
     remark: '一件可售一件报损',
     restockLedgerId: 'ledger:aftersale_restock:AS-2026-0077',
@@ -116,12 +160,15 @@ const DEMO_RETURNS: AftersaleReturn[] = [
   },
   {
     id: 'AS-2026-0070',
+    reverseOrderId: 'RV-2026-0070',
+    externalReturnId: 'DZ-RETURN-5480',
     order: 'DZ-09988',
     shop: 'Daraz LK',
     sku: 'HSY000001002',
     warehouse: 'WH-CN-XMN-001',
     bin: 'A-01-01-02',
     tracking: 'DZRT-5480',
+    returnShipmentId: 'RS-2026-0070',
     receivedAt: '2026-10-19 09:30',
     qty: 1,
     qcPass: 1,
@@ -130,6 +177,11 @@ const DEMO_RETURNS: AftersaleReturn[] = [
     restock: 1,
     scrap: 0,
     status: '已回库',
+    platformStatus: 'RETURN_RECEIVED',
+    qcDecision: 'restock',
+    inspectedAt: '2026-10-19 11:10',
+    refundId: 'RF-2026-0070',
+    refundStatus: 'refunded',
     packageCondition: '完好',
     remark: '',
     restockLedgerId: 'ledger:aftersale_restock:AS-2026-0070',
@@ -140,6 +192,8 @@ const DEMO_RETURNS: AftersaleReturn[] = [
 const DEMO_CANCELS: AftersaleCancel[] = [
   {
     id: 'AS-2026-0079',
+    reverseOrderId: 'RV-2026-0079',
+    externalReverseId: 'DZ-REV-0079',
     order: 'DZ-10012',
     shop: 'Daraz LK',
     sku: 'HSY000001001',
@@ -147,17 +201,25 @@ const DEMO_CANCELS: AftersaleCancel[] = [
     bin: 'A-01-01-01',
     type: '仅退款',
     platformSync: '平台已同步',
+    platformStatus: 'REFUND_APPROVED',
+    platformUpdatedAt: '2026-10-26 10:12',
+    refundId: 'RF-2026-0079',
+    refundStatus: 'refunded',
+    refundedAt: '2026-10-26 10:20',
     refund: 3,
     currency: 'USD',
     releaseReserved: 0,
     status: '已审核',
     reason: '物流延迟补偿',
+    reasonCode: 'LOGISTICS_DELAY',
     remark: '',
     releasedAt: '',
     releaseLedgerId: '',
   },
   {
     id: 'AS-2026-0082',
+    reverseOrderId: 'RV-2026-0082',
+    externalReverseId: 'LZ-REV-0082',
     order: 'LZ-2233',
     shop: 'Lazada MY',
     sku: 'HSY000001002',
@@ -165,17 +227,25 @@ const DEMO_CANCELS: AftersaleCancel[] = [
     bin: 'A-01-01-02',
     type: '取消订单',
     platformSync: '等待平台确认',
+    platformStatus: 'REVERSE_REQUESTED',
+    platformUpdatedAt: '2026-10-28 09:30',
+    refundId: 'RF-2026-0082',
+    refundStatus: 'pending',
+    refundedAt: '',
     refund: 6.8,
     currency: 'MYR',
     releaseReserved: 1,
     status: '待确认',
     reason: '买家未付款超时取消',
+    reasonCode: 'BUYER_CANCEL',
     remark: '',
     releasedAt: '',
     releaseLedgerId: '',
   },
   {
     id: 'AS-2026-0075',
+    reverseOrderId: 'RV-2026-0075',
+    externalReverseId: 'DZ-REV-0075',
     order: 'DZ-10004',
     shop: 'Daraz LK',
     sku: 'HSY000002001',
@@ -183,22 +253,44 @@ const DEMO_CANCELS: AftersaleCancel[] = [
     bin: 'B-02-01-01',
     type: '取消订单',
     platformSync: '平台已同步',
+    platformStatus: 'REVERSE_APPROVED',
+    platformUpdatedAt: '2026-10-22 14:05',
+    refundId: 'RF-2026-0075',
+    refundStatus: 'refunded',
+    refundedAt: '2026-10-22 14:20',
     refund: 24,
     currency: 'USD',
     releaseReserved: 0,
     status: '已审核',
     reason: '买家主动取消',
+    reasonCode: 'BUYER_CANCEL',
     remark: '',
     releasedAt: '',
     releaseLedgerId: '',
   },
 ]
 
-const DEMO_TICKETS: AftersaleTicket[] = ERP_DEMO_AFTERSALES.map((item) => ({
-  ...item,
-  shop: item.order.startsWith('DZ') ? 'Daraz LK' : 'Lazada MY',
-  warehouse: 'WH-CN-XMN-001',
-}))
+const DEMO_TICKETS: AftersaleTicket[] = ERP_DEMO_AFTERSALES.map((item) => {
+  const hasReturn = item.returned > 0
+  const prefix = item.order.startsWith('DZ') ? 'DZ' : 'LZ'
+  return {
+    ...item,
+    shop: item.order.startsWith('DZ') ? 'Daraz LK' : 'Lazada MY',
+    warehouse: 'WH-CN-XMN-001',
+    reverseOrderId: `RV-${item.id.slice(3)}`,
+    externalReverseId: `${prefix}-REV-${item.id.slice(-4)}`,
+    platformStatus: item.status === '已审核' ? 'REVERSE_APPROVED' : 'REVERSE_REQUESTED',
+    platformUpdatedAt: '2026-10-28 09:30',
+    returnShipmentId: hasReturn ? `RS-${item.id.slice(3)}` : '',
+    returnTracking: hasReturn ? `${prefix}RT-${item.id.slice(-4)}` : '',
+    refundId: `RF-${item.id.slice(3)}`,
+    refundStatus: item.status === '已审核' ? 'refunded' : 'pending',
+    refundedAt: item.status === '已审核' ? '2026-10-28 11:20' : '',
+    refundMethod: 'platform_original',
+    qcDecision: hasReturn ? 'pending' : 'not_applicable',
+    isCancelPending: item.type === '取消',
+  }
+})
 
 type AftersaleState = {
   returns: AftersaleReturn[]
@@ -206,7 +298,7 @@ type AftersaleState = {
   tickets: AftersaleTicket[]
 }
 
-const store = createDemoStore<AftersaleState>('open-shop.console.demo.aftersale.v1', {
+const store = createDemoStore<AftersaleState>('open-shop.console.demo.aftersale.v2', {
   returns: structuredClone(DEMO_RETURNS),
   cancels: structuredClone(DEMO_CANCELS),
   tickets: structuredClone(DEMO_TICKETS),
@@ -277,6 +369,7 @@ export function registerReturnReceive(input: {
   bin: string
   tracking: string
   qty: number
+  returnShipmentId?: string
   packageCondition?: string
   remark?: string
 }): { ok: true; row: AftersaleReturn } | { ok: false; reason: string } {
@@ -299,12 +392,15 @@ export function registerReturnReceive(input: {
 
   const row: AftersaleReturn = {
     id,
+    reverseOrderId: `RV-${id.slice(3)}`,
+    externalReturnId: `RETURN-${id.slice(3)}`,
     order,
     shop: input.shop || 'Daraz LK',
     sku,
     warehouse: input.warehouse || 'WH-CN-XMN-001',
     bin: input.bin.trim(),
     tracking,
+    returnShipmentId: input.returnShipmentId || `RS-${id.slice(3)}`,
     receivedAt: nowStamp(),
     qty,
     qcPass: 0,
@@ -313,6 +409,11 @@ export function registerReturnReceive(input: {
     restock: 0,
     scrap: 0,
     status: '待质检',
+    platformStatus: 'RETURN_RECEIVED',
+    qcDecision: 'pending',
+    inspectedAt: '',
+    refundId: `RF-${id.slice(3)}`,
+    refundStatus: 'pending',
     packageCondition: input.packageCondition || '完好',
     remark: input.remark || '',
     restockLedgerId: '',
@@ -400,6 +501,9 @@ export function completeReturnQc(input: {
     restock: pass,
     scrap: defect,
     status,
+    qcDecision: pass > 0 && defect > 0 ? 'partial_restock' : pass > 0 ? 'restock' : 'scrap',
+    inspectedAt: nowStamp(),
+    refundStatus: 'refund_processing',
     restockLedgerId,
     scrapLedgerId,
   }
@@ -456,6 +560,10 @@ export function approveCancel(
     ...current,
     status: '已审核',
     platformSync: '平台已同步（示例）',
+    platformStatus: 'REVERSE_APPROVED',
+    platformUpdatedAt: nowStamp(),
+    refundStatus: current.refund > 0 ? 'refunded' : 'not_applicable',
+    refundedAt: current.refund > 0 ? nowStamp() : '',
     releaseLedgerId,
     releasedAt,
   }
@@ -485,8 +593,11 @@ export function createCancel(input: {
   if (!input.reason.trim()) return { ok: false, reason: '原因不能为空' }
   if (!Number.isFinite(input.refund) || input.refund < 0) return { ok: false, reason: '退款金额无效' }
 
+  const id = `AS-2026-${String(store.get().cancels.length + 90).padStart(4, '0')}`
   const row: AftersaleCancel = {
-    id: `AS-2026-${String(store.get().cancels.length + 90).padStart(4, '0')}`,
+    id,
+    reverseOrderId: `RV-${id.slice(3)}`,
+    externalReverseId: `REV-${id.slice(3)}`,
     order: input.order.trim(),
     shop: input.shop,
     sku: input.sku.trim(),
@@ -494,11 +605,17 @@ export function createCancel(input: {
     bin: input.bin || 'A-01-01-01',
     type: input.type,
     platformSync: input.platformSync || '等待平台确认',
+    platformStatus: 'REVERSE_REQUESTED',
+    platformUpdatedAt: nowStamp(),
+    refundId: `RF-${id.slice(3)}`,
+    refundStatus: 'pending',
+    refundedAt: '',
     refund: input.refund,
     currency: input.currency,
     releaseReserved: input.releaseReserved ?? 0,
     status: '待确认',
     reason: input.reason.trim(),
+    reasonCode: input.type === '取消订单' ? 'BUYER_CANCEL' : 'REFUND_ONLY',
     remark: input.remark || '',
     releasedAt: '',
     releaseLedgerId: '',
@@ -522,19 +639,33 @@ export function createTicket(input: {
   if (!input.order.trim()) return { ok: false, reason: '平台订单号不能为空' }
   if (!input.sku.trim()) return { ok: false, reason: '内部 SKU 不能为空' }
   if (!input.reason.trim()) return { ok: false, reason: '售后原因不能为空' }
+  const id = `AS-2026-${String(store.get().tickets.length + 83).padStart(4, '0')}`
+  const returned = input.returned ?? 0
   const row: AftersaleTicket = {
-    id: `AS-2026-${String(store.get().tickets.length + 83).padStart(4, '0')}`,
+    id,
     order: input.order.trim(),
     sku: input.sku.trim(),
     type: input.type,
     reason: input.reason.trim(),
     refund: input.refund,
     currency: input.currency,
-    returned: input.returned ?? 0,
-    qc: input.qc || (input.returned && input.returned > 0 ? '待质检' : '不适用'),
+    returned,
+    qc: input.qc || (returned > 0 ? '待质检' : '不适用'),
     status: (input.status as AftersaleTicket['status']) || '待确认',
     shop: input.shop || 'Daraz LK',
     warehouse: 'WH-CN-XMN-001',
+    reverseOrderId: `RV-${id.slice(3)}`,
+    externalReverseId: `REV-${id.slice(3)}`,
+    platformStatus: 'REVERSE_REQUESTED',
+    platformUpdatedAt: nowStamp(),
+    returnShipmentId: returned > 0 ? `RS-${id.slice(3)}` : '',
+    returnTracking: returned > 0 ? `RT-${id.slice(-4)}` : '',
+    refundId: `RF-${id.slice(3)}`,
+    refundStatus: 'pending',
+    refundedAt: '',
+    refundMethod: 'platform_original',
+    qcDecision: returned > 0 ? 'pending' : 'not_applicable',
+    isCancelPending: input.type === '取消',
   }
   mutate((s) => ({ ...s, tickets: [row, ...s.tickets] }))
   return { ok: true, row }
@@ -543,15 +674,23 @@ export function createTicket(input: {
 export function toRelatedReturnShape(row: AftersaleReturn): Record<string, unknown> {
   return {
     id: row.id,
+    reverseOrderId: row.reverseOrderId,
+    externalReturnId: row.externalReturnId,
     order: row.order,
     sku: row.sku,
     tracking: row.tracking,
+    returnShipmentId: row.returnShipmentId,
     receivedAt: row.receivedAt,
     qty: row.qty,
     qc: row.qc,
+    qcDecision: row.qcDecision,
+    inspectedAt: row.inspectedAt || '—',
     restock: row.restock,
     scrap: row.scrap,
     status: row.status,
+    platformStatus: row.platformStatus,
+    refundId: row.refundId,
+    refundStatus: row.refundStatus,
     warehouse: row.warehouse,
     bin: row.bin,
     shop: row.shop,
@@ -561,22 +700,32 @@ export function toRelatedReturnShape(row: AftersaleReturn): Record<string, unkno
 export function toRelatedCancelShape(row: AftersaleCancel): Record<string, unknown> {
   return {
     id: row.id,
+    reverseOrderId: row.reverseOrderId,
+    externalReverseId: row.externalReverseId,
     order: row.order,
     shop: row.shop,
     sku: row.sku,
     type: row.type,
     platformSync: row.platformSync,
+    platformStatus: row.platformStatus,
+    platformUpdatedAt: row.platformUpdatedAt,
+    refundId: row.refundId,
+    refundStatus: row.refundStatus,
+    refundedAt: row.refundedAt || '—',
     refund: row.refund,
     currency: row.currency,
     releaseReserved: row.releaseReserved,
     status: row.status,
     reason: row.reason,
+    reasonCode: row.reasonCode,
   }
 }
 
 export function toRelatedTicketShape(row: AftersaleTicket): Record<string, unknown> {
   return {
     id: row.id,
+    reverseOrderId: row.reverseOrderId,
+    externalReverseId: row.externalReverseId,
     order: row.order,
     sku: row.sku,
     type: row.type,
@@ -585,7 +734,16 @@ export function toRelatedTicketShape(row: AftersaleTicket): Record<string, unkno
     currency: row.currency,
     returned: row.returned,
     qc: row.qc,
+    qcDecision: row.qcDecision,
     status: row.status,
+    platformStatus: row.platformStatus,
+    platformUpdatedAt: row.platformUpdatedAt,
+    returnShipmentId: row.returnShipmentId || '—',
+    returnTracking: row.returnTracking || '—',
+    refundId: row.refundId,
+    refundStatus: row.refundStatus,
+    refundedAt: row.refundedAt || '—',
+    refundMethod: row.refundMethod,
     shop: row.shop,
   }
 }
