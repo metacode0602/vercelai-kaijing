@@ -30,13 +30,39 @@ export const LAZADA_REST_ENDPOINTS: Record<LazadaRegion, string> = {
   id: "https://api.lazada.co.id/rest",
 }
 
-/** Shared Lazop OAuth authorize + token hosts. */
+/** Lazop OAuth paths (host differs by family). */
 export const LAZOP_AUTH = {
-  authorizeUrl: "https://auth.lazada.com/oauth/authorize",
-  /** Token exchange uses the regional REST host with `/auth/token/create` etc. */
+  authorizePath: "/oauth/authorize",
   tokenPathCreate: "/auth/token/create",
   tokenPathRefresh: "/auth/token/refresh",
 } as const
+
+const LAZADA_AUTH_BASE = "https://auth.lazada.com"
+
+/**
+ * Daraz authorizes on the regional API host (`https://api.daraz.lk`); Lazada
+ * uses the shared `https://auth.lazada.com`.
+ */
+export function resolveLazopAuthorizeBase(
+  family: "daraz" | "lazada",
+  region?: string,
+): string {
+  if (family === "daraz") {
+    return resolveDarazRestBase(region).replace(/\/rest$/, "")
+  }
+  return LAZADA_AUTH_BASE
+}
+
+/** Token create/refresh hosts: Daraz regional `/rest`, Lazada auth `/rest`. */
+export function resolveLazopTokenBase(
+  family: "daraz" | "lazada",
+  region?: string,
+): string {
+  if (family === "daraz") {
+    return resolveDarazRestBase(region)
+  }
+  return `${LAZADA_AUTH_BASE}/rest`
+}
 
 export const TIKTOK_ENDPOINTS: Record<
   TiktokRegion,

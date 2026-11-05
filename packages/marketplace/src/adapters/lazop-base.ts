@@ -2,12 +2,14 @@ import { LazopHttpClient, type LazopFamily } from "../clients/lazop-http"
 import type { MarketplaceConnector, MarketplaceConnectorConfig } from "./types"
 import type {
   DomainBrand,
+  DomainCancelOrderInput,
   DomainCategory,
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
   DomainProduct,
   DomainShipmentInput,
+  DomainShipmentItemResult,
   DomainShipmentResult,
   DomainShop,
   MarketplacePlatform,
@@ -65,6 +67,7 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       appKey: cfg.appKey,
       appSecret: cfg.appSecret,
       accessToken: cfg.accessToken,
+      tokenProvider: cfg.tokenProvider,
       fetchImpl: cfg.fetchImpl,
     })
   }
@@ -75,9 +78,11 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     country?: string
   }): string {
     return buildLazopAuthorizeUrl({
+      family: this.family,
       appKey: this.cfg.appKey,
       redirectUri: input.redirectUri,
       state: input.state,
+      region: this.cfg.region,
       country: input.country ?? this.cfg.region,
     })
   }
@@ -122,11 +127,13 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   }
 
   async listBrands(cursor?: PageCursor): Promise<PagedResult<DomainBrand>> {
+    const startRow = Number(cursor?.cursor ?? 0) || 0
+    const pageSize = Math.min(cursor?.pageSize ?? 40, 200)
     const json = await this.http.call<Json>({
-      path: "/brands/get",
+      path: "/category/brands/query",
       params: {
-        offset: cursor?.cursor ?? "0",
-        limit: cursor?.pageSize ?? 100,
+        startRow: String(startRow),
+        pageSize: String(pageSize),
       },
     })
     const data = asRecord(json.data ?? json)
@@ -136,11 +143,12 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       name: String(b.name ?? b.brand_name ?? ""),
       raw: b,
     }))
-    const nextOffset =
-      data.start_row !== undefined
-        ? String(Number(data.start_row) + items.length)
-        : undefined
-    return { items, nextCursor: nextOffset, raw: data }
+    const total = Number(data.total_record ?? data.totalRecord ?? Number.NaN)
+    const hasMore = Number.isFinite(total)
+      ? startRow + items.length < total
+      : items.length >= pageSize
+    const nextCursor = hasMore ? String(startRow + items.length) : null
+    return { items, nextCursor, raw: data }
   }
 
   async getCategoryTree(): Promise<DomainCategory[]> {
@@ -175,19 +183,28 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   }
 
   async listProducts(cursor?: PageCursor): Promise<PagedResult<DomainProduct>> {
-    const json = await this.http.call<Json>({
-      path: "/products/get",
-      params: {
-        offset: cursor?.cursor ?? "0",
-        limit: cursor?.pageSize ?? 50,
-        filter: JSON.stringify({}),
-      },
-    })
+    const offset = Number(cursor?.cursor ?? 0) || 0
+    const limit = Math.min(cursor?.pageSize ?? 50, 50)
+    const params: Record<string, string> = {
+      filter: "all",
+      offset: String(offset),
+      limit: String(limit),
+    }
+    if (cursor?.updatedAfter) params.update_after = cursor.updatedAfter
+    if (cursor?.updatedBefore) params.update_before = cursor.updatedBefore
+    if (cursor?.createdAfter) params.create_after = cursor.createdAfter
+    if (cursor?.createdBefore) params.create_before = cursor.createdBefore
+
+    const json = await this.http.call<Json>({ path: "/products/get", params })
     const data = asRecord(json.data ?? json)
     const products = (data.products ?? data.items ?? []) as Json[]
+    const total = Number(data.total_products ?? data.totalProducts ?? Number.NaN)
+    const hasMore = Number.isFinite(total)
+      ? offset + products.length < total
+      : products.length >= limit
     return {
       items: products.map((p) => this.mapProduct(p)),
-      nextCursor: data.next_offset ? String(data.next_offset) : null,
+      nextCursor: hasMore ? String(offset + products.length) : null,
       raw: data,
     }
   }
@@ -260,95 +277,193 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     return this.mapOrder(asRecord(json.data ?? json))
   }
 
-  async listOrders(
-    cursor?: PageCursor & { createdAfter?: string; createdBefore?: string },
-  ): Promise<PagedResult<DomainOrder>> {
-    const json = await this.http.call<Json>({
-      path: "/orders/get",
-      params: {
-        offset: cursor?.cursor ?? "0",
-        limit: cursor?.pageSize ?? 50,
-        created_after: cursor?.createdAfter,
-        created_before: cursor?.createdBefore,
-      },
-    })
+  async listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>> {
+    const offset = Number(cursor?.cursor ?? 0) || 0
+    const limit = Math.min(cursor?.pageSize ?? 50, 100)
+    const params: Record<string, string> = {
+      offset: String(offset),
+      [this.family === "daraz" ? "limt" : "limit"]: String(limit),
+    }
+    if (cursor?.updatedAfter) params.update_after = cursor.updatedAfter
+    if (cursor?.updatedBefore) params.update_before = cursor.updatedBefore
+    if (cursor?.createdAfter) params.created_after = cursor.createdAfter
+    if (cursor?.createdBefore) params.created_before = cursor.createdBefore
+    if (cursor?.status) params.status = cursor.status
+    if (cursor?.sortBy) params.sort_by = cursor.sortBy
+    if (cursor?.sortDirection) params.sort_direction = cursor.sortDirection
+
+    const json = await this.http.call<Json>({ path: "/orders/get", params })
     const data = asRecord(json.data ?? json)
     const orders = (data.orders ?? data.order_list ?? []) as Json[]
+    const total = Number(data.countTotal ?? data.count_total ?? Number.NaN)
+    const hasMore = Number.isFinite(total)
+      ? offset + orders.length < total
+      : orders.length >= limit
     return {
       items: orders.map((o) => this.mapOrder(o)),
-      nextCursor: data.next_offset ? String(data.next_offset) : null,
+      nextCursor: hasMore ? String(offset + orders.length) : null,
       raw: data,
     }
   }
 
   async packOrder(input: DomainShipmentInput): Promise<DomainShipmentResult> {
+    const orderItemIds = input.orderItemIds ?? []
+    if (!orderItemIds.length) {
+      throw new Error("orderItemIds is required to pack an order")
+    }
+
+    const packReq = {
+      pack_order_list: [
+        {
+          order_id: input.externalOrderId,
+          order_item_list: orderItemIds,
+        },
+      ],
+      delivery_type: input.deliveryType ?? "dropship",
+      shipping_allocate_type: input.shippingAllocateType ?? "TFS",
+      ...(input.shipmentProviderCode
+        ? { shipment_provider_code: input.shipmentProviderCode }
+        : {}),
+      ...(input.payload ?? {}),
+    }
+
     const json = await this.http.call<Json>({
       method: "POST",
-      path: "/order/pack",
-      bodyParams: {
-        pack_req: JSON.stringify({
-          pack_order_list: [
-            {
-              order_id: input.externalOrderId,
-              ...(input.payload ?? {}),
-            },
-          ],
-        }),
-      },
+      path: "/order/fulfill/pack",
+      bodyParams: { packReq: JSON.stringify(packReq) },
     })
-    return { ok: true, raw: asRecord(json.data ?? json) }
+    return this.mapPackResult(json)
   }
 
   async readyToShip(input: DomainShipmentInput): Promise<DomainShipmentResult> {
+    if (!input.packageId) {
+      throw new Error("packageId is required to mark an order ready to ship")
+    }
+
     const json = await this.http.call<Json>({
       method: "POST",
-      path: "/order/rts",
+      path: "/order/package/rts",
       bodyParams: {
-        ready_to_ship_req: JSON.stringify({
-          order_id: input.externalOrderId,
+        readyToShipReq: JSON.stringify({
+          packages: [{ package_id: input.packageId }],
           ...(input.payload ?? {}),
         }),
       },
     })
-    return { ok: true, raw: asRecord(json.data ?? json) }
+
+    const result = asRecord(json.result ?? json)
+    const data = asRecord(result.data ?? json.data)
+    const packages = (data.packages ?? []) as Json[]
+    const itemResults: DomainShipmentItemResult[] = packages.map((pkg) => ({
+      packageId: pkg.package_id != null ? String(pkg.package_id) : undefined,
+      code: pkg.item_err_code != null ? String(pkg.item_err_code) : undefined,
+      message: pkg.msg != null ? String(pkg.msg) : undefined,
+      retry:
+        pkg.retry != null ? String(pkg.retry).toLowerCase() === "true" : undefined,
+    }))
+    const ok =
+      result.success !== false &&
+      itemResults.every((item) => !item.code || item.code === "0")
+
+    return {
+      ok,
+      packageId: input.packageId,
+      itemResults,
+      raw: asRecord(json),
+    }
   }
 
   async shipOrder(input: DomainShipmentInput): Promise<DomainShipmentResult> {
-    // Prefer pack → rts sequence helpers; shipment/get for tracking read-back.
-    if (input.trackingNumber || input.shippingProvider) {
-      const json = await this.http.call<Json>({
-        method: "POST",
-        path: "/order/fulfill",
-        bodyParams: {
-          order_id: input.externalOrderId,
-          tracking_number: input.trackingNumber,
-          shipment_provider: input.shippingProvider,
-          ...(input.payload ?? {}),
-        },
-      })
-      return {
-        ok: true,
-        trackingNumber: input.trackingNumber,
-        raw: asRecord(json.data ?? json),
-      }
+    if (input.packageId) {
+      return this.readyToShip(input)
     }
-    await this.packOrder(input)
-    return this.readyToShip(input)
+
+    const packed = await this.packOrder(input)
+    if (!packed.ok || !packed.packageId) {
+      return packed
+    }
+
+    const rts = await this.readyToShip({ ...input, packageId: packed.packageId })
+    return {
+      ...rts,
+      trackingNumber: rts.trackingNumber ?? packed.trackingNumber,
+      itemResults: [...(packed.itemResults ?? []), ...(rts.itemResults ?? [])],
+      raw: { pack: packed.raw, rts: rts.raw },
+    }
   }
 
   async cancelOrder(
-    externalOrderId: string,
-    reason?: string,
-  ): Promise<{ ok: boolean; raw?: Record<string, unknown> }> {
+    input: DomainCancelOrderInput,
+  ): Promise<{ ok: boolean; raw?: Record<string, unknown>; reasonId?: string }> {
+    const orderItemIds = input.orderItemIds ?? []
+    if (!orderItemIds.length) {
+      throw new Error("orderItemIds is required to cancel an order")
+    }
+
+    let reasonId = input.reasonId
+    if (!reasonId) {
+      const validate = await this.http.call<Json>({
+        path: "/order/reverse/cancel/validate",
+        params: {
+          order_id: input.externalOrderId,
+          order_item_id_list: JSON.stringify(orderItemIds),
+        },
+      })
+      const data = asRecord(validate.data ?? validate)
+      const options = (data.reason_options ?? []) as Json[]
+      const first = options.find((option) => option.reason_id != null)
+      reasonId = first ? String(first.reason_id) : undefined
+      if (!reasonId) {
+        throw new Error("No cancel reason options returned by platform")
+      }
+    }
+
     const json = await this.http.call<Json>({
-      method: "POST",
-      path: "/order/cancel",
-      bodyParams: {
-        order_id: externalOrderId,
-        reason_id: reason ?? "seller_cancel",
+      path: "/order/reverse/cancel/create",
+      params: {
+        order_id: input.externalOrderId,
+        order_item_id_list: JSON.stringify(orderItemIds),
+        reason_id: reasonId,
       },
     })
-    return { ok: true, raw: asRecord(json.data ?? json) }
+    return { ok: true, reasonId, raw: asRecord(json.data ?? json) }
+  }
+
+  private mapPackResult(json: Json): DomainShipmentResult {
+    const result = asRecord(json.result ?? json)
+    const data = asRecord(result.data ?? json.data)
+    const packOrders = (data.pack_order_list ?? []) as Json[]
+
+    const itemResults: DomainShipmentItemResult[] = []
+    let packageId: string | undefined
+    let trackingNumber: string | undefined
+    let ok = result.success !== false
+
+    for (const order of packOrders) {
+      const items = (order.order_item_list ?? []) as Json[]
+      for (const item of items) {
+        const code =
+          item.item_err_code != null ? String(item.item_err_code) : undefined
+        if (code && code !== "0") ok = false
+        if (item.package_id != null) packageId = String(item.package_id)
+        if (item.tracking_number != null) {
+          trackingNumber = String(item.tracking_number)
+        }
+        itemResults.push({
+          orderItemId:
+            item.order_item_id != null
+              ? String(item.order_item_id)
+              : undefined,
+          packageId:
+            item.package_id != null ? String(item.package_id) : undefined,
+          code,
+          message: item.msg != null ? String(item.msg) : undefined,
+          retry: item.retry != null ? Boolean(item.retry) : undefined,
+        })
+      }
+    }
+
+    return { ok, packageId, trackingNumber, itemResults, raw: asRecord(json) }
   }
 
   protected mapProduct(data: Json): DomainProduct {

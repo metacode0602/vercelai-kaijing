@@ -87,14 +87,20 @@ export async function GET(request: NextRequest) {
       redirectUri: env.callbackUrl,
     })
 
+    let shopCipher =
+      typeof tokens.meta?.cipher === 'string'
+        ? tokens.meta.cipher
+        : typeof tokens.meta?.shopCipher === 'string'
+          ? tokens.meta.shopCipher
+          : undefined
+
     const authed = createMarketplaceConnector({
       platform: state.platform,
       appKey: env.appKey,
       appSecret: env.appSecret,
       region,
       accessToken: tokens.accessToken,
-      shopCipher:
-        typeof tokens.meta?.cipher === 'string' ? tokens.meta.cipher : undefined,
+      shopCipher,
     })
 
     let externalShopId: string | undefined
@@ -102,6 +108,7 @@ export async function GET(request: NextRequest) {
     try {
       const shop = await authed.getShop()
       externalShopId = shop.externalShopId || undefined
+      if (typeof shop.raw?.cipher === 'string') shopCipher = shop.raw.cipher
       shopMeta = { ...(shop.raw ?? {}), connector: state.platform }
     } catch {
       shopMeta = { ...(tokens.meta ?? {}) }
@@ -112,7 +119,10 @@ export async function GET(request: NextRequest) {
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.expiresAt?.toISOString() ?? null,
       refreshExpiresAt: tokens.refreshExpiresAt?.toISOString() ?? null,
-      meta: tokens.meta,
+      meta: {
+        ...(tokens.meta ?? {}),
+        ...(shopCipher ? { shopCipher } : {}),
+      },
     }
 
     await persistOAuthCredentials({

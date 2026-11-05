@@ -1,11 +1,13 @@
 import { signTiktokRequest } from "../signing/tiktok"
 import { resolveTiktokEndpoints, type TiktokRegion } from "../regions/endpoints"
+import type { TokenProvider } from "../tokens/types"
 
 export interface TiktokHttpClientOptions {
   region?: string
   appKey: string
   appSecret: string
   accessToken?: string
+  tokenProvider?: TokenProvider
   shopCipher?: string
   apiBase?: string
   fetchImpl?: typeof fetch
@@ -30,12 +32,23 @@ export class TiktokHttpError extends Error {
   }
 }
 
+function isTiktokAuthFailure(status: number, json: unknown): boolean {
+  if (status === 401 || status === 403) return true
+  const code = String((json as { code?: number | string })?.code ?? "")
+  if (code === "105002" || code === "105004") return true
+  const message = String((json as { message?: string })?.message ?? "")
+  return /unauthori[sz]ed|invalid.*(access_?token|token)|token.*(expired|invalid)/i.test(
+    message,
+  )
+}
+
 export class TiktokHttpClient {
   readonly region: string
   readonly apiBase: string
   private readonly appKey: string
   private readonly appSecret: string
   private accessToken?: string
+  private readonly tokenProvider?: TokenProvider
   private shopCipher?: string
   private readonly fetchImpl: typeof fetch
 
@@ -46,6 +59,7 @@ export class TiktokHttpClient {
     this.appKey = opts.appKey
     this.appSecret = opts.appSecret
     this.accessToken = opts.accessToken
+    this.tokenProvider = opts.tokenProvider
     this.shopCipher = opts.shopCipher
     this.fetchImpl = opts.fetchImpl ?? fetch
   }
@@ -59,6 +73,13 @@ export class TiktokHttpClient {
   }
 
   async call<T = unknown>(options: TiktokCallOptions): Promise<T> {
+    return this.execute<T>(options, true)
+  }
+
+  private async execute<T>(
+    options: TiktokCallOptions,
+    allowAuthRetry: boolean,
+  ): Promise<T> {
     const method = options.method ?? "GET"
     const path = options.path.startsWith("/") ? options.path : `/${options.path}`
     const timestamp = String(Math.floor(Date.now() / 1000))
@@ -89,8 +110,11 @@ export class TiktokHttpClient {
       Accept: "application/json",
       "Content-Type": "application/json",
     }
-    if (this.accessToken) {
-      headers["x-tts-access-token"] = this.accessToken
+    const accessToken = this.tokenProvider
+      ? await this.tokenProvider.getAccessToken()
+      : this.accessToken
+    if (accessToken) {
+      headers["x-tts-access-token"] = accessToken
     }
 
     const res = await this.fetchImpl(url, {
@@ -108,6 +132,15 @@ export class TiktokHttpClient {
 
     const code = (json as { code?: number })?.code
     if (!res.ok || (code !== undefined && code !== 0)) {
+      if (
+        allowAuthRetry &&
+        this.tokenProvider &&
+        isTiktokAuthFailure(res.status, json)
+      ) {
+        await this.tokenProvider.getAccessToken({ forceRefresh: true })
+        return this.execute<T>(options, false)
+      }
+
       const message =
         (json as { message?: string })?.message ?? `TikTok error ${code ?? res.status}`
       throw new TiktokHttpError(message, code ?? res.status, json)

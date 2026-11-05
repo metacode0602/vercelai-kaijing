@@ -82,20 +82,52 @@ export interface DomainOrderLine {
 
 export interface DomainShipmentInput {
   externalOrderId: string
+  /** Required by `/order/fulfill/pack`; one entry per order item unit. */
+  orderItemIds?: string[]
+  /** Returned by pack; required by `/order/package/rts`. */
+  packageId?: string
+  deliveryType?: string
+  shippingAllocateType?: string
+  shipmentProviderCode?: string
   trackingNumber?: string
   shippingProvider?: string
   payload?: Record<string, unknown>
 }
 
+export interface DomainShipmentItemResult {
+  orderItemId?: string
+  packageId?: string
+  code?: string
+  message?: string
+  retry?: boolean
+}
+
 export interface DomainShipmentResult {
   ok: boolean
   trackingNumber?: string
+  packageId?: string
+  itemResults?: DomainShipmentItemResult[]
   raw?: Record<string, unknown>
+}
+
+export interface DomainCancelOrderInput {
+  externalOrderId: string
+  orderItemIds?: string[]
+  /** From `/order/reverse/cancel/validate`; resolved automatically when omitted. */
+  reasonId?: string
+  reason?: string
 }
 
 export interface PageCursor {
   cursor?: string | null
   pageSize?: number
+  updatedAfter?: string
+  updatedBefore?: string
+  createdAfter?: string
+  createdBefore?: string
+  status?: string
+  sortBy?: "created_at" | "updated_at"
+  sortDirection?: "ASC" | "DESC"
 }
 
 export interface PagedResult<T> {

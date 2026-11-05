@@ -37,6 +37,15 @@ function hasFlag(name: string) {
   return process.argv.includes(`--${name}`)
 }
 
+function hasEnvAccessToken() {
+  return Boolean(
+    process.env.MARKETPLACE_SYNC_ACCESS_TOKEN ||
+      process.env.DARAZ_ACCESS_TOKEN ||
+      process.env.LAZADA_ACCESS_TOKEN ||
+      process.env.TIKTOK_ACCESS_TOKEN,
+  )
+}
+
 async function main() {
   const shopId =
     arg("shopId") ||
@@ -74,6 +83,25 @@ async function main() {
     },
   }
 
+  const keyPrefix = platformRaw === "tiktok_shop" ? "TIKTOK" : platformRaw.toUpperCase()
+  let tokenProvider
+  let credentialShopCipher: string | undefined
+  if (live && !hasEnvAccessToken()) {
+    const { createShopTokenProvider, loadCredentialMeta } = await import(
+      "@/lib/marketplace/token-provider"
+    )
+    tokenProvider = createShopTokenProvider({
+      shopId,
+      platform: platformRaw,
+      region,
+      appKey: process.env[`${keyPrefix}_APP_KEY`] ?? arg("appKey") ?? "",
+      appSecret: process.env[`${keyPrefix}_APP_SECRET`] ?? arg("appSecret") ?? "",
+    })
+    const meta = await loadCredentialMeta(shopId)
+    credentialShopCipher =
+      typeof meta?.shopCipher === "string" ? meta.shopCipher : undefined
+  }
+
   const result = await runMarketplaceSync({
     shopId,
     platform: platformRaw,
@@ -82,6 +110,8 @@ async function main() {
     live,
     persist,
     persistHooks: hooks,
+    tokenProvider,
+    shopCipher: credentialShopCipher,
   })
 
   console.log(

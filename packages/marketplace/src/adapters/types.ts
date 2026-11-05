@@ -1,5 +1,7 @@
+import type { TokenProvider } from "../tokens/types"
 import type {
   DomainBrand,
+  DomainCancelOrderInput,
   DomainCategory,
   DomainListingInput,
   DomainListingResult,
@@ -20,6 +22,8 @@ export interface MarketplaceConnectorConfig {
   appKey: string
   appSecret: string
   accessToken?: string
+  /** Lazily resolves access tokens and force-refreshes on auth errors. */
+  tokenProvider?: TokenProvider
   /** TikTok shop_cipher when required. */
   shopCipher?: string
   /** Optional absolute callback URL override. */
@@ -70,9 +74,7 @@ export interface MarketplaceConnector {
 
   getOrder(externalOrderId: string): Promise<DomainOrder>
 
-  listOrders(
-    cursor?: PageCursor & { createdAfter?: string; createdBefore?: string },
-  ): Promise<PagedResult<DomainOrder>>
+  listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>>
 
   packOrder?(input: DomainShipmentInput): Promise<DomainShipmentResult>
 
@@ -81,7 +83,6 @@ export interface MarketplaceConnector {
   shipOrder(input: DomainShipmentInput): Promise<DomainShipmentResult>
 
   cancelOrder?(
-    externalOrderId: string,
-    reason?: string,
-  ): Promise<{ ok: boolean; raw?: Record<string, unknown> }>
+    input: DomainCancelOrderInput,
+  ): Promise<{ ok: boolean; raw?: Record<string, unknown>; reasonId?: string }>
 }

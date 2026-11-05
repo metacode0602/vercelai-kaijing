@@ -2,6 +2,7 @@ import { TiktokHttpClient } from "../clients/tiktok-http"
 import type { MarketplaceConnector, MarketplaceConnectorConfig } from "./types"
 import type {
   DomainBrand,
+  DomainCancelOrderInput,
   DomainCategory,
   DomainListingInput,
   DomainListingResult,
@@ -56,6 +57,7 @@ export class TiktokConnector implements MarketplaceConnector {
       appKey: cfg.appKey,
       appSecret: cfg.appSecret,
       accessToken: cfg.accessToken,
+      tokenProvider: cfg.tokenProvider,
       shopCipher: cfg.shopCipher,
       fetchImpl: cfg.fetchImpl,
     })
@@ -242,9 +244,7 @@ export class TiktokConnector implements MarketplaceConnector {
     return this.mapOrder(orders[0] ?? asRecord(json.data))
   }
 
-  async listOrders(
-    cursor?: PageCursor & { createdAfter?: string; createdBefore?: string },
-  ): Promise<PagedResult<DomainOrder>> {
+  async listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>> {
     const json = await this.http.call<Json>({
       method: "POST",
       path: "/order/202309/orders/search",
@@ -259,6 +259,14 @@ export class TiktokConnector implements MarketplaceConnector {
         create_time_lt: cursor?.createdBefore
           ? Math.floor(Date.parse(cursor.createdBefore) / 1000)
           : undefined,
+        update_time_ge: cursor?.updatedAfter
+          ? Math.floor(Date.parse(cursor.updatedAfter) / 1000)
+          : undefined,
+        update_time_lt: cursor?.updatedBefore
+          ? Math.floor(Date.parse(cursor.updatedBefore) / 1000)
+          : undefined,
+        order_status: cursor?.status,
+        sort_order: cursor?.sortDirection,
       },
     })
     const data = asRecord(json.data)
@@ -289,15 +297,17 @@ export class TiktokConnector implements MarketplaceConnector {
   }
 
   async cancelOrder(
-    externalOrderId: string,
-    reason?: string,
+    input: DomainCancelOrderInput,
   ): Promise<{ ok: boolean; raw?: Record<string, unknown> }> {
     const json = await this.http.call<Json>({
       method: "POST",
       path: "/order/202309/orders/cancel",
       body: {
-        order_id: externalOrderId,
-        cancel_reason: reason ?? "seller_cancel",
+        order_id: input.externalOrderId,
+        ...(input.orderItemIds?.length
+          ? { order_item_ids: input.orderItemIds }
+          : {}),
+        cancel_reason: input.reason ?? input.reasonId ?? "seller_cancel",
       },
     })
     return { ok: true, raw: asRecord(json.data) }

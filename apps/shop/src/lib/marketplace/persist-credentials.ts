@@ -4,7 +4,11 @@ import {
   type CredentialPayload,
   type MarketplacePlatform,
 } from '@workspace/marketplace'
-import { integrationCredentials, shops } from '@workspace/db/schema'
+import {
+  integrationCredentials,
+  integrationStates,
+  shops,
+} from '@workspace/db/schema'
 import { db } from '@/lib/db'
 
 export async function persistOAuthCredentials(input: {
@@ -55,8 +59,17 @@ export async function persistOAuthCredentials(input: {
       status: 'active',
       externalShopId: input.externalShopId ?? undefined,
       region: input.region ?? undefined,
+      authExpiresAt: expiresAt,
       meta: input.shopMeta ?? {},
       updatedAt: new Date(),
     })
     .where(and(eq(shops.id, input.shopId), eq(shops.organizationId, input.organizationId)))
+
+  await db
+    .insert(integrationStates)
+    .values({ shopId: input.shopId, health: 'idle', lastError: null })
+    .onConflictDoUpdate({
+      target: integrationStates.shopId,
+      set: { health: 'idle', lastError: null },
+    })
 }
