@@ -1,31 +1,17 @@
-'use client'
-
 /**
- * 采购单原型会话 store。
- * 字段对齐 docs/design/haoshiyun-erp-database-schema.md：
- *   purchase_orders（主信息）+ purchase_order_lines（采购明细）
- * 当前控制台未接 tRPC；用 localStorage 在列表/详情间共享。
+ * 采购单类型与纯函数助手。
+ * 主路径：`trpc.purchase.listOrders / getOrder` → PostgreSQL。
  */
 
-import { createDemoStore } from '@/lib/crossborder/local-store'
+export {
+  UI_PURCHASE_ORDER_STATUSES as PURCHASE_ORDER_STATUSES,
+  type UiPurchaseOrderStatus as PurchaseOrderStatus,
+} from '@/lib/server/mappers/purchase'
+import type { UiPurchaseOrderStatus } from '@/lib/server/mappers/purchase'
 
-/** 对应 purchase_orders.status */
-export const PURCHASE_ORDER_STATUSES = [
-  '草稿',
-  '已下发',
-  '部分到货',
-  '已收货',
-  '已关闭',
-  '已取消',
-] as const
-
-export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number]
-
-/** 对应 purchase_order_lines */
 export type PurchaseOrderLine = {
   id: string
   lineNo: number
-  /** variant_id — 内部 SKU */
   sku: string
   qtyOrdered: number
   qtyReceived: number
@@ -35,32 +21,51 @@ export type PurchaseOrderLine = {
   amount: number
 }
 
-/** 对应 purchase_orders（主信息 / header） */
 export type PurchaseOrder = {
   id: string
-  /** po_no */
   poNo: string
-  /** purchase_request_id */
   sourceRequest: string
-  /** supplier_id 展示名 */
   supplier: string
-  /** warehouse_id */
   warehouse: string
   currency: string
   totalAmount: number
-  /** expected_arrival_at */
   expectedAt: string
-  status: PurchaseOrderStatus
+  status: UiPurchaseOrderStatus
   createdAt: string
   lines: PurchaseOrderLine[]
 }
 
-/** 列表行：主信息 + 汇总，不含把行项目展平进表头 */
 export type PurchaseOrderListRow = Omit<PurchaseOrder, 'lines'> & {
   lineCount: number
   firstSku: string
 }
 
+export function toListRow(order: PurchaseOrder): PurchaseOrderListRow {
+  return {
+    id: order.id,
+    poNo: order.poNo,
+    sourceRequest: order.sourceRequest,
+    supplier: order.supplier,
+    warehouse: order.warehouse,
+    currency: order.currency,
+    totalAmount: order.totalAmount,
+    expectedAt: order.expectedAt,
+    status: order.status,
+    createdAt: order.createdAt,
+    lineCount: order.lines.length,
+    firstSku: order.lines[0]?.sku ?? '—',
+  }
+}
+
+export function usePurchaseOrders(): PurchaseOrder[] {
+  throw new Error('purchase-order-store localStorage 已停用，请使用 trpc.purchase.listOrders')
+}
+
+export function getPurchaseOrder(_id: string): PurchaseOrder | undefined {
+  throw new Error('purchase-order-store localStorage 已停用，请使用 trpc.purchase.getOrder')
+}
+
+/** related-info 等软关联展示用静态样例（非 localStorage） */
 export const DEMO_PURCHASE_ORDERS: PurchaseOrder[] = [
   {
     id: 'PO-2026-0031',
@@ -138,245 +143,3 @@ export const DEMO_PURCHASE_ORDERS: PurchaseOrder[] = [
     ],
   },
 ]
-
-const store = createDemoStore<PurchaseOrder[]>(
-  'open-shop.console.demo.purchase-orders.v2',
-  DEMO_PURCHASE_ORDERS,
-)
-
-export function usePurchaseOrders() {
-  return store.useStore()
-}
-
-export function getPurchaseOrder(id: string): PurchaseOrder | undefined {
-  return store.get().find((row) => row.id === id)
-}
-
-export function toListRow(order: PurchaseOrder): PurchaseOrderListRow {
-  return {
-    id: order.id,
-    poNo: order.poNo,
-    sourceRequest: order.sourceRequest,
-    supplier: order.supplier,
-    warehouse: order.warehouse,
-    currency: order.currency,
-    totalAmount: order.totalAmount,
-    expectedAt: order.expectedAt,
-    status: order.status,
-    createdAt: order.createdAt,
-    lineCount: order.lines.length,
-    firstSku: order.lines[0]?.sku ?? '—',
-  }
-}
-
-function nextPoNo(orders: PurchaseOrder[]) {
-  const max = orders.reduce((current, order) => {
-    const matched = /^PO-(\d{4})-(\d+)$/.exec(order.poNo)
-    return matched ? Math.max(current, Number(matched[2])) : current
-  }, 0)
-  return `PO-2026-${String(max + 1).padStart(4, '0')}`
-}
-
-function recomputeTotal(lines: PurchaseOrderLine[]) {
-  return lines.reduce((sum, line) => sum + line.amount, 0)
-}
-
-export type CreatePurchaseOrderHeaderInput = {
-  sourceRequest: string
-  supplier: string
-  warehouse: string
-  currency: string
-  expectedAt: string
-}
-
-/** 第一步：仅保存主信息（header），不含明细行 */
-export function createPurchaseOrderHeader(
-  orders: PurchaseOrder[],
-  input: CreatePurchaseOrderHeaderInput,
-): PurchaseOrder {
-  const poNo = nextPoNo(orders)
-  const created: PurchaseOrder = {
-    id: poNo,
-    poNo,
-    sourceRequest: input.sourceRequest.trim() || '—',
-    supplier: input.supplier,
-    warehouse: input.warehouse,
-    currency: input.currency || 'CNY',
-    totalAmount: 0,
-    expectedAt: input.expectedAt,
-    status: '草稿',
-    createdAt: new Date().toISOString().slice(0, 10),
-    lines: [],
-  }
-  store.set([created, ...orders])
-  return created
-}
-
-export type AddPurchaseOrderLineInput = {
-  sku: string
-  qtyOrdered: number
-  unitPrice: number
-}
-
-/** 第二步：在已有主信息上追加采购明细（purchase_order_lines） */
-export function addPurchaseOrderLine(
-  orders: PurchaseOrder[],
-  poId: string,
-  input: AddPurchaseOrderLineInput,
-): PurchaseOrder | undefined {
-  let updated: PurchaseOrder | undefined
-  const next = orders.map((order) => {
-    if (order.id !== poId) return order
-    const qtyOrdered = Math.max(1, Math.floor(input.qtyOrdered) || 1)
-    const unitPrice = Math.max(0, Number(input.unitPrice) || 0)
-    const lineNo = order.lines.length + 1
-    const line: PurchaseOrderLine = {
-      id: `POL-${order.poNo.replace(/^PO-/, '')}-${String(lineNo).padStart(2, '0')}`,
-      lineNo,
-      sku: input.sku,
-      qtyOrdered,
-      qtyReceived: 0,
-      qtyQcPassed: 0,
-      qtyStocked: 0,
-      unitPrice,
-      amount: Number((qtyOrdered * unitPrice).toFixed(4)),
-    }
-    const lines = [...order.lines, line]
-    updated = {
-      ...order,
-      lines,
-      totalAmount: recomputeTotal(lines),
-    }
-    return updated
-  })
-  store.set(next)
-  return updated
-}
-
-
-export type ConvertFromRequestLineInput = {
-  sku: string
-  qtyOrdered: number
-  unitPrice: number
-}
-
-export type ConvertFromRequestInput = CreatePurchaseOrderHeaderInput & {
-  lines: ConvertFromRequestLineInput[]
-}
-
-/**
- * 由已批准采购申请生成正式采购单（header + lines）。
- * 对齐 schema：仅 approved 申请可转换；原型在批准动作中一次性写入
- * purchase_orders + purchase_order_lines，状态为草稿供复核后下发。
- */
-export function createPurchaseOrderFromApprovedRequest(
-  orders: PurchaseOrder[],
-  input: ConvertFromRequestInput,
-): PurchaseOrder {
-  const poNo = nextPoNo(orders)
-  const lines: PurchaseOrderLine[] = input.lines.map((line, index) => {
-    const qtyOrdered = Math.max(1, Math.floor(line.qtyOrdered) || 1)
-    const unitPrice = Math.max(0, Number(line.unitPrice) || 0)
-    const lineNo = index + 1
-    return {
-      id: `POL-${poNo.replace(/^PO-/, '')}-${String(lineNo).padStart(2, '0')}`,
-      lineNo,
-      sku: line.sku,
-      qtyOrdered,
-      qtyReceived: 0,
-      qtyQcPassed: 0,
-      qtyStocked: 0,
-      unitPrice,
-      amount: Number((qtyOrdered * unitPrice).toFixed(4)),
-    }
-  })
-  const created: PurchaseOrder = {
-    id: poNo,
-    poNo,
-    sourceRequest: input.sourceRequest.trim() || '—',
-    supplier: input.supplier,
-    warehouse: input.warehouse,
-    currency: input.currency || 'CNY',
-    totalAmount: recomputeTotal(lines),
-    expectedAt: input.expectedAt,
-    status: '草稿',
-    createdAt: new Date().toISOString().slice(0, 10),
-    lines,
-  }
-  store.set([created, ...orders])
-  return created
-}
-
-export function updatePurchaseOrderStatus(
-  orders: PurchaseOrder[],
-  poId: string,
-  status: PurchaseOrderStatus,
-) {
-  store.set(orders.map((order) => (order.id === poId ? { ...order, status } : order)))
-}
-
-export function updatePurchaseOrderHeader(
-  orders: PurchaseOrder[],
-  poId: string,
-  patch: Partial<
-    Pick<PurchaseOrder, 'sourceRequest' | 'supplier' | 'warehouse' | 'currency' | 'expectedAt' | 'status'>
-  >,
-) {
-  store.set(orders.map((order) => (order.id === poId ? { ...order, ...patch } : order)))
-}
-
-export type ReceiveProjectionDelta = {
-  poLineId: string
-  sku: string
-  qtyReceivedDelta: number
-  qtyQcPassedDelta: number
-  qtyStockedDelta: number
-}
-
-/**
- * 收货/质检/上架回写采购明细投影，并按行汇总推进采购单状态：
- *   已下发 → 部分到货 → 已收货（全部 qty_received >= qty_ordered）
- */
-export function applyPurchaseOrderReceiveProjection(
-  poId: string,
-  deltas: ReceiveProjectionDelta[],
-) {
-  const orders = store.get()
-  const next = orders.map((order) => {
-    if (order.id !== poId && order.poNo !== poId) return order
-    const lines = order.lines.map((line) => {
-      const delta =
-        deltas.find((item) => item.poLineId && item.poLineId === line.id) ||
-        deltas.find((item) => item.sku === line.sku)
-      if (!delta) return line
-      return {
-        ...line,
-        qtyReceived: Math.max(0, line.qtyReceived + (delta.qtyReceivedDelta || 0)),
-        qtyQcPassed: Math.max(0, line.qtyQcPassed + (delta.qtyQcPassedDelta || 0)),
-        qtyStocked: Math.max(0, line.qtyStocked + (delta.qtyStockedDelta || 0)),
-      }
-    })
-    const totalOrdered = lines.reduce((sum, line) => sum + line.qtyOrdered, 0)
-    const totalReceived = lines.reduce((sum, line) => sum + line.qtyReceived, 0)
-    let status = order.status
-    if (status !== '已取消' && status !== '已关闭') {
-      if (totalReceived <= 0) {
-        status = status === '草稿' ? '草稿' : status === '已下发' ? '已下发' : status
-      } else if (totalReceived < totalOrdered) {
-        status = '部分到货'
-      } else {
-        status = '已收货'
-      }
-    }
-    return { ...order, lines, status }
-  })
-  store.set(next)
-}
-
-/** 可登记到货的采购单（已下发 / 部分到货，且仍有未收完行） */
-export function listReceivablePurchaseOrders(orders: PurchaseOrder[] = store.get()) {
-  return orders.filter((order) => {
-    if (order.status !== '已下发' && order.status !== '部分到货') return false
-    return order.lines.some((line) => line.qtyOrdered > line.qtyReceived)
-  })
-}

@@ -10,13 +10,8 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { usePurchaseOrders } from '@/lib/crossborder/purchase-order-store'
-import {
-  approveAndConvertPurchaseRequest,
-  rejectPurchaseRequest,
-  usePurchaseRequests,
-} from '@/lib/crossborder/purchase-request-store'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -38,36 +33,67 @@ function statusVariant(status: string) {
 
 export default function PurchaseApprovalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const requests = usePurchaseRequests()
-  const orders = usePurchaseOrders()
   const router = useLocaleRouter()
-  const request = requests.find((item) => item.id === id)
-
+  const utils = trpc.useUtils()
   const [dialog, setDialog] = React.useState<'approve' | 'reject' | null>(null)
   const [notice, setNotice] = React.useState('')
-  const [mounted, setMounted] = React.useState(false)
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const detailQuery = trpc.purchase.getRequest.useQuery({ id })
 
-  if (!request) {
+  const invalidate = async () => {
+    await utils.purchase.getRequest.invalidate({ id })
+    await utils.purchase.listRequests.invalidate()
+    await utils.purchase.requestStats.invalidate()
+    await utils.purchase.listOrders.invalidate()
+  }
+
+  const approveMutation = trpc.purchase.approveAndConvert.useMutation({
+    onSuccess: async (result) => {
+      await invalidate()
+      setDialog(null)
+      setNotice(`已生成采购单 ${result.order.poNo}。正在打开采购单详情…`)
+      router.push(`/console/purchase-orders/${encodeURIComponent(result.order.id)}`)
+    },
+    onError: (error) => {
+      setDialog(null)
+      setNotice(error.message)
+    },
+  })
+  const rejectMutation = trpc.purchase.rejectRequest.useMutation({
+    onSuccess: async (row) => {
+      await invalidate()
+      setDialog(null)
+      setNotice(`${row.requestNo} 已驳回。`)
+    },
+    onError: (error) => {
+      setDialog(null)
+      setNotice(error.message)
+    },
+  })
+
+  if (detailQuery.isLoading) {
+    return (
+      <DetailPageHeader
+        backHref="/console/purchase-approvals"
+        title="加载审核单…"
+        description="正在从数据库读取…"
+      />
+    )
+  }
+
+  if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/purchase-approvals"
-          title={mounted ? '未找到审核单' : '加载审核单…'}
-          description={
-            mounted
-              ? `申请 ${id} 不在审核队列或原型会话中。`
-              : '正在读取本机原型会话中的采购申请…'
-          }
+          title="未找到审核单"
+          description={detailQuery.error?.message || `申请 ${id} 不在审核队列。`}
         />
       </div>
     )
   }
 
-  const current = request
+  const current = detailQuery.data
   const pending = current.status === '待审核'
 
   return (
@@ -82,10 +108,10 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
       <DetailPageHeader
         backHref="/console/purchase-approvals"
         title={`审核 · ${current.requestNo}`}
-        description={`申请人 ${current.applicant} · 分配审核人 ${current.approver}`}
+        description={`申请人 ${current.applicant} · 分配审核人 ${current.approver || '—'}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">数据库</Badge>
             <Badge variant={statusVariant(current.status)}>{current.status}</Badge>
           </>
         }
@@ -110,12 +136,12 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
       <Alert>
         <AlertTitle>审阅面板 · 通过即转采购单</AlertTitle>
         <AlertDescription>
-          底部仅「通过」与「驳回」。通过后创建 purchase_orders + purchase_order_lines，申请状态变为「已转采购单」。驳回意见必填。申请人不得自审（服务端按 approval_rules 校验，前端仅展示分配审核人）。
+          通过后创建 purchase_orders + purchase_order_lines，申请状态变为「已转采购单」。驳回意见必填。
         </AlertDescription>
       </Alert>
 
       <UedPrototypeNotice>
-        审阅聚焦：申请人、商品明细、数量、报价、供应商、仓库。历史申请与当前库存请从关联申请详情下钻（示例）。
+        审阅聚焦：申请人、商品明细、数量、报价、供应商、仓库。数据来自 PostgreSQL。
       </UedPrototypeNotice>
 
       <DetailKpiRow
@@ -141,7 +167,7 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
           { label: '预计入库仓', value: current.warehouse, mono: true },
           { label: '币种', value: current.currency },
           { label: '期望到货', value: current.expectedAt },
-          { label: '分配审核人', value: current.approver },
+          { label: '分配审核人', value: current.approver || '—' },
           { label: '审核意见', value: current.opinion },
           {
             label: '关联采购单',
@@ -192,10 +218,19 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
 
       {pending ? (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setDialog('approve')} disabled={current.lines.length === 0}>
+          <Button
+            size="sm"
+            onClick={() => setDialog('approve')}
+            disabled={current.lines.length === 0 || approveMutation.isPending}
+          >
             通过并转采购单
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setDialog('reject')}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDialog('reject')}
+            disabled={rejectMutation.isPending}
+          >
             驳回
           </Button>
         </div>
@@ -222,39 +257,30 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
               type: 'textarea',
               required: true,
               fullWidth: true,
-              defaultValue: dialog === 'approve' ? '同意转采购单（原型）' : '',
+              defaultValue: dialog === 'approve' ? '同意转采购单' : '',
             },
             {
               key: 'approver',
               label: '审核人',
               required: true,
-              defaultValue: current.approver.split(' / ')[0] || '杨洁',
+              defaultValue: (current.approver || '杨洁').split(' / ')[0] || '杨洁',
             },
           ]}
           onClose={() => setDialog(null)}
           onSave={(values) => {
             if (dialog === 'approve') {
-              const result = approveAndConvertPurchaseRequest(requests, orders, current.id, {
+              approveMutation.mutate({
+                id: current.id,
                 opinion: values.opinion,
                 approver: values.approver,
               })
-              setDialog(null)
-              if (!result.ok) {
-                setNotice(result.reason)
-                return
-              }
-              setNotice(
-                `已生成采购单 ${result.order.poNo}。正在打开采购单详情…`,
-              )
-              router.push(`/console/purchase-orders/${encodeURIComponent(result.order.id)}`)
               return
             }
-            const result = rejectPurchaseRequest(requests, current.id, {
-              opinion: values.opinion,
+            rejectMutation.mutate({
+              id: current.id,
+              opinion: values.opinion || '驳回',
               approver: values.approver,
             })
-            setDialog(null)
-            setNotice(result.ok ? `${current.requestNo} 已驳回。` : result.reason)
           }}
           saveLabel={dialog === 'approve' ? '批准并生成采购单' : '确认驳回'}
         />

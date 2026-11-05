@@ -2,20 +2,17 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  countByStatus,
-  createPurchaseRequestHeader,
-  toListRow,
-  usePurchaseRequests,
-  withdrawPurchaseRequest,
-} from '@/lib/crossborder/purchase-request-store'
+import { countByStatus } from '@/lib/crossborder/purchase-request-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 const SUPPLIER_OPTIONS = ['厦门优品服饰有限公司', '泉州联创数码配件厂']
 const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
 const REASON_OPTIONS = ['备货', '补货', '订单采购']
+const PAGE_SIZE = 50
 
 function statusVariant(status: string) {
   if (status === '待审核') return 'outline' as const
@@ -25,12 +22,36 @@ function statusVariant(status: string) {
 }
 
 export default function PurchaseRequestsPage() {
-  const requests = usePurchaseRequests()
-  const rows = React.useMemo(() => requests.map(toListRow), [requests])
-  const counts = React.useMemo(() => countByStatus(requests), [requests])
   const router = useLocaleRouter()
+  const utils = trpc.useUtils()
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const listQuery = trpc.purchase.listRequests.useQuery({
+    page: 1,
+    pageSize: PAGE_SIZE,
+  })
+  const statsQuery = trpc.purchase.requestStats.useQuery()
+  const createMutation = trpc.purchase.createRequest.useMutation({
+    onSuccess: async (created) => {
+      await utils.purchase.listRequests.invalidate()
+      await utils.purchase.requestStats.invalidate()
+      setOpen(false)
+      setNotice(`${created.requestNo} 主信息已写入数据库（草稿）。正在进入详情页添加申请明细…`)
+      router.push(`/console/purchase-requests/${encodeURIComponent(created.id)}`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const withdrawMutation = trpc.purchase.withdrawRequest.useMutation({
+    onSuccess: async (row) => {
+      await utils.purchase.listRequests.invalidate()
+      await utils.purchase.requestStats.invalidate()
+      setNotice(`${row.requestNo} 已撤回为草稿；可修改后重新提交。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
+  const counts = statsQuery.data?.byStatus ?? countByStatus(rows)
 
   const editor = open ? (
     <UedDialog
@@ -38,8 +59,8 @@ export default function PurchaseRequestsPage() {
       description="第一步只保存申请主信息（purchase_requests）。保存后进入详情页，再添加申请明细（purchase_request_lines）；提交审核通过后才会生成采购单。"
       fields={[
         { key: 'reason', label: '采购原因', options: REASON_OPTIONS, required: true },
-        { key: 'supplier', label: '供应商', options: SUPPLIER_OPTIONS, required: true, helper: '对应 supplier_id；停用供应商不可新建' },
-        { key: 'warehouse', label: '预计入库仓', options: WAREHOUSE_OPTIONS, required: true, helper: '对应 warehouse_id' },
+        { key: 'supplier', label: '供应商', options: SUPPLIER_OPTIONS, required: true, helper: '对应 supplier_name；停用供应商不可新建' },
+        { key: 'warehouse', label: '预计入库仓', options: WAREHOUSE_OPTIONS, required: true, helper: '对应 warehouse_code' },
         { key: 'currency', label: '币种', options: ['CNY', 'USD'], required: true },
         { key: 'expectedAt', label: '期望到货', type: 'date', required: true, helper: '对应 expected_arrival_at' },
         {
@@ -52,7 +73,7 @@ export default function PurchaseRequestsPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
-        const created = createPurchaseRequestHeader(requests, {
+        createMutation.mutate({
           reason: values.reason || REASON_OPTIONS[0]!,
           supplier: values.supplier || SUPPLIER_OPTIONS[0]!,
           warehouse: values.warehouse || WAREHOUSE_OPTIONS[0]!,
@@ -60,11 +81,8 @@ export default function PurchaseRequestsPage() {
           expectedAt: values.expectedAt || new Date().toISOString().slice(0, 10),
           remark: values.remark,
         })
-        setOpen(false)
-        setNotice(`${created.requestNo} 主信息已保存（草稿）。正在进入详情页添加申请明细…`)
-        router.push(`/console/purchase-requests/${encodeURIComponent(created.id)}`)
       }}
-      saveLabel="保存主信息并继续"
+      saveLabel={createMutation.isPending ? '保存中…' : '保存主信息并继续'}
     />
   ) : null
 
@@ -73,7 +91,7 @@ export default function PurchaseRequestsPage() {
       {editor}
       <UedWorkspace
         title="采购申请"
-        description="主信息与申请明细分步维护：先建 purchase_requests，再在详情添加 purchase_request_lines；正式批准后才转为 purchase_orders。"
+        description="主信息与申请明细分步维护：先建 purchase_requests，再在详情添加 purchase_request_lines；正式批准后才转为 purchase_orders。数据经 tRPC 写入 PostgreSQL。"
         rows={rows}
         detailHref={(row) => `/console/purchase-requests/${encodeURIComponent(row.id)}`}
         searchKeys={['id', 'requestNo', 'applicant', 'firstSku', 'supplier', 'reason', 'status', 'approver']}
@@ -122,15 +140,21 @@ export default function PurchaseRequestsPage() {
           },
         ]}
       >
+        {listQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>加载失败</AlertTitle>
+            <AlertDescription>{listQuery.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
         <UedPrototypeNotice>
-          创建流程对齐表结构：列表「新建」只写主信息（供应商、仓库、币种、期望到货等），不要求同时填写行项目。明细在详情页按行追加；提交后进入「采购审核」；仅正式批准后才会生成 purchase_orders + purchase_order_lines。
+          创建流程对齐表结构：列表「新建」只写主信息；明细在详情页按行追加；提交后进入「采购审核」；仅正式批准后才会生成 purchase_orders + purchase_order_lines。本页已接 PostgreSQL。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">草稿 {counts.草稿}</Badge>
-          <Badge variant="outline">待审核 {counts.待审核}</Badge>
-          <Badge variant="outline">已驳回 {counts.已驳回}</Badge>
-          <Badge variant="secondary">已转采购单 {counts.已转采购单}</Badge>
-          <Badge variant="outline">已取消 {counts.已取消}</Badge>
+          <Badge variant="outline">草稿 {counts['草稿'] ?? 0}</Badge>
+          <Badge variant="outline">待审核 {counts['待审核'] ?? 0}</Badge>
+          <Badge variant="outline">已驳回 {counts['已驳回'] ?? 0}</Badge>
+          <Badge variant="secondary">已转采购单 {counts['已转采购单'] ?? 0}</Badge>
+          <Badge variant="outline">已取消 {counts['已取消'] ?? 0}</Badge>
         </div>
         <div className="flex flex-wrap gap-2">
           {rows
@@ -140,23 +164,12 @@ export default function PurchaseRequestsPage() {
                 key={row.id}
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  withdrawPurchaseRequest(requests, row.id)
-                  setNotice(`${row.id} 已撤回为草稿（原型）；可修改后重新提交。`)
-                }}
+                disabled={withdrawMutation.isPending}
+                onClick={() => withdrawMutation.mutate({ id: row.id })}
               >
-                撤回 · {row.id}
+                撤回 · {row.requestNo}
               </Button>
             ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setNotice('补货建议来源：库存预警「HSY000001002 可用 9 低于安全库存 20」（示例）。请新建申请主信息后添加该 SKU 明细。')
-            }
-          >
-            从库存预警带入
-          </Button>
           <Button
             variant="ghost"
             size="sm"

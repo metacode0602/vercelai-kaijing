@@ -64,6 +64,13 @@
       "when": 1793870413530,
       "tag": "0008_commerce_orders_inventory_aftersales_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0009_commerce_purchase_to_inbound",
+      "breakpoints": true
     }
   ]
 }

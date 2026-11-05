@@ -92,6 +92,8 @@ export const inventoryMovementTypes = [
   "damage",
   "write_off",
   "adjustment",
+  "purchase_stock_in",
+  "qc_fail_damage",
 ] as const
 export type InventoryMovementType = (typeof inventoryMovementTypes)[number]
 
@@ -920,6 +922,8 @@ export const inventoryMovements = pgTable(
     sourceType: varchar("source_type", { length: 32 }),
     sourceId: text("source_id"),
     operator: text("operator"),
+    /** 幂等键：同 org 下重复上架/流水写入时短路。 */
+    idempotencyKey: varchar("idempotency_key", { length: 191 }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -931,6 +935,7 @@ export const inventoryMovements = pgTable(
       t.occurredAt,
     ),
     index("inventory_movements_source_idx").on(t.sourceType, t.sourceId),
+    uniqueIndex("inventory_movements_org_idem_uidx").on(t.organizationId, t.idempotencyKey),
   ],
 )
 
@@ -1662,6 +1667,280 @@ export const feeTemplateVersions = pgTable(
 )
 
 
+// ---------------------------------------------------------------------------
+// 域 D：采购申请 → PO → 分批到货 → 质检 → 入库上架（模块2）
+// 供应商/仓暂以展示码存储（无独立 suppliers/warehouses 表）；variant 经 product_variants.sku_code 解析。
+// ---------------------------------------------------------------------------
+
+export const purchaseRequestStatuses = [
+  "draft",
+  "pending_approval",
+  "approved",
+  "rejected",
+  "converted",
+  "cancelled",
+] as const
+export type PurchaseRequestStatusDb = (typeof purchaseRequestStatuses)[number]
+
+export const purchaseOrderStatuses = [
+  "draft",
+  "sent",
+  "partial_received",
+  "received",
+  "closed",
+  "cancelled",
+] as const
+export type PurchaseOrderStatusDb = (typeof purchaseOrderStatuses)[number]
+
+export const purchaseReceiptStatuses = [
+  "draft",
+  "qc_pending",
+  "completed",
+  "cancelled",
+] as const
+export type PurchaseReceiptStatusDb = (typeof purchaseReceiptStatuses)[number]
+
+export const stockInboundStatuses = ["pending_shelve", "shelved", "cancelled"] as const
+export type StockInboundStatusDb = (typeof stockInboundStatuses)[number]
+
+export const stockInboundSourceTypes = [
+  "purchase",
+  "aftersale_return",
+  "stocktake_gain",
+  "transfer_in",
+] as const
+export type StockInboundSourceTypeDb = (typeof stockInboundSourceTypes)[number]
+
+export const purchaseRequests = pgTable(
+  "purchase_requests",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    requestNo: varchar("request_no", { length: 32 }).notNull(),
+    /** 供应商展示名（后续可迁 supplier_id） */
+    supplierName: text("supplier_name").notNull(),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("WH-CN-XMN-001"),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
+    expectedArrivalAt: varchar("expected_arrival_at", { length: 10 }),
+    currency: varchar("currency", { length: 3 }).notNull().default("CNY"),
+    totalAmount: numeric("total_amount", { precision: 15, scale: 4 }).notNull().default("0"),
+    reason: text("reason"),
+    remark: text("remark"),
+    applicantName: text("applicant_name").notNull().default(""),
+    approverName: text("approver_name").notNull().default(""),
+    opinion: text("opinion"),
+    convertedPoId: text("converted_po_id"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdBy: text("created_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("purchase_requests_org_no_uidx").on(t.organizationId, t.requestNo),
+    index("purchase_requests_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
+
+export const purchaseRequestLines = pgTable(
+  "purchase_request_lines",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    purchaseRequestId: text("purchase_request_id")
+      .notNull()
+      .references(() => purchaseRequests.id),
+    lineNo: integer("line_no").notNull(),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    supplierSku: varchar("supplier_sku", { length: 128 }),
+    qty: integer("qty").notNull(),
+    unitPrice: numeric("unit_price", { precision: 15, scale: 4 }).notNull().default("0"),
+    amount: numeric("amount", { precision: 15, scale: 4 }).notNull().default("0"),
+    remark: text("remark"),
+    ...timestamps,
+  },
+  (t) => [
+    index("purchase_request_lines_req_idx").on(t.purchaseRequestId),
+    uniqueIndex("purchase_request_lines_req_line_uidx").on(t.purchaseRequestId, t.lineNo),
+  ],
+)
+
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    poNo: varchar("po_no", { length: 32 }).notNull(),
+    purchaseRequestId: text("purchase_request_id").references(() => purchaseRequests.id),
+    sourceRequestNo: varchar("source_request_no", { length: 32 }),
+    supplierName: text("supplier_name").notNull(),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("WH-CN-XMN-001"),
+    status: varchar("status", { length: 32 }).notNull().default("sent"),
+    expectedArrivalAt: varchar("expected_arrival_at", { length: 10 }),
+    currency: varchar("currency", { length: 3 }).notNull().default("CNY"),
+    totalAmount: numeric("total_amount", { precision: 15, scale: 4 }).notNull().default("0"),
+    createdBy: text("created_by"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("purchase_orders_org_no_uidx").on(t.organizationId, t.poNo),
+    index("purchase_orders_org_status_idx").on(t.organizationId, t.status),
+    index("purchase_orders_request_idx").on(t.purchaseRequestId),
+  ],
+)
+
+export const purchaseOrderLines = pgTable(
+  "purchase_order_lines",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id),
+    lineNo: integer("line_no").notNull(),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    qtyOrdered: integer("qty_ordered").notNull(),
+    qtyReceived: integer("qty_received").notNull().default(0),
+    qtyQcPassed: integer("qty_qc_passed").notNull().default(0),
+    qtyStocked: integer("qty_stocked").notNull().default(0),
+    unitPrice: numeric("unit_price", { precision: 15, scale: 4 }).notNull().default("0"),
+    amount: numeric("amount", { precision: 15, scale: 4 }).notNull().default("0"),
+    ...timestamps,
+  },
+  (t) => [
+    index("purchase_order_lines_po_idx").on(t.purchaseOrderId),
+    uniqueIndex("purchase_order_lines_po_line_uidx").on(t.purchaseOrderId, t.lineNo),
+  ],
+)
+
+export const purchaseReceipts = pgTable(
+  "purchase_receipts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    receiptNo: varchar("receipt_no", { length: 32 }).notNull(),
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id),
+    poNo: varchar("po_no", { length: 32 }).notNull(),
+    supplierName: text("supplier_name").notNull(),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
+    arrivedAt: timestamp("arrived_at", { withTimezone: true }),
+    receivedBy: text("received_by"),
+    deliveryNote: text("delivery_note"),
+    remark: text("remark"),
+    qcNo: varchar("qc_no", { length: 32 }),
+    qcInspector: text("qc_inspector"),
+    qcCompletedAt: timestamp("qc_completed_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("purchase_receipts_org_no_uidx").on(t.organizationId, t.receiptNo),
+    index("purchase_receipts_po_idx").on(t.purchaseOrderId),
+    index("purchase_receipts_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
+
+export const purchaseReceiptLines = pgTable(
+  "purchase_receipt_lines",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    purchaseReceiptId: text("purchase_receipt_id")
+      .notNull()
+      .references(() => purchaseReceipts.id),
+    lineNo: integer("line_no").notNull(),
+    poLineId: text("po_line_id")
+      .notNull()
+      .references(() => purchaseOrderLines.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    qtyOrdered: integer("qty_ordered").notNull().default(0),
+    qtyArrived: integer("qty_arrived").notNull(),
+    qtyPendingQc: integer("qty_pending_qc").notNull().default(0),
+    qtyPassed: integer("qty_passed").notNull().default(0),
+    qtyFailed: integer("qty_failed").notNull().default(0),
+    note: text("note"),
+    suggestedBin: varchar("suggested_bin", { length: 64 }),
+    ...timestamps,
+  },
+  (t) => [
+    index("purchase_receipt_lines_receipt_idx").on(t.purchaseReceiptId),
+    uniqueIndex("purchase_receipt_lines_receipt_line_uidx").on(t.purchaseReceiptId, t.lineNo),
+  ],
+)
+
+export const stockInbounds = pgTable(
+  "stock_inbounds",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    inboundNo: varchar("inbound_no", { length: 32 }).notNull(),
+    sourceType: varchar("source_type", { length: 32 }).notNull().default("purchase"),
+    sourceDoc: varchar("source_doc", { length: 64 }).notNull(),
+    purchaseOrderId: text("purchase_order_id").references(() => purchaseOrders.id),
+    poNo: varchar("po_no", { length: 32 }),
+    purchaseReceiptId: text("purchase_receipt_id").references(() => purchaseReceipts.id),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull(),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    quantity: integer("quantity").notNull(),
+    qcResult: text("qc_result"),
+    binCode: varchar("bin_code", { length: 64 }).notNull(),
+    operator: text("operator"),
+    status: varchar("status", { length: 32 }).notNull().default("pending_shelve"),
+    idempotencyKey: varchar("idempotency_key", { length: 191 }).notNull(),
+    remark: text("remark"),
+    shelvedAt: timestamp("shelved_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("stock_inbounds_org_no_uidx").on(t.organizationId, t.inboundNo),
+    uniqueIndex("stock_inbounds_org_idem_uidx").on(t.organizationId, t.idempotencyKey),
+    index("stock_inbounds_org_status_idx").on(t.organizationId, t.status),
+    index("stock_inbounds_receipt_idx").on(t.purchaseReceiptId),
+  ],
+)
+
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
@@ -1696,3 +1975,12 @@ export type ProductCandidate = typeof productCandidates.$inferSelect
 export type FxRate = typeof fxRates.$inferSelect
 export type OceanShipment = typeof oceanShipments.$inferSelect
 export type OceanShipmentLine = typeof oceanShipmentLines.$inferSelect
+
+export type PurchaseRequestRow = typeof purchaseRequests.$inferSelect
+export type PurchaseRequestLineRow = typeof purchaseRequestLines.$inferSelect
+export type PurchaseOrderRow = typeof purchaseOrders.$inferSelect
+export type PurchaseOrderLineRow = typeof purchaseOrderLines.$inferSelect
+export type PurchaseReceiptRow = typeof purchaseReceipts.$inferSelect
+export type PurchaseReceiptLineRow = typeof purchaseReceiptLines.$inferSelect
+export type StockInboundRow = typeof stockInbounds.$inferSelect
+

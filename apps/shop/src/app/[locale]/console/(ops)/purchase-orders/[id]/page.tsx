@@ -5,26 +5,13 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailRelatedTables,
   DetailSection,
-  parentsToFields,
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { buildPurchaseOrderRelatedInfo } from '@/lib/console/related-info'
-import {
-  addPurchaseOrderLine,
-  updatePurchaseOrderHeader,
-  updatePurchaseOrderStatus,
-  usePurchaseOrders,
-  type PurchaseOrderStatus,
-} from '@/lib/crossborder/purchase-order-store'
-import {
-  createReceiptFromPurchaseOrder,
-  usePurchaseReceipts,
-} from '@/lib/crossborder/purchase-receipt-store'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -37,10 +24,6 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 
-const SKU_OPTIONS = ['HSY000001001', 'HSY000001002', 'HSY000002001']
-const SUPPLIER_OPTIONS = ['厦门优品服饰有限公司', '泉州联创数码配件厂']
-const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
-
 function statusVariant(status: string) {
   if (status === '已收货' || status === '已关闭') return 'secondary' as const
   if (status === '已取消') return 'destructive' as const
@@ -49,48 +32,61 @@ function statusVariant(status: string) {
 
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const orders = usePurchaseOrders()
-  const receipts = usePurchaseReceipts()
   const router = useLocaleRouter()
-  const order = orders.find((item) => item.id === id)
-
-  const [lineOpen, setLineOpen] = React.useState(false)
-  const [headerOpen, setHeaderOpen] = React.useState(false)
+  const utils = trpc.useUtils()
+  const [receiveOpen, setReceiveOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
-  const [mounted, setMounted] = React.useState(false)
+  const [qtyDraft, setQtyDraft] = React.useState<Record<string, string>>({})
+
+  const detailQuery = trpc.purchase.getOrder.useQuery({ id })
+
+  const registerMutation = trpc.purchase.registerReceipt.useMutation({
+    onSuccess: async (receipt) => {
+      await utils.purchase.getOrder.invalidate({ id })
+      await utils.purchase.listOrders.invalidate()
+      await utils.purchase.listReceipts.invalidate()
+      setReceiveOpen(false)
+      setNotice(`${detailQuery.data?.poNo || ''} 已创建到货批次 ${receipt.receiptNo}`)
+      router.push(`/console/purchase-receipts/${encodeURIComponent(receipt.id)}`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
 
   React.useEffect(() => {
-    setMounted(true)
-  }, [])
+    if (!detailQuery.data) return
+    const draft: Record<string, string> = {}
+    for (const line of detailQuery.data.lines) {
+      const remaining = Math.max(0, line.qtyOrdered - line.qtyReceived)
+      draft[line.id] = String(remaining)
+    }
+    setQtyDraft(draft)
+  }, [detailQuery.data?.id, detailQuery.data?.status, detailQuery.data?.lines.length])
 
-  if (!order) {
+  if (detailQuery.isLoading) {
+    return (
+      <DetailPageHeader
+        backHref="/console/purchase-orders"
+        title="加载采购单…"
+        description="正在从数据库读取…"
+      />
+    )
+  }
+
+  if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/purchase-orders"
-          title={mounted ? '未找到采购单' : '加载采购单…'}
-          description={
-            mounted
-              ? `采购单 ${id} 不存在，或仅存在于其他浏览器会话的示例数据中。`
-              : '正在读取本机原型会话中的采购单…'
-          }
+          title="未找到采购单"
+          description={detailQuery.error?.message || `采购单 ${id} 不存在。`}
         />
-        <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          请返回列表重新选择，或新建采购单主信息后再添加明细。
-        </p>
       </div>
     )
   }
 
-  const current = order
-  const canEditLines = current.status === '草稿' || current.status === '已下发'
-  const related = buildPurchaseOrderRelatedInfo(current)
-  const parentFields = parentsToFields(related.parents)
-
-  function advance(status: PurchaseOrderStatus) {
-    updatePurchaseOrderStatus(orders, current.id, status)
-    setNotice(`${current.poNo} 已推进为「${status}」（原型会话）。`)
-  }
+  const current = detailQuery.data
+  const canReceive =
+    current.status === '已下发' || current.status === '部分到货' || current.status === '草稿'
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -104,18 +100,19 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         description={`采购单主信息 · ${current.supplier}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">数据库</Badge>
             <Badge variant={statusVariant(current.status)}>{current.status}</Badge>
           </>
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setHeaderOpen(true)}>
-              编辑主信息
-            </Button>
-            {canEditLines ? (
-              <Button size="sm" onClick={() => setLineOpen(true)}>
-                添加采购明细
+            {current.sourceRequest ? (
+              <Button size="sm" variant="outline" asChild>
+                <LocaleLink
+                  href={`/console/purchase-requests/${encodeURIComponent(current.sourceRequest)}`}
+                >
+                  来源申请 {current.sourceRequest}
+                </LocaleLink>
               </Button>
             ) : null}
           </div>
@@ -123,15 +120,15 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
       />
 
       <Alert>
-        <AlertTitle>两步创建 · 对齐 purchase_orders / purchase_order_lines</AlertTitle>
+        <AlertTitle>审批转单生成 · 对齐 purchase_orders / purchase_order_lines</AlertTitle>
         <AlertDescription>
-          上方主信息对应表头；下方明细对应行表。新建时先保存主信息，再在本页追加具体采购信息，不要求一次填完。
+          采购单由申请「通过并转采购单」生成，表头与明细只读。到货数量投影字段由收货与质检回写。
         </AlertDescription>
       </Alert>
 
       <UedPrototypeNotice>
         {current.lines.length === 0
-          ? '当前尚无采购明细。请点击「添加采购明细」写入 purchase_order_lines（variant_id / qty_ordered / unit_price）。'
+          ? '当前尚无采购明细。'
           : '明细行金额汇总写入主信息 total_amount；到货数量投影字段 qty_received / qty_qc_passed / qty_stocked 由收货与质检回写。'}
       </UedPrototypeNotice>
 
@@ -155,7 +152,9 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         description="purchase_orders：供应商、仓库、币种、预计到货等表头字段"
         fields={[
           { label: '采购单号', value: current.poNo, mono: true },
-          ...parentFields,
+          { label: '来源申请', value: current.sourceRequest || '—', mono: true },
+          { label: '供应商', value: current.supplier },
+          { label: '收货仓库', value: current.warehouse, mono: true },
           { label: '币种', value: current.currency },
           { label: '合计金额', value: `${current.totalAmount} ${current.currency}` },
           { label: '预计到货', value: current.expectedAt },
@@ -166,34 +165,12 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           },
         ]}
         columns={3}
-        action={
-          <Button size="sm" variant="ghost" onClick={() => setHeaderOpen(true)}>
-            编辑
-          </Button>
-        }
       />
 
-      <DetailSection
-        title="采购明细"
-        description="purchase_order_lines：内部 SKU、订购数量、锁定单价与到货投影"
-        action={
-          canEditLines ? (
-            <Button size="sm" variant="outline" onClick={() => setLineOpen(true)}>
-              添加采购明细
-            </Button>
-          ) : null
-        }
-      >
+      <DetailSection title="采购明细" description="purchase_order_lines：内部 SKU、订购数量、锁定单价与到货投影">
         {current.lines.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed p-6">
-            <p className="text-sm text-muted-foreground">
-              主信息已保存，明细为空。第二步在此添加具体采购信息，无需回到列表重填表头。
-            </p>
-            {canEditLines ? (
-              <Button size="sm" onClick={() => setLineOpen(true)}>
-                添加第一条明细
-              </Button>
-            ) : null}
+          <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+            明细为空。
           </div>
         ) : (
           <Table>
@@ -238,55 +215,15 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         )}
       </DetailSection>
 
-      {related.sections && related.sections.length > 0 ? (
-        <DetailRelatedTables sections={related.sections} />
-      ) : null}
-
       <div className="flex flex-wrap gap-2">
-        {current.status === '草稿' ? (
-          <Button
-            size="sm"
-            onClick={() => {
-              if (current.lines.length === 0) {
-                setNotice('请先添加至少一条采购明细，再下发给供应商（原型校验）。')
-                return
-              }
-              advance('已下发')
-            }}
-          >
-            下发采购单
-          </Button>
-        ) : null}
-        {current.status === '已下发' || current.status === '部分到货' ? (
-          <Button
-            size="sm"
-            onClick={() => {
-              const result = createReceiptFromPurchaseOrder(receipts, current.id, {
-                receivedBy: '当前用户',
-              })
-              if (!result.ok) {
-                setNotice(result.reason)
-                return
-              }
-              setNotice(`${current.poNo} 已创建到货批次 ${result.receipt.receiptNo}`)
-              router.push(`/console/purchase-receipts/${encodeURIComponent(result.receipt.id)}`)
-            }}
-          >
+        {canReceive && current.lines.length > 0 ? (
+          <Button size="sm" onClick={() => setReceiveOpen(true)} disabled={registerMutation.isPending}>
             登记到货
           </Button>
         ) : null}
-        {current.status === '已下发' || current.status === '部分到货' ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => router.push('/console/purchase-receipts')}
-          >
+        {canReceive ? (
+          <Button size="sm" variant="secondary" onClick={() => router.push('/console/purchase-receipts')}>
             查看到货质检
-          </Button>
-        ) : null}
-        {current.status === '草稿' || current.status === '已下发' ? (
-          <Button size="sm" variant="ghost" onClick={() => advance('已取消')}>
-            取消采购单
           </Button>
         ) : null}
       </div>
@@ -297,107 +234,38 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         </p>
       ) : null}
 
-      {headerOpen ? (
+      {receiveOpen ? (
         <UedDialog
-          title="编辑主信息"
-          description="仅修改 purchase_orders 表头字段；明细行在下方单独维护。"
-          fields={[
-            {
-              key: 'sourceRequest',
-              label: '来源申请',
-              defaultValue: current.sourceRequest,
-              required: true,
-            },
-            {
-              key: 'supplier',
-              label: '供应商',
-              options: SUPPLIER_OPTIONS,
-              defaultValue: current.supplier,
-              required: true,
-            },
-            {
-              key: 'warehouse',
-              label: '收货仓库',
-              options: WAREHOUSE_OPTIONS,
-              defaultValue: current.warehouse,
-              required: true,
-            },
-            {
-              key: 'currency',
-              label: '币种',
-              options: ['CNY', 'USD'],
-              defaultValue: current.currency,
-              required: true,
-            },
-            {
-              key: 'expectedAt',
-              label: '预计到货',
-              type: 'date',
-              defaultValue: current.expectedAt,
-              required: true,
-            },
-          ]}
-          initialValues={{
-            sourceRequest: current.sourceRequest,
-            supplier: current.supplier,
-            warehouse: current.warehouse,
-            currency: current.currency,
-            expectedAt: current.expectedAt,
-          }}
-          onClose={() => setHeaderOpen(false)}
+          title="登记到货批次"
+          description="按行填写本批到货数量；提交后生成待质检收货单并回写采购单到货投影。"
+          fields={current.lines.map((line) => ({
+            key: line.id,
+            label: `${line.sku}（订 ${line.qtyOrdered} / 已收 ${line.qtyReceived}）`,
+            type: 'number' as const,
+            defaultValue: qtyDraft[line.id] || '0',
+            required: false,
+          }))}
+          initialValues={qtyDraft}
+          onClose={() => setReceiveOpen(false)}
           onSave={(values) => {
-            updatePurchaseOrderHeader(orders, current.id, {
-              sourceRequest: values.sourceRequest || current.sourceRequest,
-              supplier: values.supplier || current.supplier,
-              warehouse: values.warehouse || current.warehouse,
-              currency: values.currency || current.currency,
-              expectedAt: values.expectedAt || current.expectedAt,
+            const lines = current.lines
+              .map((line) => ({
+                poLineId: line.id,
+                sku: line.sku,
+                qtyArrived: Number(values[line.id] || 0),
+              }))
+              .filter((line) => line.qtyArrived > 0)
+            if (!lines.length) {
+              setNotice('请至少填写一行到货数量。')
+              return
+            }
+            registerMutation.mutate({
+              purchaseOrderId: current.id,
+              receivedBy: '当前用户',
+              lines,
             })
-            setHeaderOpen(false)
-            setNotice('主信息已更新（原型会话，未写入数据库）。')
           }}
-          saveLabel="保存主信息"
-        />
-      ) : null}
-
-      {lineOpen ? (
-        <UedDialog
-          title="添加采购明细"
-          description="写入 purchase_order_lines：variant_id、qty_ordered、unit_price；金额自动计算。"
-          fields={[
-            { key: 'sku', label: '内部 SKU', options: SKU_OPTIONS, required: true, helper: '对应 variant_id' },
-            {
-              key: 'qtyOrdered',
-              label: '订购数量',
-              type: 'number',
-              required: true,
-              defaultValue: '1',
-              helper: '对应 qty_ordered',
-            },
-            {
-              key: 'unitPrice',
-              label: '锁定单价',
-              type: 'number',
-              required: true,
-              defaultValue: '28',
-              helper: '对应 unit_price',
-            },
-          ]}
-          onClose={() => setLineOpen(false)}
-          onSave={(values) => {
-            const updated = addPurchaseOrderLine(orders, current.id, {
-              sku: values.sku || SKU_OPTIONS[0]!,
-              qtyOrdered: Number(values.qtyOrdered || 1),
-              unitPrice: Number(values.unitPrice || 0),
-            })
-            setLineOpen(false)
-            setNotice(
-              updated
-                ? `已添加明细行 #${updated.lines.length}（${values.sku} × ${values.qtyOrdered}），合计 ${updated.totalAmount} ${updated.currency}。`
-                : '添加明细失败（原型）。',
-            )
-          }}
-          saveLabel="保存明细行"
+          saveLabel="确认登记到货"
         />
       ) : null}
     </div>

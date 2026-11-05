@@ -9,7 +9,7 @@
 | 使用者 | 卖家 / 租户运营 |
 | 作用 | 本组织跨境业务的数据查看与运营操作入口 |
 | 技术栈 | Next.js 16 App Router、next-intl、`@workspace/ui`、better-auth |
-| 当前阶段 | **模块1（商品 SPU / 内部 SKU）已接 tRPC → dataaccess → PostgreSQL**；采购/订单/WMS/LGS/费用等仍为 localStorage 原型 |
+| 当前阶段 | **模块1（商品）+ 模块2（采购申请→入库）已接 tRPC → dataaccess → PostgreSQL**；订单出库/LGS/费用等仍为 localStorage 原型 |
 
 ## 主要路由
 
@@ -44,6 +44,7 @@ docker compose up -d          # 本地 Postgres
 pnpm --filter @workspace/db db:migrate
 # 可选：种子演示组织 + 样例 SPU/SKU
 pnpm --filter @workspace/db db:seed:commerce-products
+pnpm --filter @workspace/db db:seed:commerce-purchase
 # 开发无登录时，把种子组织写入环境（与 seed 默认一致）
 # SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 pnpm --filter shop dev
@@ -63,9 +64,20 @@ pnpm --filter shop dev
 
 **已接库**：SPU / 内部 SKU 列表、详情、新建、编辑（含规格变体）。`product-store` 的 localStorage 读写已停用。
 
-**仍 mock / localStorage（本 PR 不接）**：Seller SKU / 刊登映射、供应商 SKU、采购、订单、WMS、LGS、费用模板、字典/品类/成员辅助选项等。映射页可从 DB 拉取内部 SKU 编码列表，映射关系本身仍为 stub。
+### 模块2：采购申请 → 入库上架（已接库）
 
-详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)。
+| 层 | 路径 |
+| --- | --- |
+| tRPC 路由 | `src/lib/server/routers/purchase.ts` |
+| dataaccess | `src/lib/server/dataaccess/purchase.ts` |
+| 表 | `purchase_*` / `stock_inbounds` / `inventory_*`（migration 0009） |
+| 控制台页 | `purchase-requests` / `purchase-approvals` / `purchase-orders` / `purchase-receipts` / `stock-inbounds` |
+
+**已接库**：申请 CRUD/提交/撤回/取消、审批转 PO/驳回、登记到货、质检、确认上架写库存流水。对应 `purchase-*-store` localStorage 已停用。
+
+**仍 mock / localStorage**：Seller SKU / 刊登映射、订单出库、WMS 非采购入库、LGS、费用模板、供应商主数据、字典/品类/成员辅助选项等。
+
+详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)。
 
 ## 脚本
 

@@ -1,19 +1,15 @@
 'use client'
 
-import * as React from 'react'
+import { useParams } from 'next/navigation'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
-import { decodeRouteParam } from '@/components/console/erp-ued-detail'
+import * as React from 'react'
 
-/** 旧「采购管理」详情入口：统一跳转到采购申请详情（两步 UED）。 */
-export default function PurchasesDetailRedirect({ params }: { params: Promise<{ id: string }> }) {
-  const id = decodeRouteParam(React.use(params).id)
+export default function PurchasesDetailRedirectPage() {
+  const params = useParams<{ id: string }>()
   const router = useLocaleRouter()
   React.useEffect(() => {
+    const id = decodeURIComponent(String(params.id || ''))
     router.replace(`/console/purchase-requests/${encodeURIComponent(id)}`)
-  }, [id, router])
-  return (
-    <p className="p-6 text-sm text-muted-foreground">
-      正在跳转到采购申请详情…
-    </p>
-  )
+  }, [params.id, router])
+  return <p className="p-6 text-sm text-muted-foreground">正在跳转到采购申请详情…</p>
 }

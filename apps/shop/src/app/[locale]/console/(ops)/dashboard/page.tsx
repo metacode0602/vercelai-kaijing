@@ -24,7 +24,7 @@ import {
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { getOrders } from '@/lib/crossborder/order-store'
 import { getMappingExceptions } from '@/lib/crossborder/mapping-exception-store'
-import { usePurchaseRequests, countByStatus as countPurchaseByStatus } from '@/lib/crossborder/purchase-request-store'
+import { trpc } from '@/lib/trpc/client'
 import { useInventoryBalances, countBalancesKpi } from '@/lib/crossborder/wms-store'
 import { useAftersaleCancels, countCancelsByStatus } from '@/lib/crossborder/aftersale-store'
 import { useSyncTasks, countSyncTasksByStatus } from '@/lib/crossborder/sync-store'
@@ -99,7 +99,7 @@ function InventoryStat({
 
 function OpsTodoKpiRow() {
   const orders = React.useMemo(() => getOrders(), [])
-  const purchases = usePurchaseRequests()
+  const purchaseStats = trpc.purchase.requestStats.useQuery()
   const balances = useInventoryBalances()
   const cancels = useAftersaleCancels()
   const syncTasks = useSyncTasks()
@@ -113,8 +113,7 @@ function OpsTodoKpiRow() {
       String(o.status) === 'ready_to_ship',
   ).length
   const lowStock = countBalancesKpi(balances).lowStock
-  const purchaseCounts = countPurchaseByStatus(purchases) as Record<string, number>
-  const pendingPurchase = purchaseCounts['待审核'] ?? 0
+  const pendingPurchase = purchaseStats.data?.byStatus?.['待审核'] ?? 0
   const refundPending = countCancelsByStatus(cancels).pending
   const mappingAbnormal =
     mappings.filter((m) => m.mappingStatus === '异常' || !m.internalSku || m.internalSku === '—')
