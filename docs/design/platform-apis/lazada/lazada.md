@@ -1,8 +1,27 @@
 # Lazada Open Platform — 授权后店铺可访问能力
 
-> 检索日期：**2026-10-31**（Asia/Shanghai）  
+> 检索日期：**2026-10-31**（Asia/Shanghai）；分域文档补充核验：**2026-11-05**  
 > 官方门户：https://open.lazada.com/  
 > 业务编号对齐：Q38 客服 · Q43 字段 · Q44 券
+
+## 0. 分域文档（2026-11-05）
+
+| 文档 | 内容 |
+| --- | --- |
+| [lazada-common-conventions.md](lazada-common-conventions.md) | host、Auth、签名、分页、错误码 |
+| [lazada-auth-seller-api.md](lazada-auth-seller-api.md) | 授权、token 刷新、GetSeller |
+| [lazada-products-api.md](lazada-products-api.md) | 商品、类目、库存写接口 |
+| [lazada-orders-api.md](lazada-orders-api.md) | 订单、订单项、发票、取消校验 |
+| [lazada-logistics-api.md](lazada-logistics-api.md) | Pack/RTS/面单/轨迹/EPIS |
+| [lazada-aftersales-api.md](lazada-aftersales-api.md) | 逆向单、退款、退货、QC |
+| [lazada-finance-api.md](lazada-finance-api.md) | 结算、流水、交易与物流费 |
+| [lazada-advertising-api.md](lazada-advertising-api.md) | Sponsored Solutions / SMAX |
+| [lazada-promotion-im-review-api.md](lazada-promotion-im-review-api.md) | 促销、IM、评价 |
+| [lazada-order-status-erp-mapping.md](lazada-order-status-erp-mapping.md) | 状态→ERP 库存动作 |
+| [lazada-erp-schema-coverage.md](lazada-erp-schema-coverage.md) | schema 覆盖度与缺口 |
+| [lazada-daraz-unified-design.md](lazada-daraz-unified-design.md) | Daraz + Lazada 统一设计 |
+
+> 下文 §3–§6 为 2026-10-31 的能力调研摘要；字段级细节以分域文档为准。
 
 ## 1. Official portal links
 
@@ -49,7 +68,7 @@
 
 ### Orders / Products / Finance / Logistics
 
-与 [daraz.md](daraz.md) §4 同协议字段族；Lazada 六站文档更完整。可获取：订单头/行、商品属性与价格库存、交易与打款、物流商与交运结果。
+与 [daraz.md](../daraz/daraz.md) §4 同协议字段族；Lazada 六站文档更完整。可获取：订单头/行、商品属性与价格库存、交易与打款、物流商与交运结果。
 
 | 可获取 | 不可获取或未文档化 | 需人工导入 |
 | --- | --- | --- |

@@ -124,7 +124,7 @@
 | --- | --- | --- |
 | 授权后能否 **读** 买家消息？ | **Daraz：官方未说明 / 未找到（无公开 path 正文）**。门户导航存在 **Instant Messaging API** 分区（open.daraz.com 文档树），但本轮无法抓取 session/message list 的 path 与字段。 | open.daraz.com（导航）；无可用的 Daraz IM 参考页 URL 正文 |
 | 授权后能否 **发** 消息？ | **同上：官方未说明 / 未找到**。不得承诺 F28 可发送。 | 同上 |
-| 同协议族对照（非 Daraz 承诺） | Lazada 官方文档含 `/im/session/list`、`/im/message/list`（读）、`/im/message/send`（发）等 | 见 [lazada.md](lazada.md)；open.lazada.com |
+| 同协议族对照（非 Daraz 承诺） | Lazada 官方文档含 `/im/session/list`、`/im/message/list`（读）、`/im/message/send`（发）等 | 见 [lazada.md](../lazada/lazada.md)；open.lazada.com |
 | open-shop 建议 | P0 **F28 只读 stub** 与「未找到」一致；若要做发送，须：① Daraz 控制台文档截图/联调返回码 ② 或官方补齐 path | UED F28 |
 
 ## 6. Q44 — Vouchers / coupons
@@ -132,7 +132,7 @@
 | 问题 | 结论 | 证据 |
 | --- | --- | --- |
 | 是否有官方 **创建 / 发行** 券 API？ | **Daraz path：官方未说明 / 未找到**。导航有 **Seller Voucher API**。 | open.daraz.com 导航 |
-| 是否有 **查询 / 停用**？ | 同左；Lazada 对照有 `/promotion/voucher/get|create|activate|deactivate|…` | [lazada.md](lazada.md) |
+| 是否有 **查询 / 停用**？ | 同左；Lazada 对照有 `/promotion/voucher/get|create|activate|deactivate|…` | [lazada.md](../lazada/lazada.md) |
 | 是否有 **核销 redeem** OpenAPI？ | **官方未说明 / 未找到**（卖家券一般为买家下单自动占用，未必有独立 redeem API） | — |
 | open-shop 建议 | P2 优惠券自动化 **不可**依赖未证实的 Daraz OpenAPI；Seller Center 人工或等官方确认 | — |
 

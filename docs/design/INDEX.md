@@ -10,7 +10,7 @@
 | [crossborder-database-design.md](crossborder-database-design.md) | **现状基线（目标演进见 haoshiyun-erp-database-schema.md）** | 跨境运营域 Drizzle / PostgreSQL schema 现状记录；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage；库存/成本/映射写路径已由权威 schema 重定义 |
 | [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
-| [platform-apis/](platform-apis/README.md) | **证据基线（2026-10-31）** | 各平台官方 Open API：授权后可读/可写范围；Daraz/Lazada/Shopee/TikTok；Q38 客服 / Q43 字段 / Q44 券 |
+| [platform-apis/](platform-apis/README.md) | **证据基线（Daraz 2026-10-31；Lazada 分域 2026-11-05）** | 各平台官方 Open API：授权后可读/可写范围；Daraz/Lazada 分域字段、状态映射与统一设计；Shopee/TikTok；Q38 客服 / Q43 字段 / Q44 券 |
 | [erp-requirements-q01-q35-dev-replies.md](erp-requirements-q01-q35-dev-replies.md) | **开发答复 · 第二轮（2026-10-31，`a51b142`）** | Q01–Q35 客户可读开发答复；本轮已定 Q04/Q09/Q10/Q12/Q15/Q17/Q30/Q33；仍待确认见文末清单；含 #36 费用模板 |
 | [erp-rectification-2026-11-03.md](erp-rectification-2026-11-03.md) | **整改设计响应（2026-11-03）** | 好时运 ERP 开发人员整改清单 26 项逐条设计响应：Q10 库位绑定禁删+履历表、Q23 RBAC country scope+六动作+测试账号演示、Q30 费用模板审核状态机+历史快照、Q07/Q08 库存状态机、Q29 报表口径等；C1–C30 确认清单（19 已拍板 / 10 待确认 / 5 待填细节） |
 | [haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md) | **初步设计，待业务/IT确认** | 好时运 ERP 需求 Excel（9 张表）覆盖分析、当前仓库证据、目标模型与分阶段整改方案 |

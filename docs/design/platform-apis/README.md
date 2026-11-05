@@ -1,7 +1,7 @@
 # 平台官方 Open API 能力调研（授权后店铺可访问范围）
 
 > 状态：**证据基线**（只引用官方开发者门户 / 官方镜像文档；不猜测）  
-> 检索日期：**2026-10-31**（Asia/Shanghai）  
+> 检索日期：**2026-10-31**（Asia/Shanghai）；Lazada 分域文档补充核验：**2026-11-05**
 > 分支用途：回答业务 Q38（客服/IM）、Q43（字段级可拉范围）、Q44（券/优惠券 API），并作为 connector 设计依据。  
 > 编号说明：本文 **Q38 = 客服收发消息**、**Q43 = 字段可获取性**、**Q44 = 券接口**（与 `daraz-lk-erp-p0-ued.md` 中旧编号 Q36/Q38/Q44 含义不同，后者见该文 P2 段）。
 
@@ -9,13 +9,34 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [daraz.md](daraz.md) | **优先**：Daraz Open Platform（LK 等）及与 Lazada Lazop 家族关系 |
-| [lazada.md](lazada.md) | Lazada Open Platform（六站） |
+| [daraz/daraz.md](daraz/daraz.md) | **优先**：Daraz Open Platform（LK 等）及与 Lazada Lazop 家族关系 |
+| [daraz/daraz-common-conventions.md](daraz/daraz-common-conventions.md) | Daraz 通用约定：host、OAuth、签名、分页、错误码、安全 |
+| [daraz/daraz-products-api.md](daraz/daraz-products-api.md) | 商品域 16 个接口的字段、请求/响应与使用方法 |
+| [daraz/daraz-orders-api.md](daraz/daraz-orders-api.md) | 订单域 8 个接口的字段、状态枚举与同步方法 |
+| [daraz/daraz-logistics-api.md](daraz/daraz-logistics-api.md) | 履约（pack/RTS/面单/轨迹）与 EPIS 物流接口 |
+| [daraz/daraz-aftersales-api.md](daraz/daraz-aftersales-api.md) | 逆向单、退款、退货、卖家取消接口 |
+| [daraz/daraz-finance-api.md](daraz/daraz-finance-api.md) | 结算单与交易明细字段、对账方法 |
+| [daraz/daraz-advertising-api.md](daraz/daraz-advertising-api.md) | 官方无广告 API 的核验结论与手工导入模型 |
+| [daraz/daraz-order-status-erp-mapping.md](daraz/daraz-order-status-erp-mapping.md) | 订单状态→ERP 锁库/释放/扣减节点的设计建议 |
+| [daraz/daraz-erp-schema-coverage.md](daraz/daraz-erp-schema-coverage.md) | 现有 schema 对六大数据域的覆盖评估与补表清单 |
+| [lazada/lazada.md](lazada/lazada.md) | Lazada Open Platform（六站）总览 |
+| [lazada/lazada-common-conventions.md](lazada/lazada-common-conventions.md) | Lazada 通用约定：host、Auth、签名、分页、错误码 |
+| [lazada/lazada-auth-seller-api.md](lazada/lazada-auth-seller-api.md) | Lazada 授权、token 刷新与卖家信息字段 |
+| [lazada/lazada-products-api.md](lazada/lazada-products-api.md) | 商品域 28 个接口、类目属性、多仓库存与写接口 |
+| [lazada/lazada-orders-api.md](lazada/lazada-orders-api.md) | 订单域 8 个接口、状态枚举与同步方法 |
+| [lazada/lazada-logistics-api.md](lazada/lazada-logistics-api.md) | 履约、物流、EPIS、Logistics Station 接口 |
+| [lazada/lazada-aftersales-api.md](lazada/lazada-aftersales-api.md) | 逆向单、退款、退货、QC 与库存回补 |
+| [lazada/lazada-finance-api.md](lazada/lazada-finance-api.md) | 结算单、账户流水、交易明细、物流费对账 |
+| [lazada/lazada-advertising-api.md](lazada/lazada-advertising-api.md) | Sponsored Solutions 38 个接口与 SMAX |
+| [lazada/lazada-promotion-im-review-api.md](lazada/lazada-promotion-im-review-api.md) | Voucher、包邮、闪购、IM、评价接口 |
+| [lazada/lazada-order-status-erp-mapping.md](lazada/lazada-order-status-erp-mapping.md) | Lazada 状态→ERP 锁库/扣减/释放/回补建议 |
+| [lazada/lazada-erp-schema-coverage.md](lazada/lazada-erp-schema-coverage.md) | 现有 schema 覆盖度与缺口、建议新增表 |
+| [lazada/lazada-daraz-unified-design.md](lazada/lazada-daraz-unified-design.md) | Daraz + Lazada 统一表、状态机与实施阶段 |
 | [shopee.md](shopee.md) | Shopee Open Platform v2 |
 | [tiktok-shop.md](tiktok-shop.md) | TikTok Shop Partner Center / Open API |
 | [others.md](others.md) | Temu / SHEIN：是否存在官方公开卖家 API |
 
-每篇结构统一：
+早期平台总览文结构（Daraz/Lazada 分域文档按域组织，不强制此结构）：
 
 1. 官方门户链接  
 2. Auth & 店铺绑定  
@@ -51,5 +72,5 @@
 ## 4. 相关仓库文档
 
 - Connector 实现草案：[`../marketplace-connectors.md`](../marketplace-connectors.md)  
-- Daraz LK ERP UED（F28 只读客服）：[`../../apps/shop/content/design/daraz-lk-erp-p0-ued.md`](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md)  
+- Daraz LK ERP UED（F28 只读客服）：[`../../../apps/shop/content/design/daraz-lk-erp-p0-ued.md`](../../../apps/shop/content/design/daraz-lk-erp-p0-ued.md)
 - 评论抓取设计（API 优先）：[`../comment-scraping-and-report-design.md`](../comment-scraping-and-report-design.md)
