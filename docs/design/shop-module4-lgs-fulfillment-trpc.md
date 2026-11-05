@@ -1,0 +1,84 @@
+# 模块4：LGS / 物流履约（包裹 + 轨迹 + LGS/JSB 交接批次）
+
+> 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-lgs-fulfillment`。
+
+## 范围
+
+| 已接 PostgreSQL | 仍 mock / stub |
+| --- | --- |
+| 包裹列表 / 详情 / 从订单创建 | 真实 Lazada / Daraz / Shopee OpenAPI |
+| 轨迹追加（强制 `source`）/ 幂等 | 费用模板、海运柜次业务化 |
+| stub 同步运单与轨迹 + `fulfillment_attempts` | 售后回库 |
+| LGS / JSB 交接批次 CRUD、加包、提交/关闭 | 左侧菜单结构调整 |
+| Console `shipments` / `logistics-lgs` / `logistics-jsb` | Dashboard 其它 KPI |
+| 中文 UI ↔ DB 状态映射 | — |
+
+## 架构
+
+```
+console/shipments | logistics-lgs | logistics-jsb
+  → trpc.logistics.*（React Query）
+  → /api/trpc
+  → routers/logistics（tenantProcedure）
+  → dataaccess/logistics (+ mappers/logistics)
+  → Drizzle → shipments / shipment_items / tracking_events
+               / fulfillment_batches / fulfillment_batch_packages
+               / fulfillment_attempts
+```
+
+与模块3 解耦：出库过账不写 LGS；本模块在出库后建包裹与交接，不改库存流水。
+
+## 表与迁移（0011）
+
+迁移文件：`packages/db/drizzle/0011_commerce_lgs_fulfillment.sql`
+
+| 变更 | 说明 |
+| --- | --- |
+| `tracking_events.source` | `varchar(16) not null default 'manual'`（`api` / `manual` / `import`） |
+| `fulfillment_batches` | 交接批次；`UNIQUE (organization_id, batch_no)`；channel=`lgs`\|`jsb_th`\|… |
+| `fulfillment_batch_packages` | junction：`batch_id + shipment_id` UNIQUE；含 `organization_id` |
+| **不**加 `shipments.batch_id` | 仅通过 junction 关联，避免一包多批歧义 |
+
+既有表（早期 migration）：`shipments` / `shipment_items` / `tracking_events` / `fulfillment_attempts` — 0011 不重建。
+
+## 业务默认
+
+| 项 | 默认 |
+| --- | --- |
+| 包裹唯一 | `(shop_id, external_package_id)` |
+| 轨迹幂等 | `(shipment_id, event_time, status_code)` |
+| 人工补录 | `source=manual`；JSB 批量导入 `source=import`；stub/同步 `source=api` |
+| provider 默认 | Lazada MY/PH/SG/VN → `lgs`；Daraz → `platform`；TH JSB → `jsb` |
+| 平台 OpenAPI | stub（写 `fulfillment_attempts` + idempotencyKey） |
+| 开发租户 | `SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo` |
+
+## 迁移与种子
+
+```bash
+docker compose up -d
+pnpm --filter @workspace/db db:migrate
+pnpm --filter @workspace/db db:seed:commerce-products
+pnpm --filter @workspace/db db:seed:commerce-orders
+pnpm --filter @workspace/db db:seed:commerce-logistics
+# SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
+pnpm --filter shop dev
+```
+
+## 关键文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `apps/shop/src/lib/server/routers/logistics.ts` | tRPC API |
+| `apps/shop/src/lib/server/dataaccess/logistics.ts` | DB 读写与事务 |
+| `apps/shop/src/lib/server/mappers/logistics.ts` | 中文状态映射 |
+| `packages/db/drizzle/0011_commerce_lgs_fulfillment.sql` | 迁移 |
+| `packages/db/src/scripts/seed-commerce-logistics.ts` | LGS/JSB/platform 演示数据 |
+| `apps/shop/src/lib/crossborder/shipment-store.ts` | 主路径已停用；仅保留常量/label |
+
+## tRPC 过程
+
+`list` / `stats` / `get` / `createFromOrder` / `updateStatus` / `appendTracking` / `syncFromPlatform` / `importTracking` / `listBatches` / `getBatch` / `createBatch` / `addPackageToBatch` / `submitBatch` / `closeBatch` / `appendBatchEvent` / `meta`
+
+## 本 PR 不做
+
+真实平台 OpenAPI、费用模板、ocean_shipments 业务化、售后回库、改左侧菜单。

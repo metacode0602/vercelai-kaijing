@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "db:seed:commerce-products": "tsx src/scripts/seed-commerce-products.ts",
     "db:seed:commerce-purchase": "tsx src/scripts/seed-commerce-purchase.ts",
-    "db:seed:commerce-orders": "tsx src/scripts/seed-commerce-orders.ts"
+    "db:seed:commerce-orders": "tsx src/scripts/seed-commerce-orders.ts",
+    "db:seed:commerce-logistics": "tsx src/scripts/seed-commerce-logistics.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",

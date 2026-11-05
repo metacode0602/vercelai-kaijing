@@ -739,12 +739,15 @@ export const trackingEvents = pgTable(
     description: text("description"),
     location: text("location"),
     eventTime: timestamp("event_time", { withTimezone: true }).notNull(),
+    /** api | manual | import — UED 要求区分来源；JSB 无 API 时走 import */
+    source: varchar("source", { length: 16 }).notNull().default("manual"),
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("tracking_events_org_idx").on(t.organizationId),
     index("tracking_events_shipment_time_idx").on(t.shipmentId, t.eventTime),
+    index("tracking_events_source_idx").on(t.source),
     uniqueIndex("tracking_events_shipment_time_status_uidx").on(
       t.shipmentId,
       t.eventTime,
@@ -788,6 +791,68 @@ export const fulfillmentAttempts = pgTable(
       t.action,
       t.idempotencyKey,
     ),
+  ],
+)
+
+
+// ---------------------------------------------------------------------------
+// fulfillment_batches / fulfillment_batch_packages — LGS/JSB 交接批次（模块4）
+// 与 shipments 通过 junction 关联，不在 shipments 上加 batch_id（避免一包多批歧义）。
+// ---------------------------------------------------------------------------
+
+export const fulfillmentBatches = pgTable(
+  "fulfillment_batches",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    batchNo: varchar("batch_no", { length: 64 }).notNull(),
+    /** lgs | jsb | jsb_th | … */
+    channel: varchar("channel", { length: 32 }).notNull(),
+    site: varchar("site", { length: 16 }),
+    country: varchar("country", { length: 8 }),
+    warehouseCode: varchar("warehouse_code", { length: 64 }),
+    /** open | submitted | accepted | rejected | closed | in_transit | delivered | exception */
+    status: varchar("status", { length: 32 }).notNull().default("open"),
+    carrier: varchar("carrier", { length: 64 }),
+    trackingSummary: text("tracking_summary"),
+    packageCount: integer("package_count").notNull().default(0),
+    handedOverAt: timestamp("handed_over_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("fulfillment_batches_org_batch_no_uidx").on(t.organizationId, t.batchNo),
+    index("fulfillment_batches_org_channel_idx").on(t.organizationId, t.channel),
+    index("fulfillment_batches_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
+
+export const fulfillmentBatchPackages = pgTable(
+  "fulfillment_batch_packages",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    batchId: text("batch_id")
+      .notNull()
+      .references(() => fulfillmentBatches.id),
+    shipmentId: text("shipment_id")
+      .notNull()
+      .references(() => shipments.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("fulfillment_batch_packages_batch_shipment_uidx").on(t.batchId, t.shipmentId),
+    index("fulfillment_batch_packages_org_idx").on(t.organizationId),
+    index("fulfillment_batch_packages_shipment_idx").on(t.shipmentId),
   ],
 )
 
@@ -2046,6 +2111,8 @@ export type Shipment = typeof shipments.$inferSelect
 export type ShipmentItem = typeof shipmentItems.$inferSelect
 export type TrackingEvent = typeof trackingEvents.$inferSelect
 export type FulfillmentAttempt = typeof fulfillmentAttempts.$inferSelect
+export type FulfillmentBatch = typeof fulfillmentBatches.$inferSelect
+export type FulfillmentBatchPackage = typeof fulfillmentBatchPackages.$inferSelect
 export type InventoryReservation = typeof inventoryReservations.$inferSelect
 export type InventoryMovement = typeof inventoryMovements.$inferSelect
 export type ReverseOrder = typeof reverseOrders.$inferSelect
