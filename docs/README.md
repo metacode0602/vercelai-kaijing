@@ -7,6 +7,8 @@ Open Shop（多租户跨境电商运营中枢）的文档总入口。当前仓�
 ```text
 docs/
 ├── README.md            # 本文件：总索引
+├── business/
+│   └── haoshiyun-erp-sow.md   # 好时运 ERP 产品工作说明书（SOW）
 └── design/
     ├── INDEX.md         # 设计文档清单
     ├── crossborder-mvp-overview.md
@@ -25,6 +27,7 @@ apps/docs/content/docs/     # fumadocs 站点源（会发布）
 | 想找什么 | 去哪里 |
 | --- | --- |
 | 全仓设计清单 | [design/INDEX.md](design/INDEX.md) |
+| 产品 SOW / 排期 / 三级功能清单 | [business/haoshiyun-erp-sow.md](business/haoshiyun-erp-sow.md) |
 | 改造总览与模块边界 | [design/crossborder-mvp-overview.md](design/crossborder-mvp-overview.md) |
 | 数据库设计 | [design/crossborder-database-design.md](design/crossborder-database-design.md) |
 | OpenAPI / MCP | [design/crossborder-api-mcp-design.md](design/crossborder-api-mcp-design.md) |
@@ -37,7 +40,7 @@ apps/docs/content/docs/     # fumadocs 站点源（会发布）
 
 - 描述「系统怎么建」→ `design`
 - 描述「人怎么操作」→ `guide`（当前暂无）
-- 描述「怎么卖 / 定价 / 合同」→ `business`（当前暂无）
+- 描述「怎么卖 / 定价 / 合同 / SOW」→ `business`
 - 跨模块内容上提 `docs/`，单一模块内容放 `<app>/content/`
 - 被代码/构建读取的站点内容不移动；营销落地页暂保持现状
 - 流程图统一用 mermaid
