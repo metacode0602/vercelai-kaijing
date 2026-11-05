@@ -74,7 +74,8 @@
       "captchaChallengeFailed": "Failed to load captcha",
       "captchaVerifyFailed": "Verification failed",
       "captchaMismatch": "Slide position mismatch, please try again",
-      "captchaTooManyAttempts": "Too many attempts, please try again later"
+      "captchaTooManyAttempts": "Too many attempts, please try again later",
+      "signUpHint": "Don't have an account? Sign up"
     },
     "register": {
       "nameRequired": "Please enter your name",

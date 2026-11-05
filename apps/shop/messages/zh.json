@@ -85,7 +85,8 @@
       "captchaTooManyAttempts": "尝试次数过多，请稍后再试",
       "verifySuccess": "验证成功",
       "error": "验证码错误",
-      "success": "登录成功！"
+      "success": "登录成功！",
+      "signUpHint": "还没有账户？立即注册"
     },
     "register": {
       "title": "创建账户",

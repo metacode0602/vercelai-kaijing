@@ -7,5 +7,5 @@ export default async function SignupPage({
   params: Promise<{ locale: Locale }>
 }) {
   const { locale } = await params
-  localeRedirect({ href: '/signin', locale })
+  localeRedirect({ href: '/register', locale })
 }

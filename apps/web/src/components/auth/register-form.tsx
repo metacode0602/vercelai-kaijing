@@ -91,7 +91,11 @@ export const RegisterForm = ({ callbackUrl: propCallbackUrl }: RegisterFormProps
         onSuccess: (ctx) => {
           // sign up success, user information stored in ctx.data
           // console.log("register, success:", ctx.data);
-          setSuccess(t('checkEmail'))
+          if (websiteConfig.auth.requireEmailVerification) {
+            setSuccess(t('checkEmail'))
+            return
+          }
+          window.location.assign(callbackUrl)
         },
         onError: (ctx) => {
           // sign up fail, display the error message

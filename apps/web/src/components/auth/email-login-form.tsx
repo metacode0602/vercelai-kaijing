@@ -109,6 +109,8 @@ export const EmailLoginForm = ({ className, callbackUrl: propCallbackUrl }: Emai
     <AuthCard
       headerLabel={t('welcomeBack')}
       description={t('description')}
+      bottomButtonLabel={t('signUpHint')}
+      bottomButtonHref={Routes.Register}
       className={cn('w-full', className)}
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6 pb-2'>

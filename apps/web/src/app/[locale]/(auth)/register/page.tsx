@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 export default async function RegisterPage() {
-  await requireUnauth(Routes.Dashboard)
+  await requireUnauth(Routes.Settings)
   const common = await getTranslations('AuthPage.common')
 
   return (
