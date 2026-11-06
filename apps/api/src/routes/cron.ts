@@ -10,6 +10,8 @@ const resources: MarketplaceSyncResource[] = [
   "orders",
   "logistics",
   "reviews",
+  "listings",
+  "settlements",
   "all",
 ]
 

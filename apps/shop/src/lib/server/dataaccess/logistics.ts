@@ -1,6 +1,6 @@
 /**
  * LGS / 物流履约 dataaccess（模块4）。
- * 包裹 + 轨迹 + LGS/JSB 交接批次；平台 OpenAPI 仍 stub；DB 真实。
+ * 包裹 + 轨迹 + LGS/JSB 交接批次；平台轨迹经 apps/api OpenAPI 同步；DB 真实。
  */
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
@@ -36,6 +36,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import * as syncDa from '@/lib/server/dataaccess/sync'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -734,7 +735,8 @@ async function recordAttempt(
 }
 
 /**
- * Stub：模拟平台交运 / 拉运单 / 同步轨迹。写 fulfillment_attempts + 真实 tracking_events。
+ * 触发 apps/api 物流轨迹同步（Lazop /logistic/order/trace）。
+ * 无凭证或 API 未配置时记失败 attempt，绝不本地造轨迹。
  */
 export async function syncShipmentFromPlatformStub(
   db: AppDatabase,
@@ -748,7 +750,33 @@ export async function syncShipmentFromPlatformStub(
     .limit(1)
   if (!row) throw new Error(`包裹不存在：${shipmentId}`)
 
-  const idempotencyKey = `sync-tracking:${row.id}:${row.status}`
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '物流同步',
+    target: `shipment:${row.externalPackageId}`,
+    shopId: row.shopId || undefined,
+    actor: 'console',
+    note: '物流轨迹同步：apps/api → Lazop /logistic/order/trace',
+  })
+
+  const idempotencyKey = `sync-tracking:${row.id}:${task.id}`
+  if (task.status !== '成功') {
+    const attempt = await recordAttempt(db, organizationId, {
+      shopId: row.shopId,
+      shipmentId: row.id,
+      orderId: row.orderId,
+      externalPackageId: row.externalPackageId,
+      action: 'sync_tracking',
+      idempotencyKey,
+      result: 'failed',
+      raw: { error: task.error, syncTaskId: task.id },
+    })
+    throw new Error(
+      task.error !== '—'
+        ? task.error
+        : `物流同步失败（attempt=${attempt.id}）。请检查店铺凭证与 API 配置。`,
+    )
+  }
+
   const attempt = await recordAttempt(db, organizationId, {
     shopId: row.shopId,
     shipmentId: row.id,
@@ -757,62 +785,16 @@ export async function syncShipmentFromPlatformStub(
     action: 'sync_tracking',
     idempotencyKey,
     result: 'success',
-    raw: { stub: true, fromStatus: row.status },
-  })
-
-  const nextByStatus: Record<string, string> = {
-    pending: 'ready_to_ship',
-    ready_to_ship: 'shipped',
-    shipped: 'in_transit',
-    in_transit: 'in_transit',
-    delivered: 'delivered',
-    exception: 'exception',
-  }
-  const nextStatus = nextByStatus[row.status] ?? row.status
-  const now = new Date()
-  let trackingNumber = row.trackingNumber
-  if (!trackingNumber || trackingNumber === '待生成') {
-    trackingNumber = `STUB-${row.providerType?.toUpperCase() || 'PKG'}-${row.id.slice(-6).toUpperCase()}`
-  }
-
-  const meta = rawMeta(row)
-  await db
-    .update(shipments)
-    .set({
-      status: nextStatus,
-      trackingNumber,
-      platformStatus: nextStatus.toUpperCase(),
-      rtsAt: row.rtsAt || (nextStatus !== 'pending' ? now : null),
-      shippedAt:
-        row.shippedAt ||
-        (['shipped', 'in_transit', 'delivered'].includes(nextStatus) ? now : null),
-      updatedAt: now,
-      raw: {
-        ...meta,
-        lastSyncedAt: formatStamp(now),
-        integrationStatus: 'synced',
-        stubSync: true,
-      },
-    })
-    .where(eq(shipments.id, row.id))
-
-  await appendTrackingEvent(db, organizationId, {
-    shipmentId: row.id,
-    statusCode: (row.platformStatus || nextStatus).toUpperCase(),
-    title: '平台轨迹同步（stub）',
-    description: `stub 返回 ${nextStatus}；真实 OpenAPI 未接入`,
-    location: typeof meta.site === 'string' ? meta.site : '',
-    eventTime: formatStamp(now),
-    source: 'api',
-    advanceStatus: false,
+    raw: { syncTaskId: task.id },
   })
 
   const dto = await getShipment(db, organizationId, row.id)
   if (!dto) throw new Error('同步后读取失败')
   return {
     shipment: dto,
-    note: `已 stub 同步包裹 ${dto.externalPackageId}（attempt=${attempt.id}）`,
+    note: `已触发平台轨迹同步（task=${task.taskNo}，attempt=${attempt.id}）`,
     attemptId: attempt.id,
+    syncTaskId: task.id,
   }
 }
 

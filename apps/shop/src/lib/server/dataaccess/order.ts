@@ -35,6 +35,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import * as syncDa from '@/lib/server/dataaccess/sync'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -762,101 +763,47 @@ export async function upsertOrderFromSync(
 }
 
 /**
- * Stub 适配器：人工触发增量同步（演示订单 → 真实 DB upsert）。
- * 真实平台 API 可替换 fetchStubPlatformOrders。
+ * 人工触发订单增量同步：入队 sync_tasks 并调用 apps/api 真实 OpenAPI。
+ * 无凭证 / 未配置 API 时返回失败，绝不本地造单。
  */
 export async function syncOrdersIncremental(
   db: AppDatabase,
   organizationId: string,
   input: { shopId?: string; limit?: number } = {},
-): Promise<{ upserted: number; reserved: number; orders: OrderListRow[] }> {
-  const stub = await fetchStubPlatformOrders(db, organizationId, input.shopId)
-  const limit = Math.min(input.limit ?? stub.length, 50)
-  const slice = stub.slice(0, limit)
-  const results: OrderListRow[] = []
-  let reserved = 0
-  for (const item of slice) {
-    const dto = await upsertOrderFromSync(db, organizationId, item)
-    results.push(toListRow(dto))
-    if (dto.reserved) reserved += 1
-  }
-  return { upserted: results.length, reserved, orders: results }
-}
-
-async function fetchStubPlatformOrders(
-  db: DbLike,
-  organizationId: string,
-  shopId?: string,
-): Promise<SyncOrderInput[]> {
-  const shop = await resolveShop(db, organizationId, {
-    shopId,
-    externalShopId: 'dz-lk-88021',
-    platform: 'daraz',
-    name: 'Daraz LK · Demo',
+): Promise<{
+  upserted: number
+  reserved: number
+  orders: OrderListRow[]
+  ok: boolean
+  note: string
+  syncTaskId?: string
+}> {
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '订单同步',
+    target: input.shopId ? `shop:${input.shopId}` : 'all-shops',
+    shopId: input.shopId,
+    actor: 'console',
+    note: '订单增量同步：apps/api → Lazop /orders/get + /order/items/get',
   })
-  const skus = ['HSY000001001', 'HSY000001002']
-  const now = new Date()
-  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
-  return [
-    {
-      externalOrderId: `DZ-${stamp}-1001`,
-      orderNumber: `DZ-${stamp}-1001`,
-      shopId: shop.id,
-      externalShopId: shop.externalShopId || undefined,
-      platform: shop.platform,
-      status: 'paid',
-      platformStatus: 'pending',
-      fulfillmentStatus: 'unfulfilled',
-      currency: shop.currency || 'LKR',
-      totalAmount: 59.9,
-      shippingFee: 2.5,
-      buyerRegion: 'Colombo',
-      paymentMethod: 'COD',
-      placedAt: now.toISOString(),
-      paidAt: now.toISOString(),
-      warehouseCode: DEFAULT_WAREHOUSE,
-      lines: [
-        {
-          externalLineId: `DZ-${stamp}-1001-1`,
-          sellerSku: skus[0]!,
-          sku: skus[0]!,
-          title: '基础圆领短袖 T 恤 · 黑色 L',
-          qty: 2,
-          unitPrice: 24.95,
-          paidPrice: 24.95,
-          binCode: DEFAULT_BIN,
-        },
-      ],
-    },
-    {
-      externalOrderId: `DZ-${stamp}-1002`,
-      orderNumber: `DZ-${stamp}-1002`,
-      shopId: shop.id,
-      externalShopId: shop.externalShopId || undefined,
-      platform: shop.platform,
-      status: 'paid',
-      platformStatus: 'pending',
-      currency: shop.currency || 'LKR',
-      totalAmount: 28.0,
-      buyerRegion: 'Kandy',
-      paymentMethod: 'Online',
-      placedAt: now.toISOString(),
-      paidAt: now.toISOString(),
-      warehouseCode: DEFAULT_WAREHOUSE,
-      lines: [
-        {
-          externalLineId: `DZ-${stamp}-1002-1`,
-          sellerSku: skus[1]!,
-          sku: skus[1]!,
-          title: '基础圆领短袖 T 恤 · 白色 L',
-          qty: 1,
-          unitPrice: 28,
-          paidPrice: 28,
-          binCode: 'A-01-02',
-        },
-      ],
-    },
-  ]
+
+  const ok = task.status === '成功'
+  const list = await listOrders(db, organizationId, {
+    shopId: input.shopId,
+    page: 1,
+    pageSize: Math.min(input.limit ?? 20, 50),
+  })
+  return {
+    upserted: ok ? list.total || list.items.length : 0,
+    reserved: 0,
+    orders: list.items,
+    ok,
+    note: ok
+      ? `订单同步完成（task=${task.taskNo}）`
+      : task.error !== '—'
+        ? task.error
+        : '订单同步失败：请检查店铺凭证与 MARKETPLACE_API_BASE_URL',
+    syncTaskId: task.id,
+  }
 }
 
 async function reserveOrderInternal(

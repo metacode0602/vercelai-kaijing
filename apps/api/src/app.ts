@@ -16,6 +16,7 @@ import health from "./routes/health"
 import hello from "./routes/hello"
 import cron from "./routes/cron"
 import webhooks from "./routes/webhooks"
+import sync from "./routes/sync"
 
 const app = new Hono()
 const apiV1 = new OpenAPIHono()
@@ -61,6 +62,7 @@ apiV1.route("/health", health)
 apiV1.route("/hello", hello)
 apiV1.route("/cron", cron)
 apiV1.route("/webhooks", webhooks)
+apiV1.route("/sync", sync)
 
 apiV1.doc("/open-api", {
   openapi: "3.0.0",

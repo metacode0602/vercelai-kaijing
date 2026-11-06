@@ -139,7 +139,7 @@ export const listingsRouter = createTRPCRouter({
     ),
 
   /**
-   * 平台同步 stub：明确返回 stub=true，不调用真实 OpenAPI。
+   * 刊登拉取同步（读）；平台新建/上下架写入本轮不做。
    */
   requestPlatformSync: tenantProcedure
     .input(z.object({ id: z.string().min(1) }))

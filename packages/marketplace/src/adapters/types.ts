@@ -6,9 +6,12 @@ import type {
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
+  DomainOrderLine,
   DomainOrderTrace,
   DomainProduct,
   DomainReview,
+  DomainSettlement,
+  DomainSettlementLine,
   DomainShipmentInput,
   DomainShipmentResult,
   DomainShop,
@@ -17,6 +20,8 @@ import type {
   PageCursor,
   PagedResult,
   ReviewListFilter,
+  SettlementPayoutFilter,
+  SettlementTransactionFilter,
 } from "../domain/types"
 
 export interface MarketplaceConnectorConfig {
@@ -77,7 +82,20 @@ export interface MarketplaceConnector {
 
   getOrder(externalOrderId: string): Promise<DomainOrder>
 
+  /** Lazop GetOrderItems — one DomainOrderLine per order_item_id (qty=1). */
+  getOrderItems?(externalOrderId: string): Promise<DomainOrderLine[]>
+
   listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>>
+
+  /** Settlement / payout statements (Lazop finance payout status). */
+  listSettlements?(
+    filter: SettlementPayoutFilter
+  ): Promise<PagedResult<DomainSettlement>>
+
+  /** Order-level finance transaction details. */
+  listSettlementTransactions?(
+    filter: SettlementTransactionFilter
+  ): Promise<PagedResult<DomainSettlementLine>>
 
   /** Seller review list (Lazada/Daraz review APIs). */
   listReviews?(filter: ReviewListFilter): Promise<PagedResult<DomainReview>>

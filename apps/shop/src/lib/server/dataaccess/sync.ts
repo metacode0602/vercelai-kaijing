@@ -1,6 +1,7 @@
 /**
  * 同步任务 dataaccess（模块13）。
- * 真实触发：入队 + 写 sync_job_runs / integration_logs 请求记录；不调用平台 connector。
+ * 真实触发：入队 + 写 sync_job_runs，并调用 apps/api 平台 OpenAPI。
+ * 写路径（库存推送/改价等）本轮未接通时会记录失败，禁止假成功。
  */
 import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
@@ -26,6 +27,10 @@ import {
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
 import { ensureSystemNotification } from '@/lib/server/dataaccess/notifications'
+import {
+  resourceForSyncTaskType,
+  triggerMarketplaceSync,
+} from '@/lib/server/marketplace/api-client'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -242,8 +247,7 @@ async function nextRunNo(db: DbLike, syncTaskId: string): Promise<number> {
 }
 
 /**
- * 入队 / 重试：写任务状态 + job run + integration_logs（请求记录）。
- * 不调用真实平台 OpenAPI。
+ * 入队 / 重试：写任务状态 + job run，并调用 apps/api 真实 OpenAPI。
  */
 export async function enqueueOrRetrySyncTask(
   db: AppDatabase,
@@ -255,6 +259,8 @@ export async function enqueueOrRetrySyncTask(
     shopId?: string
     actor?: string
     note?: string
+    /** When true, only enqueue DB rows; caller triggers apps/api. */
+    skipPlatformTrigger?: boolean
   },
 ): Promise<SyncTaskDto> {
   const now = new Date()
@@ -308,7 +314,7 @@ export async function enqueueOrRetrySyncTask(
         lastRunAt: now,
         note:
           input.note?.trim() ||
-          '已入队：仅写入请求记录，未调用真实平台 connector / OpenAPI。',
+          '已入队：准备调用 apps/api 平台 OpenAPI。',
         raw: { source: 'console_enqueue' },
       })
       const [created] = await tx.select().from(syncTasks).where(eq(syncTasks.id, id)).limit(1)
@@ -324,8 +330,8 @@ export async function enqueueOrRetrySyncTask(
       runNo,
       status: 'queued',
       requestId,
-      message: '已入队（本地请求记录）',
-      detail: '未调用 Daraz/Lazada OpenAPI；可在设置·接口日志按 requestId 排查。',
+      message: '已入队，等待平台同步',
+      detail: '将调用 apps/api → marketplace connector；结果回写本 run。',
       actor,
       startedAt: now,
       createdAt: now,
@@ -339,7 +345,7 @@ export async function enqueueOrRetrySyncTask(
         action: `sync.${taskRow!.type}.enqueue`,
         requestId,
         status: 'queued',
-        message: `同步任务 ${taskRow!.taskNo} 已入队（无真实平台调用）`,
+        message: `同步任务 ${taskRow!.taskNo} 已入队`,
         payloadSummary: JSON.stringify({
           taskId: taskRow!.id,
           type: taskRow!.type,
@@ -355,14 +361,59 @@ export async function enqueueOrRetrySyncTask(
     await ensureSystemNotification(tx, organizationId, {
       category: 'system',
       title: `同步任务已入队 ${taskRow!.taskNo}`,
-      summary: `${taskRow!.type} · ${taskRow!.target || '—'}（未调真实平台）`,
+      summary: `${taskRow!.type} · ${taskRow!.target || '—'}`,
       body: `requestId=${requestId}。仅站内信，不外传。`,
       href: '/console/sync-tasks',
       sourceType: 'sync_enqueue',
       sourceId: taskRow!.id,
     })
 
-    return mapTask(taskRow!, shop?.name ?? '')
+    const mapped = mapTask(taskRow!, shop?.name ?? '')
+    const dbType = taskRow!.type
+    if (!input.skipPlatformTrigger && (dbType === 'inventory' || dbType === 'price')) {
+      await tx
+        .update(syncTasks)
+        .set({
+          status: 'failed',
+          error: '本轮仅读同步：库存推送/改价平台写入未接通',
+          finishedAt: new Date(),
+          note: '禁止假成功：平台写接口不在本轮范围',
+          updatedAt: new Date(),
+        })
+        .where(eq(syncTasks.id, taskRow!.id))
+      const [failed] = await tx.select().from(syncTasks).where(eq(syncTasks.id, taskRow!.id)).limit(1)
+      return mapTask(failed!, shop?.name ?? '')
+    }
+    return mapped
+  }).then(async (mapped) => {
+    if (input.skipPlatformTrigger) return mapped
+    const dbType = toDbSyncType(mapped.type)
+    if (dbType === 'inventory' || dbType === 'price' || mapped.status === '失败') {
+      return mapped
+    }
+
+    const triggered = await triggerMarketplaceSync({
+      resource: resourceForSyncTaskType(dbType),
+      organizationId,
+      shopId: mapped.shopId || input.shopId,
+      syncTaskId: mapped.id,
+      requestId: mapped.requestId || undefined,
+      wait: true,
+    })
+    if (!triggered.ok) {
+      await db
+        .update(syncTasks)
+        .set({
+          status: 'failed',
+          error: triggered.error || '平台同步失败',
+          finishedAt: new Date(),
+          note: triggered.error || 'apps/api 调用失败',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(syncTasks.organizationId, organizationId), eq(syncTasks.id, mapped.id)))
+    }
+    const refreshed = await getSyncTask(db, organizationId, mapped.id)
+    return refreshed ?? mapped
   })
 }
 

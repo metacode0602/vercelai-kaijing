@@ -290,6 +290,8 @@ export const integrationStates = pgTable(
     lastListingsSyncAt: timestamp("last_listings_sync_at", { withTimezone: true }),
     lastLogisticsSyncAt: timestamp("last_logistics_sync_at", { withTimezone: true }),
     lastReviewsSyncAt: timestamp("last_reviews_sync_at", { withTimezone: true }),
+    settlementsCursor: text("settlements_cursor"),
+    lastSettlementsSyncAt: timestamp("last_settlements_sync_at", { withTimezone: true }),
     health: varchar("health", { length: 32 }).notNull().default("idle"),
     lastError: text("last_error"),
   },
@@ -2849,6 +2851,9 @@ export const syncTaskTypes = [
   "orders",
   "reviews",
   "returns",
+  "logistics",
+  "listings",
+  "settlements",
 ] as const
 export type SyncTaskTypeDb = (typeof syncTaskTypes)[number]
 

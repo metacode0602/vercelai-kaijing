@@ -29,10 +29,16 @@ export const reviewsRouter = createTRPCRouter({
     return reviewsDa.reviewStats(ctx.db, ctx.organizationId)
   }),
 
+  syncFromPlatform: tenantProcedure
+    .input(z.object({ shopId: z.string().optional() }).optional())
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => reviewsDa.syncReviewsFromPlatform(ctx.db, ctx.organizationId, input ?? {})),
+    ),
+
   meta: tenantProcedure.query(async () => ({
     sentiments: [...UI_REVIEW_SENTIMENTS],
     replyStatuses: [...UI_REPLY_STATUSES],
-    note: '列表读 product_reviews；平台回复 OpenAPI 为 stub，禁止假成功',
+    note: '列表读 product_reviews；拉取经 apps/api；平台回复仍 stub_queued，禁止假成功',
   })),
 
   get: tenantProcedure.input(z.object({ id: z.string().min(1) })).query(async ({ ctx, input }) => {

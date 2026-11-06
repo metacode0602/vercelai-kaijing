@@ -33,3 +33,12 @@ pnpm --filter shop sync:marketplace -- --shopId=… --platform=daraz --live --re
 ```
 
 Dry-run is default (no token). Live needs `MARKETPLACE_SYNC_ACCESS_TOKEN` or platform `*_ACCESS_TOKEN` plus app key/secret.
+
+
+## Shop → API internal sync (read path)
+
+| Variable | Notes |
+|----------|--------|
+| `MARKETPLACE_API_BASE_URL` | Base URL of `apps/api` (e.g. `http://127.0.0.1:8080`) |
+| `INTERNAL_SYNC_API_KEY` | Same key as api; min 16 chars; required for console triggers |
+| `MARKETPLACE_SYNC_LISTINGS_CRON` / `MARKETPLACE_SYNC_SETTLEMENTS_CRON` | Optional in-app cron expressions |

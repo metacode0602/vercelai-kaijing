@@ -1,6 +1,6 @@
 /**
  * 刊登 listings + 关联 seller_sku_mappings dataaccess（模块11）。
- * 真实平台 OpenAPI 刊登 / 同步仍为 stub，勿把 sync 当已打通。
+ * 刊登拉取经 apps/api OpenAPI；平台新建/更新/下架写入本轮不做。
  */
 import { and, count, desc, eq, ilike, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
@@ -30,6 +30,7 @@ import {
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
 import * as mappingsDa from '@/lib/server/dataaccess/mappings'
+import * as syncDa from '@/lib/server/dataaccess/sync'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -673,23 +674,43 @@ export async function addListingMappingLine(
 }
 
 /**
- * 平台刊登同步 stub：标明未打通 OpenAPI，仅写本地 publishState / lastError。
+ * 拉取平台刊登（读同步）。不做新建/更新/下架平台写入。
  */
 export async function requestPlatformSyncStub(
   db: AppDatabase,
   organizationId: string,
   id: string,
-): Promise<{ ok: false; stub: true; message: string; listing: ListingDto }> {
-  const listing = await updateListing(db, organizationId, id, {
-    publishState: '待同步',
-    lastError: '平台刊登 OpenAPI 尚未接通（stub）',
+): Promise<{ ok: boolean; stub: false; message: string; listing: ListingDto; syncTaskId?: string }> {
+  const current = await getListing(db, organizationId, id)
+  if (!current) throw new Error(`刊登不存在：${id}`)
+
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '刊登同步',
+    target: `listing:${current.externalItemId || id}`,
+    shopId: current.shopId || undefined,
+    actor: 'console',
+    note: '刊登拉取：apps/api → Lazop /products/get（不推送平台写）',
   })
+
+  const listing = await getListing(db, organizationId, id)
+  if (!listing) throw new Error('同步后读取失败')
+  const ok = task.status === '成功'
+  if (!ok) {
+    await updateListing(db, organizationId, id, {
+      publishState: '同步失败',
+      lastError: task.error !== '—' ? task.error : '刊登拉取失败',
+    })
+  }
   return {
-    ok: false,
-    stub: true,
-    message:
-      '真实平台刊登 / 上下架 OpenAPI 仍为 stub，未调用 Daraz/Lazada/TikTok connector。仅更新了本地 publishState。',
-    listing,
+    ok,
+    stub: false,
+    message: ok
+      ? `已拉取平台刊登（task=${task.taskNo}）。本轮不推送新建/上下架。`
+      : task.error !== '—'
+        ? task.error
+        : '刊登拉取失败：请检查店铺凭证与 API 配置',
+    listing: (await getListing(db, organizationId, id))!,
+    syncTaskId: task.id,
   }
 }
 

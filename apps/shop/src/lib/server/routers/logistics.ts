@@ -109,7 +109,7 @@ export const logisticsRouter = createTRPCRouter({
       wrap(() => logisticsDa.appendTrackingEvent(ctx.db, ctx.organizationId, input)),
     ),
 
-  /** 人工 / stub 同步运单与轨迹（平台 OpenAPI 未接入） */
+  /** 人工触发物流轨迹同步（apps/api → 平台 OpenAPI） */
   syncFromPlatform: tenantProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) =>
@@ -217,6 +217,6 @@ export const logisticsRouter = createTRPCRouter({
     trackingEventTypes: TRACKING_EVENT_TYPES,
     trackingSources: UI_TRACKING_SOURCES,
     batchStatuses: UI_BATCH_STATUSES,
-    note: '平台 OpenAPI 仍为 stub；包裹/轨迹/交接批次已写入 PostgreSQL。出库过账与 LGS 交接解耦。',
+    note: '轨迹同步经 apps/api；包裹/交接批次写入 PostgreSQL。出库过账与 LGS 交接解耦。平台回复/刊登写入本轮不做。',
   })),
 })

@@ -41,6 +41,8 @@ export const env = createEnv({
     MARKETPLACE_SYNC_ORDERS_CRON: z.string().default("*/15 * * * *"),
     MARKETPLACE_SYNC_LOGISTICS_CRON: z.string().default("*/30 * * * *"),
     MARKETPLACE_SYNC_REVIEWS_CRON: z.string().default("0 */6 * * *"),
+    MARKETPLACE_SYNC_LISTINGS_CRON: z.string().default("0 */4 * * *"),
+    MARKETPLACE_SYNC_SETTLEMENTS_CRON: z.string().default("30 2 * * *"),
     MARKETPLACE_SYNC_CRON_TIMEZONE: z.string().default("Asia/Shanghai"),
     /** 收到 LAZOP push 后异步补单；默认开启。 */
     MARKETPLACE_WEBHOOK_SYNC_ENABLED: z

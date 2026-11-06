@@ -7,9 +7,12 @@ import type {
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
+  DomainOrderLine,
   DomainOrderTrace,
   DomainProduct,
   DomainReview,
+  DomainSettlement,
+  DomainSettlementLine,
   DomainShipmentInput,
   DomainShipmentItemResult,
   DomainShipmentResult,
@@ -21,7 +24,18 @@ import type {
   PageCursor,
   PagedResult,
   ReviewListFilter,
+  SettlementPayoutFilter,
+  SettlementTransactionFilter,
 } from "../domain/types"
+import {
+  mapLazopListingStatus,
+  mapLazopOrder,
+  mapLazopOrderItems,
+  mapLazopOrderStatus,
+  mapLazopPayoutList,
+  mapLazopProduct,
+  mapLazopTransactionDetails,
+} from "../mappers/lazop"
 import {
   buildLazopAuthorizeUrl,
   exchangeLazopCode,
@@ -72,28 +86,8 @@ function firstNumber(...values: unknown[]): number | undefined {
   return undefined
 }
 
-function mapOrderStatus(raw: string | undefined): string {
-  const s = (raw ?? "").toLowerCase()
-  if (!s) return "unknown"
-  if (s.includes("cancel")) return "cancelled"
-  if (s.includes("deliver")) return "delivered"
-  if (s.includes("ship") && !s.includes("ready")) return "shipped"
-  if (s.includes("ready") || s.includes("packed") || s.includes("repacked"))
-    return "ready_to_ship"
-  if (s.includes("paid") || s.includes("pending")) return "paid"
-  if (s.includes("unpaid") || s.includes("create")) return "created"
-  return "unknown"
-}
-
-function mapListingStatus(raw: string | undefined): string {
-  const s = (raw ?? "").toLowerCase()
-  if (s.includes("live") || s === "active") return "live"
-  if (s.includes("pending") || s.includes("audit")) return "pending_review"
-  if (s.includes("reject") || s.includes("fail")) return "failed"
-  if (s.includes("inactive") || s.includes("delete") || s.includes("suspend"))
-    return "archived"
-  return "draft"
-}
+const mapOrderStatus = mapLazopOrderStatus
+const mapListingStatus = mapLazopListingStatus
 
 export abstract class LazopConnectorBase implements MarketplaceConnector {
   abstract readonly platform: MarketplacePlatform
@@ -321,12 +315,28 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     }
   }
 
+  async getOrderItems(externalOrderId: string): Promise<DomainOrderLine[]> {
+    const json = await this.http.call<Json>({
+      path: "/order/items/get",
+      params: { order_id: externalOrderId },
+    })
+    return mapLazopOrderItems(json)
+  }
+
   async getOrder(externalOrderId: string): Promise<DomainOrder> {
     const json = await this.http.call<Json>({
       path: "/order/get",
       params: { order_id: externalOrderId },
     })
-    return this.mapOrder(asRecord(json.data ?? json))
+    const order = this.mapOrder(asRecord(json.data ?? json))
+    try {
+      const lines = await this.getOrderItems(externalOrderId)
+      // Empty array is a valid platform response; only failures set itemsFetchError.
+      return { ...order, lines, itemsFetchError: undefined }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { ...order, itemsFetchError: message }
+    }
   }
 
   async listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>> {
@@ -351,10 +361,63 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     const hasMore = Number.isFinite(total)
       ? offset + orders.length < total
       : orders.length >= limit
+    const items: DomainOrder[] = []
+    for (const row of orders) {
+      const mapped = this.mapOrder(row)
+      if (!mapped.externalOrderId) continue
+      if (mapped.lines?.length) {
+        items.push(mapped)
+        continue
+      }
+      try {
+        const lines = await this.getOrderItems(mapped.externalOrderId)
+        items.push({ ...mapped, lines })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        items.push({ ...mapped, itemsFetchError: message })
+      }
+    }
     return {
-      items: orders.map((o) => this.mapOrder(o)),
+      items,
       nextCursor: hasMore ? String(offset + orders.length) : null,
       raw: data,
+    }
+  }
+
+  async listSettlements(
+    filter: SettlementPayoutFilter
+  ): Promise<PagedResult<DomainSettlement>> {
+    const json = await this.http.call<Json>({
+      path: "/finance/payout/status/get",
+      params: { created_after: filter.createdAfter.slice(0, 10) },
+    })
+    const items = mapLazopPayoutList(json)
+    return { items, nextCursor: null, raw: asRecord(json.data ?? json) }
+  }
+
+  async listSettlementTransactions(
+    filter: SettlementTransactionFilter
+  ): Promise<PagedResult<DomainSettlementLine>> {
+    const offset = Number(filter.cursor ?? 0) || 0
+    const limit = Math.min(filter.pageSize ?? 100, 500)
+    const params: Record<string, string> = {
+      start_time: filter.startTime.slice(0, 10),
+      end_time: filter.endTime.slice(0, 10),
+      offset: String(offset),
+      limit: String(limit),
+      trans_type: filter.transType ?? "-1",
+    }
+    if (filter.tradeOrderId) params.trade_order_id = filter.tradeOrderId
+    const json = await this.http.call<Json>({
+      path: "/finance/transaction/details/get",
+      params,
+    })
+    const items = mapLazopTransactionDetails(json)
+    const hasMore = items.length >= limit
+    return {
+      items,
+      nextCursor: hasMore ? String(offset + items.length) : null,
+      raw: asRecord(json.data ?? json),
     }
   }
 
@@ -738,59 +801,10 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   }
 
   protected mapProduct(data: Json): DomainProduct {
-    const skus = (data.skus ?? data.sku_list ?? []) as Json[]
-    return {
-      externalId: String(data.item_id ?? data.product_id ?? data.id ?? ""),
-      title: String(
-        data.attributes
-          ? (asRecord(data.attributes).name ?? data.name ?? "")
-          : (data.name ?? data.title ?? "")
-      ),
-      status: mapListingStatus(String(data.status ?? "")),
-      skus: skus.map((sku) => ({
-        externalSkuId: String(sku.sku_id ?? sku.ShopSku ?? ""),
-        sellerSku: String(sku.SellerSku ?? sku.seller_sku ?? ""),
-        priceAmount: sku.price != null ? String(sku.price) : undefined,
-        quantity: sku.quantity != null ? Number(sku.quantity) : undefined,
-        raw: sku,
-      })),
-      raw: data,
-    }
+    return mapLazopProduct(data)
   }
 
   protected mapOrder(data: Json): DomainOrder {
-    const items = (data.order_items ??
-      data.items ??
-      data.order_line ??
-      []) as Json[]
-    return {
-      externalOrderId: String(data.order_id ?? data.order_number ?? ""),
-      status: mapOrderStatus(
-        String(
-          (Array.isArray(data.statuses) ? data.statuses[0] : undefined) ??
-            data.status ??
-            ""
-        )
-      ),
-      currency: data.price_unit ? String(data.price_unit) : undefined,
-      totalAmount:
-        data.price != null
-          ? String(data.price)
-          : data.order_total != null
-            ? String(data.order_total)
-            : undefined,
-      placedAt: data.created_at ? String(data.created_at) : null,
-      paidAt: data.payment_time ? String(data.payment_time) : null,
-      lines: items.map((line) => ({
-        externalLineId: String(line.order_item_id ?? line.order_line_id ?? ""),
-        sku: String(line.sku ?? line.seller_sku ?? ""),
-        title: String(line.name ?? line.product_name ?? ""),
-        qty: line.quantity != null ? Number(line.quantity) : 1,
-        unitPrice:
-          line.item_price != null ? String(line.item_price) : undefined,
-        raw: line,
-      })),
-      raw: data,
-    }
+    return mapLazopOrder(data)
   }
 }

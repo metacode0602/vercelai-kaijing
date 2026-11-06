@@ -68,6 +68,11 @@ export interface DomainOrder {
   placedAt?: string | null
   paidAt?: string | null
   lines?: DomainOrderLine[]
+  /**
+   * Set when /order/items/get failed after a successful header fetch.
+   * Empty lines without this field means the platform returned zero items.
+   */
+  itemsFetchError?: string
   raw?: Record<string, unknown>
 }
 
@@ -196,4 +201,72 @@ export interface OAuthTokenSet {
   /** Platform extras (e.g. shop_id, seller_id, country). */
   meta?: Record<string, unknown>
   raw?: Record<string, unknown>
+}
+
+export interface DomainSettlement {
+  externalSettlementId: string
+  /** Platform payout status raw, e.g. paid / unpaid / "1" / "0". */
+  payoutStatus?: string
+  paid?: boolean | null
+  currency?: string
+  payoutAmount?: string
+  openingBalance?: string
+  closingBalance?: string
+  guaranteeDeposit?: string
+  itemRevenue?: string
+  otherRevenueTotal?: string
+  subtotal1?: string
+  subtotal2?: string
+  refundsAmount?: string
+  feesOnRefundsTotal?: string
+  shipmentFee?: string
+  shipmentFeeCredit?: string
+  feesTotal?: string
+  billAmount?: string
+  createdAt?: string | null
+  updatedAt?: string | null
+  lines?: DomainSettlementLine[]
+  raw?: Record<string, unknown>
+}
+
+export interface DomainSettlementLine {
+  externalTransactionId: string
+  transactionType?: string
+  feeType?: string
+  feeName?: string
+  feeKind?: string
+  amount?: string
+  taxAmount?: string
+  whtAmount?: string
+  whtIncludedInAmount?: boolean
+  currency?: string
+  paidStatus?: string
+  paymentReference?: string
+  externalOrderNo?: string
+  externalOrderItemNo?: string
+  sellerSku?: string
+  platformSkuId?: string
+  shippingProvider?: string
+  shippingSpeed?: string
+  shipmentType?: string
+  statement?: string
+  note?: string
+  transactionDate?: string | null
+  raw?: Record<string, unknown>
+}
+
+export interface SettlementPayoutFilter {
+  /** Inclusive lower bound date (yyyy-MM-dd or ISO). */
+  createdAfter: string
+  cursor?: string | null
+  pageSize?: number
+}
+
+export interface SettlementTransactionFilter {
+  startTime: string
+  endTime: string
+  cursor?: string | null
+  pageSize?: number
+  tradeOrderId?: string
+  transType?: string
 }

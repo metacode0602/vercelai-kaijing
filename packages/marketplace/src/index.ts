@@ -16,3 +16,5 @@ export * from "./db/credential-store"
 export * from "./tokens/types"
 export * from "./tokens/manager"
 export * from "./workers/sync"
+
+export * from "./mappers/lazop"

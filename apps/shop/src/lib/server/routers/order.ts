@@ -80,7 +80,7 @@ export const orderRouter = createTRPCRouter({
       return row
     }),
 
-  /** 人工触发增量同步（平台 API stub → 真实 DB upsert，幂等）。 */
+  /** 人工触发增量同步：apps/api 真实 OpenAPI → DB upsert + 映射确认后占库。 */
   syncIncremental: tenantProcedure
     .input(
       z

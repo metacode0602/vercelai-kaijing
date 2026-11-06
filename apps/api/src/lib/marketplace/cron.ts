@@ -39,6 +39,8 @@ export function startMarketplaceSyncCron(): Cron[] {
     ["orders", env.MARKETPLACE_SYNC_ORDERS_CRON],
     ["logistics", env.MARKETPLACE_SYNC_LOGISTICS_CRON],
     ["reviews", env.MARKETPLACE_SYNC_REVIEWS_CRON],
+    ["listings", env.MARKETPLACE_SYNC_LISTINGS_CRON],
+    ["settlements", env.MARKETPLACE_SYNC_SETTLEMENTS_CRON],
   ]
 
   jobs = specs.map(
@@ -62,6 +64,8 @@ export function startMarketplaceSyncCron(): Cron[] {
     orders: env.MARKETPLACE_SYNC_ORDERS_CRON,
     logistics: env.MARKETPLACE_SYNC_LOGISTICS_CRON,
     reviews: env.MARKETPLACE_SYNC_REVIEWS_CRON,
+    listings: env.MARKETPLACE_SYNC_LISTINGS_CRON,
+    settlements: env.MARKETPLACE_SYNC_SETTLEMENTS_CRON,
   })
   return jobs
 }

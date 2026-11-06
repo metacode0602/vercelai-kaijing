@@ -1,3 +1,4 @@
+import * as syncDa from '@/lib/server/dataaccess/sync'
 /**
  * product_reviews / product_review_media（模块15）。
  * 列表/详情/回复状态落库；平台回复真实 API 仅 stub（stub_queued），禁止假成功。
@@ -305,5 +306,31 @@ export async function queuePlatformReplyStub(
     ok: true as const,
     note: '已标记 stub_queued：平台回复 API 未接，未发往 Daraz/Lazada。',
     row: await getReview(db as AppDatabase, organizationId, input.id),
+  }
+}
+
+
+/** 触发评论拉取（读同步）。平台回复仍未接通，禁止假成功。 */
+export async function syncReviewsFromPlatform(
+  db: AppDatabase,
+  organizationId: string,
+  input: { shopId?: string } = {},
+) {
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '评论抓取',
+    target: input.shopId ? `shop:${input.shopId}` : 'all-shops',
+    shopId: input.shopId,
+    actor: 'console',
+    note: '评论拉取：apps/api → Lazop review APIs（不回复）',
+  })
+  return {
+    ok: task.status === '成功',
+    syncTaskId: task.id,
+    note:
+      task.status === '成功'
+        ? `评论同步完成（task=${task.taskNo}）`
+        : task.error !== '—'
+          ? task.error
+          : '评论同步失败',
   }
 }

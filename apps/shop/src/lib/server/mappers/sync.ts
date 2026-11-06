@@ -10,6 +10,9 @@ export const UI_SYNC_TASK_TYPES = [
   '订单同步',
   '评论抓取',
   '退货同步',
+  '物流同步',
+  '刊登同步',
+  '结算同步',
 ] as const
 export type UiSyncTaskType = (typeof UI_SYNC_TASK_TYPES)[number]
 
@@ -31,6 +34,9 @@ const TYPE_UI_TO_DB: Record<UiSyncTaskType, string> = {
   订单同步: 'orders',
   评论抓取: 'reviews',
   退货同步: 'returns',
+  物流同步: 'logistics',
+  刊登同步: 'listings',
+  结算同步: 'settlements',
 }
 const TYPE_DB_TO_UI: Record<string, UiSyncTaskType> = {
   inventory: '库存同步',
@@ -40,6 +46,9 @@ const TYPE_DB_TO_UI: Record<string, UiSyncTaskType> = {
   orders: '订单同步',
   reviews: '评论抓取',
   returns: '退货同步',
+  logistics: '物流同步',
+  listings: '刊登同步',
+  settlements: '结算同步',
 }
 
 const STATUS_UI_TO_DB: Record<UiSyncTaskStatus, string> = {
