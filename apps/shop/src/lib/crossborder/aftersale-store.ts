@@ -1,8 +1,11 @@
 'use client'
 
 /**
- * 售后 / 退货质检回库 / 取消退款 原型会话 store（Phase 4）。
- * 对齐 aftersale_orders / aftersale_return_items；回库经 wms-store 写流水。
+ * @deprecated 模块6：Console 主路径已切 tRPC `aftersale` → dataaccess → PostgreSQL。
+ * 本文件仅保留类型 / RETURN_STATUSES / CANCEL_STATUSES / toRelated*Shape 供页面与 related-info 使用。
+ * 勿再调用 createTicket / createCancel / registerReturnReceive / completeReturnQc / approveCancel 写 localStorage。
+ *
+ * 历史：售后 / 退货质检回库 / 取消退款 原型会话 store（Phase 4 UED）。
  */
 
 import { createDemoStore } from '@/lib/crossborder/local-store'

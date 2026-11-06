@@ -98,6 +98,8 @@ export const inventoryMovementTypes = [
   "adjustment",
   "purchase_stock_in",
   "qc_fail_damage",
+  "aftersale_restock",
+  "aftersale_scrap",
 ] as const
 export type InventoryMovementType = (typeof inventoryMovementTypes)[number]
 

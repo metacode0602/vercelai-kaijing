@@ -101,7 +101,7 @@ pnpm --filter shop dev
 
 **已接库**：包裹列表/详情、从订单创建、追加轨迹（强制 source）、stub 同步写 attempt、LGS/JSB 交接批次建批/加包/提交/关闭。`shipment-store` 主路径 localStorage 已停用。
 
-**仍 mock / stub**：真实平台 OpenAPI、海运柜次业务化、售后回库、WMS 非订单出库、库存流水页完整 tRPC、Seller SKU 映射专页、供应商主数据等。费用模板已接 DB（见 `docs/design/shop-module5-fee-templates-trpc.md`）。
+**仍 mock / stub**：真实平台 OpenAPI、海运柜次业务化、已发货取消冲销出库、WMS 非订单出库、库存流水页完整 tRPC、Seller SKU 映射专页、供应商主数据等。费用模板已接 DB（见 `docs/design/shop-module5-fee-templates-trpc.md`）。售后已接 DB（见模块6）。
 
 ### 模块5 · 费用模板（进口税 / 平台费）
 
@@ -113,7 +113,17 @@ pnpm --filter shop dev
 | 测算 | `cost-calculator-workbench` → `feeTemplates.resolve` → `computeLandedCost(..., overrides)`；未命中回退 `TARIFF_PROFILES` |
 | Seed | `pnpm --filter @workspace/db db:seed:commerce-fee-templates` |
 
-详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)、[docs/design/shop-module5-fee-templates-trpc.md](../../docs/design/shop-module5-fee-templates-trpc.md)。
+### 模块6 · 售后（取消释放占库 / 退货质检回库报损）
+
+| 项 | 说明 |
+| --- | --- |
+| 表 | `reverse_*` / `refunds` / `return_shipments`（migration **0008**；无新迁移） |
+| tRPC | `aftersale.list/get/stats/meta/listReturns/returnStats/getReturn/listCancels/cancelStats/getCancel/upsert/syncStub/createTicket/createCancel/registerReceive/completeQc/approveCancel/rejectCancel/updateRefundStatus` |
+| Console | `/console/aftersales`、`/console/aftersale-returns`、`/console/aftersale-cancels`（各含 `[id]`） |
+| 流水 | 取消 `order_release`；回库 `aftersale_restock`；报损 `aftersale_scrap`（幂等对齐模块3） |
+| Seed | `pnpm --filter @workspace/db db:seed:commerce-aftersales` |
+
+详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)、[docs/design/shop-module5-fee-templates-trpc.md](../../docs/design/shop-module5-fee-templates-trpc.md)、[docs/design/shop-module6-aftersale-trpc.md](../../docs/design/shop-module6-aftersale-trpc.md)。
 
 ## 脚本
 

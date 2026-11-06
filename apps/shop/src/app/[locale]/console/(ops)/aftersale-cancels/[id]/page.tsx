@@ -12,41 +12,68 @@ import { ConsoleBreadcrumbRegistration } from '@/components/console/console-brea
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import {
-  approveCancel,
-  toRelatedCancelShape,
-  useAftersaleCancels,
-} from '@/lib/crossborder/aftersale-store'
-import { useInventoryBalances } from '@/lib/crossborder/wms-store'
+import { toRelatedCancelShape } from '@/lib/crossborder/aftersale-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
 export default function AftersaleCancelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const rows = useAftersaleCancels()
-  useInventoryBalances()
-  const row = rows.find((item) => item.id === id)
-  const [mounted, setMounted] = React.useState(false)
+  const utils = trpc.useUtils()
+  const query = trpc.aftersale.getCancel.useQuery({ id }, { retry: false })
+  const row = query.data
   const [notice, setNotice] = React.useState('')
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const approveMutation = trpc.aftersale.approveCancel.useMutation({
+    onSuccess: async (res) => {
+      await Promise.all([
+        utils.aftersale.getCancel.invalidate({ id }),
+        utils.aftersale.listCancels.invalidate(),
+        utils.aftersale.cancelStats.invalidate(),
+        utils.aftersale.list.invalidate(),
+      ])
+      setNotice(res.note)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const rejectMutation = trpc.aftersale.rejectCancel.useMutation({
+    onSuccess: async (res) => {
+      await Promise.all([
+        utils.aftersale.getCancel.invalidate({ id }),
+        utils.aftersale.listCancels.invalidate(),
+        utils.aftersale.cancelStats.invalidate(),
+      ])
+      setNotice(`${res.id} 已驳回`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  if (query.isLoading) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/aftersale-cancels"
+          title="加载中…"
+          description="正在读取取消/退款单…"
+        />
+      </div>
+    )
+  }
 
   if (!row) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/aftersale-cancels"
-          title={mounted ? '未找到取消/退款单' : '加载中…'}
-          description={mounted ? `单号 ${id} 不存在。` : '正在读取本机原型会话…'}
+          title="未找到取消/退款单"
+          description={`单号 ${id} 不存在。`}
         />
       </div>
     )
   }
 
-  const related = buildUedRelatedInfo('aftersale-cancels', toRelatedCancelShape(row))
+  const related = buildUedRelatedInfo('aftersale-cancels', toRelatedCancelShape(row as never))
   const parentFields = parentsToFields(related.parents)
   const canApprove = row.status === '待确认'
 
@@ -61,7 +88,7 @@ export default function AftersaleCancelDetailPage({ params }: { params: Promise<
         description={`${row.type} · ${row.order} · ${row.shop}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">PostgreSQL</Badge>
             <Badge variant={row.status === '已驳回' ? 'destructive' : 'secondary'}>{row.status}</Badge>
             <Badge variant="outline">{row.platformStatus}</Badge>
             <Badge variant={row.refundStatus === 'refunded' ? 'secondary' : 'outline'}>退款 {row.refundStatus}</Badge>
@@ -70,15 +97,23 @@ export default function AftersaleCancelDetailPage({ params }: { params: Promise<
         actions={
           <div className="flex flex-wrap gap-2">
             {canApprove ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  const result = approveCancel(row.id)
-                  setNotice(result.ok ? result.note : result.reason)
-                }}
-              >
-                审核通过
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  disabled={approveMutation.isPending}
+                  onClick={() => approveMutation.mutate({ id: row.id })}
+                >
+                  {approveMutation.isPending ? '审核中…' : '审核通过'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={rejectMutation.isPending}
+                  onClick={() => rejectMutation.mutate({ id: row.id, reason: '人工驳回' })}
+                >
+                  驳回
+                </Button>
+              </>
             ) : null}
             <Button size="sm" variant="outline" asChild>
               <LocaleLink href={`/console/orders/${encodeURIComponent(row.order)}`}>原订单</LocaleLink>
@@ -88,7 +123,7 @@ export default function AftersaleCancelDetailPage({ params }: { params: Promise<
       />
       <UedPrototypeNotice>
         {notice ||
-          '取消订单审核通过后释放预留库存须经 WMS 流水；仅退款不改库存。'}
+          '取消订单审核通过后释放预留库存须经 order_release 流水；仅退款不改库存。已出库不做冲销。'}
       </UedPrototypeNotice>
       <DetailKpiRow
         items={[

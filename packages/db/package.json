@@ -21,7 +21,8 @@
     "db:seed:commerce-purchase": "tsx src/scripts/seed-commerce-purchase.ts",
     "db:seed:commerce-orders": "tsx src/scripts/seed-commerce-orders.ts",
     "db:seed:commerce-logistics": "tsx src/scripts/seed-commerce-logistics.ts",
-    "db:seed:commerce-fee-templates": "tsx src/scripts/seed-commerce-fee-templates.ts"
+    "db:seed:commerce-fee-templates": "tsx src/scripts/seed-commerce-fee-templates.ts",
+    "db:seed:commerce-aftersales": "tsx src/scripts/seed-commerce-aftersales.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",

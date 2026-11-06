@@ -3,18 +3,30 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  countTicketsKpi,
-  createTicket,
-  useAftersaleTickets,
-} from '@/lib/crossborder/aftersale-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
 export default function AftersalesPage() {
-  const rows = useAftersaleTickets()
-  const kpi = React.useMemo(() => countTicketsKpi(rows), [rows])
+  const utils = trpc.useUtils()
+  const listQuery = trpc.aftersale.list.useQuery({ page: 1, pageSize: 100 })
+  const statsQuery = trpc.aftersale.stats.useQuery()
+  const createMutation = trpc.aftersale.createTicket.useMutation({
+    onSuccess: async (row) => {
+      await Promise.all([utils.aftersale.list.invalidate(), utils.aftersale.stats.invalidate()])
+      setOpen(false)
+      setNotice(
+        `${row.id} 已登记。${
+          row.returned > 0 ? '请前往退货收货与质检登记实物。' : '仅退款不新增库存。'
+        }`,
+      )
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
+  const kpi = statsQuery.data ?? { total: 0, pending: 0, approved: 0, withReturn: 0 }
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
@@ -31,7 +43,7 @@ export default function AftersalesPage() {
   const editor = open ? (
     <UedDialog
       title="登记售后"
-      description="关联原订单与订单行；未收到实物时不可登记质检入库。退货实物请走「退货收货与质检」。"
+      description="关联原订单与订单行；未收到实物时不可登记质检入库。退货实物请走「退货收货与质检」。写入 PostgreSQL。"
       fields={[
         { key: 'order', label: '平台订单号', required: true, placeholder: '如 DZ-10021' },
         {
@@ -66,7 +78,7 @@ export default function AftersalesPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
-        const result = createTicket({
+        createMutation.mutate({
           order: values.order || '',
           sku: values.sku || '',
           shop: values.shop,
@@ -78,17 +90,8 @@ export default function AftersalesPage() {
           qc: values.qc,
           status: values.status,
         })
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setNotice(
-          `${result.row.id} 已登记。${
-            result.row.returned > 0 ? '请前往退货收货与质检登记实物。' : '仅退款不新增库存。'
-          }`,
-        )
-        setOpen(false)
       }}
+      saveLabel={createMutation.isPending ? '提交中…' : '登记'}
     />
   ) : null
 
@@ -98,13 +101,25 @@ export default function AftersalesPage() {
       description="逆向单 / 退款单 / 退货包裹分离记录；只有质检可售数量经退货收货进入可用库存。"
       rows={rows}
       detailHref={(row) => `/console/aftersales/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'reverseOrderId', 'externalReverseId', 'order', 'sku', 'type', 'reason', 'status', 'platformStatus', 'refundStatus', 'shop']}
+      searchKeys={[
+        'id',
+        'reverseOrderId',
+        'externalReverseId',
+        'order',
+        'sku',
+        'type',
+        'reason',
+        'status',
+        'platformStatus',
+        'refundStatus',
+        'shop',
+      ]}
       searchPlaceholder="搜索售后单、订单或 SKU"
       filters={[
         { label: '状态', options: ['待确认', '已审核', '已驳回', '已入库'], key: 'status' },
         { label: '类型', options: ['取消', '仅退款', '退货退款', '换货'], key: 'type' },
       ]}
-      emptyText="暂无售后单。"
+      emptyText={listQuery.isLoading ? '加载中…' : '暂无售后单。'}
       addLabel="登记售后"
       onAdd={() => setOpen(true)}
       columns={[
@@ -139,7 +154,7 @@ export default function AftersalesPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        逆向单保存平台 reverse_order_id；退款通过 refund_id 独立记账。取消订单释放库存的精确平台节点待确认；仅退款不虚增库存。
+        已接 PostgreSQL（reverse_orders / refunds / return_shipments）。真实平台售后 OpenAPI 仍 stub；取消释放占库与退货回库见对应子页。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" asChild>

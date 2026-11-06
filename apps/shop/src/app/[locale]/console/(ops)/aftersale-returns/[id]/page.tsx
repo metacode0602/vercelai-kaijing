@@ -14,13 +14,9 @@ import { ConsoleBreadcrumbRegistration } from '@/components/console/console-brea
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import {
-  completeReturnQc,
-  toRelatedReturnShape,
-  useAftersaleReturns,
-} from '@/lib/crossborder/aftersale-store'
-import { useInventoryBalances } from '@/lib/crossborder/wms-store'
+import { toRelatedReturnShape } from '@/lib/crossborder/aftersale-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -35,17 +31,25 @@ function statusVariant(status: string) {
 
 export default function AftersaleReturnDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const rows = useAftersaleReturns()
-  useInventoryBalances()
-  const row = rows.find((item) => item.id === id)
-  const [mounted, setMounted] = React.useState(false)
+  const utils = trpc.useUtils()
+  const query = trpc.aftersale.getReturn.useQuery({ id }, { retry: false })
+  const row = query.data
   const [notice, setNotice] = React.useState('')
   const [qcPass, setQcPass] = React.useState('')
   const [qcDefect, setQcDefect] = React.useState('')
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const qcMutation = trpc.aftersale.completeQc.useMutation({
+    onSuccess: async (res) => {
+      await Promise.all([
+        utils.aftersale.getReturn.invalidate({ id }),
+        utils.aftersale.listReturns.invalidate(),
+        utils.aftersale.returnStats.invalidate(),
+        utils.aftersale.list.invalidate(),
+      ])
+      setNotice(res.note)
+    },
+    onError: (e) => setNotice(e.message),
+  })
 
   React.useEffect(() => {
     if (!row) return
@@ -55,19 +59,31 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
     }
   }, [row?.id, row?.status, row?.qty, row?.qcPass, row?.qcDefect])
 
-  if (!row) {
+  if (query.isLoading) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/aftersale-returns"
-          title={mounted ? '未找到退货单' : '加载中…'}
-          description={mounted ? `退货单 ${id} 不存在。` : '正在读取本机原型会话…'}
+          title="加载中…"
+          description="正在读取退货单…"
         />
       </div>
     )
   }
 
-  const related = buildUedRelatedInfo('aftersale-returns', toRelatedReturnShape(row))
+  if (!row) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/aftersale-returns"
+          title="未找到退货单"
+          description={`退货单 ${id} 不存在。`}
+        />
+      </div>
+    )
+  }
+
+  const related = buildUedRelatedInfo('aftersale-returns', toRelatedReturnShape(row as never))
   const parentFields = parentsToFields(related.parents)
   const canQc = row.status === '待质检' || row.status === '质检中'
 
@@ -106,7 +122,7 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
         description={`${row.shop} · ${row.order} · ${row.sku}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">PostgreSQL</Badge>
             <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
           </>
         }
@@ -127,9 +143,9 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
         }
       />
       <Alert>
-        <AlertTitle>回库须经 WMS 流水</AlertTitle>
+        <AlertTitle>回库须经库存流水</AlertTitle>
         <AlertDescription>
-          合格件写售后回库流水、残次写质检报损流水；禁止直改余额。幂等键：ledger:aftersale_restock|scrap:{row.id}
+          合格件写 aftersale_restock、残次写 aftersale_scrap；禁止直改余额。幂等键：ledger:aftersale_restock|scrap:{row.id}
         </AlertDescription>
       </Alert>
       <UedPrototypeNotice>{notice || '质检数量合计必须等于实收数量。'}</UedPrototypeNotice>
@@ -144,7 +160,7 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
       <StatusTimeline steps={timeline} />
       <DetailFieldGrid
         title="退货主信息"
-        description="aftersale_return_items 投影"
+        description="reverse_orders + return_shipments + reverse_qc_records"
         fields={[
           { label: '售后单号', value: row.id, mono: true },
           { label: '逆向单 ID', value: row.reverseOrderId, mono: true },
@@ -169,7 +185,7 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
         ]}
       />
       {canQc ? (
-        <DetailSection title="质检过账" description="合格 + 残次 = 实收；过账写 WMS 流水">
+        <DetailSection title="质检过账" description="合格 + 残次 = 实收；过账写 inventory_movements">
           <div className="grid max-w-lg gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="qc-pass">合格数量（回库）</Label>
@@ -194,16 +210,16 @@ export default function AftersaleReturnDetailPage({ params }: { params: Promise<
           </div>
           <Button
             className="mt-4"
+            disabled={qcMutation.isPending}
             onClick={() => {
-              const result = completeReturnQc({
+              qcMutation.mutate({
                 id: row.id,
                 qcPass: Number(qcPass),
                 qcDefect: Number(qcDefect),
               })
-              setNotice(result.ok ? result.note : result.reason)
             }}
           >
-            完成质检并过账
+            {qcMutation.isPending ? '过账中…' : '完成质检并过账'}
           </Button>
         </DetailSection>
       ) : null}
