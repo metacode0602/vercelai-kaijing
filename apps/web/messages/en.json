@@ -48,6 +48,7 @@
       "invitationCodeHint": "💡 First time phone login will automatically create a new account, you can enter invitation code to get rewards",
       "sendCodeFailed": "Failed to send code, please try again",
       "verifyFailed": "Verification failed. Please check your code and try again.",
+      "captchaTitle": "Security Verification",
       "captchaHint": "Drag the slider to the line",
       "captchaLoading": "Loading…",
       "captchaComplete": "Complete",
@@ -250,6 +251,11 @@
     "title": "404",
     "message": "Sorry, the page you are looking for does not exist.",
     "backToHome": "Back to home"
+  },
+  "ForbiddenPage": {
+    "title": "Access denied",
+    "message": "This account is not a platform administrator. Sign in with a platform admin account.",
+    "backToSignin": "Back to sign in"
   },
   "ErrorPage": {
     "title": "Oops! Something went wrong!",

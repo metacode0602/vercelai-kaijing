@@ -7,5 +7,6 @@ export default async function SignupPage({
   params: Promise<{ locale: Locale }>
 }) {
   const { locale } = await params
-  localeRedirect({ href: '/register', locale })
+  // 平台仅限管理员登录，关闭注册入口
+  localeRedirect({ href: '/signin', locale })
 }

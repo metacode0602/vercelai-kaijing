@@ -5,99 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1791297973819,
-      "tag": "0000_cold_amazoness",
+      "when": 1793930245259,
+      "tag": "0000_stormy_dagger",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1792224000000,
-      "tag": "0001_waverless_orchestrator",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1792227600000,
-      "tag": "0002_waverless_billing_p0",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1792231200000,
-      "tag": "0003_waverless_billing_contract_snapshot",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1792234800000,
-      "tag": "0004_serverless_placement_m1",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1792500000000,
-      "tag": "0005_crossborder_commerce",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1792600000000,
-      "tag": "0006_commerce_lean_payload",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1792700000000,
-      "tag": "0007_commerce_platform_enrichment",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1793870413530,
-      "tag": "0008_commerce_orders_inventory_aftersales_finance",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1794000000000,
-      "tag": "0009_commerce_purchase_to_inbound",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1794100000000,
-      "tag": "0010_commerce_order_to_outbound",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1794200000000,
-      "tag": "0011_commerce_lgs_fulfillment",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1794300000000,
-      "tag": "0012_commerce_fee_templates",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1794400000000,
-      "tag": "0013_charming_speed",
+      "when": 1793936717053,
+      "tag": "0001_conscious_skreet",
       "breakpoints": true
     },
     {

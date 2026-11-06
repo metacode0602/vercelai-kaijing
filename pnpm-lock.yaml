@@ -445,6 +445,9 @@ importers:
       '@workspace/shared-next':
         specifier: workspace:*
         version: link:../../packages/shared-next
+      '@workspace/sms-captcha':
+        specifier: workspace:*
+        version: link:../../packages/sms-captcha
       '@workspace/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -499,9 +502,6 @@ importers:
       nextjs-toploader:
         specifier: ^3.9.17
         version: 3.9.17(next@16.3.6(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      rc-slider-captcha:
-        specifier: ^1.9.0
-        version: 1.9.0(react@19.2.5)
       react:
         specifier: 19.2.5
         version: 19.2.5
@@ -520,9 +520,6 @@ importers:
       recharts:
         specifier: 3.10.1
         version: 3.10.1(@types/react@19.3.0)(react-dom@19.2.5(react@19.2.5))(react-is@18.3.1)(react@19.2.5)(redux@5.0.1)
-      sharp:
-        specifier: ^0.34.5
-        version: 0.34.5
       sonner:
         specifier: ^2.0.7
         version: 2.0.8(@types/react@19.3.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

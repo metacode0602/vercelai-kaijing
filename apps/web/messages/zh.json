@@ -49,6 +49,7 @@
       "invitationCodeHint": "💡 首次使用手机号登录将自动注册新账户，可输入邀请码获得奖励",
       "sendCodeFailed": "发送验证码失败，请重试",
       "verifyFailed": "验证失败，请检查验证码后重试",
+      "captchaTitle": "安全验证",
       "captchaHint": "请将滑块拖到竖线位置",
       "captchaLoading": "加载中…",
       "captchaComplete": "完成",
@@ -251,6 +252,11 @@
     "title": "404",
     "message": "抱歉，您正在寻找的页面不存在",
     "backToHome": "返回首页"
+  },
+  "ForbiddenPage": {
+    "title": "无访问权限",
+    "message": "当前账号不是平台管理员，请使用平台管理员账号登录",
+    "backToSignin": "返回登录"
   },
   "ErrorPage": {
     "title": "哎呀！出错了！",
