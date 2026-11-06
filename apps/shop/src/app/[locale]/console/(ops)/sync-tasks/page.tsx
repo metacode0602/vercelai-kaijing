@@ -3,15 +3,12 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  SYNC_TASK_STATUSES,
-  countSyncTasksByStatus,
-  retrySyncTask,
-  useSyncTasks,
-} from '@/lib/crossborder/sync-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+
+const PAGE_SIZE = 20
 
 function statusVariant(status: string) {
   if (status === '失败') return 'destructive' as const
@@ -21,38 +18,79 @@ function statusVariant(status: string) {
 }
 
 export default function SyncTasksPage() {
-  const tasks = useSyncTasks()
-  const counts = React.useMemo(() => countSyncTasksByStatus(tasks), [tasks])
+  const [page, setPage] = React.useState(1)
+  const [q, setQ] = React.useState('')
+  const [status, setStatus] = React.useState('全部')
   const [notice, setNotice] = React.useState('')
+  const utils = trpc.useUtils()
 
-  const kpiItems = React.useMemo(
-    () => [
-      { label: '任务数', value: String(tasks.length), hint: '当前原型会话' },
-      { label: '成功', value: String(counts.成功) },
-      { label: '失败', value: String(counts.失败) },
-      { label: '部分失败', value: String(counts.部分失败) },
-      { label: '排队 / 运行', value: String(counts.排队) },
-    ],
-    [tasks.length, counts],
-  )
+  const metaQuery = trpc.sync.meta.useQuery()
+  const statsQuery = trpc.sync.stats.useQuery()
+  const listQuery = trpc.sync.list.useQuery({
+    page,
+    pageSize: PAGE_SIZE,
+    q: q || undefined,
+    status: status === '全部' ? undefined : status,
+  })
 
-  function retry(id: string) {
-    const result = retrySyncTask(id)
-    setNotice(result.ok ? `${result.task.id} 已排队重试（原型，未调用平台）` : result.reason)
-  }
+  const enqueueMutation = trpc.sync.enqueue.useMutation({
+    onSuccess: async (task) => {
+      await utils.sync.list.invalidate()
+      await utils.sync.stats.invalidate()
+      setNotice(`${task.taskNo} 已入队（仅写请求记录，未调用真实平台）。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const retryMutation = trpc.sync.retry.useMutation({
+    onSuccess: async (task) => {
+      await utils.sync.list.invalidate()
+      await utils.sync.stats.invalidate()
+      setNotice(`${task.taskNo} 已排队重试（未调用平台 connector）。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
+  const total = listQuery.data?.total ?? 0
+  const stats = statsQuery.data
+  const statuses = metaQuery.data?.statuses ?? ['成功', '失败', '部分失败', '排队', '排队重试', '运行中']
+  const shops = metaQuery.data?.shops ?? []
+
+  const kpiItems = [
+    { label: '任务数', value: String(stats?.total ?? 0), hint: 'sync_tasks' },
+    { label: '成功', value: String(stats?.success ?? 0) },
+    { label: '失败', value: String(stats?.failed ?? 0) },
+    { label: '部分失败', value: String(stats?.partialFailed ?? 0) },
+    { label: '排队 / 运行', value: String((stats?.queued ?? 0) + (stats?.running ?? 0)) },
+  ]
 
   return (
     <UedWorkspace
       title="发布与同步任务"
-      description="发布 / 库存 / 价格 / 状态 / 订单 / 评论同步：进度、错误摘要、人工重试；失败与部分失败计入仪表盘「接口异常」。"
-      rows={tasks}
+      description="发布 / 库存 / 价格 / 状态 / 订单 / 评论同步：进度、错误摘要、人工重试。已接 PostgreSQL；入队只写请求记录。"
+      rows={rows}
       detailHref={(row) => `/console/sync-tasks/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'type', 'target', 'shop', 'error', 'status', 'requestId']}
+      search={q}
+      onSearchChange={(value) => {
+        setQ(value)
+        setPage(1)
+      }}
       searchPlaceholder="搜索任务号、类型、店铺、错误码或 request id"
-      filters={[{ label: '状态', options: [...SYNC_TASK_STATUSES] }]}
-      emptyText="暂无同步任务。店铺授权后由调度创建任务；可在店铺连接暂停自动同步。"
+      filters={[{ label: '状态', options: [...statuses] }]}
+      onStatusFilterChange={(value) => {
+        setStatus(value === '全部' ? '全部' : value)
+        setPage(1)
+      }}
+      pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
+      emptyText={
+        listQuery.isError
+          ? `加载失败：${listQuery.error.message}`
+          : listQuery.isLoading
+            ? '正在从数据库加载同步任务…'
+            : '暂无同步任务。可入队演示任务，或跑 db:seed:commerce-finance。'
+      }
       columns={[
-        { key: 'id', label: '任务号' },
+        { key: 'taskNo', label: '任务号' },
         { key: 'type', label: '任务类型' },
         { key: 'target', label: '目标' },
         { key: 'shop', label: '店铺' },
@@ -70,15 +108,30 @@ export default function SyncTasksPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        本页是「任务视角」；设置 · 接口日志是「HTTP 流水视角」。两者通过 request id 关联。重试不改变业务审批状态，也不调用真实平台 connector。
+        本页是「任务视角」（sync_tasks / sync_job_runs）；设置 · 接口日志是「HTTP 流水」。重试/入队会写 requestId，但<strong>不会</strong>调用真实 Daraz/Lazada OpenAPI。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
-        {tasks
+        <Button
+          size="sm"
+          disabled={enqueueMutation.isPending}
+          onClick={() =>
+            enqueueMutation.mutate({
+              type: '库存同步',
+              target: '控制台手动入队',
+              shopId: shops[0]?.id,
+              note: '控制台手动入队演示',
+            })
+          }
+        >
+          入队库存同步
+        </Button>
+        {rows
           .filter((row) => row.status === '失败' || row.status === '部分失败')
+          .slice(0, 6)
           .map((row) => (
             <React.Fragment key={row.id}>
-              <Button size="sm" onClick={() => retry(row.id)}>
-                重试 · {row.id}
+              <Button size="sm" disabled={retryMutation.isPending} onClick={() => retryMutation.mutate({ id: row.id })}>
+                重试 · {row.taskNo}
               </Button>
               <Button variant="ghost" size="sm" asChild>
                 <LocaleLink

@@ -98,6 +98,18 @@ export const inventoryMovementTypes = [
   "adjustment",
   "purchase_stock_in",
   "qc_fail_damage",
+  /** 海运柜次：开船计入在途 */
+  "ocean_depart",
+  /** 海运柜次：到港仍在途（审计；余额可不变量） */
+  "ocean_arrive",
+  /** 海运柜次：进入清关桶 */
+  "ocean_customs",
+  /** 海运柜次：到仓收货转本地可用/残次 */
+  "ocean_receive",
+  /** WMS 非订单出库过账 */
+  "wms_outbound",
+  /** 库存调整单过账 */
+  "stock_adjust",
   "aftersale_restock",
   "aftersale_scrap",
 ] as const
@@ -841,6 +853,11 @@ export const productReviews = pgTable(
     usefulCount: integer("useful_count").notNull().default(0),
     source: varchar("source", { length: 16 }).notNull().default("api"),
     status: varchar("status", { length: 16 }).notNull().default("active"),
+    /** none / pending / replied / stub_queued — 平台回复 API 未接时仅 stub_queued */
+    replyStatus: varchar("reply_status", { length: 16 }).notNull().default("none"),
+    replyContent: text("reply_content"),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    replySource: varchar("reply_source", { length: 16 }),
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
     ...timestamps,
@@ -1583,6 +1600,9 @@ export const pendingActions = pgTable(
   ],
 )
 
+export const productCandidateSources = ["manual", "import", "sourcing"] as const
+export type ProductCandidateSource = (typeof productCandidateSources)[number]
+
 export const productCandidates = pgTable(
   "product_candidates",
   {
@@ -1598,12 +1618,63 @@ export const productCandidates = pgTable(
     score: numeric("score", { precision: 8, scale: 4 }),
     rationale: jsonb("rationale").$type<Record<string, unknown>>().default({}),
     status: varchar("status", { length: 16 }).notNull().default("new"),
+    /** manual / import / sourcing — 禁止假爬虫成功态 */
+    source: varchar("source", { length: 16 }).notNull().default("manual"),
+    rejectReason: text("reject_reason"),
+    productId: text("product_id").references(() => products.id),
     pendingActionId: text("pending_action_id").references(() => pendingActions.id),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("product_candidates_org_idx").on(t.organizationId),
     index("product_candidates_status_idx").on(t.organizationId, t.status),
+    index("product_candidates_product_idx").on(t.productId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// console_notifications — 站内信（org + user；不自动外传）
+// ---------------------------------------------------------------------------
+
+export const consoleNotificationCategories = [
+  "inventory",
+  "order",
+  "shop",
+  "sourcing",
+  "finance",
+  "system",
+] as const
+export type ConsoleNotificationCategory = (typeof consoleNotificationCategories)[number]
+
+export const consoleNotifications = pgTable(
+  "console_notifications",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    /** null = 组织广播；有值则仅该用户可见 */
+    userId: text("user_id"),
+    category: varchar("category", { length: 32 }).notNull().default("system"),
+    title: text("title").notNull(),
+    summary: text("summary").notNull().default(""),
+    body: text("body").notNull().default(""),
+    href: text("href"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    sourceType: varchar("source_type", { length: 64 }),
+    sourceId: text("source_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("console_notifications_org_user_idx").on(t.organizationId, t.userId),
+    index("console_notifications_org_read_idx").on(t.organizationId, t.readAt),
+    index("console_notifications_org_created_idx").on(t.organizationId, t.createdAt),
   ],
 )
 
@@ -1694,11 +1765,23 @@ export const fxRates = pgTable(
 // ocean_shipments / ocean_shipment_lines — ADD（F22 海运柜次）
 // ---------------------------------------------------------------------------
 
+/**
+ * 海运柜次状态机（模块7 / F22）：
+ * draft → booked → departed → arrived → customs → received
+ * 兼容旧原型：in_transit≈departed、customs_clearing≈customs、received_local≈received
+ */
 export const oceanShipmentStatuses = [
+  "draft",
+  "booked",
+  "departed",
+  "arrived",
+  "customs",
+  "received",
+  "cancelled",
+  /** @deprecated 兼容旧数据 / 原型 */
   "in_transit",
   "customs_clearing",
   "received_local",
-  "cancelled",
 ] as const
 export type OceanShipmentStatus = (typeof oceanShipmentStatuses)[number]
 
@@ -1714,15 +1797,22 @@ export const oceanShipments = pgTable(
     lotCode: varchar("lot_code", { length: 64 }).notNull(),
     containerNo: varchar("container_no", { length: 64 }),
     containerType: varchar("container_type", { length: 16 }),
+    /** FCL / LCL / FCL20 / FCL40 … */
+    freightMode: varchar("freight_mode", { length: 16 }),
     platform: varchar("platform", { length: 32 }).notNull().default("daraz"),
     originPort: varchar("origin_port", { length: 16 }),
     destPort: varchar("dest_port", { length: 16 }),
     destinationWarehouseCode: varchar("destination_warehouse_code", { length: 64 }),
-    status: varchar("status", { length: 32 }).notNull().default("in_transit"),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
     etd: varchar("etd", { length: 10 }),
     etaPort: varchar("eta_port", { length: 10 }),
     etaWarehouse: varchar("eta_warehouse", { length: 10 }),
     notes: text("notes"),
+    /**
+     * LCL/拼柜装箱摘要或 leads 引用（结构化见 ocean_shipment_boxes）。
+     * 例：{ leadRef, totalCbm, totalWeightKg, boxCount }
+     */
+    packingDetails: jsonb("packing_details").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -1732,6 +1822,7 @@ export const oceanShipments = pgTable(
   (t) => [
     uniqueIndex("ocean_shipments_org_lot_uidx").on(t.organizationId, t.lotCode),
     index("ocean_shipments_status_idx").on(t.status),
+    index("ocean_shipments_org_idx").on(t.organizationId),
   ],
 )
 
@@ -1759,6 +1850,38 @@ export const oceanShipmentLines = pgTable(
   (t) => [
     uniqueIndex("ocean_shipment_lines_ship_variant_uidx").on(t.shipmentId, t.variantId),
     index("ocean_shipment_lines_shipment_idx").on(t.shipmentId),
+  ],
+)
+
+/** LCL/拼柜箱明细（leads / 箱号 / CBM）；FCL 可空或 1 行整柜。 */
+export const oceanShipmentBoxes = pgTable(
+  "ocean_shipment_boxes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shipmentId: text("shipment_id")
+      .notNull()
+      .references(() => oceanShipments.id),
+    boxNo: varchar("box_no", { length: 64 }).notNull(),
+    leadRef: varchar("lead_ref", { length: 64 }),
+    cbm: numeric("cbm", { precision: 12, scale: 4 }),
+    weightKg: numeric("weight_kg", { precision: 12, scale: 3 }),
+    sealNo: varchar("seal_no", { length: 64 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("ocean_shipment_boxes_ship_box_uidx").on(t.shipmentId, t.boxNo),
+    index("ocean_shipment_boxes_shipment_idx").on(t.shipmentId),
+    index("ocean_shipment_boxes_org_idx").on(t.organizationId),
   ],
 )
 
@@ -1792,6 +1915,154 @@ export const auditEvents = pgTable(
   ],
 )
 
+
+
+// ---------------------------------------------------------------------------
+// Module 15 — console ops cleanup light tables
+// commerce_carriers / commerce_categories / commerce_dictionaries / commerce_import_templates
+// ---------------------------------------------------------------------------
+
+export const commerceCarrierTypes = ["express", "ocean", "platform", "last_mile"] as const
+export type CommerceCarrierType = (typeof commerceCarrierTypes)[number]
+
+export const commerceCarrierStatuses = ["active", "disabled"] as const
+export type CommerceCarrierStatus = (typeof commerceCarrierStatuses)[number]
+
+export const commerceCarriers = pgTable(
+  "commerce_carriers",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    type: varchar("type", { length: 32 }).notNull().default("express"),
+    coverage: text("coverage").notNull().default(""),
+    contact: text("contact").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_carriers_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_carriers_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
+
+export const commerceCategoryStatuses = ["active", "disabled"] as const
+export type CommerceCategoryStatus = (typeof commerceCategoryStatuses)[number]
+
+export const commerceCategories = pgTable(
+  "commerce_categories",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    parentId: text("parent_id"),
+    sort: integer("sort").notNull().default(10),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    coverImage: text("cover_image"),
+    screenshots: jsonb("screenshots").$type<string[]>().default([]),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_categories_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_categories_org_parent_idx").on(t.organizationId, t.parentId),
+  ],
+)
+
+export const commerceDictionaries = pgTable(
+  "commerce_dictionaries",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    key: varchar("key", { length: 64 }).notNull(),
+    label: text("label").notNull(),
+    description: text("description").notNull().default(""),
+    shared: boolean("shared").notNull().default(true),
+    values: jsonb("values").$type<string[]>().notNull().default([]),
+    inactiveValues: jsonb("inactive_values").$type<string[]>().notNull().default([]),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_dictionaries_org_key_uidx").on(t.organizationId, t.key),
+  ],
+)
+
+export const commerceImportTemplateStatuses = ["active", "disabled"] as const
+export type CommerceImportTemplateStatus = (typeof commerceImportTemplateStatuses)[number]
+
+export const commerceImportTemplates = pgTable(
+  "commerce_import_templates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    kind: varchar("kind", { length: 64 }).notNull(),
+    version: varchar("version", { length: 32 }).notNull().default("v1"),
+    fields: text("fields").notNull().default(""),
+    duplicateStrategy: text("duplicate_strategy").notNull().default(""),
+    rollbackStrategy: text("rollback_strategy").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    index("commerce_import_templates_org_kind_idx").on(t.organizationId, t.kind),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// commerce_carton_specs — 箱规主数据（独立于 ocean_shipment_boxes；运费/海运可引用）
+// migration 0020_commerce_carton_specs
+// ---------------------------------------------------------------------------
+
+export const commerceCartonSpecStatuses = ["active", "disabled"] as const
+export type CommerceCartonSpecStatus = (typeof commerceCartonSpecStatuses)[number]
+
+export const commerceCartonSpecs = pgTable(
+  "commerce_carton_specs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    applicablePack: text("applicable_pack").notNull().default("单件"),
+    lengthCm: numeric("length_cm", { precision: 12, scale: 2 }).notNull().default("0"),
+    widthCm: numeric("width_cm", { precision: 12, scale: 2 }).notNull().default("0"),
+    heightCm: numeric("height_cm", { precision: 12, scale: 2 }).notNull().default("0"),
+    grossWeightKg: numeric("gross_weight_kg", { precision: 12, scale: 3 }).notNull().default("0"),
+    unitsPerCarton: integer("units_per_carton").notNull().default(1),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_carton_specs_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_carton_specs_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
 
 // ---------------------------------------------------------------------------
 // fee_templates / fee_template_versions — 已落库（migration 0012_commerce_fee_templates）
@@ -1893,7 +2164,7 @@ export const feeTemplateVersions = pgTable(
 
 // ---------------------------------------------------------------------------
 // 域 D：采购申请 → PO → 分批到货 → 质检 → 入库上架（模块2）
-// 供应商/仓暂以展示码存储（无独立 suppliers/warehouses 表）；variant 经 product_variants.sku_code 解析。
+// 供应商主档见 commerce_suppliers / supplier_skus（模块12）；仓码仍可字符串存，WMS 有 commerce_warehouses。
 // ---------------------------------------------------------------------------
 
 export const purchaseRequestStatuses = [
@@ -1945,8 +2216,9 @@ export const purchaseRequests = pgTable(
       .notNull()
       .references(() => organization.id),
     requestNo: varchar("request_no", { length: 32 }).notNull(),
-    /** 供应商展示名（后续可迁 supplier_id） */
+    /** 供应商展示名（兼容旧数据；优先读 supplierId） */
     supplierName: text("supplier_name").notNull(),
+    supplierId: text("supplier_id"),
     warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("WH-CN-XMN-001"),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     expectedArrivalAt: varchar("expected_arrival_at", { length: 10 }),
@@ -1986,6 +2258,7 @@ export const purchaseRequestLines = pgTable(
       .references(() => productVariants.id),
     skuCode: varchar("sku_code", { length: 64 }).notNull(),
     supplierSku: varchar("supplier_sku", { length: 128 }),
+    supplierSkuId: text("supplier_sku_id"),
     qty: integer("qty").notNull(),
     unitPrice: numeric("unit_price", { precision: 15, scale: 4 }).notNull().default("0"),
     amount: numeric("amount", { precision: 15, scale: 4 }).notNull().default("0"),
@@ -2011,6 +2284,7 @@ export const purchaseOrders = pgTable(
     purchaseRequestId: text("purchase_request_id").references(() => purchaseRequests.id),
     sourceRequestNo: varchar("source_request_no", { length: 32 }),
     supplierName: text("supplier_name").notNull(),
+    supplierId: text("supplier_id"),
     warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("WH-CN-XMN-001"),
     status: varchar("status", { length: 32 }).notNull().default("sent"),
     expectedArrivalAt: varchar("expected_arrival_at", { length: 10 }),
@@ -2044,6 +2318,8 @@ export const purchaseOrderLines = pgTable(
       .notNull()
       .references(() => productVariants.id),
     skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    supplierSku: varchar("supplier_sku", { length: 128 }),
+    supplierSkuId: text("supplier_sku_id"),
     qtyOrdered: integer("qty_ordered").notNull(),
     qtyReceived: integer("qty_received").notNull().default(0),
     qtyQcPassed: integer("qty_qc_passed").notNull().default(0),
@@ -2254,6 +2530,406 @@ export const stockOutboundLines = pgTable(
 )
 
 
+// ---------------------------------------------------------------------------
+// commerce_warehouses / commerce_bins — 仓库与库位主档（模块8 WMS）
+// 余额仍以 warehouse_code + bin_code 字符串维度存 inventory_balances（与 m2/m3/m7 一致）
+// ---------------------------------------------------------------------------
+
+export const warehouseTypes = ["self_operated", "lgs", "jsb", "third_party"] as const
+export type WarehouseType = (typeof warehouseTypes)[number]
+
+export const warehouseStatuses = ["active", "disabled"] as const
+export type WarehouseStatus = (typeof warehouseStatuses)[number]
+
+export const binStatuses = ["empty", "occupied", "locked", "disabled"] as const
+export type BinStatus = (typeof binStatuses)[number]
+
+export const commerceWarehouses = pgTable(
+  "commerce_warehouses",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    type: varchar("type", { length: 32 }).notNull().default("self_operated"),
+    country: varchar("country", { length: 8 }).notNull().default("CN"),
+    timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
+    operatingCurrency: varchar("operating_currency", { length: 3 }).notNull().default("CNY"),
+    address: text("address"),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note"),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_warehouses_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_warehouses_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
+
+export const commerceBins = pgTable(
+  "commerce_bins",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    warehouseId: text("warehouse_id")
+      .notNull()
+      .references(() => commerceWarehouses.id),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull(),
+    zoneCode: varchar("zone_code", { length: 32 }),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name"),
+    /** 一库位一启用 SKU（展示码；空=未绑定） */
+    boundSku: varchar("bound_sku", { length: 64 }),
+    status: varchar("status", { length: 16 }).notNull().default("empty"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_bins_wh_code_uidx").on(t.organizationId, t.warehouseId, t.code),
+    index("commerce_bins_org_wh_idx").on(t.organizationId, t.warehouseCode),
+    index("commerce_bins_bound_sku_idx").on(t.organizationId, t.boundSku),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// stock_adjustments / stock_adjustment_lines — 盘点/报损/手工调整（模块8）
+// ---------------------------------------------------------------------------
+
+export const stockAdjustmentKinds = [
+  "stocktake",
+  "damage",
+  "manual_in",
+  "manual_out",
+  "recount",
+] as const
+export type StockAdjustmentKind = (typeof stockAdjustmentKinds)[number]
+
+export const stockAdjustmentStatuses = [
+  "draft",
+  "pending_approval",
+  "approved",
+  "rejected",
+  "posted",
+  "cancelled",
+] as const
+export type StockAdjustmentStatus = (typeof stockAdjustmentStatuses)[number]
+
+export const stockAdjustments = pgTable(
+  "stock_adjustments",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    adjustmentNo: varchar("adjustment_no", { length: 32 }).notNull(),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    warehouseCode: varchar("warehouse_code", { length: 64 }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
+    reason: text("reason").notNull(),
+    applicant: text("applicant"),
+    approver: text("approver"),
+    rejectReason: text("reject_reason"),
+    remark: text("remark"),
+    idempotencyKey: varchar("idempotency_key", { length: 191 }).notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("stock_adjustments_org_no_uidx").on(t.organizationId, t.adjustmentNo),
+    uniqueIndex("stock_adjustments_org_idem_uidx").on(t.organizationId, t.idempotencyKey),
+    index("stock_adjustments_org_status_idx").on(t.organizationId, t.status),
+  ],
+)
+
+export const stockAdjustmentLines = pgTable(
+  "stock_adjustment_lines",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    stockAdjustmentId: text("stock_adjustment_id")
+      .notNull()
+      .references(() => stockAdjustments.id),
+    lineNo: integer("line_no").notNull(),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    binCode: varchar("bin_code", { length: 64 }).notNull(),
+    qtySystem: integer("qty_system").notNull().default(0),
+    qtyCounted: integer("qty_counted").notNull().default(0),
+    qtyDiff: integer("qty_diff").notNull().default(0),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    index("stock_adjustment_lines_adj_idx").on(t.stockAdjustmentId),
+    index("stock_adjustment_lines_org_idx").on(t.organizationId),
+    uniqueIndex("stock_adjustment_lines_adj_line_uidx").on(t.stockAdjustmentId, t.lineNo),
+  ],
+)
+
+
+
+// ---------------------------------------------------------------------------
+// commerce_suppliers / supplier_skus — 供应商主档与货号（模块12）
+// ---------------------------------------------------------------------------
+
+export const supplierStatuses = ["active", "disabled"] as const
+export type SupplierStatusDb = (typeof supplierStatuses)[number]
+
+export const supplierSkuStatuses = ["active", "pending", "disabled"] as const
+export type SupplierSkuStatusDb = (typeof supplierSkuStatuses)[number]
+
+export const commerceSuppliers = pgTable(
+  "commerce_suppliers",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 32 }).notNull(),
+    name: text("name").notNull(),
+    contact: text("contact").notNull().default(""),
+    phone: varchar("phone", { length: 64 }).notNull().default(""),
+    email: text("email").notNull().default(""),
+    settlement: text("settlement").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_suppliers_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_suppliers_org_status_idx").on(t.organizationId, t.status),
+    index("commerce_suppliers_org_name_idx").on(t.organizationId, t.name),
+  ],
+)
+
+export const supplierSkus = pgTable(
+  "supplier_skus",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => commerceSuppliers.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    skuCode: varchar("sku_code", { length: 64 }).notNull(),
+    /** 厂家款号 / 供应商货号 */
+    factoryCode: varchar("factory_code", { length: 128 }).notNull(),
+    unitPrice: numeric("unit_price", { precision: 15, scale: 4 }).notNull().default("0"),
+    currency: varchar("currency", { length: 3 }).notNull().default("CNY"),
+    moq: integer("moq").notNull().default(1),
+    leadDays: integer("lead_days").notNull().default(0),
+    effectiveFrom: varchar("effective_from", { length: 10 }).notNull(),
+    preferred: boolean("preferred").notNull().default(false),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    remark: text("remark"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("supplier_skus_org_sup_sku_factory_uidx").on(
+      t.organizationId,
+      t.supplierId,
+      t.skuCode,
+      t.factoryCode,
+    ),
+    index("supplier_skus_org_sku_idx").on(t.organizationId, t.skuCode),
+    index("supplier_skus_org_status_idx").on(t.organizationId, t.status),
+    index("supplier_skus_supplier_idx").on(t.supplierId),
+    index("supplier_skus_variant_idx").on(t.variantId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// order_exception_cases — 订单履约异常案件（模块12）
+// 规则视图：超时未发货 / 占库失败 / 拣货异常 / 同步失败；处理动作写 audit_events
+// ---------------------------------------------------------------------------
+
+export const orderExceptionKinds = [
+  "timeout_unshipped",
+  "reservation_failed",
+  "picking_exception",
+  "sync_failed",
+] as const
+export type OrderExceptionKindDb = (typeof orderExceptionKinds)[number]
+
+export const orderExceptionStatuses = [
+  "open",
+  "in_progress",
+  "resolved",
+  "ignored",
+] as const
+export type OrderExceptionStatusDb = (typeof orderExceptionStatuses)[number]
+
+export const orderExceptionCases = pgTable(
+  "order_exception_cases",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    caseNo: varchar("case_no", { length: 32 }).notNull(),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("open"),
+    shopId: text("shop_id").references(() => shops.id),
+    orderId: text("order_id").references(() => orders.id),
+    orderLineId: text("order_line_id").references(() => orderLines.id),
+    externalOrderId: varchar("external_order_id", { length: 128 }),
+    outboundId: text("outbound_id").references(() => stockOutbounds.id),
+    reservationId: text("reservation_id").references(() => inventoryReservations.id),
+    /** order | reservation | outbound | sync_task | fulfillment_attempt | mapping_exception */
+    sourceType: varchar("source_type", { length: 32 }).notNull(),
+    sourceId: text("source_id").notNull(),
+    sellerSku: varchar("seller_sku", { length: 128 }),
+    internalSku: varchar("internal_sku", { length: 128 }),
+    title: text("title").notNull().default(""),
+    detail: text("detail"),
+    blocksFulfillment: boolean("blocks_fulfillment").notNull().default(true),
+    assignedTo: text("assigned_to"),
+    resolution: text("resolution"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by"),
+    lastScannedAt: timestamp("last_scanned_at", { withTimezone: true }),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("order_exception_cases_org_no_uidx").on(t.organizationId, t.caseNo),
+    uniqueIndex("order_exception_cases_org_source_uidx").on(
+      t.organizationId,
+      t.kind,
+      t.sourceType,
+      t.sourceId,
+    ),
+    index("order_exception_cases_org_status_idx").on(t.organizationId, t.status),
+    index("order_exception_cases_org_kind_idx").on(t.organizationId, t.kind),
+    index("order_exception_cases_order_idx").on(t.orderId),
+    index("order_exception_cases_shop_idx").on(t.shopId),
+  ],
+)
+
+
+
+// ---------------------------------------------------------------------------
+// sync_tasks / sync_job_runs — 发布与同步任务（模块13）
+// 任务视角；HTTP 流水仍在 integration_logs。真实触发只入队/写请求记录，不宣称平台已联调。
+// ---------------------------------------------------------------------------
+
+export const syncTaskTypes = [
+  "inventory",
+  "price",
+  "publish",
+  "status",
+  "orders",
+  "reviews",
+  "returns",
+] as const
+export type SyncTaskTypeDb = (typeof syncTaskTypes)[number]
+
+export const syncTaskStatuses = [
+  "queued",
+  "running",
+  "success",
+  "failed",
+  "partial_failed",
+  "retry_queued",
+] as const
+export type SyncTaskStatusDb = (typeof syncTaskStatuses)[number]
+
+export const syncTasks = pgTable(
+  "sync_tasks",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id").references(() => shops.id),
+    taskNo: varchar("task_no", { length: 32 }).notNull(),
+    type: varchar("type", { length: 32 }).notNull(),
+    target: text("target").notNull().default(""),
+    status: varchar("status", { length: 32 }).notNull().default("queued"),
+    progressDone: integer("progress_done").notNull().default(0),
+    progressTotal: integer("progress_total").notNull().default(0),
+    error: text("error"),
+    retries: integer("retries").notNull().default(0),
+    requestId: text("request_id"),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    enqueuedAt: timestamp("enqueued_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    note: text("note"),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("sync_tasks_org_no_uidx").on(t.organizationId, t.taskNo),
+    index("sync_tasks_org_status_idx").on(t.organizationId, t.status),
+    index("sync_tasks_org_type_idx").on(t.organizationId, t.type),
+    index("sync_tasks_shop_idx").on(t.shopId),
+    index("sync_tasks_request_idx").on(t.requestId),
+  ],
+)
+
+export const syncJobRuns = pgTable(
+  "sync_job_runs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    syncTaskId: text("sync_task_id")
+      .notNull()
+      .references(() => syncTasks.id),
+    runNo: integer("run_no").notNull().default(1),
+    status: varchar("status", { length: 32 }).notNull().default("queued"),
+    requestId: text("request_id"),
+    httpStatus: integer("http_status"),
+    latencyMs: integer("latency_ms"),
+    message: text("message"),
+    detail: text("detail"),
+    actor: text("actor"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("sync_job_runs_task_idx").on(t.syncTaskId),
+    index("sync_job_runs_org_idx").on(t.organizationId),
+    index("sync_job_runs_request_idx").on(t.requestId),
+    uniqueIndex("sync_job_runs_task_run_uidx").on(t.syncTaskId, t.runNo),
+  ],
+)
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
@@ -2290,6 +2966,7 @@ export type ProductCandidate = typeof productCandidates.$inferSelect
 export type FxRate = typeof fxRates.$inferSelect
 export type OceanShipment = typeof oceanShipments.$inferSelect
 export type OceanShipmentLine = typeof oceanShipmentLines.$inferSelect
+export type OceanShipmentBox = typeof oceanShipmentBoxes.$inferSelect
 
 export type PurchaseRequestRow = typeof purchaseRequests.$inferSelect
 export type PurchaseRequestLineRow = typeof purchaseRequestLines.$inferSelect
@@ -2300,4 +2977,13 @@ export type PurchaseReceiptLineRow = typeof purchaseReceiptLines.$inferSelect
 export type StockOutboundRow = typeof stockOutbounds.$inferSelect
 export type StockOutboundLineRow = typeof stockOutboundLines.$inferSelect
 export type StockInboundRow = typeof stockInbounds.$inferSelect
-
+export type CommerceWarehouseRow = typeof commerceWarehouses.$inferSelect
+export type CommerceBinRow = typeof commerceBins.$inferSelect
+export type StockAdjustmentRow = typeof stockAdjustments.$inferSelect
+export type StockAdjustmentLineRow = typeof stockAdjustmentLines.$inferSelect
+export type CommerceCartonSpecRow = typeof commerceCartonSpecs.$inferSelect
+export type CommerceSupplierRow = typeof commerceSuppliers.$inferSelect
+export type SupplierSkuRow = typeof supplierSkus.$inferSelect
+export type OrderExceptionCaseRow = typeof orderExceptionCases.$inferSelect
+export type SyncTaskRow = typeof syncTasks.$inferSelect
+export type SyncJobRunRow = typeof syncJobRuns.$inferSelect

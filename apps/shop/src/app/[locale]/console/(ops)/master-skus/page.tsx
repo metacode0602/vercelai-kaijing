@@ -4,19 +4,25 @@ import * as React from 'react'
 import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
-import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
-import { Badge } from '@workspace/ui/components/badge'
 import { trpc } from '@/lib/trpc/client'
+import { Badge } from '@workspace/ui/components/badge'
 import type { UiProductStatus } from '@/lib/server/mappers/products'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 const PAGE_SIZE = 20
 
 export default function MasterSkusPage() {
-  const dictionaries = useDictionaries()
-  const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
-  const colorOptions = activeDictionaryValues(dictionaries, 'product_color')
-  const sizeOptions = activeDictionaryValues(dictionaries, 'product_size')
+  const dictionariesQuery = trpc.dictionaries.list.useQuery()
+  const dictMap = Object.fromEntries((dictionariesQuery.data ?? []).map((d) => [d.key, d]))
+  const activeVals = (key: string) => {
+    const d = dictMap[key]
+    if (!d) return [] as string[]
+    const inactive = new Set(d.inactiveValues ?? [])
+    return d.values.filter((v) => !inactive.has(v))
+  }
+  const packOptions = activeVals('product_pack')
+  const colorOptions = activeVals('product_color')
+  const sizeOptions = activeVals('product_size')
 
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')

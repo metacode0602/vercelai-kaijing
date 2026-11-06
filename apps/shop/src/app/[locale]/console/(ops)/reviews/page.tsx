@@ -3,15 +3,8 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  REVIEW_SENTIMENTS,
-  countReviewsKpi,
-  queueReviewFetch,
-  useReviewMeta,
-  useReviews,
-} from '@/lib/crossborder/review-store'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
-import { Button } from '@workspace/ui/components/button'
 
 function sentimentVariant(value: string) {
   if (value === '负面') return 'destructive' as const
@@ -20,18 +13,20 @@ function sentimentVariant(value: string) {
 }
 
 export default function ReviewsPage() {
-  const rows = useReviews()
-  const meta = useReviewMeta()
-  const kpi = React.useMemo(() => countReviewsKpi(rows), [rows])
-  const [notice, setNotice] = React.useState('')
+  const listQuery = trpc.reviews.list.useQuery({ page: 1, pageSize: 100 })
+  const statsQuery = trpc.reviews.stats.useQuery()
+  const meta = trpc.reviews.meta.useQuery()
+  const rows = listQuery.data?.items ?? []
+  const kpi = statsQuery.data
 
   const kpiItems = React.useMemo(
     () => [
-      { label: '评论数', value: String(kpi.total) },
-      { label: '均分', value: kpi.avg ? kpi.avg.toFixed(1) : '—' },
-      { label: '正面', value: String(kpi.pos) },
-      { label: '中性', value: String(kpi.neu) },
-      { label: '负面', value: String(kpi.neg), hint: kpi.highScoreNeg ? `含高分差评 ${kpi.highScoreNeg}` : undefined },
+      { label: '评论数', value: String(kpi?.total ?? 0) },
+      { label: '均分', value: kpi?.avg ? kpi.avg.toFixed(1) : '—' },
+      { label: '正面', value: String(kpi?.pos ?? 0) },
+      { label: '中性', value: String(kpi?.neu ?? 0) },
+      { label: '负面', value: String(kpi?.neg ?? 0) },
+      { label: '未回复', value: String(kpi?.unreplied ?? 0) },
     ],
     [kpi],
   )
@@ -39,21 +34,24 @@ export default function ReviewsPage() {
   return (
     <UedWorkspace
       title="商品评论"
-      description="product_reviews 只读面：星级、情感、原文/译文；关联刊登 / SKU / SPU。抓取与翻译为原型动作。"
+      description="product_reviews：星级、情感、原文/译文、回复状态。平台回复 OpenAPI 为 stub。"
       rows={rows}
       detailHref={(row) => `/console/reviews/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'content', 'contentZh', 'buyer', 'shop', 'internalSku', 'itemId', 'sentiment', 'platformSku']}
+      searchKeys={['id', 'content', 'contentZh', 'buyer', 'shop', 'internalSku', 'itemId', 'sentiment', 'platformSku', 'replyStatus']}
       searchPlaceholder="搜索评论、买家、SKU 或 Item ID"
-      filters={[{ label: '情感', options: [...REVIEW_SENTIMENTS], key: 'sentiment' }]}
-      emptyText="暂无评论。可排队原型抓取；正式环境由 review_fetch_runs 调度。"
+      filters={[
+        { label: '情感', options: [...(meta.data?.sentiments ?? [])], key: 'sentiment' },
+        { label: '回复', options: [...(meta.data?.replyStatuses ?? [])], key: 'replyStatus' },
+      ]}
+      emptyText={
+        listQuery.isLoading
+          ? '加载中…'
+          : '暂无评论。待平台授权后由 review 同步写入；禁止假抓取成功。'
+      }
       columns={[
         { key: 'at', label: '时间' },
         { key: 'shop', label: '店铺' },
-        {
-          key: 'rating',
-          label: '星级',
-          render: (row) => `${row.rating} ★`,
-        },
+        { key: 'rating', label: '星级', render: (row) => `${row.rating} ★` },
         {
           key: 'sentiment',
           label: '情感',
@@ -66,6 +64,11 @@ export default function ReviewsPage() {
             <span className="line-clamp-2 max-w-xs text-sm">{row.contentZh || row.content}</span>
           ),
         },
+        {
+          key: 'replyStatus',
+          label: '回复',
+          render: (row) => <Badge variant="outline">{row.replyStatus}</Badge>,
+        },
         { key: 'internalSku', label: '内部 SKU' },
         { key: 'itemId', label: 'Item ID' },
         { key: 'buyer', label: '买家' },
@@ -74,24 +77,12 @@ export default function ReviewsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        只读运营面。原文保留；译文为原型字段。抓取不调用真实平台 connector。
-        {meta.lastFetchAt ? ` 上次排队：${meta.lastFetchAt}。` : ''}
-        {meta.lastFetchNote ? ` ${meta.lastFetchNote}` : ''}
+        读 product_reviews / product_review_media。平台回复真实 API 未接；详情可手工落库回复或排队 stub，不会声称已同步平台。
+        {meta.data?.note ? ` ${meta.data.note}` : ''}
       </UedPrototypeNotice>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            const result = queueReviewFetch()
-            setNotice(result.note)
-          }}
-        >
-          排队抓取评论（原型）
-        </Button>
-      </div>
-      {notice ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {notice}
+      {listQuery.error ? (
+        <p role="status" className="text-sm text-destructive">
+          {listQuery.error.message}
         </p>
       ) : null}
     </UedWorkspace>

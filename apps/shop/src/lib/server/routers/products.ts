@@ -74,6 +74,18 @@ export const productsRouter = createTRPCRouter({
     return productsDa.listProducts(ctx.db, ctx.organizationId, input)
   }),
 
+  listCatalog: tenantProcedure
+    .input(
+      paginationInput.extend({
+        listing: z.string().optional(),
+        platform: z.string().optional(),
+        shopId: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return productsDa.listCatalogRows(ctx.db, ctx.organizationId, input)
+    }),
+
   stats: tenantProcedure.query(async ({ ctx }) => {
     return productsDa.productStats(ctx.db, ctx.organizationId)
   }),

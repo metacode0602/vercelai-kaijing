@@ -1,6 +1,6 @@
-import { and, count, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { productVariants, products } from '@workspace/db/schema'
+import { listings, productVariants, products, shops } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import {
   imagesToUrls,
@@ -665,4 +665,134 @@ export async function productStats(
     pending: Number(pendingRow?.value ?? 0),
     skuTotal: Number(skuTotalRow?.value ?? 0),
   }
+}
+
+export type CatalogRowDto = {
+  sku: string
+  variantId: string
+  productId: string
+  spu: string
+  title: string
+  status: UiProductStatus
+  coverImage?: string
+  images: string[]
+  shop: string
+  platform: string
+  shopCount: number
+  listing: string
+  priceAmount: number
+  priceCurrency: string
+  updatedAt: string
+  lastError: string | null
+}
+
+/** /console/products 列表：SKU + 主刊登摘要（DB 分页）。 */
+export async function listCatalogRows(
+  db: AppDatabase,
+  organizationId: string,
+  input: {
+    page?: number
+    pageSize?: number
+    q?: string
+    listing?: string
+    platform?: string
+    shopId?: string
+  } = {},
+): Promise<PaginatedResult<CatalogRowDto>> {
+  const page = normalizePage(input.page)
+  const pageSize = normalizePageSize(input.pageSize)
+  const conditions: SQL[] = [
+    eq(productVariants.organizationId, organizationId),
+    isNull(products.deletedAt),
+  ]
+  const term = input.q?.trim()
+  if (term) {
+    const pattern = `%${term}%`
+    const search = or(
+      ilike(productVariants.skuCode, pattern),
+      ilike(productVariants.sku, pattern),
+      ilike(products.title, pattern),
+      ilike(products.spuCode, pattern),
+    )
+    if (search) conditions.push(search)
+  }
+  const where = and(...conditions)
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(where)
+  const total = Number(totalRow?.value ?? 0)
+
+  const rows = await db
+    .select({ variant: productVariants, product: products })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(where)
+    .orderBy(desc(productVariants.updatedAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  const variantIds = rows.map((r) => r.variant.id)
+  const listingRows =
+    variantIds.length === 0
+      ? []
+      : await db
+          .select({
+            listing: listings,
+            shopName: shops.name,
+            platform: shops.platform,
+          })
+          .from(listings)
+          .leftJoin(shops, eq(shops.id, listings.shopId))
+          .where(
+            and(eq(listings.organizationId, organizationId), inArray(listings.primaryVariantId, variantIds)),
+          )
+
+  const byVariant = new Map<string, typeof listingRows>()
+  for (const row of listingRows) {
+    const vid = row.listing.primaryVariantId
+    if (!vid) continue
+    const list = byVariant.get(vid) ?? []
+    list.push(row)
+    byVariant.set(vid, list)
+  }
+
+  let items: CatalogRowDto[] = rows.map(({ variant, product }) => {
+    const mapped = mapVariantRow(variant)
+    const ls = byVariant.get(variant.id) ?? []
+    const primary = ls[0]
+    const listingStatus = primary?.listing.status ?? 'draft'
+    return {
+      sku: mapped.code,
+      variantId: variant.id,
+      productId: product.id,
+      spu: product.spuCode ?? '',
+      title: product.title,
+      status: mapped.status,
+      coverImage: mapped.coverImage,
+      images: mapped.images,
+      shop: primary?.shopName ?? '—',
+      platform: primary?.platform ?? '—',
+      shopCount: new Set(ls.map((x) => x.listing.shopId).filter(Boolean)).size,
+      listing: listingStatus,
+      priceAmount: Number(primary?.listing.priceAmount ?? 0) || 0,
+      priceCurrency: primary?.listing.priceCurrency ?? 'LKR',
+      updatedAt: (variant.updatedAt ?? product.updatedAt)?.toISOString?.()?.slice(0, 10) ?? '—',
+      lastError: (primary?.listing.lastError as string | null) ?? null,
+    }
+  })
+
+  if (input.listing && input.listing !== 'all') {
+    items = items.filter((r) => r.listing === input.listing)
+  }
+  if (input.platform && input.platform !== 'all') {
+    items = items.filter((r) => r.platform === input.platform)
+  }
+  if (input.shopId && input.shopId !== 'all') {
+    items = items.filter((r) => r.shop === input.shopId)
+  }
+
+  return { items, total, page, pageSize }
 }

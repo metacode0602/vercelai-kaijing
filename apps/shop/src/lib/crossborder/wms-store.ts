@@ -2,6 +2,7 @@
 
 /**
  * WMS / 仓储库存原型会话 store（Phase 3）。
+ * 主路径已切 tRPC `wms.*`（见 docs/design/shop-module8-wms-trpc.md）；本文件类型/常量保留，详情页过渡期可读。
  * 字段对齐 docs/design/haoshiyun-erp-database-schema.md：
  *   commerce_warehouses / commerce_bins
  *   inventory_balances / inventory_ledger

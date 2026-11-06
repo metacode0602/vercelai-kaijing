@@ -12,23 +12,9 @@ import {
   TurnoverChart,
 } from '@/components/console/dashboard-charts'
 import { DashboardKpiCard } from '@/components/console/dashboard-kpi-card'
-import {
-  getDashboardSummary,
-  MOCK_DASHBOARD_ALERTS,
-  MOCK_DASHBOARD_INVENTORY,
-  MOCK_DASHBOARD_KPI_DELTAS,
-  MOCK_DASHBOARD_TODOS,
-  MOCK_SHOPS,
-  type DashboardTrendRange,
-} from '@/lib/crossborder/mock-data'
+import type { DashboardTrendRange } from '@/lib/console/dashboard-types'
 import { LocaleLink } from '@/lib/i18n/navigation'
-import { getOrders } from '@/lib/crossborder/order-store'
-import { getMappingExceptions } from '@/lib/crossborder/mapping-exception-store'
 import { trpc } from '@/lib/trpc/client'
-import { useInventoryBalances, countBalancesKpi } from '@/lib/crossborder/wms-store'
-import { useAftersaleCancels, countCancelsByStatus } from '@/lib/crossborder/aftersale-store'
-import { useSyncTasks, countSyncTasksByStatus } from '@/lib/crossborder/sync-store'
-import { useMappings } from '@/lib/crossborder/mapping-store'
 import { DetailKpiRow } from '@/components/console/detail'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
@@ -98,37 +84,15 @@ function InventoryStat({
 
 
 function OpsTodoKpiRow() {
-  const orders = React.useMemo(() => getOrders(), [])
-  const purchaseStats = trpc.purchase.requestStats.useQuery()
-  const balances = useInventoryBalances()
-  const cancels = useAftersaleCancels()
-  const syncTasks = useSyncTasks()
-  const mappings = useMappings()
-  const mappingExceptions = React.useMemo(() => getMappingExceptions(), [])
-
-  const readyToShip = orders.filter(
-    (o) =>
-      o.fulfillmentStatus === 'ready_to_ship' ||
-      o.fulfillmentStatus === 'unfulfilled' ||
-      String(o.status) === 'ready_to_ship',
-  ).length
-  const lowStock = countBalancesKpi(balances).lowStock
-  const pendingPurchase = purchaseStats.data?.byStatus?.['待审核'] ?? 0
-  const refundPending = countCancelsByStatus(cancels).pending
-  const mappingAbnormal =
-    mappings.filter((m) => m.mappingStatus === '异常' || !m.internalSku || m.internalSku === '—')
-      .length +
-    mappingExceptions.filter((e) => e.status === '开放' || e.status === '阻断扣库').length
-  const syncCounts = countSyncTasksByStatus(syncTasks)
-  const syncFail = (syncCounts['失败'] ?? 0) + (syncCounts['部分失败'] ?? 0)
-
+  const todosQuery = trpc.dashboard.todos.useQuery()
+  const t = todosQuery.data
   const items = [
-    { label: '待发货', value: String(readyToShip), hint: 'ready_to_ship' },
-    { label: '缺货', value: String(lowStock), hint: '库存低于安全水位' },
-    { label: '待审采购', value: String(pendingPurchase), hint: '采购申请待审核' },
-    { label: '退款', value: String(refundPending), hint: '取消/退款待处理' },
-    { label: '映射异常', value: String(mappingAbnormal), hint: '映射 + 异常队列' },
-    { label: '接口异常', value: String(syncFail), hint: '同步失败 / 部分失败' },
+    { label: '待发货', value: String(t?.readyToShip ?? 0), hint: 'ready_to_ship' },
+    { label: '缺货', value: String(t?.lowStock ?? 0), hint: '可用 < 20' },
+    { label: '待审采购', value: String(t?.pendingPurchase ?? 0), hint: 'pending_approval' },
+    { label: '退款', value: String(t?.refundPending ?? 0), hint: '售后进行中' },
+    { label: '映射异常', value: String(t?.mappingAbnormal ?? 0), hint: '映射 + 异常队列' },
+    { label: '接口异常', value: String(t?.syncFail ?? 0), hint: '同步失败 / 部分失败' },
   ]
 
   return (
@@ -136,7 +100,7 @@ function OpsTodoKpiRow() {
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h3 className="text-sm font-medium">运营待办</h3>
         <p className="text-xs text-muted-foreground">
-          聚合订单 / 库存 / 采购 / 售后 / 映射 / 同步原型会话
+          聚合订单 / 库存 / 采购 / 售后 / 映射 / 同步（DB，缺省 0）
         </p>
       </div>
       <DetailKpiRow items={items} />
@@ -161,76 +125,134 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = React.useState('2026-10-28')
   const [notice, setNotice] = React.useState('')
 
-  const summary = getDashboardSummary(range)
   const rangeLabel = RANGE_LABEL[range]
-  const shopLabel =
-    shop === 'all' ? '全部店铺' : (MOCK_SHOPS.find((item) => item.id === shop)?.name ?? shop)
+  const shopLabel = shop === 'all' ? '全部店铺' : shop
+
+  const kpisQuery = trpc.dashboard.kpis.useQuery({ range })
+  const trendsQuery = trpc.dashboard.trends.useQuery({ range })
+  const inventoryQuery = trpc.dashboard.inventory.useQuery()
+  const inventoryByCategoryQuery = trpc.dashboard.inventoryByCategory.useQuery()
+  const financeOverview = trpc.finance.overview.useQuery()
+  const platformMixQuery = trpc.dashboard.platformMix.useQuery({ range })
+  const alertsQuery = trpc.dashboard.alerts.useQuery()
+  const todosListQuery = trpc.dashboard.todos.useQuery()
+  const exceptionSync = trpc.orderExceptions.sync.useMutation({
+    onSuccess: async () => {
+      await alertsQuery.refetch()
+      await todosListQuery.refetch()
+      setNotice('已同步订单异常统计（orderExceptions.sync）')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const k = kpisQuery.data
+  const trends = trendsQuery.data ?? []
+
+  function deltaPct(cur: number, prev: number): { value: string; tone: 'positive' | 'negative' | 'neutral' } {
+    if (!prev && !cur) return { value: '0%', tone: 'neutral' }
+    if (!prev) return { value: '+100%', tone: 'positive' }
+    const pct = ((cur - prev) / Math.abs(prev)) * 100
+    const value = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
+    const tone = pct > 0.05 ? 'positive' : pct < -0.05 ? 'negative' : 'neutral'
+    return { value, tone }
+  }
+
+  const revenueDelta = deltaPct(k?.revenue ?? 0, k?.prevRevenue ?? 0)
+  const ordersDelta = deltaPct(k?.orders ?? 0, k?.prevOrders ?? 0)
+  const unitsDelta = deltaPct(k?.units ?? 0, k?.prevUnits ?? 0)
+  const aovDelta = deltaPct(k?.aov ?? 0, k?.prevAov ?? 0)
+  const refundRate =
+    trends.length === 0
+      ? 0
+      : Number((trends.reduce((s, p) => s + p.refundRate, 0) / trends.length).toFixed(1))
+  const grossProfit = financeOverview.data?.profit ?? (k?.revenue ?? 0)
+  const grossMargin =
+    (k?.revenue ?? 0) > 0 ? (((grossProfit) / (k?.revenue ?? 1)) * 100).toFixed(1) : '0.0'
 
   const kpis = [
     {
       key: 'revenue',
       label: `销售额 · ${rangeLabel}`,
-      value: formatCompactLkr(summary.revenue),
-      delta: MOCK_DASHBOARD_KPI_DELTAS.revenue.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.revenue.tone,
-      hint: 'vs 上期 · 示例',
+      value: formatCompactLkr(k?.revenue ?? 0),
+      delta: revenueDelta.value,
+      tone: revenueDelta.tone,
+      hint: 'vs 上期 · orders.total_amount',
       href: '/console/finance',
     },
     {
       key: 'orders',
       label: `订单量 · ${rangeLabel}`,
-      value: formatNumber(summary.orders),
-      delta: MOCK_DASHBOARD_KPI_DELTAS.orders.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.orders.tone,
-      hint: 'vs 上期 · 示例',
+      value: formatNumber(k?.orders ?? 0),
+      delta: ordersDelta.value,
+      tone: ordersDelta.tone,
+      hint: 'vs 上期 · orders',
       href: '/console/orders',
     },
     {
       key: 'units',
       label: `销量 · ${rangeLabel}`,
-      value: formatNumber(summary.units),
-      delta: MOCK_DASHBOARD_KPI_DELTAS.units.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.units.tone,
-      hint: '件数口径 · 示例',
+      value: formatNumber(k?.units ?? 0),
+      delta: unitsDelta.value,
+      tone: unitsDelta.tone,
+      hint: '件数 · order_lines.qty',
       href: '/console/orders',
     },
     {
       key: 'aov',
       label: `客单价 · ${rangeLabel}`,
-      value: `LKR ${formatNumber(summary.aov)}`,
-      delta: MOCK_DASHBOARD_KPI_DELTAS.aov.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.aov.tone,
-      hint: '销售额 / 订单量 · 示例',
+      value: `LKR ${formatNumber(k?.aov ?? 0)}`,
+      delta: aovDelta.value,
+      tone: aovDelta.tone,
+      hint: '销售额 / 订单量',
       href: '/console/reports',
     },
     {
       key: 'refundRate',
       label: `退款率 · ${rangeLabel}`,
-      value: `${summary.refundRate}%`,
-      delta: MOCK_DASHBOARD_KPI_DELTAS.refundRate.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.refundRate.tone,
-      hint: '目标 ≤ 5% · 示例',
+      value: `${refundRate}%`,
+      delta: '—',
+      tone: 'neutral' as const,
+      hint: 'cancel_pending / 订单',
       href: '/console/aftersales',
     },
     {
       key: 'grossProfit',
       label: `毛利 · ${rangeLabel}`,
-      value: formatCompactLkr(summary.grossProfit),
-      delta: MOCK_DASHBOARD_KPI_DELTAS.grossProfit.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.grossProfit.tone,
-      hint: `毛利率 ${summary.grossMargin}% · 示例`,
+      value: formatCompactLkr(grossProfit),
+      delta: '—',
+      tone: 'neutral' as const,
+      hint: `利润约 ${grossMargin}% · finance.overview`,
       href: '/console/profits',
     },
     {
       key: 'netProfit',
       label: `净利 · ${rangeLabel}`,
-      value: formatCompactLkr(summary.netProfit),
-      delta: MOCK_DASHBOARD_KPI_DELTAS.netProfit.value,
-      tone: MOCK_DASHBOARD_KPI_DELTAS.netProfit.tone,
-      hint: `净利率 ${summary.netMargin}% · 示例`,
+      value: formatCompactLkr(financeOverview.data?.profit ?? 0),
+      delta: '—',
+      tone: 'neutral' as const,
+      hint: `净利率 ${financeOverview.data?.margin ?? '—'}`,
       href: '/console/profits',
     },
   ]
+
+  const inventorySummary = inventoryQuery.data
+  const todosQueryInline = trpc.dashboard.todos.useQuery()
+  const chartPoints = trends.map((p) => {
+    const day = p.date.slice(5)
+    const grossProfit = p.profit
+    const grossMargin = p.revenue > 0 ? Number(((grossProfit / p.revenue) * 100).toFixed(1)) : 0
+    return {
+      day,
+      orders: p.orders,
+      revenue: p.revenue,
+      units: p.units,
+      aov: p.aov,
+      refundRate: p.refundRate,
+      grossProfit,
+      grossMargin,
+      netProfit: grossProfit,
+      netMargin: grossMargin,
+    }
+  })
 
   return (
     <div className="space-y-6">
@@ -287,11 +309,6 @@ export default function DashboardPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部店铺</SelectItem>
-              {MOCK_SHOPS.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.name}
-                </SelectItem>
-              ))}
             </SelectContent>
           </Select>
         </div>
@@ -361,16 +378,16 @@ export default function DashboardPage() {
             <DashboardRangeToggle value={range} onChange={setRange} />
           </CardHeader>
           <CardContent>
-            <SalesTrendChart range={range} />
+            <SalesTrendChart range={range} data={chartPoints} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">平台 / 站点销售占比</CardTitle>
-            <CardDescription>按销售额占比 · 示例</CardDescription>
+            <CardDescription>按销售额占比 · 订单×店铺</CardDescription>
           </CardHeader>
           <CardContent>
-            <PlatformMixCard />
+            <PlatformMixCard data={platformMixQuery.data} />
           </CardContent>
         </Card>
       </div>
@@ -382,7 +399,7 @@ export default function DashboardPage() {
             <CardDescription>毛利额 / 净利额与对应利润率 · {rangeLabel}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfitTrendChart range={range} />
+            <ProfitTrendChart range={range} data={chartPoints} />
           </CardContent>
         </Card>
         <Card>
@@ -391,7 +408,7 @@ export default function DashboardPage() {
             <CardDescription>退款率与目标阈值 · {rangeLabel}</CardDescription>
           </CardHeader>
           <CardContent>
-            <RefundRateChart range={range} />
+            <RefundRateChart range={range} data={chartPoints} />
           </CardContent>
         </Card>
       </div>
@@ -409,106 +426,79 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">库存健康</CardTitle>
-          <CardDescription>库存结构、周转与缺货 · 示例数据</CardDescription>
+          <CardDescription>库存余额汇总 · inventory_balances（缺省 0）</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
             <InventoryStat
-              label="库存总量"
-              value={formatNumber(MOCK_DASHBOARD_INVENTORY.totalStock)}
+              label="在库总量"
+              value={formatNumber(inventorySummary?.onHand ?? 0)}
               unit="件"
             />
             <InventoryStat
-              label="周转天数"
-              value={MOCK_DASHBOARD_INVENTORY.turnoverDays.toFixed(1)}
-              unit="天"
-              hint="目标 30 天"
+              label="可用"
+              value={formatNumber(inventorySummary?.available ?? 0)}
+              unit="件"
             />
             <InventoryStat
-              label="缺货 SKU"
-              value={String(MOCK_DASHBOARD_INVENTORY.shortageSkuCount)}
+              label="占用"
+              value={formatNumber(inventorySummary?.reserved ?? 0)}
+              unit="件"
+            />
+            <InventoryStat
+              label="SKU 数"
+              value={String(inventorySummary?.skus ?? 0)}
               unit="个"
-              hint="需补货"
-            />
-            <InventoryStat
-              label="采购在途"
-              value={formatNumber(MOCK_DASHBOARD_INVENTORY.inTransitUnits)}
-              unit="件"
-              hint="供给管线"
+              hint={`低库存 ${todosQueryInline.data?.lowStock ?? 0}`}
             />
           </div>
-
+          <p className="text-xs text-muted-foreground">
+            分类 / 周转按 balances + movements 聚合；无数据空态。详见库存余额页。
+          </p>
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">分类库存结构</p>
-              <InventoryStructureChart />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">分类周转天数</p>
-              <TurnoverChart />
-            </div>
+            <InventoryStructureChart data={inventoryByCategoryQuery.data} />
+            <TurnoverChart data={inventoryByCategoryQuery.data} />
           </div>
-
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">缺货 SKU 清单</p>
-              <Badge variant="secondary">
-                {MOCK_DASHBOARD_INVENTORY.shortageSkuCount} 个待补货
-              </Badge>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>品名</TableHead>
-                  <TableHead className="text-right">缺口</TableHead>
-                  <TableHead>预计到货</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {MOCK_DASHBOARD_INVENTORY.shortages.map((item) => (
-                  <TableRow key={item.sku}>
-                    <TableCell className="font-medium">{item.sku}</TableCell>
-                    <TableCell>{item.title}</TableCell>
-                    <TableCell className="text-right tabular-nums">{item.gap}</TableCell>
-                    <TableCell>{item.eta}</TableCell>
-                    <TableCell className="text-right">
-                      <LocaleLink
-                        href={`/console/inventory/${item.sku}`}
-                        className="text-sm underline-offset-4 hover:underline"
-                      >
-                        去补货
-                      </LocaleLink>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <Button size="sm" variant="outline" asChild>
+            <LocaleLink href="/console/inventory-balances">打开库存余额</LocaleLink>
+          </Button>
         </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
+
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">今日预警</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={exceptionSync.isPending}
+              onClick={() => exceptionSync.mutate()}
+            >
+              同步异常
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {MOCK_DASHBOARD_ALERTS.map((alert) => (
-              <LocaleLink
-                key={alert.message}
-                href={alert.href}
-                className="flex items-start justify-between gap-3 rounded-md border p-3 text-sm hover:bg-muted/50"
-              >
-                <span>
-                  <Badge variant="secondary" className="mr-2">
-                    {alert.type}
-                  </Badge>
-                  {alert.message}
-                </span>
-              </LocaleLink>
-            ))}
+            {(alertsQuery.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">暂无预警（订单异常 / 同步 / 库存统计为空）</p>
+            ) : (
+              (alertsQuery.data ?? []).map((alert) => (
+                <LocaleLink
+                  key={`${alert.type}-${alert.message}`}
+                  href={alert.href}
+                  className="flex items-start justify-between gap-3 rounded-md border p-3 text-sm hover:bg-muted/50"
+                >
+                  <span>
+                    <Badge variant="secondary" className="mr-2">
+                      {alert.type}
+                    </Badge>
+                    {alert.message}
+                  </span>
+                  <span className="tabular-nums text-muted-foreground">{alert.count}</span>
+                </LocaleLink>
+              ))
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -516,15 +506,51 @@ export default function DashboardPage() {
             <CardTitle className="text-base">待办</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {MOCK_DASHBOARD_TODOS.map((todo) => (
-              <LocaleLink
-                key={todo.title}
-                href={todo.href}
-                className="block rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
-              >
-                {todo.title}
-              </LocaleLink>
-            ))}
+            {[
+              {
+                title: `待发货 ${todosListQuery.data?.readyToShip ?? 0}`,
+                href: '/console/orders',
+                show: (todosListQuery.data?.readyToShip ?? 0) > 0,
+              },
+              {
+                title: `低库存 ${todosListQuery.data?.lowStock ?? 0}`,
+                href: '/console/inventory-balances',
+                show: (todosListQuery.data?.lowStock ?? 0) > 0,
+              },
+              {
+                title: `待审采购 ${todosListQuery.data?.pendingPurchase ?? 0}`,
+                href: '/console/purchase-requests',
+                show: (todosListQuery.data?.pendingPurchase ?? 0) > 0,
+              },
+              {
+                title: `映射异常 ${todosListQuery.data?.mappingAbnormal ?? 0}`,
+                href: '/console/mappings',
+                show: (todosListQuery.data?.mappingAbnormal ?? 0) > 0,
+              },
+              {
+                title: `同步失败 ${todosListQuery.data?.syncFail ?? 0}`,
+                href: '/console/sync-tasks',
+                show: (todosListQuery.data?.syncFail ?? 0) > 0,
+              },
+            ]
+              .filter((t) => t.show)
+              .map((todo) => (
+                <LocaleLink
+                  key={todo.title}
+                  href={todo.href}
+                  className="block rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
+                >
+                  {todo.title}
+                </LocaleLink>
+              ))}
+            {(todosListQuery.data == null ||
+              ((todosListQuery.data.readyToShip ?? 0) === 0 &&
+                (todosListQuery.data.lowStock ?? 0) === 0 &&
+                (todosListQuery.data.pendingPurchase ?? 0) === 0 &&
+                (todosListQuery.data.mappingAbnormal ?? 0) === 0 &&
+                (todosListQuery.data.syncFail ?? 0) === 0)) && (
+              <p className="text-sm text-muted-foreground">暂无待办</p>
+            )}
           </CardContent>
         </Card>
       </div>

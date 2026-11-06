@@ -5,22 +5,24 @@ import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
 import { Badge } from '@workspace/ui/components/badge'
-import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
-import { activeCategoryPaths, useCategories } from '@/lib/crossborder/category-store'
-import { useMembers } from '@/lib/crossborder/member-store'
-import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
+import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 const PAGE_SIZE = 20
 
 export default function MasterProductsPage() {
   const router = useLocaleRouter()
-  const dictionaryState = useDictionaries()
-  const categories = useCategories()
-  const members = useMembers()
-  const brandOptions = activeDictionaryValues(dictionaryState, 'product_brand')
-  const categoryOptions = activeCategoryPaths(categories)
+  const dictionariesQuery = trpc.dictionaries.list.useQuery()
+  const categoriesQuery = trpc.categories.list.useQuery({})
+  const membersQuery = trpc.members.list.useQuery({})
+  const brandDict = dictionariesQuery.data?.find((d) => d.key === 'product_brand')
+  const brandOptions = (brandDict?.values ?? []).filter((v) => !(brandDict?.inactiveValues ?? []).includes(v))
+  const categoryRows = categoriesQuery.data ?? []
+  const categoryOptions = categoryRows
+    .filter((c) => c.status === '启用')
+    .map((c) => c.name)
+  const members = (membersQuery.data ?? []).filter((m) => m.source === 'member' && m.status === '启用')
   const ownerOptions = members.filter((member) => member.status === '启用').map((member) => member.name)
 
   const [open, setOpen] = React.useState(false)

@@ -3,35 +3,26 @@
 import * as React from 'react'
 import { DetailPageHeader } from '@/components/console/detail'
 import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
-import { useCartonSpecs } from '@/lib/crossborder/carton-spec-store'
+import { trpc } from '@/lib/trpc/client'
 
 export default function CartonSpecDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const rows = useCartonSpecs()
-  const row = rows.find((item) => item.id === id)
-
-  if (!row) {
+  const query = trpc.cartonSpecs.get.useQuery({ id })
+  if (query.isLoading) return <p className="text-sm text-muted-foreground">加载箱规…</p>
+  if (!query.data) {
     return (
       <div className="flex w-full flex-col gap-4">
-        <DetailPageHeader
-          backHref="/console/carton-specs"
-          title="未找到箱规"
-          description={`箱规 ${id} 不存在或已被删除。`}
-        />
-        <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          请返回列表重新选择。
-        </p>
+        <DetailPageHeader backHref="/console/carton-specs" title="未找到箱规" description={`箱规 ${id} 不存在或已被删除。`} />
       </div>
     )
   }
-
   return (
     <UedRecordDetail
       backHref="/console/carton-specs"
       moduleTitle="箱规管理"
       module="carton-specs"
-      row={row as unknown as Record<string, unknown>}
-      notice="箱规为运输包装主数据；关联运费测算与成本分表展示，不与拣货包裹混用。"
+      row={query.data as unknown as Record<string, unknown>}
+      notice="箱规为运输包装主数据（commerce_carton_specs）；不与拣货包裹或 ocean_shipment_boxes 混用。"
     />
   )
 }

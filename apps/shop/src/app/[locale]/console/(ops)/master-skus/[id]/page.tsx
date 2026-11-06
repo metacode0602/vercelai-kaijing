@@ -4,11 +4,32 @@ import * as React from 'react'
 import { DetailPageHeader } from '@/components/console/detail'
 import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
 import { ProductImageEditor } from '@/components/console/product-images'
+import {
+  buildUedRelatedInfo,
+  mapBalanceRows,
+  mapMovementRows,
+} from '@/lib/console/related-info'
 import { trpc } from '@/lib/trpc/client'
 
 export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
   const skuQuery = trpc.products.skuByCode.useQuery({ code: id })
+  const balancesQuery = trpc.wms.listBalances.useQuery(
+    { page: 1, pageSize: 50, sku: id },
+    { enabled: !!id },
+  )
+  const movementsQuery = trpc.wms.listMovements.useQuery(
+    { page: 1, pageSize: 30, sku: id },
+    { enabled: !!id },
+  )
+  const listingsQuery = trpc.listings.list.useQuery(
+    { page: 1, pageSize: 20, sku: id },
+    { enabled: !!id },
+  )
+  const mappingsQuery = trpc.mappings.list.useQuery(
+    { page: 1, pageSize: 20, internalSku: id },
+    { enabled: !!id },
+  )
 
   if (skuQuery.isLoading) {
     return (
@@ -38,6 +59,36 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const row = skuQuery.data
+  const relatedInfo = buildUedRelatedInfo(
+    'master-skus',
+    row as unknown as Record<string, unknown>,
+    {
+      balances: mapBalanceRows(balancesQuery.data?.items ?? []),
+      movements: mapMovementRows(movementsQuery.data?.items ?? []),
+      listings: (listingsQuery.data?.items ?? []).map((item) => ({
+        id: item.id,
+        title: item.title,
+        sku: item.sku,
+        shop: item.shop,
+        platform: item.platform,
+        status: item.status,
+        sellPrice: item.priceAmount,
+        currency: item.priceCurrency,
+        href: `/console/listings/${encodeURIComponent(item.id)}`,
+      })),
+      mappings: (mappingsQuery.data?.items ?? []).map((item) => ({
+        id: item.id,
+        shop: item.shop,
+        platform: item.platform,
+        sellerSku: item.sellerSku,
+        internalSku: item.internalSku,
+        itemId: item.itemId,
+        platformSkuId: item.platformSkuId,
+        mappingStatus: item.mappingStatus,
+        href: item.href,
+      })),
+    },
+  )
 
   return (
     <UedRecordDetail
@@ -45,7 +96,8 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
       moduleTitle="内部 SKU"
       module="master-skus"
       row={row as unknown as Record<string, unknown>}
-      notice="数据来自 product_variants。关联供应源 / 映射 / 库存等其它域仍可能为 stub。"
+      relatedInfo={relatedInfo}
+      notice="主档来自 product_variants；库存余额 / 流水来自 wms；刊登 / 映射来自 listings & mappings tRPC。供应商货号仍未接库。"
       extra={
         <ProductImageEditor
           imageKey={`sku:${row.sku}`}

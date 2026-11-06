@@ -40,12 +40,18 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
   const router = useLocaleRouter()
   const utils = trpc.useUtils()
   const [lineOpen, setLineOpen] = React.useState(false)
+  const [lineSku, setLineSku] = React.useState('')
   const [headerOpen, setHeaderOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const detailQuery = trpc.purchase.getRequest.useQuery({ id })
   const skuCodesQuery = trpc.purchase.listSkuCodes.useQuery()
   const skuOptions = skuCodesQuery.data?.length ? skuCodesQuery.data : ['HSY000001001']
+  const preferredSku = lineSku || skuOptions[0] || 'HSY000001001'
+  const preferredQuery = trpc.suppliers.preferredForSku.useQuery(
+    { sku: preferredSku },
+    { enabled: lineOpen && Boolean(preferredSku) },
+  )
 
   const invalidate = async () => {
     await utils.purchase.getRequest.invalidate({ id })
@@ -147,7 +153,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
               </Button>
             ) : null}
             {canEdit ? (
-              <Button size="sm" onClick={() => setLineOpen(true)}>
+              <Button size="sm" onClick={() => { setLineSku(skuOptions[0] || ''); setLineOpen(true) }}>
                 添加申请明细
               </Button>
             ) : null}
@@ -241,7 +247,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
         description="purchase_request_lines：内部 SKU、数量、报价单价与金额"
         action={
           canEdit ? (
-            <Button size="sm" variant="outline" onClick={() => setLineOpen(true)}>
+            <Button size="sm" variant="outline" onClick={() => { setLineSku(skuOptions[0] || ''); setLineOpen(true) }}>
               添加申请明细
             </Button>
           ) : null
@@ -253,7 +259,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
               主信息已保存，明细为空。无明细时不可提交审核。
             </p>
             {canEdit ? (
-              <Button size="sm" onClick={() => setLineOpen(true)}>
+              <Button size="sm" onClick={() => { setLineSku(skuOptions[0] || ''); setLineOpen(true) }}>
                 添加第一条明细
               </Button>
             ) : null}
@@ -379,20 +385,39 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
           title="添加申请明细"
           description="写入 purchase_request_lines：variant_id、qty、unit_price；金额自动计算。"
           fields={[
-            { key: 'sku', label: '内部 SKU', options: skuOptions, required: true, helper: '对应 product_variants' },
-            { key: 'supplierSku', label: '供应商 SKU', placeholder: '可空' },
-            { key: 'qty', label: '申请数量', type: 'number', required: true, defaultValue: '1' },
-            { key: 'unitPrice', label: '采购单价', type: 'number', required: true, defaultValue: '28' },
-            { key: 'remark', label: '行备注', type: 'textarea', fullWidth: true },
+            { key: 'sku', label: '内部 SKU', options: skuOptions, required: true, helper: '对应 product_variants；选中后自动带首选供货价/交期', defaultValue: preferredSku },
+            {
+              key: 'supplierSku',
+              label: '供应商 SKU',
+              placeholder: preferredQuery.data?.factoryCode || '可空',
+              defaultValue: preferredQuery.data?.factoryCode || '',
+              helper: preferredQuery.data
+                ? `首选：${preferredQuery.data.supplier} · 交期 ${preferredQuery.data.leadDays} 天 · MOQ ${preferredQuery.data.moq}`
+                : '无首选供应商货号时可手填',
+            },
+            { key: 'qty', label: '申请数量', type: 'number', required: true, defaultValue: preferredQuery.data ? String(preferredQuery.data.moq || 1) : '1' },
+            {
+              key: 'unitPrice',
+              label: '采购单价',
+              type: 'number',
+              required: true,
+              defaultValue: preferredQuery.data ? String(preferredQuery.data.price) : '0',
+              helper: preferredQuery.data
+                ? `来自 suppliers.preferredForSku · ${preferredQuery.data.currency}`
+                : '无参考价时请手填',
+            },
+            { key: 'remark', label: '行备注', type: 'textarea', fullWidth: true, defaultValue: preferredQuery.data ? `交期约 ${preferredQuery.data.leadDays} 天` : '' },
           ]}
           onClose={() => setLineOpen(false)}
           onSave={(values) => {
+            const sku = values.sku || skuOptions[0]!
+            setLineSku(sku)
             addLineMutation.mutate({
               requestId: current.id,
-              sku: values.sku || skuOptions[0]!,
-              supplierSku: values.supplierSku,
-              qty: Number(values.qty || 1),
-              unitPrice: Number(values.unitPrice || 0),
+              sku,
+              supplierSku: values.supplierSku || preferredQuery.data?.factoryCode,
+              qty: Number(values.qty || preferredQuery.data?.moq || 1),
+              unitPrice: Number(values.unitPrice || preferredQuery.data?.price || 0),
               remark: values.remark,
             })
           }}

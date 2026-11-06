@@ -10,15 +10,13 @@ import {
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { buildUedRelatedInfo } from '@/lib/console/related-info'
 import {
-  getBalance,
-  toRelatedLedgerShape,
-  useInventoryBalances,
-  useInventoryLedger,
-} from '@/lib/crossborder/wms-store'
+  BALANCE_COLUMNS,
+  buildUedRelatedInfo,
+  mapBalanceRows,
+} from '@/lib/console/related-info'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -30,44 +28,67 @@ function sourceHref(sourceType: string, sourceId: string) {
   }
   if (sourceId.startsWith('PO')) return `/console/purchase-orders/${encodeURIComponent(sourceId)}`
   if (sourceId.startsWith('IN')) return `/console/stock-inbounds/${encodeURIComponent(sourceId)}`
-  if (sourceId.startsWith('OUT')) return `/console/stock-outbounds/${encodeURIComponent(sourceId)}`
-  if (sourceId.startsWith('ADJ')) return `/console/stock-adjustments/${encodeURIComponent(sourceId)}`
-  if (sourceId.startsWith('AS')) return `/console/aftersales/${encodeURIComponent(sourceId)}`
+  if (sourceId.startsWith('OUT') || sourceType.includes('outbound')) {
+    return `/console/stock-outbounds/${encodeURIComponent(sourceId)}`
+  }
+  if (sourceId.startsWith('ADJ') || sourceType.includes('adjust')) {
+    return `/console/stock-adjustments/${encodeURIComponent(sourceId)}`
+  }
   return undefined
 }
 
 export default function InventoryLedgerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const ledger = useInventoryLedger()
-  useInventoryBalances()
-  const [mounted, setMounted] = React.useState(false)
+  const movementQuery = trpc.wms.getMovement.useQuery({ id }, { retry: false })
+  const entry = movementQuery.data
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const balancesQuery = trpc.wms.listBalances.useQuery(
+    { page: 1, pageSize: 20, sku: entry?.sku, warehouse: entry?.warehouse },
+    { enabled: !!entry?.sku },
+  )
 
-  const entry = ledger.find((item) => item.id === id)
+  if (movementQuery.isLoading) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/inventory-ledger"
+          title="加载中…"
+          description="正在从数据库读取库存流水…"
+        />
+      </div>
+    )
+  }
 
   if (!entry) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/inventory-ledger"
-          title={mounted ? '未找到流水' : '加载中…'}
-          description={mounted ? `流水 ${id} 不存在。` : '正在读取本机原型会话…'}
+          title="未找到流水"
+          description={movementQuery.error?.message ?? `流水 ${id} 不存在。`}
         />
       </div>
     )
   }
 
+  const balances = (balancesQuery.data?.items ?? []).filter(
+    (item) => item.bin === entry.bin && item.sku === entry.sku,
+  )
   const related = buildUedRelatedInfo(
     'inventory-ledger',
-    toRelatedLedgerShape(entry) as Record<string, unknown>,
+    {
+      id: entry.id,
+      sku: entry.sku,
+      bin: entry.bin,
+      warehouse: entry.warehouse,
+      source: entry.sourceId,
+      type: entry.type,
+    },
+    { balances: mapBalanceRows(balances) },
   )
   const parentFields = parentsToFields(related.parents)
-  const balance = getBalance(`${entry.warehouse}-${entry.bin}-${entry.sku}`)
   const href = sourceHref(entry.sourceType, entry.sourceId)
-  const delta = entry.onHandAfter - entry.onHandBefore
+  const balance = balances[0]
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -77,10 +98,10 @@ export default function InventoryLedgerDetailPage({ params }: { params: Promise<
       <DetailPageHeader
         backHref="/console/inventory-ledger"
         title={entry.id}
-        description={`${entry.eventType} · ${entry.sku} · ${entry.bin}`}
+        description={`${entry.type} · ${entry.sku} · ${entry.bin}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">inventory_movements</Badge>
             <Badge variant="secondary">{entry.status}</Badge>
             <Badge variant="outline">{entry.direction}</Badge>
           </>
@@ -105,24 +126,20 @@ export default function InventoryLedgerDetailPage({ params }: { params: Promise<
       <Alert>
         <AlertTitle>追加式流水 · 禁止 UPDATE/DELETE</AlertTitle>
         <AlertDescription>
-          幂等键 {entry.idempotencyKey}。更正请创建反向流水（manual_adjust）并保留原因与审批。
+          幂等键 {entry.idempotencyKey}。更正请创建反向流水并保留原因与审批。变动 {entry.qtyDelta > 0 ? `+${entry.qtyDelta}` : entry.qtyDelta} → 账面 {entry.onHandAfter}。
         </AlertDescription>
       </Alert>
-      <UedPrototypeNotice>
-        本条已记账。账面 {entry.onHandBefore} → {entry.onHandAfter}；预留 {entry.reservedBefore} →{' '}
-        {entry.reservedAfter}。
-      </UedPrototypeNotice>
       <DetailKpiRow
         items={[
-          { label: '变动数量', value: delta > 0 ? `+${delta}` : String(delta) },
+          { label: '变动数量', value: entry.qtyDelta > 0 ? `+${entry.qtyDelta}` : String(entry.qtyDelta) },
           { label: '变动后账面', value: String(entry.onHandAfter) },
-          { label: '事件类型', value: entry.eventType },
+          { label: '事件类型', value: entry.type },
           { label: '方向', value: entry.direction },
         ]}
       />
       <DetailFieldGrid
         title="流水主信息"
-        description="inventory_ledger"
+        description="inventory_movements"
         fields={[
           { label: '流水号', value: entry.id, mono: true },
           ...parentFields,
@@ -132,14 +149,26 @@ export default function InventoryLedgerDetailPage({ params }: { params: Promise<
           { label: '展示类型', value: entry.type },
           { label: '来源类型', value: entry.sourceType },
           { label: '来源单', value: entry.sourceId, mono: true },
-          { label: '来源行', value: entry.sourceLineId || '—' },
-          { label: '原因', value: entry.reason || '—' },
-          { label: '操作人', value: entry.actor },
+          { label: '操作人', value: entry.operator || '—' },
           { label: '幂等键', value: entry.idempotencyKey, mono: true },
           { label: '业务时间', value: entry.occurredAt },
         ]}
       />
-      <DetailRelatedTables sections={related.sections || []} />
+      <DetailRelatedTables
+        sections={
+          related.sections?.length
+            ? related.sections
+            : [
+                {
+                  title: '当前余额',
+                  description: 'wms.listBalances',
+                  columns: BALANCE_COLUMNS,
+                  rows: mapBalanceRows(balances),
+                  emptyText: '暂无关联数据',
+                },
+              ]
+        }
+      />
     </div>
   )
 }

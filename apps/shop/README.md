@@ -9,7 +9,7 @@
 | 使用者 | 卖家 / 租户运营 |
 | 作用 | 本组织跨境业务的数据查看与运营操作入口 |
 | 技术栈 | Next.js 16 App Router、next-intl、`@workspace/ui`、better-auth |
-| 当前阶段 | **模块1–5（商品 / 采购入库 / 订单占库→出库 / LGS·JSB 履约 / 费用模板）已接 tRPC → dataaccess → PostgreSQL**；海运柜次等仍为原型 |
+| 当前阶段 | **模块1–16（商品 / 采购入库 / 订单占库→出库 / LGS·JSB / 费用模板 / 售后 / 海运在途 / WMS / 库区 / 关联信息 / 刊登映射 / 供应商与异常 / 财务同步 / 候选站内信 / 运营清理 / 演示收尾）已接 tRPC → dataaccess → PostgreSQL**；真实平台 OAuth·OpenAPI 联调仍为边界 |
 
 ## 主要路由
 
@@ -47,6 +47,8 @@ pnpm --filter @workspace/db db:seed:commerce-products
 pnpm --filter @workspace/db db:seed:commerce-purchase
 pnpm --filter @workspace/db db:seed:commerce-orders
 pnpm --filter @workspace/db db:seed:commerce-logistics
+pnpm --filter @workspace/db db:seed:commerce-aftersales
+pnpm --filter @workspace/db db:seed:commerce-ocean
 # 开发无登录时，把种子组织写入环境（与 seed 默认一致）
 # SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 pnpm --filter shop dev
@@ -101,7 +103,7 @@ pnpm --filter shop dev
 
 **已接库**：包裹列表/详情、从订单创建、追加轨迹（强制 source）、stub 同步写 attempt、LGS/JSB 交接批次建批/加包/提交/关闭。`shipment-store` 主路径 localStorage 已停用。
 
-**仍 mock / stub**：真实平台 OpenAPI、海运柜次业务化、已发货取消冲销出库、WMS 非订单出库、库存流水页完整 tRPC、Seller SKU 映射专页、供应商主数据等。费用模板已接 DB（见 `docs/design/shop-module5-fee-templates-trpc.md`）。售后已接 DB（见模块6）。
+**仍 mock / stub**：真实平台 OAuth / OpenAPI（订单·刊登·结算拉取、评论与物流轨迹等）。费用模板 / 售后 / 海运柜次 / WMS 非订单出库等 ERP 自有路径已接 DB（见模块5–8 设计文档）。
 
 ### 模块5 · 费用模板（进口税 / 平台费）
 
@@ -113,6 +115,7 @@ pnpm --filter shop dev
 | 测算 | `cost-calculator-workbench` → `feeTemplates.resolve` → `computeLandedCost(..., overrides)`；未命中回退 `TARIFF_PROFILES` |
 | Seed | `pnpm --filter @workspace/db db:seed:commerce-fee-templates` |
 
+
 ### 模块6 · 售后（取消释放占库 / 退货质检回库报损）
 
 | 项 | 说明 |
@@ -123,7 +126,19 @@ pnpm --filter shop dev
 | 流水 | 取消 `order_release`；回库 `aftersale_restock`；报损 `aftersale_scrap`（幂等对齐模块3） |
 | Seed | `pnpm --filter @workspace/db db:seed:commerce-aftersales` |
 
-详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)、[docs/design/shop-module5-fee-templates-trpc.md](../../docs/design/shop-module5-fee-templates-trpc.md)、[docs/design/shop-module6-aftersale-trpc.md](../../docs/design/shop-module6-aftersale-trpc.md)。
+### 模块7：海运柜次 / 在途库存（已接库）
+
+| 层 | 路径 |
+| --- | --- |
+| tRPC 路由 | `src/lib/server/routers/ocean.ts` |
+| dataaccess | `src/lib/server/dataaccess/ocean.ts` |
+| 表 | `ocean_shipments*` / `inventory_*` / `sku_costs`（migration 0014） |
+| 控制台页 | `ocean-containers` |
+| 种子 | `pnpm --filter @workspace/db db:seed:commerce-ocean` |
+
+**已接库**：柜次列表/详情/stats、装箱箱明细、状态推进写在途/清关/到仓库存桶与幂等流水、柜次成本 saveCost。`ocean-container-store` localStorage 主路径已停用。
+
+详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)、[docs/design/shop-module5-fee-templates-trpc.md](../../docs/design/shop-module5-fee-templates-trpc.md)、[docs/design/shop-module6-aftersale-trpc.md](../../docs/design/shop-module6-aftersale-trpc.md)、[docs/design/shop-module7-ocean-trpc.md](../../docs/design/shop-module7-ocean-trpc.md)、[docs/design/shop-module8-wms-trpc.md](../../docs/design/shop-module8-wms-trpc.md)、[docs/design/shop-module16-real-data-final.md](../../docs/design/shop-module16-real-data-final.md)。
 
 ## 脚本
 
@@ -149,3 +164,4 @@ pnpm --filter shop sync:marketplace -- --shopId=b5ofcwj2mzauov29y08m0q99 --platf
 ```
 
 See `packages/marketplace/ENV_CHECKLIST.md` and `src/workers/marketplace-sync.ts`.
+

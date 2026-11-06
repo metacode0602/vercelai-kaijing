@@ -12,19 +12,15 @@ import {
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { buildUedRelatedInfo } from '@/lib/console/related-info'
 import {
-  approveStockAdjustment,
-  cancelStockAdjustment,
-  postStockAdjustment,
-  rejectStockAdjustment,
-  submitStockAdjustment,
-  toRelatedAdjustmentShape,
-  useInventoryBalances,
-  useStockAdjustments,
-} from '@/lib/crossborder/wms-store'
+  BALANCE_COLUMNS,
+  MOVEMENT_COLUMNS,
+  buildUedRelatedInfo,
+  mapBalanceRows,
+  mapMovementRows,
+} from '@/lib/console/related-info'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -45,46 +41,112 @@ function statusVariant(status: string) {
 
 export default function StockAdjustmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const adjustments = useStockAdjustments()
-  useInventoryBalances()
-  const adjustment = adjustments.find((item) => item.id === id || item.adjustmentNo === id)
-  const [mounted, setMounted] = React.useState(false)
+  const utils = trpc.useUtils()
   const [notice, setNotice] = React.useState('')
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const query = trpc.wms.getAdjustment.useQuery({ id }, { retry: false })
+  const adjustment = query.data
+
+  const firstSku = adjustment?.lines[0]?.sku || adjustment?.firstSku
+  const balancesQuery = trpc.wms.listBalances.useQuery(
+    { page: 1, pageSize: 50, sku: firstSku, warehouse: adjustment?.warehouse },
+    { enabled: !!adjustment },
+  )
+  const movementsQuery = trpc.wms.listMovements.useQuery(
+    { page: 1, pageSize: 50, warehouse: adjustment?.warehouse, sku: firstSku },
+    { enabled: !!adjustment },
+  )
+
+  const invalidate = async () => {
+    await Promise.all([
+      utils.wms.getAdjustment.invalidate({ id }),
+      utils.wms.listAdjustments.invalidate(),
+      utils.wms.adjustmentStats.invalidate(),
+      utils.wms.listBalances.invalidate(),
+      utils.wms.listMovements.invalidate(),
+    ])
+  }
+
+  const approveMut = trpc.wms.approveAdjustment.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setNotice('已审批通过')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const rejectMut = trpc.wms.rejectAdjustment.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setNotice('已驳回')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const postMut = trpc.wms.postAdjustment.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setNotice('已过账写流水')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  if (query.isLoading) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/stock-adjustments"
+          title="加载中…"
+          description="正在从数据库读取调整单…"
+        />
+      </div>
+    )
+  }
 
   if (!adjustment) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/stock-adjustments"
-          title={mounted ? '未找到调整单' : '加载中…'}
-          description={mounted ? `调整单 ${id} 不存在。` : '正在读取本机原型会话…'}
+          title="未找到调整单"
+          description={query.error?.message ?? `调整单 ${id} 不存在。`}
         />
       </div>
     )
   }
 
+  const lineSkus = new Set(adjustment.lines.map((line) => line.sku))
+  const lineBins = new Set(adjustment.lines.map((line) => line.bin))
+  const balances = (balancesQuery.data?.items ?? []).filter(
+    (item) => lineSkus.has(item.sku) && lineBins.has(item.bin),
+  )
+  const movements = (movementsQuery.data?.items ?? []).filter(
+    (item) =>
+      item.sourceId === adjustment.id ||
+      item.sourceId === adjustment.adjustmentNo ||
+      (lineSkus.has(item.sku) && lineBins.has(item.bin)),
+  )
+
   const related = buildUedRelatedInfo(
     'stock-adjustments',
-    toRelatedAdjustmentShape(adjustment) as Record<string, unknown>,
+    {
+      id: adjustment.id,
+      sku: firstSku,
+      warehouse: adjustment.warehouse,
+      bin: adjustment.lines[0]?.bin,
+      firstSku,
+    },
+    {
+      balances: mapBalanceRows(balances),
+      movements: mapMovementRows(movements),
+    },
   )
   const parentFields = parentsToFields(related.parents)
-  const totalDiff = adjustment.lines.reduce((sum, line) => sum + line.qtyDiff, 0)
+  const totalDiff = adjustment.totalDiff
 
   const timeline = [
     {
       at: adjustment.createdAt,
-      status: '草稿',
-      note: '创建调整单',
-      current: adjustment.status === '草稿',
-    },
-    {
-      at: adjustment.status === '草稿' ? '—' : adjustment.createdAt,
       status: '待审批',
-      note: '提交审批',
+      note: '创建并进入审批',
       current: adjustment.status === '待审批',
     },
     {
@@ -96,7 +158,7 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
     {
       at: adjustment.postedAt || '—',
       status: '已过账',
-      note: adjustment.postedLedgerBatchId || '待过账写流水',
+      note: '过账写库存流水',
       current: adjustment.status === '已过账',
     },
   ]
@@ -115,67 +177,40 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
         description={`${adjustment.kind} · ${adjustment.warehouse} · 差异 ${totalDiff > 0 ? '+' : ''}${totalDiff}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">stock_adjustments</Badge>
             <Badge variant={statusVariant(adjustment.status)}>{adjustment.status}</Badge>
           </>
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            {adjustment.status === '草稿' ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  const result = submitStockAdjustment(adjustment.id)
-                  setNotice(result.ok ? '已提交审批' : result.reason)
-                }}
-              >
-                提交审批
-              </Button>
-            ) : null}
             {adjustment.status === '待审批' ? (
               <>
                 <Button
                   size="sm"
-                  onClick={() => {
-                    const result = approveStockAdjustment(adjustment.id)
-                    setNotice(result.ok ? '已通过' : result.reason)
-                  }}
+                  disabled={approveMut.isPending}
+                  onClick={() => approveMut.mutate({ id: adjustment.id })}
                 >
                   审批通过
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    const result = rejectStockAdjustment(adjustment.id, '详情驳回：证据不足')
-                    setNotice(result.ok ? '已驳回' : result.reason)
-                  }}
+                  disabled={rejectMut.isPending}
+                  onClick={() =>
+                    rejectMut.mutate({ id: adjustment.id, rejectReason: '详情驳回：证据不足' })
+                  }
                 >
                   驳回
                 </Button>
               </>
             ) : null}
-            {adjustment.status === '已通过' ? (
+            {adjustment.status === '已通过' || adjustment.status === '待审批' ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  const result = postStockAdjustment(adjustment.id)
-                  setNotice(result.ok ? '已过账写流水' : result.reason)
-                }}
+                disabled={postMut.isPending}
+                onClick={() => postMut.mutate({ id: adjustment.id })}
               >
                 确认过账
-              </Button>
-            ) : null}
-            {adjustment.status === '草稿' || adjustment.status === '待审批' ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  const result = cancelStockAdjustment(adjustment.id)
-                  setNotice(result.ok ? '已取消' : result.reason)
-                }}
-              >
-                取消
               </Button>
             ) : null}
             <Button size="sm" variant="outline" asChild>
@@ -187,17 +222,14 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
       <Alert>
         <AlertTitle>审批后过账才改余额</AlertTitle>
         <AlertDescription>
-          状态机：草稿 → 待审批 → 已通过 → 已过账。过账逐行写 inventory_ledger（盘点差异 /
-          手工调整），幂等键防重复。已过账不可取消。
+          状态机：待审批 → 已通过 → 已过账。过账写 inventory_movements，幂等键防重复。原因：
+          {adjustment.reason}
+          {adjustment.rejectReason ? `；驳回：${adjustment.rejectReason}` : ''}
         </AlertDescription>
       </Alert>
-      <UedPrototypeNotice>
-        原因必填：{adjustment.reason}
-        {adjustment.rejectReason ? `；驳回原因：${adjustment.rejectReason}` : ''}
-      </UedPrototypeNotice>
       <DetailKpiRow
         items={[
-          { label: '行数', value: String(adjustment.lines.length) },
+          { label: '行数', value: String(adjustment.lineCount) },
           { label: '差异合计', value: totalDiff > 0 ? `+${totalDiff}` : String(totalDiff) },
           { label: '类型', value: adjustment.kind },
           { label: '状态', value: adjustment.status },
@@ -206,7 +238,7 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         <DetailFieldGrid
           title="调整单主信息"
-          description="stock_adjustments 头"
+          description="stock_adjustments"
           fields={[
             { label: '调整单号', value: adjustment.adjustmentNo, mono: true },
             ...parentFields,
@@ -218,7 +250,6 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
             { label: '创建时间', value: adjustment.createdAt },
             { label: '审批时间', value: adjustment.approvedAt || '—' },
             { label: '过账时间', value: adjustment.postedAt || '—' },
-            { label: '流水批次', value: adjustment.postedLedgerBatchId || '—' },
             { label: '备注', value: adjustment.remark || '—' },
           ]}
         />
@@ -250,14 +281,7 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
                       {line.sku}
                     </LocaleLink>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    <LocaleLink
-                      className="underline-offset-2 hover:underline"
-                      href={`/console/warehouse/${encodeURIComponent(line.bin)}`}
-                    >
-                      {line.bin}
-                    </LocaleLink>
-                  </TableCell>
+                  <TableCell className="font-mono text-sm">{line.bin}</TableCell>
                   <TableCell className="text-right tabular-nums">{line.qtySystem}</TableCell>
                   <TableCell className="text-right tabular-nums">{line.qtyCounted}</TableCell>
                   <TableCell
@@ -279,7 +303,28 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
           </Table>
         </div>
       </DetailSection>
-      <DetailRelatedTables sections={related.sections || []} />
+      <DetailRelatedTables
+        sections={
+          related.sections?.length
+            ? related.sections
+            : [
+                {
+                  title: '相关余额',
+                  description: 'wms.listBalances',
+                  columns: BALANCE_COLUMNS,
+                  rows: mapBalanceRows(balances),
+                  emptyText: '暂无关联数据',
+                },
+                {
+                  title: '过账流水',
+                  description: 'wms.listMovements',
+                  columns: MOVEMENT_COLUMNS,
+                  rows: mapMovementRows(movements),
+                  emptyText: '暂无关联数据',
+                },
+              ]
+        }
+      />
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </div>
   )

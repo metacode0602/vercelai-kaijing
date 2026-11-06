@@ -1,5 +1,8 @@
 'use client'
 
+/**
+ * @deprecated 主路径已迁 trpc.suppliers.listSkus（模块12）。类型保留供旧引用兼容。
+ */
 import * as React from 'react'
 
 export type DemoSupplierSku = {

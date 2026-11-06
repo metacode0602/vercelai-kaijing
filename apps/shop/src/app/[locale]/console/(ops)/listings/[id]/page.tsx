@@ -15,19 +15,14 @@ import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-work
 import { ListingImagesSection } from '@/components/console/listing-images-section'
 import { ProductReviewsSection } from '@/components/console/product-reviews-section'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import { findProductBySku, getDemoSkuPricing } from '@/lib/crossborder/erp-ued-data'
 import {
-  addListingMappingLine,
   LISTING_PUBLISH_STATES,
   LISTING_STATUSES,
   listingMappingHref,
   toRelatedListingShape,
-  updateListing,
-  useListings,
-  type ListingPublishState,
-  type ListingStatus,
 } from '@/lib/crossborder/listing-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -49,45 +44,102 @@ function listingVariant(status: string) {
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const listings = useListings()
-  const listing = listings.find((item) => item.id === id)
-  const [mounted, setMounted] = React.useState(false)
+  const utils = trpc.useUtils()
+  const query = trpc.listings.get.useQuery({ id })
+  const skuCodesQuery = trpc.products.listSkuCodes.useQuery()
+  const siblingsQuery = trpc.listings.list.useQuery(
+    { page: 1, pageSize: 20, sku: query.data?.sku },
+    { enabled: !!query.data?.sku },
+  )
   const [editOpen, setEditOpen] = React.useState(false)
   const [lineOpen, setLineOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const updateMutation = trpc.listings.update.useMutation({
+    onSuccess: async () => {
+      await utils.listings.get.invalidate({ id })
+      await utils.listings.list.invalidate()
+      setEditOpen(false)
+      setNotice('刊登已更新（数据库）')
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const shelfMutation = trpc.listings.setShelf.useMutation({
+    onSuccess: async (row) => {
+      await utils.listings.get.invalidate({ id })
+      await utils.listings.list.invalidate()
+      setNotice(`本地状态已改为「${row.status}」（未调用平台 OpenAPI）`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const syncMutation = trpc.listings.requestPlatformSync.useMutation({
+    onSuccess: async (result) => {
+      await utils.listings.get.invalidate({ id })
+      setNotice(result.message)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const addLineMutation = trpc.listings.addMappingLine.useMutation({
+    onSuccess: async (listing) => {
+      await utils.listings.get.invalidate({ id })
+      await utils.mappings.list.invalidate()
+      setLineOpen(false)
+      setNotice(`映射行已添加（共 ${listing.mappingLineCount} 行）`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
 
-  if (!listing) {
+  if (query.isLoading) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/listings"
-          title={mounted ? '未找到刊登' : '加载刊登…'}
-          description={
-            mounted
-              ? `刊登 ${id} 不存在，或仅存在于其他浏览器会话。`
-              : '正在读取本机原型会话中的刊登…'
-          }
+          title="加载刊登…"
+          description={`正在从数据库读取 ${id}…`}
         />
       </div>
     )
   }
 
-  const product = findProductBySku(listing.sku)
-  const pricing = getDemoSkuPricing(listing.sku)
+  if (query.isError || !query.data) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader
+          backHref="/console/listings"
+          title="未找到刊登"
+          description={query.error?.message ?? `刊登 ${id} 不存在于当前组织。`}
+        />
+      </div>
+    )
+  }
+
+  const listing = query.data
   const related = buildUedRelatedInfo(
     'listings',
     toRelatedListingShape(listing) as Record<string, unknown>,
+    {
+      mappings: listing.mappingLines.map((line) => ({
+        ...line,
+        href: listingMappingHref(line),
+      })),
+      listings: (siblingsQuery.data?.items ?? [])
+        .filter((item) => item.id !== listing.id)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          sku: item.sku,
+          shop: item.shop,
+          platform: item.platform,
+          status: item.status,
+          sellPrice: item.priceAmount,
+          currency: item.priceCurrency,
+          href: `/console/listings/${encodeURIComponent(item.id)}`,
+        })),
+    },
   )
   const parentFields = parentsToFields(related.parents)
-  const siblings = listings.filter((item) => item.sku === listing.sku && item.id !== listing.id)
-  const cover =
-    product?.variants.find((v) => v.code === listing.sku)?.coverImage || product?.coverImage
-  const images =
-    product?.variants.find((v) => v.code === listing.sku)?.images || product?.images
+  const siblings = (siblingsQuery.data?.items ?? []).filter((item) => item.id !== listing.id)
+  const skuOptions = skuCodesQuery.data ?? []
 
   const editDialog = editOpen ? (
     <UedDialog
@@ -108,7 +160,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       fields={[
         { key: 'title', label: '标题', required: true, fullWidth: true },
         { key: 'sellPrice', label: '售价', type: 'number', required: true },
-        { key: 'currency', label: '币种', options: ['USD', 'MYR', 'THB', 'SGD'], required: true },
+        { key: 'currency', label: '币种', options: ['USD', 'MYR', 'THB', 'SGD', 'LKR'], required: true },
         { key: 'status', label: '状态', options: [...LISTING_STATUSES], required: true },
         {
           key: 'publishState',
@@ -128,38 +180,34 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       ]}
       onClose={() => setEditOpen(false)}
       onSave={(values) => {
-        const result = updateListing(listing.id, {
+        updateMutation.mutate({
+          id: listing.id,
           title: values.title,
           sellPrice: Number(values.sellPrice || '0'),
           currency: values.currency,
-          status: values.status as ListingStatus,
-          publishState: values.publishState as ListingPublishState,
+          status: values.status,
+          publishState: values.publishState,
           brandName: values.brandName,
           categoryPath: values.categoryPath,
           warehouseCode: values.warehouseCode,
           logisticsChannel: values.logisticsChannel,
           note: values.note,
         })
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setEditOpen(false)
-        setNotice('刊登已更新（原型会话）')
       }}
+      saveLabel={updateMutation.isPending ? '保存中…' : '保存'}
     />
   ) : null
 
   const lineDialog = lineOpen ? (
     <UedDialog
       title="添加映射行"
-      description="店铺 + Seller SKU 唯一；会双向写入 mapping-store。"
+      description="店铺 + Seller SKU 唯一；写入 seller_sku_mappings 并关联本刊登。"
       fields={[
         { key: 'sellerSku', label: 'Seller SKU', required: true },
         {
           key: 'internalSku',
           label: '内部 SKU',
-          options: ['HSY000001001', 'HSY000001002', 'HSY000002001'],
+          options: skuOptions.length ? skuOptions : [listing.sku],
           required: true,
           defaultValue: listing.sku,
         },
@@ -169,20 +217,16 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       ]}
       onClose={() => setLineOpen(false)}
       onSave={(values) => {
-        const result = addListingMappingLine(listing.id, {
+        addLineMutation.mutate({
+          listingId: listing.id,
           sellerSku: values.sellerSku || '',
           internalSku: values.internalSku || listing.sku,
           color: values.color,
           size: values.size,
           itemId: values.itemId,
         })
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setLineOpen(false)
-        setNotice(`映射行 ${result.line.sellerSku} 已添加，并同步到 Seller SKU 映射`)
       }}
+      saveLabel={addLineMutation.isPending ? '保存中…' : '添加'}
     />
   ) : null
 
@@ -199,7 +243,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         description={`${listing.platform} · 店铺 ${listing.shopName}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">PostgreSQL</Badge>
             <Badge variant={listingVariant(listing.status)}>{listing.status}</Badge>
             <Badge variant="outline">{listing.publishState}</Badge>
             <Badge variant="secondary">{listing.platform}</Badge>
@@ -210,24 +254,43 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             <Button size="sm" onClick={() => setEditOpen(true)}>
               编辑刊登
             </Button>
-            <Button size="sm" variant="outline" asChild>
-              <LocaleLink href={`/console/master-skus/${listing.sku}`}>查看 SKU</LocaleLink>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={shelfMutation.isPending}
+              onClick={() =>
+                shelfMutation.mutate({
+                  id: listing.id,
+                  onShelf: listing.status !== '在售',
+                })
+              }
+            >
+              {listing.status === '在售' ? '本地下架' : '本地上架'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={syncMutation.isPending}
+              onClick={() => syncMutation.mutate({ id: listing.id })}
+            >
+              请求平台同步（stub）
             </Button>
             <Button size="sm" variant="outline" asChild>
-              <LocaleLink href="/console/sync-tasks">同步任务（原型）</LocaleLink>
+              <LocaleLink href={`/console/master-skus/${listing.sku}`}>查看 SKU</LocaleLink>
             </Button>
           </div>
         }
       />
 
       <Alert>
-        <AlertTitle>UED 示例刊登 · 非真实平台同步结果</AlertTitle>
+        <AlertTitle>真实平台刊登 OpenAPI 仍为 stub</AlertTitle>
         <AlertDescription>
-          价格、库存、类目与错误信息均为演示数据。重新发布或改价不会调用平台接口，也不会改写业务库。
+          头信息 / 售价 / 上下架状态已写入 listings 表；「请求平台同步」只更新本地 publishState，不会调用
+          Daraz / Lazada / TikTok connector。
         </AlertDescription>
       </Alert>
       <UedPrototypeNotice>
-        刊登头 + 映射行存于 listing-store；与 mapping-store 双向关联。同步任务保持原型。
+        刊登头 + 映射行经 tRPC 读写 PostgreSQL；与 mappings router 双向关联。
       </UedPrototypeNotice>
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">
@@ -247,11 +310,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         ]}
       />
 
-      <ListingImagesSection
-        listingId={listing.id}
-        cover={cover}
-        images={images}
-      />
+      <ListingImagesSection listingId={listing.id} cover={undefined} images={undefined} />
 
       <DetailFieldGrid
         title="刊登主数据"
@@ -275,35 +334,9 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
       {parentFields.length ? <DetailFieldGrid title="关联主数据" fields={parentFields} /> : null}
 
-      {pricing ? (
-        <DetailSection title="主定价参考" description="内部 SKU 基准价（示例）">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <p>
-              成本{' '}
-              <span className="font-medium tabular-nums">
-                {pricing.costPrice.toFixed(2)} {pricing.currency}
-              </span>
-            </p>
-            <p>
-              基准售价{' '}
-              <span className="font-medium tabular-nums">
-                {pricing.basePrice.toFixed(2)} {pricing.currency}
-              </span>
-            </p>
-            <p>
-              建议售价{' '}
-              <span className="font-medium tabular-nums">
-                {pricing.suggestPrice.toFixed(2)} {pricing.currency}
-              </span>
-            </p>
-            <p>目标毛利率 {pricing.targetMarginPct}%</p>
-          </div>
-        </DetailSection>
-      ) : null}
-
       <DetailSection
         title="映射行"
-        description="Seller SKU → 内部 SKU；与 mapping-store 双向"
+        description="Seller SKU → 内部 SKU；seller_sku_mappings"
         action={
           <Button size="sm" variant="outline" onClick={() => setLineOpen(true)}>
             添加映射行
@@ -384,13 +417,13 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                       {item.id}
                     </LocaleLink>
                   </TableCell>
-                  <TableCell>{item.shopName}</TableCell>
+                  <TableCell>{item.shop}</TableCell>
                   <TableCell>{item.platform}</TableCell>
                   <TableCell>
                     <Badge variant={listingVariant(item.status)}>{item.status}</Badge>
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {item.sellPrice.toFixed(2)} {item.currency}
+                    {item.priceAmount.toFixed(2)} {item.priceCurrency}
                   </TableCell>
                 </TableRow>
               ))}

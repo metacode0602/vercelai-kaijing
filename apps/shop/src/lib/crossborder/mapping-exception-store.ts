@@ -2,8 +2,10 @@
 
 /**
  * mapping_exceptions 原型会话 store（schema §3.3）— Phase 4。
+ * mappings 页 KPI / resolve 主路径已切 trpc.mappings.*（见 module11）。
+ * 映射异常请用 trpc.mappings.listExceptions；履约异常请用 trpc.orderExceptions（模块12）。本 store 仅兼容旧详情。
  * kind: unmapped / conflict / disabled_variant / duplicate_seller_sku
- * 未映射/冲突订单行必须进本表且禁止自动占库。
+ * 未映射/冲突订单行必须进 mapping_exceptions 且禁止自动占库。
  */
 
 import { createDemoStore } from '@/lib/crossborder/local-store'

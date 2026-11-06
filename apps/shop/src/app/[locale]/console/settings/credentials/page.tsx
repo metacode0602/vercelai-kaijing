@@ -1,27 +1,41 @@
-import { MOCK_SHOPS } from '@/lib/crossborder/mock-data'
+'use client'
+
+import * as React from 'react'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
-import { labelStatus } from '@/lib/console/labels'
+import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { trpc } from '@/lib/trpc/client'
 
 const OAUTH_PLATFORMS = new Set(['daraz', 'lazada', 'tiktok_shop'])
 
 export default function SettingsCredentialsPage() {
+  const listQuery = trpc.shops.list.useQuery({ page: 1, pageSize: 100 })
+  const rows = listQuery.data?.items ?? []
+  const utils = trpc.useUtils()
+  const queueReauth = trpc.shops.queueReauth.useMutation({
+    onSuccess: async () => {
+      await utils.shops.list.invalidate()
+    },
+  })
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">平台凭证</h2>
-        <p className="text-sm text-muted-foreground">
-          凭证类型 / 到期时间 / 脱敏密钥 · 密文不明文展示 · 可重新授权
-        </p>
+        <p className="text-sm text-muted-foreground">来自 shops / integration_credentials；密文不明文展示。</p>
       </div>
+      <UedPrototypeNotice>
+        不再使用 MOCK_SHOPS。未授权店铺显示「待平台授权」；重连仅排队，不伪造 OAuth 成功。
+      </UedPrototypeNotice>
+      {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
+      {!listQuery.isLoading && rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">暂无店铺凭证。请先在店铺连接创建草稿并完成真实授权。</p>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {MOCK_SHOPS.map((shop) => {
+        {rows.map((shop) => {
           const canOauth = OAUTH_PLATFORMS.has(shop.platform)
-          const href = canOauth
-            ? `/api/marketplace/oauth/authorize?platform=${shop.platform}&shopId=${shop.id}&locale=zh&region=${shop.region.toLowerCase()}`
-            : undefined
           return (
             <Card key={shop.id}>
               <CardHeader>
@@ -34,22 +48,24 @@ export default function SettingsCredentialsPage() {
                   </LocaleLink>
                 </CardTitle>
                 <CardDescription>
-                  {shop.credentialKind} · {shop.platform}/{shop.region}
+                  {shop.platformLabel}/{shop.region} · {shop.authStatus}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex items-center justify-between gap-3">
                 <div className="space-y-1 text-sm">
                   <p>
-                    状态 <Badge variant="secondary">{labelStatus(shop.status)}</Badge>
+                    状态 <Badge variant="secondary">{shop.authStatus}</Badge>
                   </p>
-                  <p className="font-mono text-xs text-muted-foreground">key {shop.credentialMask}</p>
-                  <p className="text-xs text-muted-foreground">
-                    到期 {shop.credentialExpiresAt ?? '—'}
-                  </p>
+                  <p className="font-mono text-xs text-muted-foreground">{shop.credentialMask}</p>
+                  <p className="text-xs text-muted-foreground">到期 {shop.authExpiresAt}</p>
                 </div>
-                {href ? (
-                  <Button variant="outline" asChild>
-                    <a href={href}>重连</a>
+                {canOauth ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => queueReauth.mutate({ id: shop.id })}
+                    disabled={queueReauth.isPending}
+                  >
+                    排队重授权
                   </Button>
                 ) : (
                   <Button variant="outline" disabled>

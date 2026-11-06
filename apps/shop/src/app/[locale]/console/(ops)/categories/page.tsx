@@ -4,57 +4,86 @@ import * as React from 'react'
 import { Plus } from 'lucide-react'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { ConsoleListSection, useConsolePagination } from '@/components/console/list'
-import { ProductCover, ProductImageField } from '@/components/console/product-images'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
-import {
-  addCategory,
-  categoryDepth,
-  categoryPath,
-  updateCategory,
-  useCategories,
-  type CategoryNode,
-} from '@/lib/crossborder/category-store'
-import type { DemoImageSet } from '@/lib/crossborder/product-image-store'
+import { trpc } from '@/lib/trpc/client'
 
-function flatten(rows: CategoryNode[], parentId: string | null = null): CategoryNode[] {
+type Cat = {
+  id: string
+  code: string
+  name: string
+  parentId: string | null
+  sort: number
+  status: string
+  note: string
+}
+
+function flatten(rows: Cat[], parentId: string | null = null): Cat[] {
   return rows
     .filter((row) => row.parentId === parentId)
     .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
     .flatMap((row) => [row, ...flatten(rows, row.id)])
 }
 
-function descendants(rows: CategoryNode[], id: string): string[] {
-  const children = rows.filter((row) => row.parentId === id)
-  return children.flatMap((child) => [child.id, ...descendants(rows, child.id)])
+function pathOf(rows: Cat[], node: Cat): string {
+  const parts = [node.name]
+  let parentId = node.parentId
+  const seen = new Set<string>()
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId)
+    const parent = rows.find((r) => r.id === parentId)
+    if (!parent) break
+    parts.unshift(parent.name)
+    parentId = parent.parentId
+  }
+  return parts.join(' / ')
+}
+
+function depthOf(rows: Cat[], node: Cat): number {
+  let depth = 0
+  let parentId = node.parentId
+  const seen = new Set<string>()
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId)
+    depth += 1
+    parentId = rows.find((r) => r.id === parentId)?.parentId ?? null
+  }
+  return depth
 }
 
 export default function CategoriesPage() {
-  const rows = useCategories()
-  const [dialog, setDialog] = React.useState<{ mode: 'create' | 'edit'; row?: CategoryNode; parentId: string | null } | null>(null)
-  const [images, setImages] = React.useState<DemoImageSet>({ images: [] })
+  const utils = trpc.useUtils()
+  const listQuery = trpc.categories.list.useQuery({})
+  const rows = (listQuery.data ?? []) as Cat[]
+  const [dialog, setDialog] = React.useState<{ mode: 'create' | 'edit'; row?: Cat; parentId: string | null } | null>(null)
   const [notice, setNotice] = React.useState('')
 
-  function openDialog(next: { mode: 'create' | 'edit'; row?: CategoryNode; parentId: string | null }) {
-    setImages({ cover: next.row?.coverImage, images: next.row?.screenshots ?? [] })
-    setDialog(next)
-  }
+  const createMutation = trpc.categories.create.useMutation({
+    onSuccess: async () => {
+      setDialog(null)
+      setNotice('品类已落库（commerce_categories）。')
+      await utils.categories.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const updateMutation = trpc.categories.update.useMutation({
+    onSuccess: async () => {
+      setDialog(null)
+      setNotice('品类已更新。')
+      await utils.categories.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
 
   const ordered = flatten(rows)
   const { pagedRows, pagination } = useConsolePagination(ordered)
-  const blocked = dialog?.row ? new Set([dialog.row.id, ...descendants(rows, dialog.row.id)]) : new Set<string>()
-  const parentOptions = [
-    '无（一级品类）',
-    ...rows.filter((row) => !blocked.has(row.id)).map((row) => categoryPath(rows, row)),
-  ]
-  const initialParentId = dialog?.row?.parentId ?? dialog?.parentId ?? null
-  const initialParent = initialParentId ? rows.find((row) => row.id === initialParentId) : null
+  const parentOptions = ['无（一级品类）', ...rows.map((row) => pathOf(rows, row))]
 
   const editor = dialog ? (
     <UedDialog
       title={dialog.mode === 'create' ? '新增品类' : '编辑品类'}
-      description="品类支持多级父子结构；停用父类时子类不再出现在新建商品下拉。"
+      description="内部品类树；平台类目请走 platform_categories 同步（待平台授权）。"
       fields={[
         { key: 'name', label: '品类名称', required: true },
         { key: 'code', label: '品类编码', required: true, placeholder: '如 APPAREL-TOPS-TEE' },
@@ -66,132 +95,92 @@ export default function CategoriesPage() {
       initialValues={{
         name: dialog.row?.name ?? '',
         code: dialog.row?.code ?? '',
-        parent: initialParent ? categoryPath(rows, initialParent) : '无（一级品类）',
+        parent: (() => {
+          const pid = dialog.row?.parentId ?? dialog.parentId
+          const p = pid ? rows.find((r) => r.id === pid) : null
+          return p ? pathOf(rows, p) : '无（一级品类）'
+        })(),
         sort: String(dialog.row?.sort ?? 10),
         status: dialog.row?.status ?? '启用',
         note: dialog.row?.note ?? '',
       }}
       onClose={() => setDialog(null)}
       onSave={(values) => {
-        const parentPath = values.parent === '无（一级品类）' ? null : rows.find((row) => categoryPath(rows, row) === values.parent)?.id ?? null
-        const patch = {
+        const parentPath = values.parent === '无（一级品类）' ? null : rows.find((row) => pathOf(rows, row) === values.parent)?.id ?? null
+        const payload = {
           name: values.name || '未命名品类',
           code: (values.code || 'CATEGORY').toUpperCase(),
           parentId: parentPath,
-          sort: Number(values.sort || 0),
-          status: values.status === '停用' ? '停用' as const : '启用' as const,
-          note: values.note ?? '',
-          coverImage: images.cover,
-          screenshots: images.images,
+          sort: Number(values.sort || 10),
+          status: values.status === '停用' ? '停用' : '启用',
+          note: values.note || '',
         }
         if (dialog.mode === 'edit' && dialog.row) {
-          updateCategory(rows, dialog.row.id, patch)
-          setNotice(`${patch.name} 已更新；商品下拉会立即读取最新品类树。`)
+          updateMutation.mutate({ id: dialog.row.id, ...payload })
         } else {
-          addCategory(rows, patch)
-          setNotice(`${patch.name} 已新增；商品下拉会立即读取最新品类树。`)
+          createMutation.mutate(payload)
         }
-        setDialog(null)
       }}
-      saveLabel="保存品类"
-    >
-      <ProductImageField
-        value={images}
-        onChange={setImages}
-        label="品类图片"
-        description="封面图用于品类列表展示；截图可上传多张，用于品类素材归档。"
-      />
-    </UedDialog>
+    />
   ) : null
 
   return (
-    <>
+    <div className="space-y-4">
       {editor}
-      <div className="flex w-full flex-col gap-4">
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">品类树</h1>
-            <p className="mt-1 text-sm text-muted-foreground">多级品类主数据；商品 SPU 和刊登共用同一棵树。</p>
-          </div>
-          <Button onClick={() => openDialog({ mode: 'create', parentId: null })}>
-            <Plus data-icon="inline-start" />
-            新增一级品类
-          </Button>
-        </header>
-
-        <UedPrototypeNotice>
-          品类编码保持稳定；停用父类后，其子类不再出现在新建商品下拉，但历史商品仍保留原品类。自定义情感标签、品牌等枚举在「基础数据字典」维护。
-        </UedPrototypeNotice>
-
-        <ConsoleListSection
-          title="品类列表"
-          description={`共 ${ordered.length} 条`}
-          pagination={pagination}
-        >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">品类树</h2>
+          <p className="text-sm text-muted-foreground">commerce_categories 内部多级品类；非平台类目缓存。</p>
+        </div>
+        <Button onClick={() => setDialog({ mode: 'create', parentId: null })}>
+          <Plus className="mr-1 size-4" /> 新增品类
+        </Button>
+      </div>
+      <UedPrototypeNotice>
+        已接库。空列表表示尚未配置；平台类目同步需 OpenAPI 授权，不会用演示树冒充。
+      </UedPrototypeNotice>
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      <ConsoleListSection title="品类列表" description={listQuery.isLoading ? '加载中…' : `共 ${rows.length} 条`} pagination={pagination}>
+        {pagedRows.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground">暂无品类数据。</p>
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>品类</TableHead>
+                <TableHead>名称</TableHead>
                 <TableHead>编码</TableHead>
-                <TableHead>上级</TableHead>
+                <TableHead>路径</TableHead>
                 <TableHead>排序</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead>封面</TableHead>
-                <TableHead className="w-56 text-right">操作</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pagedRows.map((row) => {
-                const depth = categoryDepth(rows, row)
-                const parent = row.parentId ? rows.find((item) => item.id === row.parentId) : null
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <span className="flex items-center">
-                        {Array.from({ length: depth }).map((_, index) => (
-                          <span key={index} className="inline-block w-4" />
-                        ))}
-                        <span className={depth === 0 ? 'font-medium' : ''}>{row.name}</span>
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{row.code}</TableCell>
-                    <TableCell className="text-muted-foreground">{parent?.name ?? '—'}</TableCell>
-                    <TableCell className="tabular-nums">{row.sort}</TableCell>
-                    <TableCell>
-                      <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <ProductCover src={row.coverImage ?? row.screenshots?.[0]} alt={`${row.name} 封面`} className="size-8" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openDialog({ mode: 'create', parentId: row.id })}>新增子类</Button>
-                        <Button variant="ghost" size="sm" onClick={() => openDialog({ mode: 'edit', row, parentId: row.parentId })}>编辑</Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            updateCategory(rows, row.id, { status: row.status === '启用' ? '停用' : '启用' })
-                            setNotice(`${row.name} 已${row.status === '启用' ? '停用' : '启用'}。`)
-                          }}
-                        >
-                          {row.status === '启用' ? '停用' : '启用'}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-              {ordered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">还没有品类，先新增一级品类。</TableCell>
+              {pagedRows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell style={{ paddingLeft: 12 + depthOf(rows, row) * 16 }}>{row.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.code}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{pathOf(rows, row)}</TableCell>
+                  <TableCell className="tabular-nums">{row.sort}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setDialog({ mode: 'create', parentId: row.id })}>
+                        子类
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setDialog({ mode: 'edit', row, parentId: row.parentId })}>
+                        编辑
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              ) : null}
+              ))}
             </TableBody>
           </Table>
-        </ConsoleListSection>
-        {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-      </div>
-    </>
+        )}
+      </ConsoleListSection>
+    </div>
   )
 }

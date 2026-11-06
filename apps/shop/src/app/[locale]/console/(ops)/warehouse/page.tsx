@@ -2,19 +2,12 @@
 
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
-import {
-  BIN_STATUSES,
-  WAREHOUSE_TYPES,
-  createBin,
-  createWarehouse,
-  useBins,
-  useWarehouses,
-} from '@/lib/crossborder/wms-store'
-import { useWarehouseZones } from '@/lib/crossborder/warehouse-zone-store'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 function binVariant(status: string) {
   if (status === '占用') return 'secondary' as const
@@ -23,35 +16,53 @@ function binVariant(status: string) {
 }
 
 export default function WarehousePage() {
-  const warehouses = useWarehouses()
-  const bins = useBins()
-  const zones = useWarehouseZones()
-  const router = useLocaleRouter()
+  const utils = trpc.useUtils()
   const [whOpen, setWhOpen] = React.useState(false)
   const [binOpen, setBinOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
   const [view, setView] = React.useState<'bins' | 'warehouses'>('bins')
 
-  const activeWarehouses = warehouses.filter((item) => item.status === '启用')
-  const zoneOptions = zones.filter((zone) => zone.status === '启用').map((zone) => zone.code)
-  const kpiItems = React.useMemo(
-    () => [
-      { label: '仓库', value: String(warehouses.length), hint: `${activeWarehouses.length} 启用` },
-      { label: '库位', value: String(bins.length), hint: 'commerce_bins' },
-      { label: '占用库位', value: String(bins.filter((item) => item.status === '占用').length) },
-      { label: '空闲库位', value: String(bins.filter((item) => item.status === '空闲').length) },
-    ],
-    [warehouses, bins, activeWarehouses.length],
-  )
+  const warehousesQuery = trpc.wms.listWarehouses.useQuery({ page: 1, pageSize: 100 })
+  const binsQuery = trpc.wms.listBins.useQuery({ page: 1, pageSize: 100 })
+  const statsQuery = trpc.wms.warehouseStats.useQuery()
+  const metaQuery = trpc.wms.meta.useQuery()
+
+  const createWh = trpc.wms.createWarehouse.useMutation({
+    onSuccess: async (row) => {
+      await Promise.all([utils.wms.listWarehouses.invalidate(), utils.wms.warehouseStats.invalidate()])
+      setWhOpen(false)
+      setNotice(`已创建仓库 ${row.code}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const createBinMut = trpc.wms.createBin.useMutation({
+    onSuccess: async (row) => {
+      await Promise.all([utils.wms.listBins.invalidate(), utils.wms.warehouseStats.invalidate()])
+      setBinOpen(false)
+      setNotice(`已创建库位 ${row.code}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const warehouses = warehousesQuery.data?.items ?? []
+  const bins = binsQuery.data?.items ?? []
+  const warehouseOptions = warehouses.filter((w) => w.status === '启用').map((w) => w.code)
+
+  const kpiItems = [
+    { label: '仓库', value: String(statsQuery.data?.warehouses ?? 0), hint: `${statsQuery.data?.activeWarehouses ?? 0} 启用` },
+    { label: '库位', value: String(statsQuery.data?.bins ?? 0), hint: 'commerce_bins' },
+    { label: '占用库位', value: String(statsQuery.data?.occupiedBins ?? 0) },
+    { label: '空闲库位', value: String(statsQuery.data?.emptyBins ?? 0) },
+  ]
 
   const warehouseEditor = whOpen ? (
     <UedDialog
       title="新增仓库"
-      description="对应 commerce_warehouses：公司仓库可被多店铺复用；编码组织内唯一。"
+      description="commerce_warehouses：公司仓库可被多店铺复用；编码组织内唯一。"
       fields={[
-        { key: 'code', label: '仓库编码', required: true, placeholder: '如 WH-CN-XMN-002', helper: '建议 WH-{国}-{城市}-{序号}' },
+        { key: 'code', label: '仓库编码', required: true, placeholder: '如 WH-CN-XMN-002' },
         { key: 'name', label: '仓库名称', required: true },
-        { key: 'type', label: '仓库类型', options: [...WAREHOUSE_TYPES], required: true },
+        { key: 'type', label: '仓库类型', options: metaQuery.data?.warehouseTypes ?? ['自营仓'], required: true },
         { key: 'country', label: '国家', defaultValue: 'CN', required: true },
         { key: 'timezone', label: '时区', defaultValue: 'Asia/Shanghai' },
         { key: 'currency', label: '运营币种', defaultValue: 'CNY' },
@@ -59,193 +70,125 @@ export default function WarehousePage() {
         { key: 'note', label: '备注', type: 'textarea', fullWidth: true },
       ]}
       onClose={() => setWhOpen(false)}
-      onSave={(values) => {
-        const result = createWarehouse({
-          code: values.code || '',
-          name: values.name || '',
-          type: (values.type as (typeof WAREHOUSE_TYPES)[number]) || '自营仓',
+      onSave={(values) =>
+        createWh.mutate({
+          code: values.code,
+          name: values.name,
+          type: values.type,
           country: values.country,
           timezone: values.timezone,
           currency: values.currency,
           address: values.address,
           note: values.note,
         })
-        setWhOpen(false)
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setNotice(`${result.warehouse.code} 已创建。`)
-        setView('warehouses')
-      }}
-      saveLabel="创建仓库"
+      }
     />
   ) : null
 
   const binEditor = binOpen ? (
     <UedDialog
       title="新增库位"
-      description="对应 commerce_bins：同仓库库位编码唯一；一个启用库位同一时刻最多绑定一个启用 SKU（R07）。"
+      description="commerce_bins：同仓编码唯一；一库位一启用 SKU。"
       fields={[
-        {
-          key: 'warehouse',
-          label: '仓库',
-          options: activeWarehouses.map((item) => `${item.name} (${item.code})`),
-          required: true,
-        },
-        { key: 'code', label: '库位编码', placeholder: '如 A-01-01-03', required: true },
-        {
-          key: 'zone',
-          label: '库区编码',
-          options: zoneOptions.length ? zoneOptions : ['A', 'B', 'C'],
-          required: true,
-        },
-        { key: 'name', label: '库位名称', placeholder: '可空，默认用编码' },
-        {
-          key: 'sku',
-          label: '绑定内部 SKU',
-          options: ['不绑定', 'HSY000001001', 'HSY000001002', 'HSY000002001'],
-          required: true,
-        },
-        { key: 'status', label: '库位状态', options: [...BIN_STATUSES], required: true },
+        { key: 'warehouseCode', label: '仓库', options: warehouseOptions, required: true },
+        { key: 'zoneCode', label: '库区', placeholder: '如 A' },
+        { key: 'code', label: '库位编码', required: true, placeholder: '如 A-01-02-01' },
+        { key: 'name', label: '名称' },
+        { key: 'boundSku', label: '绑定 SKU', placeholder: '空=空闲' },
         { key: 'note', label: '备注', type: 'textarea', fullWidth: true },
       ]}
       onClose={() => setBinOpen(false)}
-      onSave={(values) => {
-        const warehouse = activeWarehouses.find(
-          (item) => `${item.name} (${item.code})` === values.warehouse,
-        )
-        const result = createBin({
-          warehouseCode: warehouse?.code || activeWarehouses[0]?.code || 'WH-CN-XMN-001',
-          code: values.code || '',
-          zoneCode: values.zone,
+      onSave={(values) =>
+        createBinMut.mutate({
+          warehouseCode: values.warehouseCode,
+          zoneCode: values.zoneCode,
+          code: values.code,
           name: values.name,
-          boundSku: values.sku,
-          status: (values.status as (typeof BIN_STATUSES)[number]) || '空闲',
+          boundSku: values.boundSku,
           note: values.note,
         })
-        setBinOpen(false)
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setNotice(`库位 ${result.bin.code} 已创建。`)
-        setView('bins')
-      }}
-      saveLabel="创建库位"
+      }
     />
   ) : null
 
-  if (view === 'warehouses') {
-    return (
-      <>
-        {warehouseEditor}
-        {binEditor}
+  return (
+    <div className="space-y-4">
+      <Alert>
+        <AlertTitle>仓库 / 库位已接 PostgreSQL</AlertTitle>
+        <AlertDescription>
+          tRPC `wms.*` → dataaccess → commerce_warehouses / commerce_bins；库区见 warehouse-zones（raw.zones）。{notice ? ` ${notice}` : ''}
+        </AlertDescription>
+      </Alert>
+      <DetailKpiRow items={kpiItems} />
+      <div className="flex gap-2">
+        <Button variant={view === 'bins' ? 'default' : 'outline'} size="sm" onClick={() => setView('bins')}>
+          库位
+        </Button>
+        <Button
+          variant={view === 'warehouses' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setView('warehouses')}
+        >
+          仓库
+        </Button>
+        <Button size="sm" onClick={() => setWhOpen(true)}>
+          新增仓库
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setBinOpen(true)}>
+          新增库位
+        </Button>
+        <Button size="sm" variant="ghost" asChild>
+          <LocaleLink href="/console/warehouse-zones">库区管理</LocaleLink>
+        </Button>
+      </div>
+      {warehouseEditor}
+      {binEditor}
+      {view === 'warehouses' ? (
         <UedWorkspace
-          title="仓库主档"
-          description="公司仓库（commerce_warehouses）多店复用；侧栏入口仍为「仓库与库位」。"
+          title="仓库"
+          description="commerce_warehouses · 组织内唯一编码"
           rows={warehouses}
-          detailHref={(row) => `/console/warehouse/${encodeURIComponent(row.code)}`}
+          detailHref={(row) => `/console/warehouse/${encodeURIComponent(row.id)}`}
           searchKeys={['code', 'name', 'type', 'country', 'status']}
-          searchPlaceholder="搜索仓库编码、名称或类型"
+          searchPlaceholder="搜索仓库编码或名称"
           filters={[{ label: '状态', options: ['启用', '停用'] }]}
-          emptyText="暂无仓库。请先创建公司仓库。"
-          addLabel="新增仓库"
-          onAdd={() => setWhOpen(true)}
+          emptyText={warehousesQuery.isLoading ? '加载中…' : '暂无仓库'}
           columns={[
-            { key: 'code', label: '仓库编码' },
+            { key: 'code', label: '编码' },
             { key: 'name', label: '名称' },
             { key: 'type', label: '类型' },
             { key: 'country', label: '国家' },
-            { key: 'timezone', label: '时区' },
-            { key: 'currency', label: '币种' },
-            {
-              key: 'shops',
-              label: '关联店铺',
-              render: (row) => (row.shops.length ? row.shops.join('、') : '—'),
-            },
+            { key: 'binCount', label: '库位数', render: (r) => String(r.binCount) },
             {
               key: 'status',
               label: '状态',
-              render: (row) => (
-                <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
-              ),
+              render: (r) => <Badge variant={r.status === '启用' ? 'secondary' : 'outline'}>{r.status}</Badge>,
             },
           ]}
-        >
-          <DetailKpiRow items={kpiItems} />
-          <UedPrototypeNotice>
-            库存归属组织 + 仓库 + 库位 + SKU，不归属店铺。店铺通过 shop_warehouses 关联仓库并指定默认出库仓。
-          </UedPrototypeNotice>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setView('bins')}>
-              查看库位
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setBinOpen(true)}>
-              新增库位
-            </Button>
-            <Button size="sm" variant="ghost" asChild>
-              <LocaleLink href="/console/warehouse-zones">管理库区</LocaleLink>
-            </Button>
-          </div>
-          {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-        </UedWorkspace>
-      </>
-    )
-  }
-
-  return (
-    <>
-      {warehouseEditor}
-      {binEditor}
-      <UedWorkspace
-        title="仓库与库位"
-        description="库位（commerce_bins）归属仓库与库区；一库位一启用 SKU。解绑/换绑保留历史占用痕迹。"
-        rows={bins}
-        detailHref={(row) => `/console/warehouse/${encodeURIComponent(row.code)}`}
-        searchKeys={['warehouseCode', 'code', 'zoneCode', 'boundSku', 'status', 'name']}
-        searchPlaceholder="搜索仓库、库位、SKU 或库区"
-        filters={[{ label: '状态', options: [...BIN_STATUSES] }]}
-        emptyText="暂无库位。请先确保仓库启用，再新增库位。"
-        addLabel="新增库位"
-        onAdd={() => setBinOpen(true)}
-        columns={[
-          { key: 'warehouseCode', label: '仓库' },
-          { key: 'zoneCode', label: '库区' },
-          { key: 'code', label: '库位编码' },
-          { key: 'name', label: '名称' },
-          {
-            key: 'boundSku',
-            label: '绑定 SKU',
-            render: (row) => row.boundSku || '—',
-          },
-          {
-            key: 'status',
-            label: '库位状态',
-            render: (row) => <Badge variant={binVariant(row.status)}>{row.status}</Badge>,
-          },
-        ]}
-      >
-        <DetailKpiRow items={kpiItems} />
-        <UedPrototypeNotice>
-          数据库强校验：同一仓库库位编码唯一；有实物占用时一个启用库位只能绑定一个启用 SKU。停用库区后新建库位不可再选该库区。
-        </UedPrototypeNotice>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setView('warehouses')}>
-            查看仓库主档
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setWhOpen(true)}>
-            新增仓库
-          </Button>
-          <Button size="sm" variant="ghost" asChild>
-            <LocaleLink href="/console/warehouse-zones">管理库区</LocaleLink>
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => router.push('/console/inventory-balances')}>
-            库存余额
-          </Button>
-        </div>
-        {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-      </UedWorkspace>
-    </>
+        />
+      ) : (
+        <UedWorkspace
+          title="库位"
+          description="commerce_bins · 一库位一启用 SKU"
+          rows={bins}
+          detailHref={(row) => `/console/warehouse/${encodeURIComponent(row.warehouseId)}`}
+          searchKeys={['code', 'warehouseCode', 'zoneCode', 'boundSku', 'status']}
+          searchPlaceholder="搜索库位 / 仓库 / SKU"
+          filters={[{ label: '状态', options: ['空闲', '占用', '锁定', '停用'] }]}
+          emptyText={binsQuery.isLoading ? '加载中…' : '暂无库位'}
+          columns={[
+            { key: 'warehouseCode', label: '仓库' },
+            { key: 'zoneCode', label: '库区' },
+            { key: 'code', label: '库位' },
+            { key: 'boundSku', label: '绑定 SKU', render: (r) => r.boundSku || '—' },
+            {
+              key: 'status',
+              label: '状态',
+              render: (r) => <Badge variant={binVariant(r.status)}>{r.status}</Badge>,
+            },
+          ]}
+        />
+      )}
+    </div>
   )
 }

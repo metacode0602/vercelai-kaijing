@@ -1,18 +1,27 @@
-'use client'
-
 /**
- * seller_sku_mappings 原型会话 store（schema §3.2）。
- * 唯一键：店铺 + Seller SKU。
+ * Seller SKU 映射类型与助手。
+ * 主路径已切 tRPC → dataaccess/mappings → PostgreSQL（见 routers/mappings、console/mappings）。
+ * 本文件不再读写 localStorage / mock；页面请使用 `trpc.mappings.*`。
  */
 
-import { createDemoStore } from '@/lib/crossborder/local-store'
-import {
-  ERP_DEMO_MAPPINGS,
-  type DemoMapping,
-  type DemoStatus,
-} from '@/lib/crossborder/erp-ued-data'
+import type { UiMappingStatus } from '@/lib/server/mappers/listings'
 
-export type MappingRecord = DemoMapping
+export type DemoStatus = UiMappingStatus
+
+export type MappingRecord = {
+  id?: string
+  shop: string
+  platform: string
+  site: string
+  itemId: string
+  platformSkuId: string
+  sellerSku: string
+  internalSku: string
+  color: string
+  size: string
+  listingStatus: string
+  mappingStatus: DemoStatus
+}
 
 export type CreateMappingInput = {
   shop: string
@@ -30,7 +39,7 @@ export type CreateMappingInput = {
 
 export type UpdateMappingInput = Partial<
   Pick<
-    DemoMapping,
+    MappingRecord,
     | 'platform'
     | 'site'
     | 'itemId'
@@ -43,67 +52,40 @@ export type UpdateMappingInput = Partial<
   >
 >
 
-function mappingKey(shop: string, sellerSku: string) {
-  return `${shop}::${sellerSku}`
+export function mappingRouteId(row: Pick<MappingRecord, 'shop' | 'sellerSku'> & { id?: string }) {
+  if (row.id) return row.id
+  return `${row.shop}::${row.sellerSku}`
 }
 
-const seed = structuredClone(ERP_DEMO_MAPPINGS) as MappingRecord[]
-const store = createDemoStore<MappingRecord[]>('open-shop.console.demo.mappings.v2', seed)
-
-export function useMappings() {
-  return store.useStore()
-}
-
-export function getMappings() {
-  return store.get()
-}
-
-export function getMapping(shop: string, sellerSku: string) {
-  return store.get().find((item) => item.shop === shop && item.sellerSku === sellerSku)
-}
-
-export function getMappingByRouteId(id: string) {
-  const [shop, sellerSku] = id.split('::')
-  if (!shop || !sellerSku) return undefined
-  return getMapping(shop, sellerSku)
-}
-
-export function mappingRouteId(row: Pick<DemoMapping, 'shop' | 'sellerSku'>) {
-  return mappingKey(row.shop, row.sellerSku)
-}
-
-export function createMapping(input: CreateMappingInput): MappingRecord {
-  const row: MappingRecord = {
-    shop: input.shop.trim(),
-    platform: input.platform.trim(),
-    site: input.site.trim(),
-    itemId: input.itemId.trim(),
-    platformSkuId: (input.platformSkuId || '').trim() || '待同步',
-    sellerSku: input.sellerSku.trim(),
-    internalSku: input.internalSku.trim(),
-    color: input.color.trim(),
-    size: input.size.trim(),
-    listingStatus: input.listingStatus ?? '待同步',
-    mappingStatus: input.mappingStatus ?? '待确认',
+/** @deprecated 主路径已禁用 localStorage */
+export function useMappings(): MappingRecord[] {
+  if (typeof console !== 'undefined') {
+    console.warn('[mapping-store] useMappings() 已停用 localStorage。请改用 trpc.mappings.list / get。')
   }
-  const list = store.get().filter(
-    (item) => !(item.shop === row.shop && item.sellerSku === row.sellerSku),
-  )
-  store.set([row, ...list])
-  return row
+  return []
 }
 
-export function updateMapping(
-  shop: string,
-  sellerSku: string,
-  patch: UpdateMappingInput,
-): MappingRecord | null {
-  const list = store.get()
-  const index = list.findIndex((item) => item.shop === shop && item.sellerSku === sellerSku)
-  if (index < 0) return null
-  const next = { ...list[index]!, ...patch }
-  const copy = [...list]
-  copy[index] = next
-  store.set(copy)
-  return next
+/** @deprecated */
+export function getMappings(): MappingRecord[] {
+  return []
+}
+
+/** @deprecated */
+export function getMapping(_shop: string, _sellerSku: string): MappingRecord | undefined {
+  return undefined
+}
+
+/** @deprecated */
+export function getMappingByRouteId(_id: string): MappingRecord | undefined {
+  return undefined
+}
+
+/** @deprecated */
+export function createMapping(_input: CreateMappingInput): never {
+  throw new Error('mapping-store 已停用，请使用 trpc.mappings.create')
+}
+
+/** @deprecated */
+export function updateMapping(_shop: string, _sellerSku: string, _patch: UpdateMappingInput): null {
+  return null
 }

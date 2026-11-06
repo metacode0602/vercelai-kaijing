@@ -2,47 +2,54 @@
 
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { useBins, useWarehouses } from '@/lib/crossborder/wms-store'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
-import { addWarehouseZone, useWarehouseZones } from '@/lib/crossborder/warehouse-zone-store'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 export default function WarehouseZonesPage() {
-  const rows = useWarehouseZones()
-  const warehouses = useWarehouses()
-  const bins = useBins()
+  const utils = trpc.useUtils()
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
-  const warehouseOptions = warehouses
-    .filter((item) => item.status === '启用')
-    .map((item) => `${item.name} (${item.code})`)
+  const zonesQuery = trpc.wms.listZones.useQuery({ page: 1, pageSize: 200 })
+  const statsQuery = trpc.wms.zoneStats.useQuery()
+  const warehousesQuery = trpc.wms.listWarehouses.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const binsQuery = trpc.wms.listBins.useQuery({ page: 1, pageSize: 200 })
 
-  const kpiItems = React.useMemo(() => {
-    const enabled = rows.filter((row) => row.status === '启用').length
-    const disabled = rows.length - enabled
-    const withBins = rows.filter((row) =>
-      bins.some((bin) => bin.warehouseCode === row.warehouseCode && bin.zoneCode === row.code),
-    ).length
-    return [
-      { label: '库区', value: String(rows.length) },
-      { label: '启用', value: String(enabled) },
-      { label: '停用', value: String(disabled) },
-      { label: '已挂库位', value: String(withBins) },
-    ]
-  }, [rows, bins])
+  const createZone = trpc.wms.createZone.useMutation({
+    onSuccess: async (row) => {
+      await Promise.all([
+        utils.wms.listZones.invalidate(),
+        utils.wms.zoneStats.invalidate(),
+      ])
+      setOpen(false)
+      setNotice(`已创建库区 ${row.warehouseCode}:${row.code}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const rows = zonesQuery.data?.items ?? []
+  const bins = binsQuery.data?.items ?? []
+  const warehouses = warehousesQuery.data?.items ?? []
+  const warehouseOptions = warehouses.map((item) => `${item.name} (${item.code})`)
+
+  const kpiItems = [
+    { label: '库区', value: String(statsQuery.data?.zones ?? 0) },
+    { label: '启用', value: String(statsQuery.data?.activeZones ?? 0) },
+    { label: '停用', value: String(statsQuery.data?.disabledZones ?? 0) },
+    { label: '已挂库位', value: String(statsQuery.data?.withBins ?? 0) },
+  ]
 
   const editor = open ? (
     <UedDialog
       title="新增库区"
-      description="库区是独立主数据（schema §1.5）；新增库位时按仓库选择库区。编码同仓唯一。"
+      description="库区元数据写入 commerce_warehouses.raw.zones；库位通过 zone_code 归属。同仓编码唯一。"
       fields={[
         {
           key: 'warehouse',
           label: '仓库',
-          options: warehouseOptions.length
-            ? warehouseOptions
-            : ['厦门自营仓 (WH-CN-XMN-001)'],
+          options: warehouseOptions.length ? warehouseOptions : ['（请先创建仓库）'],
           required: true,
         },
         { key: 'code', label: '库区编码', required: true, placeholder: '如 A / B / C' },
@@ -56,29 +63,23 @@ export default function WarehouseZonesPage() {
         const warehouse =
           warehouses.find((item) => `${item.name} (${item.code})` === values.warehouse) ||
           warehouses[0]
-        const code = (values.code || 'A').trim().toUpperCase()
+        if (!warehouse) {
+          setNotice('请先创建启用仓库')
+          return
+        }
+        const code = (values.code || '').trim().toUpperCase()
         if (!code) {
           setNotice('库区编码必填')
           return
         }
-        const dup = rows.some(
-          (row) =>
-            row.warehouseCode === (warehouse?.code ?? 'WH-CN-XMN-001') && row.code === code,
-        )
-        if (dup) {
-          setNotice(`仓库 ${warehouse?.code ?? 'WH-CN-XMN-001'} 下已有库区 ${code}`)
-          return
-        }
-        addWarehouseZone(rows, {
-          warehouseCode: warehouse?.code ?? 'WH-CN-XMN-001',
+        createZone.mutate({
+          warehouseCode: warehouse.code,
           code,
-          name: values.name || '未命名库区',
-          purpose: values.purpose || '待补充',
+          name: values.name || `${code} 区`,
+          purpose: values.purpose || '',
           status: values.status === '停用' ? '停用' : '启用',
           note: values.note || '',
         })
-        setOpen(false)
-        setNotice('库区已加入本次原型会话；新增库位时会读取启用的库区。')
       }}
       saveLabel="保存库区"
     />
@@ -87,15 +88,22 @@ export default function WarehouseZonesPage() {
   return (
     <>
       {editor}
+      <Alert>
+        <AlertTitle>库区已接 PostgreSQL</AlertTitle>
+        <AlertDescription>
+          tRPC `wms.listZones` → dataaccess → `commerce_warehouses.raw.zones` + `commerce_bins.zone_code`（无独立库区表）。
+          {notice ? ` ${notice}` : ''}
+        </AlertDescription>
+      </Alert>
       <UedWorkspace
         title="库区管理"
-        description="仓库下的独立库区主数据；库位归属库区，拣货和盘点按库区筛选。侧栏入口不变。"
+        description="仓库下的库区主数据；库位归属库区，拣货和盘点按库区筛选。侧栏入口不变。"
         rows={rows}
         detailHref={(row) => `/console/warehouse-zones/${encodeURIComponent(row.id)}`}
         searchKeys={['id', 'warehouseCode', 'code', 'name', 'purpose', 'status', 'note']}
         searchPlaceholder="搜索仓库、库区编码或用途"
         filters={[{ label: '状态', options: ['启用', '停用'] }]}
-        emptyText="暂无库区。请先新增库区，再建库位（一库位一启用 SKU）。"
+        emptyText={zonesQuery.isLoading ? '加载中…' : '暂无库区。请先新增库区，再建库位（一库位一启用 SKU）。'}
         addLabel="新增库区"
         onAdd={() => setOpen(true)}
         columns={[
@@ -103,15 +111,16 @@ export default function WarehouseZonesPage() {
           { key: 'warehouseCode', label: '仓库' },
           { key: 'code', label: '库区编码' },
           { key: 'name', label: '库区名称' },
-          { key: 'purpose', label: '用途' },
+          { key: 'purpose', label: '用途', render: (row) => row.purpose || '—' },
           {
             key: 'binCount',
             label: '库位数',
             render: (row) =>
               String(
-                bins.filter(
-                  (bin) => bin.warehouseCode === row.warehouseCode && bin.zoneCode === row.code,
-                ).length,
+                row.binCount ||
+                  bins.filter(
+                    (bin) => bin.warehouseCode === row.warehouseCode && bin.zoneCode === row.code,
+                  ).length,
               ),
           },
           {
@@ -124,11 +133,6 @@ export default function WarehouseZonesPage() {
         ]}
       >
         <DetailKpiRow items={kpiItems} />
-        <UedPrototypeNotice>
-          库区是独立主数据，不再用库位编码前缀代替。停用库区后，新建库位不再显示该库区，历史库位保留。与
-          warehouse / inventory-balances 联动。
-        </UedPrototypeNotice>
-        {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>
   )

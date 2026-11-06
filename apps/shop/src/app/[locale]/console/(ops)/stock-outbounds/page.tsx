@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { useLocaleRouter, LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -15,60 +15,235 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+type OutboundRow = {
+  id: string
+  outboundNo: string
+  outboundType: string
+  warehouse: string
+  orderId?: string | null
+  externalOrderId?: string
+  order?: string
+  packageId: string
+  firstSku: string
+  totalQty: number
+  picker: string
+  status: string
+  source: 'order' | 'wms'
+}
+
 export default function StockOutboundsPage() {
   const utils = trpc.useUtils()
   const router = useLocaleRouter()
   const [notice, setNotice] = React.useState('')
-  const listQuery = trpc.order.listOutbounds.useQuery({ page: 1, pageSize: 100 })
-  const statsQuery = trpc.order.outboundStats.useQuery()
-  const advanceMutation = trpc.order.advanceOutbound.useMutation({
+  const [open, setOpen] = React.useState(false)
+  const [tab, setTab] = React.useState<'all' | 'order' | 'wms'>('all')
+
+  const orderList = trpc.order.listOutbounds.useQuery({ page: 1, pageSize: 100 })
+  const orderStats = trpc.order.outboundStats.useQuery()
+  const wmsList = trpc.wms.listOutbounds.useQuery({ page: 1, pageSize: 100 })
+  const wmsStats = trpc.wms.outboundStats.useQuery()
+  const meta = trpc.wms.meta.useQuery()
+  const warehouses = trpc.wms.listWarehouses.useQuery({ page: 1, pageSize: 50, status: '启用' })
+  const bins = trpc.wms.listBins.useQuery({ page: 1, pageSize: 100 })
+
+  const invalidateAll = async () => {
+    await Promise.all([
+      utils.order.listOutbounds.invalidate(),
+      utils.order.outboundStats.invalidate(),
+      utils.wms.listOutbounds.invalidate(),
+      utils.wms.outboundStats.invalidate(),
+      utils.wms.listBalances.invalidate(),
+      utils.wms.listMovements.invalidate(),
+    ])
+  }
+
+  const advanceOrder = trpc.order.advanceOutbound.useMutation({
     onSuccess: async (row) => {
-      await utils.order.listOutbounds.invalidate()
-      await utils.order.outboundStats.invalidate()
+      await invalidateAll()
       setNotice(`${row.outboundNo} → ${row.status}`)
     },
     onError: (e) => setNotice(e.message),
   })
-  const cancelMutation = trpc.order.cancelOutbound.useMutation({
+  const cancelOrder = trpc.order.cancelOutbound.useMutation({
     onSuccess: async (row) => {
-      await utils.order.listOutbounds.invalidate()
-      await utils.order.outboundStats.invalidate()
+      await invalidateAll()
       setNotice(`${row.outboundNo} 已取消`)
     },
     onError: (e) => setNotice(e.message),
   })
-
-  const rows = listQuery.data?.items ?? []
-  const counts = statsQuery.data?.byStatus ?? {}
-  const kpiItems = [
-    { label: '出库单', value: String(statsQuery.data?.total ?? rows.length) },
-    { label: '待拣货', value: String(counts['待拣货'] ?? 0) },
-    {
-      label: '作业中',
-      value: String((counts['拣货中'] ?? 0) + (counts['已复核'] ?? 0)),
+  const advanceWms = trpc.wms.advanceOutbound.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setNotice(`${row.outboundNo} → ${row.status}`)
     },
-    { label: '已出库', value: String(counts['已出库'] ?? 0) },
+    onError: (e) => setNotice(e.message),
+  })
+  const postWms = trpc.wms.postOutbound.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setNotice(`${row.outboundNo} 已过账（ledger:wms_outbound:*）`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const cancelWms = trpc.wms.cancelOutbound.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setNotice(`${row.outboundNo} 已取消`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const createWms = trpc.wms.createOutbound.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setOpen(false)
+      setNotice(`已创建非订单出库 ${row.outboundNo}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const orderRows: OutboundRow[] = (orderList.data?.items ?? []).map((row) => ({
+    id: row.id,
+    outboundNo: row.outboundNo,
+    outboundType: row.outboundType,
+    warehouse: row.warehouse,
+    orderId: row.orderId,
+    externalOrderId: row.externalOrderId,
+    packageId: row.packageId,
+    firstSku: row.firstSku,
+    totalQty: row.totalQty,
+    picker: row.picker,
+    status: row.status,
+    source: 'order',
+  }))
+  const wmsRows: OutboundRow[] = (wmsList.data?.items ?? []).map((row) => ({
+    id: row.id,
+    outboundNo: row.outboundNo,
+    outboundType: row.outboundType,
+    warehouse: row.warehouse,
+    order: row.order,
+    packageId: row.packageId,
+    firstSku: row.firstSku,
+    totalQty: row.totalQty,
+    picker: row.picker,
+    status: row.status,
+    source: 'wms',
+  }))
+
+  const rows =
+    tab === 'order' ? orderRows : tab === 'wms' ? wmsRows : [...wmsRows, ...orderRows]
+
+  const orderCounts = orderStats.data?.byStatus ?? {}
+  const wmsCounts = wmsStats.data?.byStatus ?? {}
+  const kpiItems = [
+    {
+      label: '出库单',
+      value: String((orderStats.data?.total ?? 0) + (wmsStats.data?.total ?? 0)),
+    },
+    {
+      label: '待拣货',
+      value: String((orderCounts['待拣货'] ?? 0) + (wmsCounts['待拣货'] ?? 0)),
+    },
+    {
+      label: '非订单',
+      value: String(wmsStats.data?.total ?? 0),
+      hint: '领用/调拨/报损等',
+    },
+    {
+      label: '已出库',
+      value: String((orderCounts['已出库'] ?? 0) + (wmsCounts['已出库'] ?? 0)),
+    },
   ]
+
+  const warehouseOptions = (warehouses.data?.items ?? []).map((w) => w.code)
+  const binOptions = (bins.data?.items ?? []).map((b) => b.code)
+
+  const editor = open ? (
+    <UedDialog
+      title="新建非订单出库"
+      description="领用 / 调拨出 / 盘亏报损等。过账写 ledger:wms_outbound:*，不释放销售订单占库。"
+      fields={[
+        {
+          key: 'outboundType',
+          label: '出库类型',
+          options: meta.data?.outboundTypes ?? ['样品出库', '调拨出库', '盘亏出库', '其他出库'],
+          required: true,
+        },
+        {
+          key: 'warehouse',
+          label: '仓库',
+          options: warehouseOptions.length ? warehouseOptions : ['WH-CN-XMN-001'],
+          required: true,
+        },
+        { key: 'sku', label: 'SKU', required: true, placeholder: 'HSY000001001' },
+        {
+          key: 'bin',
+          label: '库位',
+          options: binOptions.length ? binOptions : ['A-01-01-01'],
+          required: true,
+        },
+        { key: 'quantity', label: '数量', required: true },
+        { key: 'reason', label: '原因', required: true },
+        { key: 'remark', label: '备注', type: 'textarea', fullWidth: true },
+      ]}
+      onClose={() => setOpen(false)}
+      onSave={(values) =>
+        createWms.mutate({
+          outboundType: values.outboundType,
+          warehouse: values.warehouse,
+          reason: values.reason,
+          remark: values.remark,
+          lines: [
+            {
+              sku: values.sku,
+              bin: values.bin,
+              quantity: Number(values.quantity || 0),
+            },
+          ],
+        })
+      }
+    />
+  ) : null
 
   return (
     <div className="space-y-4">
       <Alert>
         <AlertTitle>出库单已接 PostgreSQL</AlertTitle>
         <AlertDescription>
-          订单出库由订单详情创建；推进至「已出库」过账写 order_ship 流水（幂等键 outbound:order:…）。
-          手工非订单出库 / 盘亏等入口本迭代不做。主路径已停用 localStorage。
+          订单出库走 `order.*`；非订单出库走 `wms.*`（幂等 ledger:wms_outbound:*，不改 reserved）。
+          {notice ? ` ${notice}` : ''}
         </AlertDescription>
       </Alert>
       <DetailKpiRow items={kpiItems} />
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant={tab === 'all' ? 'default' : 'outline'} onClick={() => setTab('all')}>
+          全部
+        </Button>
+        <Button size="sm" variant={tab === 'order' ? 'default' : 'outline'} onClick={() => setTab('order')}>
+          订单出库
+        </Button>
+        <Button size="sm" variant={tab === 'wms' ? 'default' : 'outline'} onClick={() => setTab('wms')}>
+          非订单出库
+        </Button>
+        <Button size="sm" onClick={() => setOpen(true)}>
+          新建非订单出库
+        </Button>
+        <Button size="sm" variant="outline" asChild>
+          <LocaleLink href="/console/orders">订单</LocaleLink>
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => router.push('/console/inventory-ledger')}>
+          库存流水
+        </Button>
+      </div>
+      {editor}
       <UedWorkspace
         title="出库单"
-        description="stock_outbounds · tRPC → dataaccess → Postgres"
+        description="stock_outbounds · 订单 + WMS 非订单"
         rows={rows}
         detailHref={(row) => `/console/stock-outbounds/${encodeURIComponent(row.id)}`}
-        searchKeys={['outboundNo', 'externalOrderId', 'packageId', 'firstSku', 'status', 'picker']}
+        searchKeys={['outboundNo', 'externalOrderId', 'order', 'packageId', 'firstSku', 'status', 'picker', 'outboundType']}
         searchPlaceholder="出库单号 / 订单 / 包裹 / SKU"
         filters={[{ label: '状态', options: ['待拣货', '拣货中', '已复核', '已出库', '已取消'] }]}
-        emptyText={listQuery.isLoading ? '加载中…' : '暂无出库单。请从已占库订单创建。'}
+        emptyText={orderList.isLoading || wmsList.isLoading ? '加载中…' : '暂无出库单'}
         columns={[
           { key: 'outboundNo', label: '出库单号' },
           { key: 'outboundType', label: '类型' },
@@ -84,16 +259,12 @@ export default function StockOutboundsPage() {
                   {row.externalOrderId || '—'}
                 </LocaleLink>
               ) : (
-                row.externalOrderId || '—'
+                row.order || row.externalOrderId || '—'
               ),
           },
           { key: 'packageId', label: '包裹' },
           { key: 'firstSku', label: '首行 SKU' },
-          {
-            key: 'totalQty',
-            label: '数量',
-            render: (row) => String(row.totalQty),
-          },
+          { key: 'totalQty', label: '数量', render: (row) => String(row.totalQty) },
           { key: 'warehouse', label: '仓库' },
           { key: 'picker', label: '拣货人' },
           {
@@ -106,17 +277,42 @@ export default function StockOutboundsPage() {
             label: '操作',
             render: (row) => (
               <div className="flex gap-1">
-                {row.status !== '已出库' && row.status !== '已取消' ? (
+                {row.source === 'order' && row.status !== '已出库' && row.status !== '已取消' ? (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={(e) => {
                       e.preventDefault()
-                      advanceMutation.mutate({ id: row.id })
+                      advanceOrder.mutate({ id: row.id })
                     }}
                   >
                     推进
                   </Button>
+                ) : null}
+                {row.source === 'wms' && row.status !== '已出库' && row.status !== '已取消' ? (
+                  <>
+                    {row.status !== '已复核' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          advanceWms.mutate({ id: row.id })
+                        }}
+                      >
+                        推进
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        postWms.mutate({ id: row.id })
+                      }}
+                    >
+                      过账
+                    </Button>
+                  </>
                 ) : null}
                 {row.status === '待拣货' || row.status === '拣货中' ? (
                   <Button
@@ -124,7 +320,8 @@ export default function StockOutboundsPage() {
                     variant="ghost"
                     onClick={(e) => {
                       e.preventDefault()
-                      cancelMutation.mutate({ id: row.id, reason: '人工取消' })
+                      if (row.source === 'wms') cancelWms.mutate({ id: row.id, reason: '人工取消' })
+                      else cancelOrder.mutate({ id: row.id, reason: '人工取消' })
                     }}
                   >
                     取消
@@ -135,18 +332,6 @@ export default function StockOutboundsPage() {
           },
         ]}
       />
-      <div className="flex gap-2">
-        <Button variant="outline" asChild>
-          <LocaleLink href="/console/orders">订单</LocaleLink>
-        </Button>
-        <Button variant="outline" asChild>
-          <LocaleLink href="/console/picking">拣货打包</LocaleLink>
-        </Button>
-        <Button variant="outline" onClick={() => router.push('/console/inventory-ledger')}>
-          库存流水
-        </Button>
-      </div>
-      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
     </div>
   )
 }

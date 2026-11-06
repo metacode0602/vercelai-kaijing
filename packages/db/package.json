@@ -22,7 +22,15 @@
     "db:seed:commerce-orders": "tsx src/scripts/seed-commerce-orders.ts",
     "db:seed:commerce-logistics": "tsx src/scripts/seed-commerce-logistics.ts",
     "db:seed:commerce-fee-templates": "tsx src/scripts/seed-commerce-fee-templates.ts",
-    "db:seed:commerce-aftersales": "tsx src/scripts/seed-commerce-aftersales.ts"
+    "db:seed:commerce-aftersales": "tsx src/scripts/seed-commerce-aftersales.ts",
+    "db:seed:commerce-ocean": "tsx src/scripts/seed-commerce-ocean.ts",
+    "db:seed:commerce-wms": "tsx src/scripts/seed-commerce-wms.ts",
+    "db:seed:commerce-listings": "tsx src/scripts/seed-commerce-listings.ts",
+    "db:seed:commerce-suppliers": "tsx src/scripts/seed-commerce-suppliers.ts",
+    "db:seed:commerce-finance": "tsx src/scripts/seed-commerce-finance.ts",
+    "db:seed:commerce-candidates": "tsx src/scripts/seed-commerce-candidates.ts",
+    "db:seed:commerce-console-ops": "tsx src/scripts/seed-commerce-console-ops.ts",
+    "db:seed:commerce-carton-specs": "tsx src/scripts/seed-commerce-carton-specs.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",

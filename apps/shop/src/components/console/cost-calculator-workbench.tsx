@@ -55,7 +55,6 @@ import {
   type MockCostCalcPreset,
 } from '@/lib/crossborder/mock-data'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
-import { getOceanLots } from '@/lib/crossborder/ocean-container-store'
 import {
   listSkuCostVersions,
   saveSkuCostVersionFromCalculator,
@@ -170,8 +169,42 @@ export function CostCalculatorWorkbench({
   const [formulasOpen, setFormulasOpen] = React.useState(true)
   const [copilotHint, setCopilotHint] = React.useState<string | null>(null)
   const allVersions = useSkuCostVersions()
-  const [lotId, setLotId] = React.useState(() => getOceanLots()[0]?.id ?? '')
+  const oceanLotsQuery = trpc.ocean.list.useQuery({ page: 1, pageSize: 50 })
+  const oceanLots = oceanLotsQuery.data?.items ?? []
+  const [lotId, setLotId] = React.useState('')
+  React.useEffect(() => {
+    if (!lotId && oceanLots[0]?.id) setLotId(oceanLots[0].id)
+  }, [oceanLots, lotId])
+
+  const seedQuery = trpc.dashboard.costCalcSeed.useQuery(
+    { sku: input.sku },
+    { enabled: Boolean(input.sku) },
+  )
+  const seedAppliedRef = React.useRef<string>('')
+  React.useEffect(() => {
+    const seed = seedQuery.data
+    if (!seed || seedAppliedRef.current === `${seed.sku}:${seed.fromSkuCost}`) return
+    seedAppliedRef.current = `${seed.sku}:${seed.fromSkuCost}`
+    if (!seed.fromSkuCost && seed.fobUnit <= 0) return
+    setInput((prev) => ({
+      ...prev,
+      sku: seed.sku || prev.sku,
+      title: seed.title || prev.title,
+      fobUnit: seed.fobUnit > 0 ? seed.fobUnit : prev.fobUnit,
+      platformCommissionPct:
+        seed.platformCommissionPct != null ? seed.platformCommissionPct : prev.platformCommissionPct,
+    }))
+    setCopilotHint(seed.note)
+  }, [seedQuery.data])
   const [saveHint, setSaveHint] = React.useState<string | null>(null)
+  const saveOceanCostMutation = trpc.ocean.saveCost.useMutation({
+    onSuccess: (row) => {
+      setSaveHint(
+        `已写入 DB ${row.id} · 到仓 ${row.landedUnitCost ?? row.amount} ${row.currency}/件 · 费用模板版本 ${row.feeTemplateVersionId ?? '—'}`,
+      )
+    },
+    onError: (e) => setSaveHint(e.message),
+  })
   const skuVersions = React.useMemo(
     () => allVersions.filter((row) => row.sku === input.sku),
     [allVersions, input.sku],
@@ -253,7 +286,7 @@ export function CostCalculatorWorkbench({
     if (!open) lastSkuRef.current = undefined
   }, [open])
 
-  // Page: consume dialog draft + pending copilot actions once on mount
+  // Page: consume dialog draft（会话交接）+ pending copilot actions；localStorage 不是成本主记录
   React.useEffect(() => {
     if (isDialog) return
     const draft = readCostCalcDraft()
@@ -265,6 +298,7 @@ export function CostCalculatorWorkbench({
       }
       clearCostCalcDraft()
       lastSkuRef.current = draft.sku
+      setCopilotHint('已恢复会话草稿；成本主记录以 sku_costs / fee_templates 为准，勿把 localStorage 当主库')
     }
     const pending = consumePendingCostCalcActions()
     if (pending.length > 0) {
@@ -314,22 +348,41 @@ export function CostCalculatorWorkbench({
       setSaveHint('请先测算并选择柜次')
       return
     }
-    const lot = getOceanLots().find((row) => row.id === lotId)
+    const lot = oceanLots.find((row) => row.id === lotId)
     if (!lot) {
-      setSaveHint('柜次不存在')
+      setSaveHint('柜次不存在（请先种子/创建海运柜次）')
       return
     }
-    const row = saveSkuCostVersionFromCalculator({
+    // 兼容：仍写一份 localStorage 快照供成本页展示；主路径写入 sku_costs
+    saveSkuCostVersionFromCalculator({
       input,
       result,
       containerLotId: lot.id,
       lotCode: lot.lotCode,
       createdBy: '杨洁',
     })
-    setSaveHint(
-      `已保存 ${row.id} · 到仓 ${row.landedUnitCost} USD/件 · 费用模板版本 ${row.feeTemplateVersionId ?? '—'} · 审批参考 杨洁/黄发聪`,
-    )
-  }, [input, result, lotId])
+    saveOceanCostMutation.mutate({
+      shipmentId: lot.id,
+      sku: input.sku,
+      amount: result.landedUnit,
+      landedUnitCost: result.landedUnit,
+      currency: 'USD',
+      feeTemplateVersionId: result.meta.feeTemplateVersionId,
+      taxTemplateCode: result.meta.feeTemplateCode ?? 'LK_PAL_CESS_VAT_SSCL',
+      taxBreakdown: {
+        pal: result.tax.pal,
+        cess: result.tax.cess,
+        vat: result.tax.vat,
+        sscl: result.tax.sscl,
+      },
+      calculatorSnapshot: {
+        freightMode: input.freightMode,
+        waterfall: result.waterfall,
+        components: result.meta.componentsSnapshot,
+      },
+      note: `柜次 ${lot.lotCode} 测算保存`,
+    })
+  }, [input, result, lotId, oceanLots, saveOceanCostMutation])
 
   const formPanel = (
     <CostCalculatorFormPanel
@@ -372,6 +425,7 @@ export function CostCalculatorWorkbench({
             onFormulasOpenChange={setFormulasOpen}
             lotId={lotId}
             onLotIdChange={setLotId}
+            oceanLots={oceanLots}
             onSaveVersion={handleSaveVersion}
             saveHint={saveHint}
             versions={skuVersions}
@@ -669,6 +723,7 @@ function CostCalculatorResultsPanel({
   onFormulasOpenChange,
   lotId,
   onLotIdChange,
+  oceanLots,
   onSaveVersion,
   saveHint,
   versions,
@@ -680,6 +735,7 @@ function CostCalculatorResultsPanel({
   onFormulasOpenChange: (open: boolean) => void
   lotId: string
   onLotIdChange: (id: string) => void
+  oceanLots: Array<{ id: string; lotCode: string; status: string; containerNo: string }>
   onSaveVersion: () => void
   saveHint: string | null
   versions: ReturnType<typeof listSkuCostVersions>
@@ -714,7 +770,7 @@ function CostCalculatorResultsPanel({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">保存为柜次成本版本（F32）</CardTitle>
           <CardDescription className="text-xs">
-            写入本机 localStorage · 按 SKU + 柜次递增 versionNo · 税模版 LK PAL/CESS/VAT/SSCL
+            主路径写入 PostgreSQL sku_costs（container_lot_id）；并保留本机快照便于成本页浏览
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -725,9 +781,9 @@ function CostCalculatorResultsPanel({
                 <SelectValue placeholder="选择柜次" />
               </SelectTrigger>
               <SelectContent>
-                {getOceanLots().map((lot) => (
+                {oceanLots.map((lot) => (
                   <SelectItem key={lot.id} value={lot.id}>
-                    {lot.lotCode} · {lot.status} · {lot.containerNo}
+                    {lot.lotCode} · {lot.status} · {lot.containerNo || '无柜号'}
                   </SelectItem>
                 ))}
               </SelectContent>

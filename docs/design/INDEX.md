@@ -49,3 +49,5 @@
 - 流程图用 mermaid，线框图保持原格式。
 - 文档只描述跨境运营域，不再新增历史业务域内容。
 - 代码里用 `@see <仓库根相对路径> §章节号` 指向设计文档。
+
+- [模块14 候选选品·站内信·Dashboard残余](./shop-module14-candidates-notifications-trpc.md)

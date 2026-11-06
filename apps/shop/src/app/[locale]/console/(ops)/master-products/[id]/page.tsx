@@ -5,17 +5,14 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailRelatedTables,
   DetailSection,
 } from '@/components/console/detail'
 import { useConsoleBreadcrumbs } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog } from '@/components/console/erp-ued-workspace'
 import { ProductImageEditor } from '@/components/console/product-images'
-import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
-import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import type { UiProductStatus } from '@/lib/server/mappers/products'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
@@ -43,10 +40,17 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
     { label: id },
   ])
 
-  const dictionaries = useDictionaries()
-  const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
-  const colorOptions = activeDictionaryValues(dictionaries, 'product_color')
-  const sizeOptions = activeDictionaryValues(dictionaries, 'product_size')
+  const dictionariesQuery = trpc.dictionaries.list.useQuery()
+  const dictMap = Object.fromEntries((dictionariesQuery.data ?? []).map((d) => [d.key, d]))
+  const activeVals = (key: string) => {
+    const d = dictMap[key]
+    if (!d) return [] as string[]
+    const inactive = new Set(d.inactiveValues ?? [])
+    return d.values.filter((v) => !inactive.has(v))
+  }
+  const packOptions = activeVals('product_pack')
+  const colorOptions = activeVals('product_color')
+  const sizeOptions = activeVals('product_size')
 
   const [headerOpen, setHeaderOpen] = React.useState(false)
   const [variantOpen, setVariantOpen] = React.useState(false)
@@ -107,8 +111,6 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   }
 
   const current = productQuery.data
-  const related = buildUedRelatedInfo('master-products', current as unknown as Record<string, unknown>)
-  const relatedSections = (related?.sections ?? []).filter((section) => section.title !== 'SKU 列表')
   const enabledSkus = current.variants.filter((item) => item.status === '启用').length
   const pendingSkus = current.variants.filter((item) => item.status === '待确认').length
 
@@ -240,7 +242,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         )}
       </DetailSection>
 
-      {relatedSections.length > 0 ? <DetailRelatedTables sections={relatedSections} /> : null}
+      {/* 关联刊登/采购等子表：待列表域接库后由 related-info 注入真实行；SKU 列表已在上方展示 */}
 
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
 
