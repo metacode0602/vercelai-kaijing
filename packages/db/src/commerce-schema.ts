@@ -9,6 +9,7 @@
  */
 
 import { createId } from "@paralleldrive/cuid2"
+import { sql } from "drizzle-orm"
 import {
   boolean,
   index,
@@ -193,6 +194,76 @@ const timestamps = {
     .$onUpdate(() => new Date())
     .notNull(),
 }
+
+export const onboardingSubjectTypes = ["enterprise", "individual"] as const
+export type OnboardingSubjectType = (typeof onboardingSubjectTypes)[number]
+
+export const onboardingHandlerTypes = ["legal_rep", "authorized_agent"] as const
+export type OnboardingHandlerType = (typeof onboardingHandlerTypes)[number]
+
+export const onboardingStatuses = [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "suspended",
+] as const
+export type OnboardingStatus = (typeof onboardingStatuses)[number]
+
+// ---------------------------------------------------------------------------
+// tenant_onboarding_applications — 租户入驻申请（一条当前申请 / 组织）
+// ---------------------------------------------------------------------------
+
+export const tenantOnboardingApplications = pgTable(
+  "tenant_onboarding_applications",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    applicantUserId: text("applicant_user_id").notNull(),
+    subjectType: varchar("subject_type", { length: 16 }).notNull(),
+    companyName: text("company_name").notNull(),
+    registrationNo: varchar("registration_no", { length: 64 }),
+    countryCode: varchar("country_code", { length: 8 }).notNull(),
+    handlerType: varchar("handler_type", { length: 16 }).notNull().default("legal_rep"),
+    legalRepresentative: text("legal_representative"),
+    legalRepIdNo: varchar("legal_rep_id_no", { length: 64 }),
+    legalRepIdFrontKey: text("legal_rep_id_front_key"),
+    legalRepIdBackKey: text("legal_rep_id_back_key"),
+    authorizationFileKey: text("authorization_file_key"),
+    agentName: text("agent_name"),
+    agentIdNo: varchar("agent_id_no", { length: 64 }),
+    agentIdFrontKey: text("agent_id_front_key"),
+    agentIdBackKey: text("agent_id_back_key"),
+    contactName: text("contact_name").notNull(),
+    contactPhone: varchar("contact_phone", { length: 32 }).notNull(),
+    contactEmail: text("contact_email"),
+    licenseFileKey: text("license_file_key"),
+    licenseFileName: text("license_file_name"),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    version: integer("version").notNull().default(1),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: text("reviewed_by"),
+    reviewNote: text("review_note"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("tenant_onboarding_applications_org_uidx").on(t.organizationId),
+    index("tenant_onboarding_applications_status_idx").on(t.status, t.submittedAt),
+    uniqueIndex("tenant_onboarding_applications_subject_uidx")
+      .on(t.countryCode, t.registrationNo)
+      .where(sql`${t.status} in ('submitted', 'approved')`),
+  ],
+)
 
 // ---------------------------------------------------------------------------
 // shops — KEEP + MERGE（sellerId / shopGroup / fulfillmentMode）

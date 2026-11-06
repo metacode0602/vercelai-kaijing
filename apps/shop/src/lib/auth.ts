@@ -1,4 +1,5 @@
 import { AUTH_PATH, normalizeContactPhone } from '@/lib/auth/constants'
+import { sharedAuthOptions } from '@workspace/auth'
 import { schema } from '@workspace/db'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -69,6 +70,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    ...(sharedAuthOptions.plugins ?? []),
     phoneNumber({
       otpLength: 6,
       expiresIn: 300,

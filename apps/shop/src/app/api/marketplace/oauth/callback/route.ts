@@ -9,19 +9,30 @@ import {
   getMarketplaceAppEnv,
 } from '@/lib/marketplace/env'
 import {
+  consumeOAuthNonce,
   decodeOAuthState,
   OAUTH_STATE_COOKIE,
   oauthStateCookieOptions,
 } from '@/lib/marketplace/oauth-state'
 import { persistOAuthCredentials } from '@/lib/marketplace/persist-credentials'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { resolveOrganizationContext } from '@/lib/server/context'
+import {
+  getOnboardingState,
+  isShopBindingAllowed,
+} from '@/lib/server/dataaccess/onboarding'
 
 export const runtime = 'nodejs'
 
-function consoleRedirect(locale: string, shopId: string, query?: Record<string, string>) {
+function consoleRedirect(
+  request: NextRequest,
+  locale: string,
+  shopId: string,
+  query?: Record<string, string>,
+) {
   const base =
-    process.env.BETTER_AUTH_URL ||
-    process.env.NEXT_PUBLIC_URL ||
-    'http://localhost:3000'
+    process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_URL || request.nextUrl.origin
   const prefix = locale && locale !== 'zh' ? `/${locale}` : ''
   const url = new URL(`${base.replace(/\/+$/, '')}${prefix}/console/settings/shops/${shopId}`)
   if (query) {
@@ -41,13 +52,16 @@ export async function GET(request: NextRequest) {
   const stateParam = searchParams.get('state') ?? ''
   const cookieState = request.cookies.get(OAUTH_STATE_COOKIE)?.value
 
-  const state = decodeOAuthState(stateParam) ?? (cookieState ? decodeOAuthState(cookieState) : null)
+  const decodedState = decodeOAuthState(stateParam)
+  const decodedCookie = cookieState ? decodeOAuthState(cookieState) : null
+  const state =
+    decodedState && decodedCookie && stateParam === cookieState ? decodedState : null
 
   if (error) {
     const fallbackShop = state?.shopId ?? 'unknown'
     const locale = state?.locale ?? 'zh'
     const res = NextResponse.redirect(
-      consoleRedirect(locale, fallbackShop, { oauth: 'error', message: error }),
+      consoleRedirect(request, locale, fallbackShop, { oauth: 'error', message: error }),
     )
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })
     return res
@@ -55,6 +69,34 @@ export async function GET(request: NextRequest) {
 
   if (!state || !code) {
     return NextResponse.json({ error: 'invalid oauth callback' }, { status: 400 })
+  }
+
+  const session = await auth.api.getSession({ headers: request.headers })
+  if (!session?.user) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const activeOrganizationId =
+    (session as { session?: { activeOrganizationId?: string | null } }).session
+      ?.activeOrganizationId ?? null
+  const { organizationId, organizationRole } = await resolveOrganizationContext({
+    userId: session.user.id,
+    activeOrganizationId,
+  })
+  if (
+    organizationId !== state.organizationId ||
+    (organizationRole !== 'tenant_owner' && organizationRole !== 'tenant_engineer')
+  ) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  if (!(await consumeOAuthNonce(state.nonce))) {
+    return NextResponse.json({ error: 'oauth state expired' }, { status: 400 })
+  }
+
+  const onboarding = await getOnboardingState(db, session.user.id, state.organizationId)
+  if (!isShopBindingAllowed(onboarding)) {
+    return NextResponse.json({ error: 'onboarding not approved' }, { status: 403 })
   }
 
   if (!isMarketplacePlatform(state.platform)) {
@@ -125,7 +167,7 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    await persistOAuthCredentials({
+    const persisted = await persistOAuthCredentials({
       organizationId: state.organizationId,
       shopId: state.shopId,
       platform: state.platform,
@@ -136,14 +178,18 @@ export async function GET(request: NextRequest) {
     })
 
     const res = NextResponse.redirect(
-      consoleRedirect(state.locale, state.shopId, { oauth: 'success' }),
+      consoleRedirect(request, state.locale, persisted.shopId, {
+        oauth: 'success',
+        ...(persisted.duplicate ? { duplicate: '1' } : {}),
+        mode: state.mode,
+      }),
     )
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })
     return res
   } catch (err) {
     const message = err instanceof Error ? err.message : 'oauth_failed'
     const res = NextResponse.redirect(
-      consoleRedirect(state.locale, state.shopId, { oauth: 'error', message }),
+      consoleRedirect(request, state.locale, state.shopId, { oauth: 'error', message }),
     )
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })
     return res

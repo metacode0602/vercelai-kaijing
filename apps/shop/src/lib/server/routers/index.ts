@@ -24,6 +24,7 @@ import { importTemplatesRouter } from './import-templates'
 import { auditRouter } from './audit'
 import { membersRouter } from './members'
 import { shopsRouter } from './shops'
+import { onboardingRouter } from './onboarding'
 import { cartonSpecsRouter } from './carton-specs'
 import { pendingRouter } from './pending'
 import { reportsRouter } from './reports'
@@ -59,6 +60,7 @@ export const appRouter = router({
   audit: auditRouter,
   members: membersRouter,
   shops: shopsRouter,
+  onboarding: onboardingRouter,
   cartonSpecs: cartonSpecsRouter,
   pending: pendingRouter,
   reports: reportsRouter,

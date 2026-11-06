@@ -21,6 +21,7 @@
     "@trpc/client": "^11.19.0",
     "@trpc/react-query": "^11.19.0",
     "@trpc/server": "^11.19.0",
+    "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
     "@workspace/marketplace": "workspace:*",

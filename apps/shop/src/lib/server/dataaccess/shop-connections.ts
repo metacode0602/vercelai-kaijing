@@ -2,7 +2,7 @@
  * shops + integration_credentials / integration_states（模块15）。
  * 店铺连接页读真实店铺；授权按钮不伪造 OAuth 成功，仅标记待平台授权。
  */
-import { and, desc, eq, ilike, inArray, isNull, or, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, isNull, lt, notInArray, or, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   integrationCredentials,
@@ -108,6 +108,30 @@ function mapShop(
   }
 }
 
+function authStatusFilter(status: string): SQL | undefined {
+  const now = new Date()
+  switch (status) {
+    case '已授权':
+      return and(
+        eq(shops.status, 'active'),
+        or(isNull(shops.authExpiresAt), gte(shops.authExpiresAt, now)),
+      )
+    case '授权失效':
+      return or(
+        inArray(shops.status, ['error', 'disabled']),
+        and(eq(shops.status, 'active'), lt(shops.authExpiresAt, now)),
+      )
+    case '连接中':
+      return eq(shops.status, 'connecting')
+    case '草稿':
+      return eq(shops.status, 'draft')
+    case '待授权':
+      return notInArray(shops.status, ['active', 'connecting', 'draft', 'error', 'disabled'])
+    default:
+      return undefined
+  }
+}
+
 export async function listShopConnections(
   db: AppDatabase,
   organizationId: string,
@@ -128,8 +152,22 @@ export async function listShopConnections(
       )!,
     )
   }
+  if (input.authStatus && input.authStatus !== 'all') {
+    const authFilter = authStatusFilter(input.authStatus)
+    if (authFilter) filters.push(authFilter)
+  }
   const where = and(...filters)!
-  const all = await db.select().from(shops).where(where).orderBy(desc(shops.updatedAt))
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(shops)
+    .where(where)
+  const all = await db
+    .select()
+    .from(shops)
+    .where(where)
+    .orderBy(desc(shops.updatedAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
   const ids = all.map((s) => s.id)
   const states =
     ids.length === 0
@@ -151,18 +189,39 @@ export async function listShopConnections(
   const credMap = new Map<string, typeof integrationCredentials.$inferSelect>()
   for (const c of creds) if (!credMap.has(c.shopId)) credMap.set(c.shopId, c)
 
-  let items = all.map((s) => mapShop(s, stateMap.get(s.id), credMap.get(s.id)))
-  if (input.authStatus && input.authStatus !== 'all') {
-    items = items.filter((i) => i.authStatus === input.authStatus)
-  }
-  const total = items.length
-  const slice = items.slice((page - 1) * pageSize, page * pageSize)
-  return { items: slice, total, page, pageSize }
+  const items = all.map((s) => mapShop(s, stateMap.get(s.id), credMap.get(s.id)))
+  return { items, total, page, pageSize }
 }
 
 export async function getShopConnection(db: AppDatabase, organizationId: string, id: string) {
-  const list = await listShopConnections(db, organizationId, { page: 1, pageSize: 200 })
-  return list.items.find((i) => i.id === id) ?? null
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(
+      and(
+        eq(shops.organizationId, organizationId),
+        eq(shops.id, id),
+        isNull(shops.deletedAt),
+      ),
+    )
+    .limit(1)
+  if (!shop) return null
+  const [state] = await db
+    .select()
+    .from(integrationStates)
+    .where(eq(integrationStates.shopId, shop.id))
+    .limit(1)
+  const [cred] = await db
+    .select()
+    .from(integrationCredentials)
+    .where(
+      and(
+        eq(integrationCredentials.organizationId, organizationId),
+        eq(integrationCredentials.shopId, shop.id),
+      ),
+    )
+    .limit(1)
+  return mapShop(shop, state, cred)
 }
 
 export async function createShopDraft(
@@ -222,6 +281,28 @@ export async function setShopSyncPaused(
       status: input.paused && shop.status === 'active' ? shop.status : shop.status,
       updatedAt: new Date(),
     })
+    .where(eq(shops.id, shop.id))
+  return getShopConnection(db as AppDatabase, organizationId, shop.id)
+}
+
+export async function disableShop(
+  db: DbLike,
+  organizationId: string,
+  input: { id: string },
+) {
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(and(eq(shops.organizationId, organizationId), eq(shops.id, input.id), isNull(shops.deletedAt)))
+    .limit(1)
+  if (!shop) throw new Error('店铺不存在')
+  const meta = {
+    ...(typeof shop.meta === 'object' && shop.meta ? shop.meta : {}),
+    syncPaused: true,
+  }
+  await db
+    .update(shops)
+    .set({ status: 'disabled', meta, updatedAt: new Date() })
     .where(eq(shops.id, shop.id))
   return getShopConnection(db as AppDatabase, organizationId, shop.id)
 }

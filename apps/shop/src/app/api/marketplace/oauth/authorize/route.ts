@@ -3,7 +3,7 @@ import {
   createMarketplaceConnector,
   isMarketplacePlatform,
 } from '@workspace/marketplace'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { shops } from '@workspace/db/schema'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/server/auth-utils'
@@ -12,10 +12,18 @@ import {
   getMarketplaceAppEnv,
 } from '@/lib/marketplace/env'
 import {
+  decodeOAuthState,
   encodeOAuthState,
   oauthStateCookieOptions,
   OAUTH_STATE_COOKIE,
+  storeOAuthNonce,
+  type OAuthStateMode,
 } from '@/lib/marketplace/oauth-state'
+import { resolveOrganizationContext } from '@/lib/server/context'
+import {
+  getOnboardingState,
+  isShopBindingAllowed,
+} from '@/lib/server/dataaccess/onboarding'
 
 export const runtime = 'nodejs'
 
@@ -34,6 +42,8 @@ export async function GET(request: NextRequest) {
   const shopId = searchParams.get('shopId') ?? ''
   const locale = searchParams.get('locale') || 'zh'
   const regionOverride = searchParams.get('region') ?? undefined
+  const modeParam = searchParams.get('mode')
+  const mode: OAuthStateMode = modeParam === 'reauth' ? 'reauth' : 'bind'
 
   if (!isMarketplacePlatform(platformRaw) || !shopId) {
     return NextResponse.json(
@@ -42,20 +52,36 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const organizationId =
+  const activeOrganizationId =
     (session as { session?: { activeOrganizationId?: string | null } }).session
       ?.activeOrganizationId ??
     (session as { user?: { activeOrganizationId?: string | null } }).user
-      ?.activeOrganizationId
+      ?.activeOrganizationId ??
+    null
+  const { organizationId, organizationRole } = await resolveOrganizationContext({
+    userId: session.user.id,
+    activeOrganizationId,
+  })
 
   if (!organizationId) {
     return NextResponse.json({ error: 'active organization required' }, { status: 400 })
+  }
+  if (organizationRole !== 'tenant_owner' && organizationRole !== 'tenant_engineer') {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  const onboarding = await getOnboardingState(db, session.user.id, organizationId)
+  if (!isShopBindingAllowed(onboarding)) {
+    return NextResponse.json(
+      { error: '请先完成入驻并通过审核后再绑定店铺' },
+      { status: 403 },
+    )
   }
 
   const [shop] = await db
     .select()
     .from(shops)
-    .where(eq(shops.id, shopId))
+    .where(and(eq(shops.id, shopId), isNull(shops.deletedAt)))
     .limit(1)
 
   if (!shop || shop.organizationId !== organizationId) {
@@ -78,12 +104,15 @@ export async function GET(request: NextRequest) {
 
   const region = regionOverride || shop.region || env.defaultRegion
   const state = encodeOAuthState({
+    mode,
     platform: platformRaw,
     shopId,
     organizationId,
     locale,
     region,
   })
+  const payload = decodeOAuthState(state)
+  if (payload) await storeOAuthNonce(payload.nonce)
 
   const connector = createMarketplaceConnector({
     platform: platformRaw,

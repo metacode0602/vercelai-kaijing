@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { useLocale } from 'next-intl'
+import { useSearchParams } from 'next/navigation'
 import {
   DetailFieldGrid,
   DetailKpiRow,
@@ -17,9 +19,19 @@ import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/al
 export default function ShopDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
   const utils = trpc.useUtils()
+  const locale = useLocale()
+  const searchParams = useSearchParams()
   const query = trpc.shops.get.useQuery({ id })
   const row = query.data
   const [notice, setNotice] = React.useState('')
+  const oauthNotice =
+    searchParams.get('oauth') === 'success'
+      ? searchParams.get('duplicate') === '1'
+        ? '授权成功；该平台店铺已存在，已合并到已有店铺。'
+        : '授权成功，凭证已加密保存。'
+      : searchParams.get('oauth') === 'error'
+        ? `授权失败：${searchParams.get('message') || '请稍后重试'}`
+        : ''
 
   const setPaused = trpc.shops.setSyncPaused.useMutation({
     onSuccess: async (res) => {
@@ -29,9 +41,15 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
     },
     onError: (e) => setNotice(e.message),
   })
-  const queueReauth = trpc.shops.queueReauth.useMutation({
-    onSuccess: async (res) => {
-      setNotice(res.note)
+  const beginAuthorization = trpc.shops.beginAuthorization.useMutation({
+    onSuccess: ({ url }) => {
+      window.location.assign(url)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const disable = trpc.shops.disable.useMutation({
+    onSuccess: async () => {
+      setNotice('店铺已停用。')
       await utils.shops.get.invalidate({ id })
       await utils.shops.list.invalidate()
     },
@@ -64,9 +82,29 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
             <Button size="sm" variant="outline" onClick={() => setPaused.mutate({ id: row.id, paused: !row.syncPaused })}>
               {row.syncPaused ? '恢复同步' : '暂停同步'}
             </Button>
-            <Button size="sm" onClick={() => queueReauth.mutate({ id: row.id })}>
-              排队重授权（待平台）
+            <Button
+              size="sm"
+              onClick={() =>
+                beginAuthorization.mutate({
+                  id: row.id,
+                  mode: row.authStatus === '已授权' ? 'reauth' : 'bind',
+                  locale,
+                })
+              }
+              disabled={beginAuthorization.isPending}
+            >
+              {row.authStatus === '已授权' ? '重新授权' : '去平台授权'}
             </Button>
+            {row.dbStatus !== 'disabled' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => disable.mutate({ id: row.id })}
+                disabled={disable.isPending}
+              >
+                停用店铺
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -74,12 +112,12 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
         <Alert>
           <AlertTitle>待平台授权</AlertTitle>
           <AlertDescription>
-            当前状态「{row.authStatus}」。OAuth / connector 未完成真实授权前不会显示已连接成功。
+            当前状态「{row.authStatus}」。点击「去平台授权」跳转平台 OAuth，回调成功后才写入凭证。
             {row.lastError ? ` ${row.lastError}` : ''}
           </AlertDescription>
         </Alert>
       ) : null}
-      <UedPrototypeNotice>凭证脱敏展示；重授权不会伪造 OAuth 成功或写入假 token。</UedPrototypeNotice>
+      <UedPrototypeNotice>凭证仅脱敏展示；授权与重新授权均走真实平台 OAuth。</UedPrototypeNotice>
       <DetailKpiRow
         items={[
           { label: '授权', value: row.authStatus },
@@ -106,7 +144,9 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
           { label: '负责人', value: row.owner || '—' },
         ]}
       />
-      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      {notice || oauthNotice ? (
+        <p className="text-sm text-muted-foreground">{notice || oauthNotice}</p>
+      ) : null}
     </div>
   )
 }

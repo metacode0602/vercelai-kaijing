@@ -1,8 +1,21 @@
 import { TRPCError } from '@trpc/server'
+import { isMarketplacePlatform } from '@workspace/marketplace'
 import { z } from 'zod'
-import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import {
+  createTRPCRouter,
+  tenantAdminProcedure,
+  tenantProcedure,
+} from '@/lib/server/trpc'
 import * as shopsDa from '@/lib/server/dataaccess/shop-connections'
+import {
+  getOnboardingState,
+  isShopBindingAllowed,
+} from '@/lib/server/dataaccess/onboarding'
 import { UI_SHOP_AUTH_STATUSES } from '@/lib/server/mappers/ops-master'
+import {
+  assertMarketplaceAppConfigured,
+  getMarketplaceAppEnv,
+} from '@/lib/marketplace/env'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
   return fn().catch((error: unknown) => {
@@ -24,18 +37,18 @@ export const shopsRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => shopsDa.listShopConnections(ctx.db, ctx.organizationId, input)),
   meta: tenantProcedure.query(async () => ({
     authStatuses: [...UI_SHOP_AUTH_STATUSES],
-    note: '读 shops / integration_*；OAuth 未联调时仅展示待授权，禁止假成功',
+    note: '授权跳转真实平台 OAuth；回调成功后才写入加密凭证并更新授权状态。',
   })),
   get: tenantProcedure.input(z.object({ id: z.string().min(1) })).query(async ({ ctx, input }) => {
     const row = await shopsDa.getShopConnection(ctx.db, ctx.organizationId, input.id)
     if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `未找到店铺 ${input.id}` })
     return row
   }),
-  createDraft: tenantProcedure
+  createDraft: tenantAdminProcedure
     .input(
       z.object({
         name: z.string().min(1),
-        platform: z.string().min(1),
+        platform: z.enum(['daraz', 'lazada', 'tiktok_shop']),
         region: z.string().optional(),
         currency: z.string().optional(),
         externalShopId: z.string().optional(),
@@ -45,11 +58,60 @@ export const shopsRouter = createTRPCRouter({
         owner: z.string().optional(),
       }),
     )
-    .mutation(async ({ ctx, input }) => wrap(() => shopsDa.createShopDraft(ctx.db, ctx.organizationId, input))),
-  setSyncPaused: tenantProcedure
+    .mutation(async ({ ctx, input }) => {
+      const onboarding = await getOnboardingState(ctx.db, ctx.user.id, ctx.organizationId)
+      if (!isShopBindingAllowed(onboarding)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: '请先完成入驻并通过审核后再新增店铺',
+        })
+      }
+      return wrap(() => shopsDa.createShopDraft(ctx.db, ctx.organizationId, input))
+    }),
+  beginAuthorization: tenantAdminProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        mode: z.enum(['bind', 'reauth']).optional(),
+        locale: z.string().max(10).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const shop = await shopsDa.getShopConnection(ctx.db, ctx.organizationId, input.id)
+      if (!shop) throw new TRPCError({ code: 'NOT_FOUND', message: '店铺不存在' })
+      if (!isMarketplacePlatform(shop.platform)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '暂不支持该平台授权' })
+      }
+      const onboarding = await getOnboardingState(ctx.db, ctx.user.id, ctx.organizationId)
+      if (!isShopBindingAllowed(onboarding)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: '请先完成入驻并通过审核后再授权店铺',
+        })
+      }
+      try {
+        assertMarketplaceAppConfigured(getMarketplaceAppEnv(shop.platform))
+      } catch (error) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: error instanceof Error ? error.message : '平台应用未配置',
+        })
+      }
+      const params = new URLSearchParams({
+        platform: shop.platform,
+        shopId: shop.id,
+        mode: input.mode ?? (shop.dbStatus === 'active' ? 'reauth' : 'bind'),
+        locale: input.locale ?? 'zh',
+      })
+      return { url: `/api/marketplace/oauth/authorize?${params.toString()}` }
+    }),
+  setSyncPaused: tenantAdminProcedure
     .input(z.object({ id: z.string().min(1), paused: z.boolean() }))
     .mutation(async ({ ctx, input }) => wrap(() => shopsDa.setShopSyncPaused(ctx.db, ctx.organizationId, input))),
-  queueReauth: tenantProcedure
+  queueReauth: tenantAdminProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => wrap(() => shopsDa.queueShopReauth(ctx.db, ctx.organizationId, input))),
+  disable: tenantAdminProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => wrap(() => shopsDa.disableShop(ctx.db, ctx.organizationId, input))),
 })
