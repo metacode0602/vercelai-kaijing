@@ -32,6 +32,7 @@
 
 | 文档 | 状态 | 定位 |
 | --- | --- | --- |
+| [tenant-onboarding-and-store-binding.md](../../apps/shop/content/design/tenant-onboarding-and-store-binding.md) | **设计稿，待评审** | 租户入驻向导、主体审核、组织创建、首店/多店创建、Daraz/Lazada OAuth 绑定与重新授权；含状态机、权限、接口、线框图和实施计划 |
 | [crossborder-shop-ued-product-design.md](../../apps/shop/content/design/crossborder-shop-ued-product-design.md) | **生效** | 租户端 IA、动态 Skill execution/OKF 知识复核与 Desktop 商业闭环 UED |
 | [cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md) | **生效** | 斯里兰卡成本计算工作台：先交互 UED 再接业务；空运 DDP / LCL / FCL 成本情景、税项与建议售价 |
 | [fee-templates-ued.md](../../apps/shop/content/design/fee-templates-ued.md) | **UED 初版** | 费用模板（import_tax / platform_fee）：履约两级、优先级解析、localStorage 列表/详情；成本测算按平台+国家+履约+asOf 命中版本并快照 |

@@ -152,6 +152,7 @@ pnpm --filter shop dev
 
 ## 相关文档
 
+- 租户入驻与店铺绑定：[content/design/tenant-onboarding-and-store-binding.md](content/design/tenant-onboarding-and-store-binding.md)
 - 租户端 UED：[content/design/crossborder-shop-ued-product-design.md](content/design/crossborder-shop-ued-product-design.md)
 - 成本计算器：[content/design/cost-calculator-sl-landed-ued.md](content/design/cost-calculator-sl-landed-ued.md)
 - 改造总览：[../../docs/design/crossborder-mvp-overview.md](../../docs/design/crossborder-mvp-overview.md)
