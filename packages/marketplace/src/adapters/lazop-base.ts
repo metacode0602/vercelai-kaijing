@@ -7,15 +7,20 @@ import type {
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
+  DomainOrderTrace,
   DomainProduct,
+  DomainReview,
   DomainShipmentInput,
   DomainShipmentItemResult,
   DomainShipmentResult,
   DomainShop,
+  DomainTracePackage,
+  DomainTrackingEvent,
   MarketplacePlatform,
   OAuthTokenSet,
   PageCursor,
   PagedResult,
+  ReviewListFilter,
 } from "../domain/types"
 import {
   buildLazopAuthorizeUrl,
@@ -27,6 +32,44 @@ type Json = Record<string, unknown>
 
 function asRecord(value: unknown): Json {
   return value && typeof value === "object" ? (value as Json) : {}
+}
+
+function toIso(value: unknown): string | null {
+  if (value == null || value === "") return null
+  const numeric = typeof value === "number" ? value : Number(value)
+  if (Number.isFinite(numeric) && numeric > 0) {
+    const ms = numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+    const date = new Date(ms)
+    return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  }
+  const date = new Date(String(value))
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+function toEpochMs(value: string | undefined, fallback: number): string {
+  if (!value) return String(fallback)
+  const numeric = Number(value)
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return String(numeric < 1_000_000_000_000 ? numeric * 1000 : numeric)
+  }
+  const parsed = new Date(value).getTime()
+  return String(Number.isNaN(parsed) ? fallback : parsed)
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (value != null && value !== "") return String(value)
+  }
+  return undefined
+}
+
+function firstNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (value == null || value === "") continue
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
 }
 
 function mapOrderStatus(raw: string | undefined): string {
@@ -96,7 +139,7 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
         region: this.cfg.region,
         fetchImpl: this.cfg.fetchImpl,
       },
-      input.code,
+      input.code
     )
   }
 
@@ -109,7 +152,7 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
         region: this.cfg.region,
         fetchImpl: this.cfg.fetchImpl,
       },
-      input.refreshToken,
+      input.refreshToken
     )
   }
 
@@ -117,7 +160,9 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     const json = await this.http.call<Json>({ path: "/seller/get" })
     const data = asRecord(json.data ?? json)
     return {
-      externalShopId: String(data.seller_id ?? data.shop_id ?? data.short_code ?? ""),
+      externalShopId: String(
+        data.seller_id ?? data.shop_id ?? data.short_code ?? ""
+      ),
       name: String(data.name ?? data.shop_name ?? data.company_name ?? "shop"),
       region: String(data.country ?? this.cfg.region ?? ""),
       currency: data.currency_code ? String(data.currency_code) : undefined,
@@ -137,7 +182,10 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       },
     })
     const data = asRecord(json.data ?? json)
-    const module = (data.module ?? data.brand_list ?? data.brands ?? []) as Json[]
+    const module = (data.module ??
+      data.brand_list ??
+      data.brands ??
+      []) as Json[]
     const items = (Array.isArray(module) ? module : []).map((b) => ({
       externalId: String(b.brand_id ?? b.id ?? ""),
       name: String(b.name ?? b.brand_name ?? ""),
@@ -154,7 +202,9 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   async getCategoryTree(): Promise<DomainCategory[]> {
     const json = await this.http.call<Json>({ path: "/category/tree/get" })
     const data = json.data ?? json
-    const roots = Array.isArray(data) ? data : (asRecord(data).category_list as Json[]) ?? []
+    const roots = Array.isArray(data)
+      ? data
+      : ((asRecord(data).category_list as Json[]) ?? [])
     const out: DomainCategory[] = []
     const walk = (nodes: Json[], parent: string | null) => {
       for (const node of nodes) {
@@ -198,7 +248,9 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     const json = await this.http.call<Json>({ path: "/products/get", params })
     const data = asRecord(json.data ?? json)
     const products = (data.products ?? data.items ?? []) as Json[]
-    const total = Number(data.total_products ?? data.totalProducts ?? Number.NaN)
+    const total = Number(
+      data.total_products ?? data.totalProducts ?? Number.NaN
+    )
     const hasMore = Number.isFinite(total)
       ? offset + products.length < total
       : products.length >= limit
@@ -232,7 +284,7 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
 
   async updateListing(
     externalId: string,
-    input: Partial<DomainListingInput>,
+    input: Partial<DomainListingInput>
   ): Promise<DomainListingResult> {
     const payload = {
       ...input.payload,
@@ -306,6 +358,147 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     }
   }
 
+  async listReviews(
+    filter: ReviewListFilter
+  ): Promise<PagedResult<DomainReview>> {
+    const page = Math.max(1, Number(filter.cursor ?? 1) || 1)
+    const pageSize = Math.min(filter.pageSize ?? 50, 50)
+    const now = Date.now()
+    const startTime = toEpochMs(filter.startTime, now - 7 * 24 * 60 * 60 * 1000)
+    const endTime = toEpochMs(filter.endTime, now)
+
+    const history = await this.http.call<Json>({
+      path: "/review/seller/history/list",
+      params: {
+        item_id: filter.itemId,
+        start_time: startTime,
+        end_time: endTime,
+        current: String(page),
+      },
+    })
+    const data = asRecord(history.data ?? history)
+    const rawIds = (data.id_list ??
+      data.ids ??
+      data.review_id_list ??
+      []) as unknown[]
+    const ids = rawIds
+      .map((id) => (id == null ? "" : String(id)))
+      .filter((id) => id.length > 0)
+
+    if (!ids.length) {
+      return { items: [], nextCursor: null, raw: data }
+    }
+
+    const reviews: DomainReview[] = []
+    for (let offset = 0; offset < ids.length; offset += 10) {
+      const chunk = ids.slice(offset, offset + 10)
+      const json = await this.http.call<Json>({
+        path: "/review/seller/list/v2",
+        params: { id_list: JSON.stringify(chunk) },
+      })
+      const listData = asRecord(json.data ?? json)
+      const rows = (listData.review_list ??
+        listData.reviews ??
+        listData.module ??
+        listData.list ??
+        []) as Json[]
+      for (const row of Array.isArray(rows) ? rows : []) {
+        reviews.push(this.mapReview(row, filter.itemId))
+      }
+    }
+
+    const total = firstNumber(data.total)
+    const hasMore = Number.isFinite(total)
+      ? page * pageSize < (total ?? 0)
+      : ids.length >= pageSize
+    return {
+      items: reviews,
+      nextCursor: hasMore && page < 50 ? String(page + 1) : null,
+      raw: data,
+    }
+  }
+
+  async getOrderTrace(externalOrderId: string): Promise<DomainOrderTrace> {
+    const json = await this.http.call<Json>({
+      path: "/logistic/order/trace",
+      params: { order_id: externalOrderId },
+    })
+    const result = asRecord(json.result ?? json)
+    const data = asRecord(result.data ?? json.data)
+    const modules = (data.module ??
+      result.module ??
+      data.package_list ??
+      []) as Json[]
+    const packages: DomainTracePackage[] = []
+
+    for (const [index, module] of (Array.isArray(modules)
+      ? modules
+      : []
+    ).entries()) {
+      const moduleRecord = asRecord(module)
+      const details = (moduleRecord.package_detail_info_list ??
+        moduleRecord.package_list ?? [moduleRecord]) as Json[]
+      for (const [detailIndex, detail] of (Array.isArray(details)
+        ? details
+        : []
+      ).entries()) {
+        const pkg = asRecord(detail)
+        const rawEvents = (pkg.logistic_detail_info_list ??
+          pkg.logistics_detail_info_list ??
+          pkg.event_list ??
+          []) as Json[]
+        const events: DomainTrackingEvent[] = []
+        for (const event of Array.isArray(rawEvents) ? rawEvents : []) {
+          const record = asRecord(event)
+          const eventTime = toIso(
+            record.event_time ??
+              record.event_date ??
+              record.create_time ??
+              record.time
+          )
+          if (!eventTime) continue
+          events.push({
+            statusCode: String(
+              record.status_code ??
+                record.status ??
+                record.detail_type ??
+                "UNKNOWN"
+            ),
+            title: firstString(record.title, record.status_name),
+            description: firstString(record.description, record.detail),
+            location: firstString(
+              record.package_location_name,
+              record.location
+            ),
+            eventTime,
+            raw: record,
+          })
+        }
+        events.sort((a, b) => a.eventTime.localeCompare(b.eventTime))
+
+        const externalPackageId = firstString(
+          pkg.ofc_package_id,
+          pkg.package_id,
+          pkg.tracking_number,
+          `${externalOrderId}-${index + 1}-${detailIndex + 1}`
+        )
+        if (!externalPackageId) continue
+        packages.push({
+          externalPackageId,
+          trackingNumber: firstString(pkg.tracking_number, pkg.tracking_no),
+          providerName: firstString(
+            pkg.shipment_provider,
+            pkg.logistics_provider_name
+          ),
+          events,
+          raw: pkg,
+        })
+      }
+    }
+
+    return { externalOrderId, packages, raw: data }
+  }
+
   async packOrder(input: DomainShipmentInput): Promise<DomainShipmentResult> {
     const orderItemIds = input.orderItemIds ?? []
     if (!orderItemIds.length) {
@@ -359,7 +552,9 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       code: pkg.item_err_code != null ? String(pkg.item_err_code) : undefined,
       message: pkg.msg != null ? String(pkg.msg) : undefined,
       retry:
-        pkg.retry != null ? String(pkg.retry).toLowerCase() === "true" : undefined,
+        pkg.retry != null
+          ? String(pkg.retry).toLowerCase() === "true"
+          : undefined,
     }))
     const ok =
       result.success !== false &&
@@ -383,7 +578,10 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       return packed
     }
 
-    const rts = await this.readyToShip({ ...input, packageId: packed.packageId })
+    const rts = await this.readyToShip({
+      ...input,
+      packageId: packed.packageId,
+    })
     return {
       ...rts,
       trackingNumber: rts.trackingNumber ?? packed.trackingNumber,
@@ -393,8 +591,12 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   }
 
   async cancelOrder(
-    input: DomainCancelOrderInput,
-  ): Promise<{ ok: boolean; raw?: Record<string, unknown>; reasonId?: string }> {
+    input: DomainCancelOrderInput
+  ): Promise<{
+    ok: boolean
+    raw?: Record<string, unknown>
+    reasonId?: string
+  }> {
     const orderItemIds = input.orderItemIds ?? []
     if (!orderItemIds.length) {
       throw new Error("orderItemIds is required to cancel an order")
@@ -451,9 +653,7 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
         }
         itemResults.push({
           orderItemId:
-            item.order_item_id != null
-              ? String(item.order_item_id)
-              : undefined,
+            item.order_item_id != null ? String(item.order_item_id) : undefined,
           packageId:
             item.package_id != null ? String(item.package_id) : undefined,
           code,
@@ -466,13 +666,86 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     return { ok, packageId, trackingNumber, itemResults, raw: asRecord(json) }
   }
 
+  protected mapReview(data: Json, fallbackItemId: string): DomainReview {
+    const item = asRecord(data.item ?? data.product ?? data.item_info)
+    const order = asRecord(data.order_info ?? data.order)
+    const sku = asRecord(data.sku_info ?? data.sku)
+    const rawImages =
+      data.images ??
+      data.image_list ??
+      data.review_images ??
+      data.media_list ??
+      []
+    const images = (Array.isArray(rawImages) ? rawImages : [])
+      .map((image) => {
+        if (typeof image === "string") return image
+        const record = asRecord(image)
+        return firstString(record.url, record.image_url, record.media_url)
+      })
+      .filter((url): url is string => Boolean(url))
+
+    return {
+      externalReviewId: String(
+        data.review_id ?? data.reviewId ?? data.id ?? ""
+      ),
+      externalItemId: String(
+        data.item_id ?? item.item_id ?? item.id ?? fallbackItemId
+      ),
+      rating: firstNumber(data.rating, data.rate, data.star, data.score),
+      title: firstString(data.title, data.review_title),
+      content: firstString(
+        data.review_content,
+        data.content,
+        data.comment,
+        data.review_text
+      ),
+      reviewAt: toIso(
+        data.review_time ??
+          data.create_time ??
+          data.created_at ??
+          data.gmt_create
+      ),
+      purchasedAt: toIso(
+        data.purchased_at ?? data.order_time ?? order.create_time
+      ),
+      buyerDisplayName: firstString(
+        data.buyer_name,
+        data.reviewer_name,
+        data.user_name,
+        data.buyer_nick
+      ),
+      buyerExternalId: firstString(
+        data.buyer_id,
+        data.user_id,
+        data.reviewer_id
+      ),
+      externalOrderId: firstString(
+        data.order_id,
+        order.order_id,
+        order.trade_order_id
+      ),
+      sellerSku: firstString(
+        data.seller_sku,
+        data.sku,
+        sku.seller_sku,
+        sku.SellerSku
+      ),
+      skuAttrs: asRecord(data.sku_attrs ?? sku.attributes),
+      images,
+      helpfulCount: firstNumber(data.useful_count, data.helpful_count),
+      raw: data,
+    }
+  }
+
   protected mapProduct(data: Json): DomainProduct {
     const skus = (data.skus ?? data.sku_list ?? []) as Json[]
     return {
       externalId: String(data.item_id ?? data.product_id ?? data.id ?? ""),
-      title: String(data.attributes
-        ? (asRecord(data.attributes).name ?? data.name ?? "")
-        : (data.name ?? data.title ?? "")),
+      title: String(
+        data.attributes
+          ? (asRecord(data.attributes).name ?? data.name ?? "")
+          : (data.name ?? data.title ?? "")
+      ),
       status: mapListingStatus(String(data.status ?? "")),
       skus: skus.map((sku) => ({
         externalSkuId: String(sku.sku_id ?? sku.ShopSku ?? ""),
@@ -486,15 +759,18 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   }
 
   protected mapOrder(data: Json): DomainOrder {
-    const items = (data.order_items ?? data.items ?? data.order_line ?? []) as Json[]
+    const items = (data.order_items ??
+      data.items ??
+      data.order_line ??
+      []) as Json[]
     return {
       externalOrderId: String(data.order_id ?? data.order_number ?? ""),
       status: mapOrderStatus(
         String(
           (Array.isArray(data.statuses) ? data.statuses[0] : undefined) ??
             data.status ??
-            "",
-        ),
+            ""
+        )
       ),
       currency: data.price_unit ? String(data.price_unit) : undefined,
       totalAmount:
@@ -510,7 +786,8 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
         sku: String(line.sku ?? line.seller_sku ?? ""),
         title: String(line.name ?? line.product_name ?? ""),
         qty: line.quantity != null ? Number(line.quantity) : 1,
-        unitPrice: line.item_price != null ? String(line.item_price) : undefined,
+        unitPrice:
+          line.item_price != null ? String(line.item_price) : undefined,
         raw: line,
       })),
       raw: data,

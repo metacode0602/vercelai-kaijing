@@ -22,6 +22,8 @@
     "@scalar/hono-api-reference": "^0.10.5",
     "@t3-oss/env-core": "^0.13.11",
     "@workspace/db": "workspace:*",
+    "@workspace/marketplace": "workspace:*",
+    "croner": "11.0.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.7.5",
     "nanoid": "^5.1.7",

@@ -64,6 +64,12 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/marketplace':
+        specifier: workspace:*
+        version: link:../../packages/marketplace
+      croner:
+        specifier: 11.0.0
+        version: 11.0.0
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.3(patch_hash=d9d7278de470b6fb204860e192db13bdc9ea668f6907967a40525dc1466552a8)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(@upstash/redis@1.39.0)(kysely@0.29.6)(pg@8.23.0)
@@ -758,6 +764,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(patch_hash=d9d7278de470b6fb204860e192db13bdc9ea668f6907967a40525dc1466552a8)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(@upstash/redis@1.39.0)(kysely@0.29.6)(pg@8.23.0)
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -5387,6 +5396,10 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  croner@11.0.0:
+    resolution: {integrity: sha512-T17ADjdttrVToyzLpLq9Xb9xzcMwpQ/M3Qs9szhh0MVNTbv6NWQ9OFYa2qlzPYXFMn+uoDlnW1IpIv6cAvFtyA==}
+    engines: {node: '>=18.0'}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -13172,6 +13185,8 @@ snapshots:
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.3
+
+  croner@11.0.0: {}
 
   cross-spawn@7.0.6:
     dependencies:

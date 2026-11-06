@@ -2,8 +2,8 @@
 
 **Package:** `packages/marketplace`  
 **Platforms (this PR):** Daraz, Lazada, TikTok Shop  
-**Out of scope:** tRPC, OpenAPI/MCP, Shopee, production cron
-**In scope now:** sync worker skeleton (`packages/marketplace/src/workers/sync.ts` + `apps/shop` CLI)
+**Out of scope:** tRPC, OpenAPI/MCP, Shopee, scheduling ownership (cron lives in `apps/api`)
+**In scope now:** sync worker skeleton (`packages/marketplace/src/workers/sync.ts` + `apps/shop` CLI), review/trace adapters, LAZOP push signature, DB credential store
 
 ## Goals
 

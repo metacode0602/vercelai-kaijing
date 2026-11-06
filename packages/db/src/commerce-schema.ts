@@ -16,6 +16,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -268,10 +269,13 @@ export const integrationStates = pgTable(
     inventoryCursor: text("inventory_cursor"),
     productsCursor: text("products_cursor"),
     listingsCursor: text("listings_cursor"),
+    reviewsCursor: text("reviews_cursor"),
     lastOrdersSyncAt: timestamp("last_orders_sync_at", { withTimezone: true }),
     lastInventorySyncAt: timestamp("last_inventory_sync_at", { withTimezone: true }),
     lastProductsSyncAt: timestamp("last_products_sync_at", { withTimezone: true }),
     lastListingsSyncAt: timestamp("last_listings_sync_at", { withTimezone: true }),
+    lastLogisticsSyncAt: timestamp("last_logistics_sync_at", { withTimezone: true }),
+    lastReviewsSyncAt: timestamp("last_reviews_sync_at", { withTimezone: true }),
     health: varchar("health", { length: 32 }).notNull().default("idle"),
     lastError: text("last_error"),
   },
@@ -296,6 +300,42 @@ export const integrationLogs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("integration_logs_shop_created_idx").on(t.shopId, t.createdAt)],
+)
+
+// ---------------------------------------------------------------------------
+// marketplace_webhook_events — LAZOP push 原始事件（Lazada 已公开；Daraz 待验证）
+// ---------------------------------------------------------------------------
+
+export const marketplaceWebhookEvents = pgTable(
+  "marketplace_webhook_events",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id").references(() => organization.id),
+    shopId: text("shop_id").references(() => shops.id),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    site: varchar("site", { length: 32 }),
+    sellerId: text("seller_id"),
+    messageType: integer("message_type"),
+    eventType: varchar("event_type", { length: 64 }),
+    externalOrderId: text("external_order_id"),
+    externalOrderLineId: text("external_order_line_id"),
+    orderStatus: varchar("order_status", { length: 64 }),
+    signatureVerified: boolean("signature_verified").notNull().default(false),
+    status: varchar("status", { length: 16 }).notNull().default("received"),
+    error: text("error"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("marketplace_webhook_events_platform_received_idx").on(
+      t.platform,
+      t.receivedAt,
+    ),
+    index("marketplace_webhook_events_shop_order_idx").on(t.shopId, t.externalOrderId),
+  ],
 )
 
 // ---------------------------------------------------------------------------
@@ -753,6 +793,94 @@ export const trackingEvents = pgTable(
       t.eventTime,
       t.statusCode,
     ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// product_reviews / product_review_media — 评论原文与媒体（§10.1 / §10.2）
+// ---------------------------------------------------------------------------
+
+export const productReviewSources = ["api", "ai_scrape", "manual", "mixed"] as const
+export type ProductReviewSource = (typeof productReviewSources)[number]
+
+export const productReviewStatuses = ["active", "hidden", "removed"] as const
+export type ProductReviewStatus = (typeof productReviewStatuses)[number]
+
+export const productReviews = pgTable(
+  "product_reviews",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    marketplaceId: text("marketplace_id"),
+    listingId: text("listing_id").references(() => listings.id),
+    externalItemId: text("external_item_id").notNull(),
+    variantId: text("variant_id").references(() => productVariants.id),
+    sellerSku: varchar("seller_sku", { length: 128 }),
+    skuAttrs: jsonb("sku_attrs").$type<Record<string, unknown>>().default({}),
+    externalReviewId: text("external_review_id").notNull(),
+    rating: smallint("rating").notNull().default(0),
+    title: text("title"),
+    content: text("content"),
+    contentZh: text("content_zh"),
+    contentLang: varchar("content_lang", { length: 8 }),
+    reviewAt: timestamp("review_at", { withTimezone: true }),
+    purchasedAt: timestamp("purchased_at", { withTimezone: true }),
+    buyerDisplayName: text("buyer_display_name"),
+    buyerExternalId: text("buyer_external_id"),
+    isAnonymous: boolean("is_anonymous").notNull().default(false),
+    externalOrderId: text("external_order_id"),
+    usefulCount: integer("useful_count").notNull().default(0),
+    source: varchar("source", { length: 16 }).notNull().default("api"),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("product_reviews_shop_ext_uidx").on(t.shopId, t.externalReviewId),
+    index("product_reviews_shop_item_time_idx").on(
+      t.shopId,
+      t.externalItemId,
+      t.reviewAt,
+    ),
+    index("product_reviews_org_rating_idx").on(t.organizationId, t.rating),
+    index("product_reviews_variant_idx").on(t.variantId),
+    index("product_reviews_org_source_idx").on(t.organizationId, t.source),
+  ],
+)
+
+export const productReviewMedia = pgTable(
+  "product_review_media",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    reviewId: text("review_id")
+      .notNull()
+      .references(() => productReviews.id),
+    mediaType: varchar("media_type", { length: 8 }).notNull().default("image"),
+    url: text("url").notNull(),
+    storageKey: text("storage_key"),
+    width: integer("width"),
+    height: integer("height"),
+    sizeBytes: integer("size_bytes"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("product_review_media_review_url_uidx").on(t.reviewId, t.url),
+    index("product_review_media_org_type_idx").on(t.organizationId, t.mediaType),
   ],
 )
 

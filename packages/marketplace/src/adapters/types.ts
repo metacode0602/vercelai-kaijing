@@ -6,7 +6,9 @@ import type {
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
+  DomainOrderTrace,
   DomainProduct,
+  DomainReview,
   DomainShipmentInput,
   DomainShipmentResult,
   DomainShop,
@@ -14,6 +16,7 @@ import type {
   OAuthTokenSet,
   PageCursor,
   PagedResult,
+  ReviewListFilter,
 } from "../domain/types"
 
 export interface MarketplaceConnectorConfig {
@@ -67,7 +70,7 @@ export interface MarketplaceConnector {
 
   updateListing(
     externalId: string,
-    input: Partial<DomainListingInput>,
+    input: Partial<DomainListingInput>
   ): Promise<DomainListingResult>
 
   deactivateListing(externalId: string): Promise<DomainListingResult>
@@ -76,6 +79,12 @@ export interface MarketplaceConnector {
 
   listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>>
 
+  /** Seller review list (Lazada/Daraz review APIs). */
+  listReviews?(filter: ReviewListFilter): Promise<PagedResult<DomainReview>>
+
+  /** Package-level logistics trace, available after RTS on Lazop. */
+  getOrderTrace?(externalOrderId: string): Promise<DomainOrderTrace>
+
   packOrder?(input: DomainShipmentInput): Promise<DomainShipmentResult>
 
   readyToShip?(input: DomainShipmentInput): Promise<DomainShipmentResult>
@@ -83,6 +92,6 @@ export interface MarketplaceConnector {
   shipOrder(input: DomainShipmentInput): Promise<DomainShipmentResult>
 
   cancelOrder?(
-    input: DomainCancelOrderInput,
+    input: DomainCancelOrderInput
   ): Promise<{ ok: boolean; raw?: Record<string, unknown>; reasonId?: string }>
 }

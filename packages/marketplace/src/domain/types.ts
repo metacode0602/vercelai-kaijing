@@ -118,6 +118,58 @@ export interface DomainCancelOrderInput {
   reason?: string
 }
 
+export interface DomainReview {
+  externalReviewId: string
+  externalItemId: string
+  rating?: number
+  title?: string
+  content?: string
+  reviewAt?: string | null
+  purchasedAt?: string | null
+  buyerDisplayName?: string
+  buyerExternalId?: string
+  externalOrderId?: string
+  sellerSku?: string
+  skuAttrs?: Record<string, unknown>
+  images?: string[]
+  helpfulCount?: number
+  raw?: Record<string, unknown>
+}
+
+export interface ReviewListFilter {
+  itemId: string
+  /** Inclusive lower bound (ISO or epoch milliseconds). */
+  startTime?: string
+  /** Exclusive upper bound (ISO or epoch milliseconds). */
+  endTime?: string
+  /** Opaque page cursor; Lazop uses 1-based page numbers. */
+  cursor?: string | null
+  pageSize?: number
+}
+
+export interface DomainTrackingEvent {
+  statusCode: string
+  title?: string
+  description?: string
+  location?: string
+  eventTime: string
+  raw?: Record<string, unknown>
+}
+
+export interface DomainTracePackage {
+  externalPackageId: string
+  trackingNumber?: string
+  providerName?: string
+  events: DomainTrackingEvent[]
+  raw?: Record<string, unknown>
+}
+
+export interface DomainOrderTrace {
+  externalOrderId: string
+  packages: DomainTracePackage[]
+  raw?: Record<string, unknown>
+}
+
 export interface PageCursor {
   cursor?: string | null
   pageSize?: number
