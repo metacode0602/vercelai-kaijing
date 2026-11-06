@@ -3,14 +3,8 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  convertWithFx,
-  importFxRatesMock,
-  removeFxRate,
-  upsertFxRate,
-  useFxRates,
-  type FxRateRow,
-} from '@/lib/crossborder/fx-rate-store'
+import { convertWithFx } from '@/lib/settings/fx-rate-rules'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
@@ -24,11 +18,15 @@ import {
 } from '@workspace/ui/components/select'
 
 export default function FxRatesSettingsPage() {
-  const rows = useFxRates()
+  const utils = trpc.useUtils()
+  const [includeDisabled, setIncludeDisabled] = React.useState(false)
+  const listQuery = trpc.fxRates.list.useQuery({ page: 1, pageSize: 100, includeDisabled })
+  const meta = trpc.fxRates.meta.useQuery()
+  const rows = listQuery.data?.items ?? []
   const [notice, setNotice] = React.useState('')
   const [form, setForm] = React.useState({
     platform: 'Daraz',
-    marketplace: 'Daraz LK',
+    marketplaceCode: 'Daraz LK',
     baseCurrency: 'USD',
     quoteCurrency: 'LKR',
     rate: '300',
@@ -40,66 +38,51 @@ export default function FxRatesSettingsPage() {
   const preview = React.useMemo(() => {
     const rate = Number(form.rate)
     if (!Number.isFinite(rate) || rate <= 0) return null
-    const fake: FxRateRow = {
-      id: 'preview',
-      platform: form.platform,
-      marketplace: form.marketplace,
-      baseCurrency: form.baseCurrency,
-      quoteCurrency: form.quoteCurrency,
-      rate,
-      effectiveDate: form.effectiveDate,
-      source: form.source,
-      note: form.note,
+    if (form.baseCurrency.trim().toUpperCase() === form.quoteCurrency.trim().toUpperCase()) return null
+    try {
+      return convertWithFx(100, rate)
+    } catch {
+      return null
     }
-    return convertWithFx(100, fake)
   }, [form])
 
+  const createMutation = trpc.fxRates.create.useMutation({
+    onSuccess: async (row) => {
+      setNotice(`已保存 ${row?.baseCurrency}/${row?.quoteCurrency} @ ${row?.rate}（fx_rates）`)
+      await utils.fxRates.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const setActive = trpc.fxRates.setActive.useMutation({
+    onSuccess: async (row) => {
+      setNotice(`${row?.id} 已${row?.status === '停用' ? '停用' : '启用'}（软操作，历史保留）`)
+      await utils.fxRates.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
   function save() {
-    const rate = Number(form.rate)
-    if (!Number.isFinite(rate) || rate <= 0) {
-      setNotice('汇率必须为正数')
-      return
-    }
-    const id = `FX-${form.platform.slice(0, 2).toUpperCase()}-${form.baseCurrency}-${form.quoteCurrency}-${form.effectiveDate}`
-    upsertFxRate({
-      id,
+    createMutation.mutate({
       platform: form.platform,
-      marketplace: form.marketplace,
+      marketplaceCode: form.marketplaceCode,
       baseCurrency: form.baseCurrency,
       quoteCurrency: form.quoteCurrency,
-      rate,
+      rate: form.rate,
       effectiveDate: form.effectiveDate,
       source: form.source,
       note: form.note || '手工维护',
     })
-    setNotice(`已保存 ${id}（保留原币/汇率/折算三元组）`)
-  }
-
-  function mockImport() {
-    importFxRatesMock([
-      {
-        id: `FX-DZ-USD-LKR-IMPORT-${Date.now().toString().slice(-6)}`,
-        platform: 'Daraz',
-        marketplace: 'Daraz LK',
-        baseCurrency: 'USD',
-        quoteCurrency: 'LKR',
-        rate: 301.5,
-        effectiveDate: '2026-10-31',
-        source: 'import',
-        note: 'mock CSV 导入',
-      },
-    ])
-    setNotice('已 mock 导入 1 条汇率')
   }
 
   return (
     <UedWorkspace
       title="汇率配置"
-      description="F33 · platform + 币种对 + 生效日 + 来源。历史不覆盖；消费方保留原币 / 汇率 / 折算金额。"
+      description="F33 · platform + 币种对 + 生效日 + 来源。落库 fx_rates；历史软停用，不硬删。"
       rows={rows}
-      searchKeys={['platform', 'marketplace', 'baseCurrency', 'quoteCurrency', 'source', 'effectiveDate']}
+      searchKeys={['platform', 'marketplace', 'baseCurrency', 'quoteCurrency', 'source', 'effectiveDate', 'note']}
       searchPlaceholder="搜索平台、币种或来源"
       filters={[{ label: '平台', options: ['Daraz', 'Lazada'], key: 'platform' }]}
+      emptyText={listQuery.isLoading ? '加载中…' : '暂无汇率。保存后写入组织隔离的 fx_rates。'}
       columns={[
         { key: 'platform', label: '平台' },
         { key: 'marketplace', label: '站点' },
@@ -115,6 +98,13 @@ export default function FxRatesSettingsPage() {
           label: '来源',
           render: (row) => <Badge variant="secondary">{row.source}</Badge>,
         },
+        {
+          key: 'status',
+          label: '状态',
+          render: (row) => (
+            <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
+          ),
+        },
         { key: 'note', label: '备注' },
         {
           key: 'actions',
@@ -123,12 +113,10 @@ export default function FxRatesSettingsPage() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => {
-                removeFxRate(row.id)
-                setNotice(`已删除 ${row.id}`)
-              }}
+              disabled={setActive.isPending}
+              onClick={() => setActive.mutate({ id: row.id, active: row.status !== '启用' })}
             >
-              删除
+              {row.status === '启用' ? '停用' : '启用'}
             </Button>
           ),
         },
@@ -142,8 +130,17 @@ export default function FxRatesSettingsPage() {
         ]}
       />
       <UedPrototypeNotice>
-        审批人：杨洁 / 黄发聪（财务口径确认前仅原型）。不接真实汇率 API；import 为 mock。
+        {meta.data?.note || '已接库；不接外部实时汇率 API；禁止假成功。'}
       </UedPrototypeNotice>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={includeDisabled ? 'secondary' : 'outline'}
+          onClick={() => setIncludeDisabled((v) => !v)}
+        >
+          {includeDisabled ? '隐藏已停用' : '显示已停用'}
+        </Button>
+      </div>
       <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
         <div className="space-y-1">
           <Label>平台</Label>
@@ -159,15 +156,24 @@ export default function FxRatesSettingsPage() {
         </div>
         <div className="space-y-1">
           <Label>站点</Label>
-          <Input value={form.marketplace} onChange={(e) => setForm((f) => ({ ...f, marketplace: e.target.value }))} />
+          <Input
+            value={form.marketplaceCode}
+            onChange={(e) => setForm((f) => ({ ...f, marketplaceCode: e.target.value }))}
+          />
         </div>
         <div className="space-y-1">
           <Label>原币</Label>
-          <Input value={form.baseCurrency} onChange={(e) => setForm((f) => ({ ...f, baseCurrency: e.target.value.toUpperCase() }))} />
+          <Input
+            value={form.baseCurrency}
+            onChange={(e) => setForm((f) => ({ ...f, baseCurrency: e.target.value.toUpperCase() }))}
+          />
         </div>
         <div className="space-y-1">
           <Label>折算币</Label>
-          <Input value={form.quoteCurrency} onChange={(e) => setForm((f) => ({ ...f, quoteCurrency: e.target.value.toUpperCase() }))} />
+          <Input
+            value={form.quoteCurrency}
+            onChange={(e) => setForm((f) => ({ ...f, quoteCurrency: e.target.value.toUpperCase() }))}
+          />
         </div>
         <div className="space-y-1">
           <Label>汇率</Label>
@@ -175,7 +181,11 @@ export default function FxRatesSettingsPage() {
         </div>
         <div className="space-y-1">
           <Label>生效日</Label>
-          <Input type="date" value={form.effectiveDate} onChange={(e) => setForm((f) => ({ ...f, effectiveDate: e.target.value }))} />
+          <Input
+            type="date"
+            value={form.effectiveDate}
+            onChange={(e) => setForm((f) => ({ ...f, effectiveDate: e.target.value }))}
+          />
         </div>
         <div className="space-y-1">
           <Label>来源</Label>
@@ -184,10 +194,11 @@ export default function FxRatesSettingsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="manual">manual</SelectItem>
-              <SelectItem value="import">import</SelectItem>
-              <SelectItem value="api">api</SelectItem>
-              <SelectItem value="platform_bill">platform_bill</SelectItem>
+              {(meta.data?.sources ?? ['manual', 'import', 'api', 'platform_bill']).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -196,9 +207,8 @@ export default function FxRatesSettingsPage() {
           <Input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
         </div>
         <div className="flex flex-wrap items-end gap-2 md:col-span-4">
-          <Button onClick={save}>保存汇率</Button>
-          <Button variant="outline" onClick={mockImport}>
-            mock 导入
+          <Button onClick={save} disabled={createMutation.isPending}>
+            保存汇率
           </Button>
           {preview ? (
             <span className="text-sm text-muted-foreground">
@@ -207,7 +217,11 @@ export default function FxRatesSettingsPage() {
           ) : null}
         </div>
       </div>
-      {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+      {notice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
     </UedWorkspace>
   )
 }

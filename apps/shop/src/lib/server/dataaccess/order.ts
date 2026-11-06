@@ -786,19 +786,20 @@ export async function syncOrdersIncremental(
     note: '订单增量同步：apps/api → Lazop /orders/get + /order/items/get',
   })
 
-  const ok = task.status === '成功'
+  const ok = task.status === '成功' || task.status === '部分失败'
   const list = await listOrders(db, organizationId, {
     shopId: input.shopId,
     page: 1,
     pageSize: Math.min(input.limit ?? 20, 50),
   })
+  const upserted = ok ? task.progressDone || list.items.length : 0
   return {
-    upserted: ok ? list.total || list.items.length : 0,
-    reserved: 0,
+    upserted,
+    reserved: 0, // 占库数由 apps/api 任务结果回写；此处不臆造
     orders: list.items,
     ok,
     note: ok
-      ? `订单同步完成（task=${task.taskNo}）`
+      ? `订单同步完成（task=${task.taskNo}，progress=${task.progressDone}/${task.progressTotal}，status=${task.status}）`
       : task.error !== '—'
         ? task.error
         : '订单同步失败：请检查店铺凭证与 MARKETPLACE_API_BASE_URL',

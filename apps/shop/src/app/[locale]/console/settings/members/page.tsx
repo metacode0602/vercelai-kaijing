@@ -31,11 +31,18 @@ export default function SettingsMembersPage() {
     },
     onError: (e) => setNotice(e.message),
   })
+  const cancelInvitation = trpc.members.cancelInvitation.useMutation({
+    onSuccess: async (res) => {
+      setNotice(res.note)
+      await utils.members.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
 
   const editor = open ? (
     <UedDialog
       title="邀请成员"
-      description="写入 invitation（pending）；不发送真实邮件，待邮件通道授权。"
+      description="写入 invitation（pending）；不发送邮件，请线下告知受邀人走现有注册/登录接受。"
       fields={[
         { key: 'name', label: '姓名' },
         { key: 'email', label: '邮箱', type: 'email', required: true },
@@ -64,7 +71,7 @@ export default function SettingsMembersPage() {
         <Button onClick={() => setOpen(true)}>邀请成员</Button>
       </div>
       <UedPrototypeNotice>
-        列表读真实组织成员。邀请仅落库 pending，不伪造成功发送邮件。
+        列表读真实组织成员。邀请仅落库 pending，UI 明确「待线下发送」；仅 owner 可撤销 pending。不移除成员、不改 owner。
       </UedPrototypeNotice>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
       <ConsoleListSection title="成员列表" description={listQuery.isLoading ? '加载中…' : `共 ${rows.length} 条`} pagination={pagination}>
@@ -92,25 +99,37 @@ export default function SettingsMembersPage() {
                   <TableCell>{row.name}</TableCell>
                   <TableCell className="font-mono text-xs">{row.email}</TableCell>
                   <TableCell>{row.role}</TableCell>
-                  <TableCell>{row.source === 'invitation' ? '待接受邀请' : '成员'}</TableCell>
+                  <TableCell>{row.source === 'invitation' ? '待接受 · 待线下发送' : '成员'}</TableCell>
                   <TableCell>
                     <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {row.source === 'member' && row.role !== 'owner' ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          updateRole.mutate({
-                            id: row.id,
-                            role: row.role === 'admin' ? 'member' : 'admin',
-                          })
-                        }
-                      >
-                        切换 admin/member
-                      </Button>
-                    ) : null}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {row.source === 'member' && row.role !== 'owner' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            updateRole.mutate({
+                              id: row.id,
+                              role: row.role === 'admin' ? 'member' : 'admin',
+                            })
+                          }
+                        >
+                          切换 admin/member
+                        </Button>
+                      ) : null}
+                      {row.source === 'invitation' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={cancelInvitation.isPending}
+                          onClick={() => cancelInvitation.mutate({ id: row.id })}
+                        >
+                          撤销邀请
+                        </Button>
+                      ) : null}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

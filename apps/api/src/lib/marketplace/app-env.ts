@@ -5,15 +5,23 @@ export interface MarketplaceAppCredentials {
 }
 
 export type LazopPlatform = "daraz" | "lazada"
+export type MarketplaceSyncPlatform = LazopPlatform | "tiktok_shop"
 
 export function getMarketplaceAppCredentials(
-  platform: LazopPlatform
+  platform: MarketplaceSyncPlatform
 ): MarketplaceAppCredentials {
   if (platform === "daraz") {
     return {
       appKey: process.env.DARAZ_APP_KEY ?? "",
       appSecret: process.env.DARAZ_APP_SECRET ?? "",
       defaultRegion: process.env.DARAZ_DEFAULT_REGION || "lk",
+    }
+  }
+  if (platform === "tiktok_shop") {
+    return {
+      appKey: process.env.TIKTOK_APP_KEY ?? "",
+      appSecret: process.env.TIKTOK_APP_SECRET ?? "",
+      defaultRegion: process.env.TIKTOK_DEFAULT_REGION || "global",
     }
   }
   return {
@@ -25,6 +33,16 @@ export function getMarketplaceAppCredentials(
 
 export function isLazopPlatform(platform: string): platform is LazopPlatform {
   return platform === "daraz" || platform === "lazada"
+}
+
+export function isOrderListingSyncPlatform(
+  platform: string
+): platform is MarketplaceSyncPlatform {
+  return (
+    platform === "daraz" ||
+    platform === "lazada" ||
+    platform === "tiktok_shop"
+  )
 }
 
 export function resolveLazopPlatformFromSite(

@@ -22,8 +22,11 @@ import type {
 } from "@workspace/marketplace"
 import { db } from "../db"
 import { createShopConnector } from "./connector"
-import { isLazopPlatform } from "./app-env"
-import { maybeAutoReserveSyncedOrder } from "./reserve"
+import { isLazopPlatform, isOrderListingSyncPlatform } from "./app-env"
+import {
+  maybeAutoReleaseCancelledOrder,
+  maybeAutoReserveSyncedOrder,
+} from "./reserve"
 import { syncListingsForShop } from "./sync-listings"
 import { syncSettlementsForShop } from "./sync-settlements"
 import {
@@ -75,6 +78,25 @@ export interface MarketplaceSyncShop {
   name: string
   region: string | null
   currency: string
+  /** shops.meta — TikTok shopCipher lives here when present. */
+  meta?: Record<string, unknown> | null
+}
+
+function shopCipherFromMeta(
+  meta: Record<string, unknown> | null | undefined
+): string | null {
+  if (!meta) return null
+  const cipher = meta.shopCipher ?? meta.shop_cipher
+  return typeof cipher === "string" && cipher.trim() ? cipher.trim() : null
+}
+
+function connectorForShop(shop: MarketplaceSyncShop) {
+  return createShopConnector({
+    id: shop.id,
+    platform: shop.platform,
+    region: shop.region,
+    shopCipher: shopCipherFromMeta(shop.meta),
+  })
 }
 
 const ORDER_SYNC_PAGE_SIZE = 100
@@ -191,7 +213,7 @@ async function loadShops(filter?: {
   organizationId?: string
 }): Promise<MarketplaceSyncShop[]> {
   const conditions = [
-    inArray(shops.platform, ["daraz", "lazada"]),
+    inArray(shops.platform, ["daraz", "lazada", "tiktok_shop"]),
     inArray(shops.status, ["active", "error"]),
     isNull(shops.deletedAt),
   ]
@@ -206,6 +228,7 @@ async function loadShops(filter?: {
       name: shops.name,
       region: shops.region,
       currency: shops.currency,
+      meta: shops.meta,
     })
     .from(shops)
     .where(and(...conditions))
@@ -447,10 +470,10 @@ async function syncOrdersForShop(
   reserved: number
   itemErrors: Array<{ externalOrderId: string; message: string }>
 }> {
-  if (!isLazopPlatform(shop.platform)) {
+  if (!isOrderListingSyncPlatform(shop.platform)) {
     return { orders: 0, reserved: 0, itemErrors: [] }
   }
-  const connector = createShopConnector(shop)
+  const connector = connectorForShop(shop)
   if (!connector.listOrders) {
     return { orders: 0, reserved: 0, itemErrors: [] }
   }
@@ -503,14 +526,24 @@ async function syncOrdersForShop(
       }
 
       if (saved.orderId) {
-        const reserved = await maybeAutoReserveSyncedOrder({
-          organizationId: shop.organizationId,
-          shopId: shop.id,
-          orderId: saved.orderId,
-          externalOrderId: order.externalOrderId,
-          status: saved.status,
-        })
-        if (reserved.reserved) reservedCount += 1
+        if (saved.status === "cancelled") {
+          await maybeAutoReleaseCancelledOrder({
+            organizationId: shop.organizationId,
+            shopId: shop.id,
+            orderId: saved.orderId,
+            externalOrderId: order.externalOrderId,
+            status: saved.status,
+          })
+        } else {
+          const reserved = await maybeAutoReserveSyncedOrder({
+            organizationId: shop.organizationId,
+            shopId: shop.id,
+            orderId: saved.orderId,
+            externalOrderId: order.externalOrderId,
+            status: saved.status,
+          })
+          if (reserved.reserved) reservedCount += 1
+        }
       }
     }
     if (!result.nextCursor) break
@@ -525,7 +558,7 @@ async function syncLogisticsForShop(
   now: Date
 ): Promise<{ shipments: number }> {
   if (!isLazopPlatform(shop.platform)) return { shipments: 0 }
-  const connector = createShopConnector(shop)
+  const connector = connectorForShop(shop)
   if (!connector.getOrderTrace) return { shipments: 0 }
 
   const limit = envInt("MARKETPLACE_SYNC_LOGISTICS_LIMIT", 50)
@@ -763,7 +796,7 @@ async function syncReviewsForShop(
   now: Date
 ): Promise<{ reviews: number }> {
   if (!isLazopPlatform(shop.platform)) return { reviews: 0 }
-  const connector = createShopConnector(shop)
+  const connector = connectorForShop(shop)
   if (!connector.listReviews) return { reviews: 0 }
 
   const state = await loadState(shop.id)
@@ -1025,7 +1058,7 @@ export async function syncMarketplaceOrder(input: {
   now?: Date
 }): Promise<void> {
   const now = input.now ?? new Date()
-  const connector = createShopConnector(input.shop)
+  const connector = connectorForShop(input.shop)
   const order = await connector.getOrder(input.externalOrderId)
   const saved = await upsertOrder(input.shop, order, now)
   if (order.itemsFetchError) {
@@ -1041,13 +1074,23 @@ export async function syncMarketplaceOrder(input: {
       },
     })
   } else if (saved.orderId) {
-    await maybeAutoReserveSyncedOrder({
-      organizationId: input.shop.organizationId,
-      shopId: input.shop.id,
-      orderId: saved.orderId,
-      externalOrderId: input.externalOrderId,
-      status: saved.status,
-    })
+    if (saved.status === "cancelled") {
+      await maybeAutoReleaseCancelledOrder({
+        organizationId: input.shop.organizationId,
+        shopId: input.shop.id,
+        orderId: saved.orderId,
+        externalOrderId: input.externalOrderId,
+        status: saved.status,
+      })
+    } else {
+      await maybeAutoReserveSyncedOrder({
+        organizationId: input.shop.organizationId,
+        shopId: input.shop.id,
+        orderId: saved.orderId,
+        externalOrderId: input.externalOrderId,
+        status: saved.status,
+      })
+    }
   }
 
   if (input.includeTrace && connector.getOrderTrace) {

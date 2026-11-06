@@ -197,8 +197,7 @@ export default function MappingsPage() {
           Seller SKU 映射异常请在本页 / mappings 异常 API 处理；订单履约异常已迁至 order-exceptions（规则扫描真实订单）。
         </p>
         <UedPrototypeNotice>
-          四码并列：Item ID · 平台 SKU ID · Seller SKU · 内部 SKU。主路径已接 PostgreSQL；真实平台同步 OpenAPI
-          仍为 stub。
+          四码并列：Item ID · 平台 SKU ID · Seller SKU · 内部 SKU。主路径已接 PostgreSQL；刊登/订单读同步可回填映射草稿；平台写接口本轮不开通。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

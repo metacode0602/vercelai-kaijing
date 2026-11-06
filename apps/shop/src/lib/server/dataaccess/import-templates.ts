@@ -18,6 +18,11 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
+import {
+  assertImportTemplateKind,
+  validateImportTemplateFields,
+} from '@/lib/settings/import-template-rules'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -95,22 +100,35 @@ export async function createImportTemplate(
     rollbackStrategy?: string
     status?: string
     note?: string
+    actorUserId?: string
+    actorLabel?: string
   },
 ) {
+  const kind = assertImportTemplateKind(input.kind)
+  const fieldsParsed = validateImportTemplateFields(input.fields?.trim() || '', kind)
   const id = createId()
   const now = new Date()
   await db.insert(commerceImportTemplates).values({
     id,
     organizationId,
-    kind: input.kind.trim() || '未命名模板',
+    kind,
     version: input.version?.trim() || 'v1',
-    fields: input.fields?.trim() || '',
+    fields: fieldsParsed.normalized,
     duplicateStrategy: input.duplicateStrategy?.trim() || '',
     rollbackStrategy: input.rollbackStrategy?.trim() || '',
     status: toDbActiveStatus(input.status),
     note: input.note?.trim() || '',
     createdAt: now,
     updatedAt: now,
+  })
+  await appendAuditEvent(db, organizationId, {
+    actorUserId: input.actorUserId,
+    actorLabel: input.actorLabel,
+    action: 'import_template.create',
+    entityType: 'import_template',
+    entityId: id,
+    result: 'ok',
+    detail: `${kind} ${input.version?.trim() || 'v1'}`,
   })
   return getImportTemplate(db as AppDatabase, organizationId, id)
 }
@@ -127,16 +145,21 @@ export async function updateImportTemplate(
     rollbackStrategy?: string
     status?: string
     note?: string
+    actorUserId?: string
+    actorLabel?: string
   },
 ) {
   const existing = await getImportTemplate(db as AppDatabase, organizationId, input.id)
   if (!existing) throw new Error('导入模板不存在')
+  const kind = assertImportTemplateKind(input.kind?.trim() ?? existing.kind)
+  const fieldsRaw = input.fields ?? existing.fields
+  const fieldsParsed = validateImportTemplateFields(fieldsRaw, kind)
   await db
     .update(commerceImportTemplates)
     .set({
-      kind: input.kind?.trim() ?? existing.kind,
+      kind,
       version: input.version?.trim() ?? existing.version,
-      fields: input.fields ?? existing.fields,
+      fields: fieldsParsed.normalized,
       duplicateStrategy: input.duplicateStrategy ?? existing.duplicateStrategy,
       rollbackStrategy: input.rollbackStrategy ?? existing.rollbackStrategy,
       status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
@@ -144,5 +167,16 @@ export async function updateImportTemplate(
       updatedAt: new Date(),
     })
     .where(and(eq(commerceImportTemplates.organizationId, organizationId), eq(commerceImportTemplates.id, input.id)))
+  await appendAuditEvent(db, organizationId, {
+    actorUserId: input.actorUserId,
+    actorLabel: input.actorLabel,
+    action: 'import_template.update',
+    entityType: 'import_template',
+    entityId: input.id,
+    result: 'ok',
+    detail: `更新 ${kind} · ${input.status ?? existing.status}`,
+    before: { kind: existing.kind, fields: existing.fields, status: existing.status },
+    after: { kind, fields: fieldsParsed.normalized, status: input.status ?? existing.status },
+  })
   return getImportTemplate(db as AppDatabase, organizationId, input.id)
 }

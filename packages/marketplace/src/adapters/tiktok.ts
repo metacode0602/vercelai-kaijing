@@ -21,24 +21,12 @@ import {
   refreshTiktokToken,
 } from "../oauth/tiktok"
 import { DEFAULT_TIKTOK_REGION } from "../regions/endpoints"
+import { mapTiktokOrder, mapTiktokProduct } from "../mappers/tiktok"
 
 type Json = Record<string, unknown>
 
 function asRecord(value: unknown): Json {
   return value && typeof value === "object" ? (value as Json) : {}
-}
-
-function mapOrderStatus(raw: string | undefined): string {
-  const s = (raw ?? "").toUpperCase()
-  if (!s) return "unknown"
-  if (s.includes("CANCEL")) return "cancelled"
-  if (s.includes("DELIVER")) return "delivered"
-  if (s.includes("AWAITING_COLLECTION") || s.includes("IN_TRANSIT") || s.includes("SHIPPED"))
-    return "shipped"
-  if (s.includes("AWAITING_SHIPMENT") || s.includes("READY")) return "ready_to_ship"
-  if (s.includes("UNPAID")) return "created"
-  if (s.includes("ON_HOLD") || s.includes("PARTIALLY")) return "paid"
-  return "unknown"
 }
 
 export class TiktokConnector implements MarketplaceConnector {
@@ -158,7 +146,7 @@ export class TiktokConnector implements MarketplaceConnector {
     const json = await this.http.call<Json>({
       path: `/product/202309/products/${externalId}`,
     })
-    return this.mapProduct(asRecord(json.data))
+    return mapTiktokProduct(asRecord(json.data))
   }
 
   async listProducts(cursor?: PageCursor): Promise<PagedResult<DomainProduct>> {
@@ -174,7 +162,7 @@ export class TiktokConnector implements MarketplaceConnector {
     const data = asRecord(json.data)
     const products = (data.products ?? []) as Json[]
     return {
-      items: products.map((p) => this.mapProduct(p)),
+      items: products.map((p) => mapTiktokProduct(p)),
       nextCursor: data.next_page_token ? String(data.next_page_token) : null,
       raw: data,
     }
@@ -241,7 +229,7 @@ export class TiktokConnector implements MarketplaceConnector {
       body: { ids: [externalOrderId] },
     })
     const orders = (asRecord(json.data).orders ?? []) as Json[]
-    return this.mapOrder(orders[0] ?? asRecord(json.data))
+    return mapTiktokOrder(orders[0] ?? asRecord(json.data))
   }
 
   async listOrders(cursor?: PageCursor): Promise<PagedResult<DomainOrder>> {
@@ -272,7 +260,7 @@ export class TiktokConnector implements MarketplaceConnector {
     const data = asRecord(json.data)
     const orders = (data.orders ?? []) as Json[]
     return {
-      items: orders.map((o) => this.mapOrder(o)),
+      items: orders.map((o) => mapTiktokOrder(o)),
       nextCursor: data.next_page_token ? String(data.next_page_token) : null,
       raw: data,
     }
@@ -313,53 +301,6 @@ export class TiktokConnector implements MarketplaceConnector {
     return { ok: true, raw: asRecord(json.data) }
   }
 
-  private mapProduct(data: Json): DomainProduct {
-    const skus = (data.skus ?? []) as Json[]
-    return {
-      externalId: String(data.id ?? data.product_id ?? ""),
-      title: String(data.title ?? data.product_name ?? ""),
-      status: String(data.status ?? ""),
-      skus: skus.map((sku) => ({
-        externalSkuId: String(sku.id ?? ""),
-        sellerSku: String(sku.seller_sku ?? ""),
-        priceAmount: asRecord(sku.price).amount
-          ? String(asRecord(sku.price).amount)
-          : undefined,
-        priceCurrency: asRecord(sku.price).currency
-          ? String(asRecord(sku.price).currency)
-          : undefined,
-        quantity: sku.inventory != null ? Number(asRecord(sku.inventory as Json).quantity ?? sku.inventory) : undefined,
-        raw: sku,
-      })),
-      raw: data,
-    }
-  }
-
-  private mapOrder(data: Json): DomainOrder {
-    const lines = (data.line_items ?? data.item_list ?? []) as Json[]
-    const payment = asRecord(data.payment)
-    return {
-      externalOrderId: String(data.id ?? data.order_id ?? ""),
-      status: mapOrderStatus(String(data.status ?? "")),
-      currency: payment.currency ? String(payment.currency) : undefined,
-      totalAmount: payment.total_amount != null ? String(payment.total_amount) : undefined,
-      placedAt: data.create_time
-        ? new Date(Number(data.create_time) * 1000).toISOString()
-        : null,
-      paidAt: data.paid_time
-        ? new Date(Number(data.paid_time) * 1000).toISOString()
-        : null,
-      lines: lines.map((line) => ({
-        externalLineId: String(line.id ?? ""),
-        sku: String(line.seller_sku ?? line.sku_id ?? ""),
-        title: String(line.product_name ?? line.sku_name ?? ""),
-        qty: line.quantity != null ? Number(line.quantity) : 1,
-        unitPrice: line.sale_price != null ? String(line.sale_price) : undefined,
-        raw: line,
-      })),
-      raw: data,
-    }
-  }
 }
 
 export function createTiktokConnector(cfg: Omit<MarketplaceConnectorConfig, "platform">) {

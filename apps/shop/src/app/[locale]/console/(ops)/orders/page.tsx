@@ -45,7 +45,7 @@ export default function OrdersPage() {
       await utils.order.list.invalidate()
       await utils.order.stats.invalidate()
       setNotice(
-        `增量同步完成：upsert ${res.upserted} 单，其中已占库 ${res.reserved} 单（平台 API 为 stub，订单已写入 PostgreSQL）。`,
+        `增量同步${res.ok ? "完成" : "失败"}：progress upsert ${res.upserted} 单（task=${res.syncTaskId ?? "—"}）。占库由映射确认后在 apps/api 自动执行；无凭证时会诚实失败。`,
       )
     },
     onError: (e) => setNotice(e.message),

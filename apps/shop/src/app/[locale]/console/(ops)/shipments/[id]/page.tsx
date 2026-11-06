@@ -57,7 +57,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         description={`${row.shop} · ${row.mode} · ${row.statusLabel}`}
         actions={
           <Button size="sm" variant="outline" disabled={syncMutation.isPending} onClick={() => syncMutation.mutate({ id: row.id })}>
-            {syncMutation.isPending ? '同步中…' : '同步平台轨迹（stub）'}
+            {syncMutation.isPending ? '同步中…' : '同步平台轨迹'}
           </Button>
         }
       />

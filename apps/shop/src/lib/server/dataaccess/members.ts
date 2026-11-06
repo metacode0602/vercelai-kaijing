@@ -89,6 +89,7 @@ export async function createInvitation(
 ) {
   const email = input.email.trim().toLowerCase()
   if (!email) throw new Error('邮箱不能为空')
+  if ((input.role || '').trim() === 'owner') throw new Error('不可通过邀请设为 owner')
   const existingMembers = await listMembers(db as AppDatabase, organizationId)
   if (existingMembers.some((m) => m.email.toLowerCase() === email && m.source === 'member')) {
     throw new Error(`${email} 已在成员列表中`)
@@ -131,3 +132,50 @@ export async function updateMemberRole(
   await db.update(member).set({ role }).where(eq(member.id, input.id))
   return listMembers(db as AppDatabase, organizationId)
 }
+
+export async function getMemberRole(
+  db: AppDatabase,
+  organizationId: string,
+  userId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+    .limit(1)
+  return row?.role ?? null
+}
+
+/**
+ * 仅 owner 可撤销 pending 邀请 → status=canceled；不发邮件、不硬删。
+ */
+export async function cancelInvitation(
+  db: DbLike,
+  organizationId: string,
+  input: { id: string; actorUserId: string },
+) {
+  const role = await getMemberRole(db as AppDatabase, organizationId, input.actorUserId)
+  if (role !== 'owner') {
+    throw new Error('仅组织所有者可撤销邀请')
+  }
+  const [inv] = await db
+    .select()
+    .from(invitation)
+    .where(and(eq(invitation.organizationId, organizationId), eq(invitation.id, input.id)))
+    .limit(1)
+  if (!inv) throw new Error('邀请不存在')
+  if (inv.status !== 'pending') {
+    throw new Error(`邀请状态为 ${inv.status}，仅 pending 可撤销`)
+  }
+  await db
+    .update(invitation)
+    .set({ status: 'canceled' })
+    .where(and(eq(invitation.organizationId, organizationId), eq(invitation.id, input.id)))
+  return {
+    id: inv.id,
+    email: inv.email,
+    status: 'canceled' as const,
+    note: '邀请已撤销（canceled）；未发送邮件通知。',
+  }
+}
+

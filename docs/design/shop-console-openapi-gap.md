@@ -33,15 +33,29 @@
 
 | 能力 | OpenAPI / 适配器 | 入库 |
 | --- | --- | --- |
-| 订单 + 订单行 | `/orders/get` + `/order/items/get`（单位行 qty=1） | orders / order_lines / order_status_events |
-| 刊登 / 商品 | `/products/get` | listings + pending seller_sku_mappings（不自动确认） |
-| 物流轨迹 | `/logistic/order/trace` | shipments / tracking_events |
-| 评论 | review seller history/list | product_reviews / media |
-| 结算 | `/finance/payout/status/get` + `/finance/transaction/details/get` | settlements / settlement_lines；无 statement 的交易入 `__unassigned__` 桶并写 integration_logs，不假造 order FK |
+| 订单 + 订单行（Daraz/Lazada） | `/orders/get` + `/order/items/get`（单位行 qty=1） | orders / order_lines / order_status_events |
+| 订单 + 订单行（TikTok） | `/order/202309/orders/search` + `.../detail/query` | 同上；取消态自动释放未发货占库 |
+| 刊登 / 商品（Daraz/Lazada） | `/products/get` | listings + pending seller_sku_mappings（不自动确认） |
+| 刊登 / 商品（TikTok） | `/product/202309/products/search` | 同上（需 shop_cipher） |
+| 物流轨迹（仅 Lazop） | `/logistic/order/trace` | shipments / tracking_events |
+| 评论（仅 Lazop） | review seller history/list | product_reviews / media |
+| 结算（仅 Lazop） | `/finance/payout/status/get` + `/finance/transaction/details/get` | settlements / settlement_lines；无 statement 的交易入 `__unassigned__` 桶并写 integration_logs，不假造 order FK |
 
 无凭证：任务失败并写 integration_logs / sync_job_runs，**不显示成功**。  
-OAuth 换票 / 回调本轮不实现；沿用库内加密凭证。  
-TikTok：本轮无结算/评论完整接口接线，现有 connector 能力保留，标缺。
+OAuth 换票 / 回调本轮不实现；沿用库内加密凭证（授权由并行 agent / 设计文档负责，本 PR 不改）。  
+
+### TikTok Shop 读同步边界（本轮）
+
+| 能力 | 本轮 | 说明 |
+| --- | --- | --- |
+| 订单 + 行 | ✅ | `orders/search` + `orders/detail/query`（adapter 已有 path）；取消态触发自动释放未发货占库 |
+| 刊登 / 商品 | ✅ | `products/search` + product get；需 `shop_cipher`（`shops.meta`） |
+| 物流轨迹 | ❌ | Partner 文档有 Fulfillment 分区，但公开 path/字段本仓未收录可靠规格 → **不编造 getOrderTrace** |
+| 评论 | ❌ | `docs/design/platform-apis/tiktok-shop.md`：**未找到**独立 Review API → 不接线 |
+| 结算 | ❌ | Finance 分区存在但字段级样例公开匿名未找到 → **不编造 listSettlements path** |
+| 售后列表 | ❌ | 站内手工/取消审核保留；禁止伪同步写演示逆向单 |
+
+平台取消（未发货）：`maybeAutoReleaseCancelledOrder` 仅释放 `active` 占库、`qtyDelta=0` 不虚增 onHand；已发货走售后。
 
 ## 仍需后续联调 / 明确不在本轮
 

@@ -18,3 +18,4 @@ export * from "./tokens/manager"
 export * from "./workers/sync"
 
 export * from "./mappers/lazop"
+export * from "./mappers/tiktok"

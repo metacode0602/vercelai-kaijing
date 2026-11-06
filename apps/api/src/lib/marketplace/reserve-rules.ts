@@ -109,3 +109,52 @@ export function reservationIdempotencyKey(
 ): string {
   return `ledger:order_reserve:${externalOrderId}:${orderLineId}`
 }
+
+export function releaseIdempotencyKey(
+  externalOrderId: string,
+  orderLineId: string
+): string {
+  return `ledger:order_release:${externalOrderId}:${orderLineId}`
+}
+
+/** True when platform status should release active reservations. */
+export function shouldAutoReleaseOnStatus(status: string): boolean {
+  return status === "cancelled"
+}
+
+
+/**
+ * Decide whether marketplace sync may auto-release reservations for a cancelled order.
+ * Shipped / delivered orders must go through aftersale — never invent onHand restock here.
+ */
+export function canAutoReleaseOrder(input: {
+  platformStatus: string
+  orderStatus?: string | null
+  fulfillmentStatus?: string | null
+}): { ok: true } | { ok: false; reason: string } {
+  if (!shouldAutoReleaseOnStatus(input.platformStatus)) {
+    return {
+      ok: false,
+      reason: `status=${input.platformStatus} 不自动释放`,
+    }
+  }
+  const orderStatus = (input.orderStatus ?? "").toLowerCase()
+  const fulfillment = (input.fulfillmentStatus ?? "").toLowerCase()
+  if (
+    orderStatus === "shipped" ||
+    orderStatus === "delivered" ||
+    fulfillment === "shipped" ||
+    fulfillment === "delivered"
+  ) {
+    return { ok: false, reason: "already_shipped_use_aftersale" }
+  }
+  return { ok: true }
+}
+
+/** reserved after release; never negative; does not touch onHand. */
+export function computeReleasedReserved(
+  currentReserved: number,
+  releaseQty: number
+): number {
+  return Math.max(0, Number(currentReserved) - Number(releaseQty))
+}

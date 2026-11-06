@@ -1,10 +1,14 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  canAutoReleaseOrder,
   computeAvailable,
+  computeReleasedReserved,
   parseReserveQty,
   pickFulfillmentWarehouse,
+  releaseIdempotencyKey,
   reservationIdempotencyKey,
+  shouldAutoReleaseOnStatus,
 } from "./reserve-rules"
 
 describe("reserve-rules", () => {
@@ -119,5 +123,57 @@ describe("reserve-rules", () => {
       reservationIdempotencyKey("ORD-1", "line-a"),
       "ledger:order_reserve:ORD-1:line-a"
     )
+  })
+
+  it("builds release idempotency keys and gates cancel release", () => {
+    assert.equal(
+      releaseIdempotencyKey("DZ-1", "line-1"),
+      "ledger:order_release:DZ-1:line-1"
+    )
+    assert.equal(shouldAutoReleaseOnStatus("cancelled"), true)
+    assert.equal(shouldAutoReleaseOnStatus("paid"), false)
+  })
+
+  it("gates auto-release for shipped/delivered vs unshipped cancel", () => {
+    assert.equal(canAutoReleaseOrder({ platformStatus: "paid" }).ok, false)
+    assert.equal(
+      canAutoReleaseOrder({
+        platformStatus: "cancelled",
+        fulfillmentStatus: "reserved",
+      }).ok,
+      true
+    )
+    assert.equal(
+      canAutoReleaseOrder({
+        platformStatus: "cancelled",
+        fulfillmentStatus: "picking",
+      }).ok,
+      true
+    )
+    const shipped = canAutoReleaseOrder({
+      platformStatus: "cancelled",
+      orderStatus: "shipped",
+    })
+    assert.equal(shipped.ok, false)
+    if (!shipped.ok) assert.match(shipped.reason, /already_shipped/)
+    const delivered = canAutoReleaseOrder({
+      platformStatus: "cancelled",
+      fulfillmentStatus: "delivered",
+    })
+    assert.equal(delivered.ok, false)
+  })
+
+  it("computes released reserved without going negative or touching onHand", () => {
+    assert.equal(computeReleasedReserved(5, 2), 3)
+    assert.equal(computeReleasedReserved(1, 5), 0)
+    assert.equal(computeReleasedReserved(0, 1), 0)
+  })
+
+  it("keeps release/reserve idempotency keys distinct", () => {
+    assert.notEqual(
+      reservationIdempotencyKey("O1", "L1"),
+      releaseIdempotencyKey("O1", "L1")
+    )
+    assert.match(releaseIdempotencyKey("O1", "L1"), /^ledger:order_release:/)
   })
 })

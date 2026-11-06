@@ -18,6 +18,7 @@ export const importTemplatesRouter = createTRPCRouter({
   meta: tenantProcedure.query(async () => ({
     statuses: [...UI_ACTIVE_STATUSES],
     note: '模板配置已落库；批量导入作业执行仍待导入流水',
+    kinds: ['仓库 / 库位', '商品 / SKU', 'Seller SKU 映射', '期初库存', '历史订单'],
   })),
   get: tenantProcedure.input(z.object({ id: z.string().min(1) })).query(async ({ ctx, input }) => {
     const row = await importTemplatesDa.getImportTemplate(ctx.db, ctx.organizationId, input.id)
@@ -37,7 +38,13 @@ export const importTemplatesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) =>
-      wrap(() => importTemplatesDa.createImportTemplate(ctx.db, ctx.organizationId, input)),
+      wrap(() =>
+        importTemplatesDa.createImportTemplate(ctx.db, ctx.organizationId, {
+          ...input,
+          actorUserId: ctx.user?.id,
+          actorLabel: ctx.user?.name || ctx.user?.email || undefined,
+        }),
+      ),
     ),
   update: tenantProcedure
     .input(
@@ -53,6 +60,12 @@ export const importTemplatesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) =>
-      wrap(() => importTemplatesDa.updateImportTemplate(ctx.db, ctx.organizationId, input)),
+      wrap(() =>
+        importTemplatesDa.updateImportTemplate(ctx.db, ctx.organizationId, {
+          ...input,
+          actorUserId: ctx.user?.id,
+          actorLabel: ctx.user?.name || ctx.user?.email || undefined,
+        }),
+      ),
     ),
 })

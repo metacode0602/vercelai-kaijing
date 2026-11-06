@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "sync:marketplace": "tsx src/workers/marketplace-sync.ts"
+    "sync:marketplace": "tsx src/workers/marketplace-sync.ts",
+    "test:settings": "tsx --test src/lib/settings/**/*.test.ts"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.79.1",

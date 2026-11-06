@@ -946,35 +946,27 @@ export async function upsertAftersale(
   })
 }
 
-/** 平台同步 stub：写入演示逆向单（幂等）。 */
+/**
+ * 平台售后列表 OpenAPI 尚未接线（marketplace 仅有 reverse cancel validate/create）。
+ * 禁止写入演示逆向单冒充同步成功。
+ */
+export async function syncAftersaleFromPlatform(
+  _db: AppDatabase,
+  _organizationId: string,
+  _input: { shopId?: string; limit?: number } = {},
+): Promise<never> {
+  throw new Error(
+    '平台售后列表 OpenAPI 未接线（仅有取消校验/创建写接口）。本轮只读同步不含售后拉取；禁止写入演示逆向单。请手工登记或等待售后读同步落地。',
+  )
+}
+
+/** @deprecated 使用 syncAftersaleFromPlatform；保留别名避免旧调用静默写假数据。 */
 export async function syncAftersaleStub(
   db: AppDatabase,
   organizationId: string,
   input: { shopId?: string; limit?: number } = {},
 ) {
-  const demo: UpsertAftersaleInput[] = [
-    {
-      shopId: input.shopId,
-      shopName: 'Daraz LK',
-      externalReverseOrderId: 'DZ-REV-STUB-001',
-      externalTradeOrderId: 'DZ-10012',
-      typeLabel: '取消订单',
-      requestType: 'CANCEL',
-      uiId: 'AS-STUB-0001',
-      reason: '平台同步 stub 取消',
-      reasonCode: 'BUYER_CANCEL',
-      refundAmount: 6.8,
-      currency: 'LKR',
-      sku: 'HSY000001001',
-      releaseReserved: 1,
-      status: '待确认',
-    },
-  ].slice(0, input.limit ?? 1)
-  const results = []
-  for (const row of demo) {
-    results.push(await upsertAftersale(db, organizationId, row))
-  }
-  return { upserted: results.length, items: results }
+  return syncAftersaleFromPlatform(db, organizationId, input)
 }
 
 export async function createTicket(

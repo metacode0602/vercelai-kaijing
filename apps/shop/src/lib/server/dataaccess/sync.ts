@@ -370,14 +370,21 @@ export async function enqueueOrRetrySyncTask(
 
     const mapped = mapTask(taskRow!, shop?.name ?? '')
     const dbType = taskRow!.type
-    if (!input.skipPlatformTrigger && (dbType === 'inventory' || dbType === 'price')) {
+    if (
+      !input.skipPlatformTrigger &&
+      (dbType === 'inventory' || dbType === 'price' || dbType === 'returns')
+    ) {
+      const error =
+        dbType === 'returns'
+          ? '平台售后列表 OpenAPI 未接线，禁止伪同步'
+          : '本轮仅读同步：库存推送/改价平台写入未接通'
       await tx
         .update(syncTasks)
         .set({
           status: 'failed',
-          error: '本轮仅读同步：库存推送/改价平台写入未接通',
+          error,
           finishedAt: new Date(),
-          note: '禁止假成功：平台写接口不在本轮范围',
+          note: '禁止假成功：该资源不在本轮读同步范围',
           updatedAt: new Date(),
         })
         .where(eq(syncTasks.id, taskRow!.id))
@@ -388,7 +395,12 @@ export async function enqueueOrRetrySyncTask(
   }).then(async (mapped) => {
     if (input.skipPlatformTrigger) return mapped
     const dbType = toDbSyncType(mapped.type)
-    if (dbType === 'inventory' || dbType === 'price' || mapped.status === '失败') {
+    if (
+      dbType === 'inventory' ||
+      dbType === 'price' ||
+      dbType === 'returns' ||
+      mapped.status === '失败'
+    ) {
       return mapped
     }
 

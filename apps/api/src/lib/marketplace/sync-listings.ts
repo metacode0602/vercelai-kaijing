@@ -9,7 +9,7 @@ import {
 import type { DomainProduct } from "@workspace/marketplace"
 import { db } from "../db"
 import { createShopConnector } from "./connector"
-import { isLazopPlatform } from "./app-env"
+import { isOrderListingSyncPlatform } from "./app-env"
 import type { MarketplaceSyncShop } from "./sync"
 
 function envInt(name: string, fallback: number): number {
@@ -173,8 +173,18 @@ export async function syncListingsForShop(
   shop: MarketplaceSyncShop,
   now: Date
 ): Promise<{ listings: number }> {
-  if (!isLazopPlatform(shop.platform)) return { listings: 0 }
-  const connector = createShopConnector(shop)
+  if (!isOrderListingSyncPlatform(shop.platform)) return { listings: 0 }
+  const connector = createShopConnector({
+    id: shop.id,
+    platform: shop.platform,
+    region: shop.region,
+    shopCipher:
+      shop.meta && typeof shop.meta.shopCipher === "string"
+        ? shop.meta.shopCipher
+        : shop.meta && typeof shop.meta.shop_cipher === "string"
+          ? shop.meta.shop_cipher
+          : null,
+  })
   if (!connector.listProducts) return { listings: 0 }
 
   const maxPages = envInt("MARKETPLACE_SYNC_LISTINGS_MAX_PAGES", 5)

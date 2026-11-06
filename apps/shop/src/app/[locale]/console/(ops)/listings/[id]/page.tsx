@@ -273,7 +273,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
               disabled={syncMutation.isPending}
               onClick={() => syncMutation.mutate({ id: listing.id })}
             >
-              请求平台同步（stub）
+              请求刊登读同步
             </Button>
             <Button size="sm" variant="outline" asChild>
               <LocaleLink href={`/console/master-skus/${listing.sku}`}>查看 SKU</LocaleLink>
@@ -283,7 +283,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       />
 
       <Alert>
-        <AlertTitle>真实平台刊登 OpenAPI 仍为 stub</AlertTitle>
+        <AlertTitle>平台刊登写入未开通（本轮只读拉取）</AlertTitle>
         <AlertDescription>
           头信息 / 售价 / 上下架状态已写入 listings 表；「请求平台同步」只更新本地 publishState，不会调用
           Daraz / Lazada / TikTok connector。

@@ -154,7 +154,7 @@ export default function AftersalesPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        已接 PostgreSQL（reverse_orders / refunds / return_shipments）。真实平台售后 OpenAPI 仍 stub；取消释放占库与退货回库见对应子页。
+        已接 PostgreSQL（reverse_orders / refunds / return_shipments）。平台售后列表 OpenAPI 未接线（禁止伪同步）；手工登记可用。取消释放占库与退货回库见对应子页。订单平台取消会在读同步时自动释放未发货占库。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" asChild>

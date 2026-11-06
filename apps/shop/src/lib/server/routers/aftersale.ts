@@ -118,7 +118,10 @@ export const aftersaleRouter = createTRPCRouter({
       wrap(() => aftersaleDa.upsertAftersale(ctx.db, ctx.organizationId, input)),
     ),
 
-  /** 平台 OpenAPI 仍 stub：写入演示逆向单（幂等）。 */
+  /**
+   * 平台售后列表未接线：调用会诚实失败，不写演示逆向单。
+   * 手工登记请用 createTicket / createCancel。
+   */
   syncStub: tenantProcedure
     .input(
       z
@@ -129,7 +132,7 @@ export const aftersaleRouter = createTRPCRouter({
         .optional(),
     )
     .mutation(async ({ ctx, input }) =>
-      wrap(() => aftersaleDa.syncAftersaleStub(ctx.db, ctx.organizationId, input ?? {})),
+      wrap(() => aftersaleDa.syncAftersaleFromPlatform(ctx.db, ctx.organizationId, input ?? {})),
     ),
 
   createTicket: tenantProcedure

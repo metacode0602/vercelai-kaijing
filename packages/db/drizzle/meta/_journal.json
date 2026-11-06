@@ -71,6 +71,13 @@
       "when": 1762412400000,
       "tag": "0021_commerce_marketplace_sync_settlements",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1762422000000,
+      "tag": "0022_commerce_fx_rates_status",
+      "breakpoints": true
     }
   ]
 }

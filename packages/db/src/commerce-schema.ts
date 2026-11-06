@@ -1737,6 +1737,9 @@ export const platformCategories = pgTable(
 // fx_rates — ADD（F33；platform + ccy + effective date + source）
 // ---------------------------------------------------------------------------
 
+export const fxRateStatuses = ["active", "disabled"] as const
+export type FxRateStatus = (typeof fxRateStatuses)[number]
+
 export const fxRates = pgTable(
   "fx_rates",
   {
@@ -1751,7 +1754,10 @@ export const fxRates = pgTable(
     rate: numeric("rate", { precision: 18, scale: 8 }).notNull(),
     effectiveDate: varchar("effective_date", { length: 10 }).notNull(),
     source: varchar("source", { length: 32 }).notNull().default("manual"),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("fx_rates_lookup_idx").on(
@@ -1760,6 +1766,7 @@ export const fxRates = pgTable(
       t.quoteCurrency,
       t.effectiveDate,
     ),
+    index("fx_rates_org_status_idx").on(t.organizationId, t.status),
   ],
 )
 

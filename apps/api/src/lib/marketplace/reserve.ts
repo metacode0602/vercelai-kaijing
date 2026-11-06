@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid"
-import { and, desc, eq, or } from "drizzle-orm"
+import { and, desc, eq, isNull, or } from "drizzle-orm"
 import {
   inventoryBalances,
   inventoryMovements,
@@ -12,9 +12,12 @@ import {
 } from "@workspace/db"
 import { db } from "../db"
 import {
+  canAutoReleaseOrder,
   computeAvailable,
+  computeReleasedReserved,
   parseReserveQty,
   pickFulfillmentWarehouse,
+  releaseIdempotencyKey,
   reservationIdempotencyKey,
   type BalanceLike,
 } from "./reserve-rules"
@@ -465,3 +468,207 @@ export async function resolveVariantIdForLine(input: {
   return variant?.id ?? null
 }
 
+
+/**
+ * When platform order becomes cancelled: release active reservations idempotently.
+ * Only decreases reserved (qtyDelta=0); never invents onHand restock.
+ * Shipped/delivered orders are left for aftersale. Committed/non-active tickets untouched.
+ */
+export async function maybeAutoReleaseCancelledOrder(input: {
+  organizationId: string
+  shopId: string
+  orderId: string
+  externalOrderId: string
+  status: string
+}): Promise<{ released: boolean; reason?: string }> {
+  const [order] = await db
+    .select({
+      id: orders.id,
+      organizationId: orders.organizationId,
+      status: orders.status,
+      fulfillmentStatus: orders.fulfillmentStatus,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.id, input.orderId),
+        eq(orders.organizationId, input.organizationId)
+      )
+    )
+    .limit(1)
+  if (!order) return { released: false, reason: "order_missing" }
+
+  const gate = canAutoReleaseOrder({
+    platformStatus: input.status,
+    orderStatus: order.status,
+    fulfillmentStatus: order.fulfillmentStatus,
+  })
+  if (!gate.ok) return { released: false, reason: gate.reason }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const reservations = await tx
+        .select()
+        .from(inventoryReservations)
+        .where(
+          and(
+            eq(inventoryReservations.organizationId, input.organizationId),
+            eq(inventoryReservations.orderId, input.orderId),
+            eq(inventoryReservations.status, "active")
+          )
+        )
+        .for("update")
+
+      if (reservations.length === 0) {
+        await tx
+          .update(orders)
+          .set({
+            status: "cancelled",
+            fulfillmentStatus: "unfulfilled",
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(orders.id, input.orderId),
+              eq(orders.organizationId, input.organizationId)
+            )
+          )
+        return { released: false as const, reason: "no_active_reservation" }
+      }
+
+      let releasedAny = false
+      for (const res of reservations) {
+        const idem = releaseIdempotencyKey(
+          input.externalOrderId,
+          res.orderLineId
+        )
+        const [dup] = await tx
+          .select({ id: inventoryMovements.id })
+          .from(inventoryMovements)
+          .where(
+            and(
+              eq(inventoryMovements.organizationId, input.organizationId),
+              eq(inventoryMovements.idempotencyKey, idem)
+            )
+          )
+          .limit(1)
+
+        const balanceConds = [
+          eq(inventoryBalances.organizationId, input.organizationId),
+          eq(inventoryBalances.warehouseCode, res.warehouseCode),
+          eq(inventoryBalances.variantId, res.variantId),
+          res.binCode
+            ? eq(inventoryBalances.binCode, res.binCode)
+            : isNull(inventoryBalances.binCode),
+        ]
+
+        const lockedBalances = await tx
+          .select()
+          .from(inventoryBalances)
+          .where(and(...balanceConds))
+          .for("update")
+          .limit(1)
+        const balance = lockedBalances[0]
+
+        if (balance && !dup) {
+          const reservedAfter = computeReleasedReserved(
+            balance.reserved,
+            res.qty
+          )
+          const updated = await tx
+            .update(inventoryBalances)
+            .set({
+              reserved: reservedAfter,
+              version: balance.version + 1,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(inventoryBalances.id, balance.id),
+                eq(inventoryBalances.version, balance.version)
+              )
+            )
+            .returning({ id: inventoryBalances.id })
+          if (!updated.length) {
+            throw new Error(
+              `库存版本冲突，请重试（balance=${balance.id} version=${balance.version}）`
+            )
+          }
+          try {
+            await tx.insert(inventoryMovements).values({
+              id: nanoid(),
+              organizationId: input.organizationId,
+              shopId: input.shopId,
+              variantId: res.variantId,
+              warehouseCode: balance.warehouseCode,
+              binCode: balance.binCode,
+              movementType: "order_release",
+              qtyDelta: 0,
+              onHandAfter: balance.onHand,
+              reservedAfter,
+              qcHoldAfter: balance.qcHold,
+              damagedAfter: balance.damaged,
+              sourceType: "order",
+              sourceId: input.orderId,
+              operator: "marketplace_sync",
+              idempotencyKey: idem,
+              occurredAt: new Date(),
+              raw: {
+                reason: `平台取消释放占库 ${input.externalOrderId}`,
+                qty: res.qty,
+                orderLineId: res.orderLineId,
+                source: "marketplace_sync_auto_release",
+                onHandUnchanged: true,
+              },
+            })
+            releasedAny = true
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error)
+            if (!/unique|duplicate/i.test(message)) throw error
+          }
+        } else if (dup) {
+          releasedAny = true
+        }
+
+        await tx
+          .update(inventoryReservations)
+          .set({
+            status: "released",
+            releasedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(inventoryReservations.id, res.id),
+              eq(inventoryReservations.status, "active"),
+              eq(inventoryReservations.organizationId, input.organizationId)
+            )
+          )
+      }
+
+      await tx
+        .update(orders)
+        .set({
+          status: "cancelled",
+          fulfillmentStatus: "unfulfilled",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(orders.id, input.orderId),
+            eq(orders.organizationId, input.organizationId)
+          )
+        )
+
+      return {
+        released: releasedAny || reservations.length > 0,
+        reason: releasedAny ? undefined : "release_idempotent_or_no_balance",
+      }
+    })
+    return result
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { released: false, reason: message }
+  }
+}
