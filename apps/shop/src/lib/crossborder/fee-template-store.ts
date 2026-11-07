@@ -7,7 +7,7 @@
  * @see docs/design/shop-module5-fee-templates-trpc.md
  */
 
-export type FeeTemplateType = 'import_tax' | 'platform_fee'
+export type FeeTemplateType = 'import_tax' | 'platform_fee' | 'ocean_freight'
 export type FeeTemplateStatus = '启用' | '停用' | '草稿'
 
 export type FeeComponent = {
@@ -142,6 +142,7 @@ export function getPlatformFeePercents(resolved: ResolvedFeeTemplate | null): {
 export const FEE_TEMPLATE_TYPE_LABEL: Record<FeeTemplateType, string> = {
   import_tax: '进口税',
   platform_fee: '平台费',
+  ocean_freight: '海运运费',
 }
 
 export const FULFILLMENT_POOL_OPTIONS = [
@@ -302,7 +303,7 @@ export function adaptResolvedFromDto(dto: {
       country: dto.template.country,
       fulfillmentPool: dto.template.fulfillmentPool,
       fulfillmentLogistics: dto.template.fulfillmentLogistics,
-      type: dto.template.type === 'platform_fee' ? 'platform_fee' : 'import_tax',
+      type: dto.template.type === 'platform_fee' ? 'platform_fee' : dto.template.type === 'ocean_freight' ? 'ocean_freight' : 'import_tax',
       status,
       note: dto.template.note,
       updatedAt: dto.template.updatedAt,

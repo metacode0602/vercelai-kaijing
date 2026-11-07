@@ -32,7 +32,7 @@ export default function FreightDetailPage({ params }: { params: Promise<{ id: st
         ]}
       />
       <DetailPageHeader backHref="/console/freight" backLabel="运费估算" title={row.code} description={row.name} />
-      <UedPrototypeNotice>来源 {row.source}；非 DEMO_FREIGHT_ESTIMATES。</UedPrototypeNotice>
+      <UedPrototypeNotice>来源 {row.source}（运价卡 / 费用模板 ocean_freight / 海运柜次）。</UedPrototypeNotice>
       <DetailFieldGrid
         fields={[
           { label: '编码', value: row.code, mono: true },

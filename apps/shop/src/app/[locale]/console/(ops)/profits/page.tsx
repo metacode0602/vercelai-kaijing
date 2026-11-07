@@ -21,16 +21,17 @@ export default function ProfitsPage() {
     view,
     q: q || undefined,
   })
+  const kpisQuery = trpc.finance.profitKpis.useQuery({ view })
   const rows = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
-  const revenue = rows.reduce((sum, row) => sum + row.revenue, 0)
-  const profit = rows.reduce((sum, row) => sum + row.profit, 0)
-  const fees = rows.reduce((sum, row) => sum + row.fees, 0)
+  const revenue = kpisQuery.data?.revenue ?? 0
+  const profit = kpisQuery.data?.profit ?? 0
+  const fees = kpisQuery.data?.fees ?? 0
 
   return (
     <UedWorkspace
       title="订单与 SKU 利润"
-      description="订单金额 − sku_costs − 结算/物流费用；无结算显示「未结算」。费用不写死。"
+      description="订单金额 − sku_costs − 已确认结算/物流费用；无结算显示「未结算」。KPI 为服务端全量聚合。"
       rows={rows}
       detailHref={(row) => `/console/profits/${encodeURIComponent(row.id)}`}
       search={q}
@@ -84,9 +85,7 @@ export default function ProfitsPage() {
         },
       ]}
     >
-      <UedPrototypeNotice>
-        利润 = 订单营收 − 最新 sku_costs − settlement_lines/logistics_fee_details。无结算批次则状态为「未结算」，费用为 0。
-      </UedPrototypeNotice>
+      <UedPrototypeNotice>利润派生自订单/sku_costs/settlement_lines/logistics_fee_details。详情页可下钻费用行。</UedPrototypeNotice>
       <DetailKpiRow
         items={[
           { label: '收入合计（本页）', value: revenue.toLocaleString() },

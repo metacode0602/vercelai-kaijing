@@ -85,6 +85,13 @@
       "when": 1794045928557,
       "tag": "0011_wooden_mordo",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794050000000,
+      "tag": "0012_cost_finance_closure",
+      "breakpoints": true
     }
   ]
 }

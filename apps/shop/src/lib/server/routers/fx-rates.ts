@@ -105,6 +105,27 @@ export const fxRatesRouter = createTRPCRouter({
       ),
     ),
 
+
+  resolve: tenantProcedure
+    .input(
+      z.object({
+        baseCurrency: z.string().min(1),
+        quoteCurrency: z.string().min(1),
+        asOf: z.string().optional(),
+        platform: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const row = await fxDa.resolveFxRate(ctx.db, ctx.organizationId, input)
+      if (!row) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `未找到有效汇率 ${input.baseCurrency}/${input.quoteCurrency}（asOf=${input.asOf || '今天'}）。请先在设置/汇率配置维护。`,
+        })
+      }
+      return row
+    }),
+
   meta: tenantProcedure.query(async () => ({
     sources: ['manual', 'import', 'api', 'platform_bill'],
     note: '汇率落库 fx_rates；列表/编辑/添加弹窗；支持 Excel 导入；软停用保留历史；不接外部实时汇率 API；不发假成功。',

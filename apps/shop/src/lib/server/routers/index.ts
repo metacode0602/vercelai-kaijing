@@ -19,6 +19,7 @@ import { candidatesRouter } from './candidates'
 import { notificationsRouter } from './notifications'
 import { reviewsRouter } from './reviews'
 import { carriersRouter } from './carriers'
+import { freightRateCardsRouter } from './freight-rate-cards'
 import { categoriesRouter } from './categories'
 import { brandsRouter } from './brands'
 import { dictionariesRouter } from './dictionaries'
@@ -58,6 +59,7 @@ export const appRouter = router({
   candidates: candidatesRouter,
   notifications: notificationsRouter,
   reviews: reviewsRouter,
+  freightRateCards: freightRateCardsRouter,
   carriers: carriersRouter,
   categories: categoriesRouter,
   brands: brandsRouter,

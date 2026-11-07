@@ -845,6 +845,7 @@ export async function feeTemplateMeta() {
     types: [
       { label: '进口税', value: 'import_tax' },
       { label: '平台费', value: 'platform_fee' },
+      { label: '海运运费', value: 'ocean_freight' },
     ],
     fulfillmentPools: ['daraz_lk_sea_lot', 'lazada_cn_spot_xmn', 'lazada_cn_spot_sz'],
     fulfillmentLogistics: ['', 'FCL', 'LCL', 'AIR_DDP', 'FCL20', 'FCL40'],

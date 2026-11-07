@@ -3,7 +3,9 @@
  * 不假装平台结算 API 已通；费用/税费不写死，按行汇总或记 0。
  */
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 import {
+  commerceFreightRateCards,
   feeTemplates,
   feeTemplateVersions,
   logisticsFeeDetails,
@@ -125,7 +127,7 @@ export type FreightEstimateDto = {
   priority: number | null
   effectiveFrom: string
   note: string
-  source: 'fee_template' | 'ocean' | 'logistics_fee'
+  source: 'fee_template' | 'ocean' | 'logistics_fee' | 'freight_rate_card'
   amount: number | null
   currency: string
 }
@@ -625,14 +627,10 @@ export async function listFreightEstimates(
       and(
         eq(feeTemplates.organizationId, organizationId),
         or(
-          eq(feeTemplates.type, 'logistics'),
-          eq(feeTemplates.type, 'shipping'),
-          eq(feeTemplates.type, 'ocean'),
-          eq(feeTemplates.type, 'freight'),
-          ilike(feeTemplates.type, '%fee%'),
+          eq(feeTemplates.type, 'ocean_freight'),
           ilike(feeTemplates.code, '%FREIGHT%'),
-          ilike(feeTemplates.code, '%SHIP%'),
-          ilike(feeTemplates.name, '%运%'),
+          ilike(feeTemplates.name, '%运费%'),
+          ilike(feeTemplates.name, '%海运%'),
         )!,
       ),
     )
@@ -690,6 +688,32 @@ export async function listFreightEstimates(
       source: 'ocean',
       amount: amountRaw == null ? null : money(String(amountRaw)),
       currency: typeof packing.currency === 'string' ? packing.currency : 'USD',
+    })
+  }
+
+  const rateCards = await db
+    .select()
+    .from(commerceFreightRateCards)
+    .where(eq(commerceFreightRateCards.organizationId, organizationId))
+    .orderBy(desc(commerceFreightRateCards.updatedAt))
+    .limit(100)
+  for (const card of rateCards) {
+    best.set(`frc:${card.id}`, {
+      id: card.id,
+      code: card.code,
+      name: card.name,
+      platform: 'freight_rate_card',
+      country: card.destPort || '—',
+      type: card.freightMode,
+      status: card.status,
+      pool: [card.originPort, card.destPort].filter(Boolean).join('→') || '—',
+      versionNo: null,
+      priority: null,
+      effectiveFrom: card.effectiveFrom,
+      note: card.note || '',
+      source: 'freight_rate_card',
+      amount: money(card.unitRate),
+      currency: card.currency || 'USD',
     })
   }
 
@@ -916,5 +940,191 @@ export async function getFinanceByPlatform(
     orderCount: Number(orderSum?.orderCount ?? 0),
     settlements: related,
     disabled: false,
+  }
+}
+
+
+export type SettlementImportLineInput = {
+  externalOrderNo?: string
+  feeKind?: string
+  feeType?: string
+  feeName?: string
+  amount?: number
+  currency?: string
+  note?: string
+  sellerSku?: string
+}
+
+export type SettlementImportInput = {
+  shopId: string
+  externalSettlementId: string
+  currency?: string
+  periodStart?: string
+  periodEnd?: string
+  billAmount?: number
+  itemRevenue?: number
+  feesTotal?: number
+  payoutAmount?: number
+  status?: string
+  note?: string
+  lines?: SettlementImportLineInput[]
+}
+
+/** CSV / 粘贴导入结算批次（本地 ERP，非平台 OpenAPI）。 */
+export async function importSettlements(
+  db: AppDatabase,
+  organizationId: string,
+  input: { rows: SettlementImportInput[] },
+): Promise<{ total: number; success: number; failed: number; errors: Array<{ index: number; message: string }>; ids: string[] }> {
+  if (!input.rows.length) throw new Error('没有可导入的结算行')
+  let success = 0
+  const errors: Array<{ index: number; message: string }> = []
+  const ids: string[] = []
+  for (let i = 0; i < input.rows.length; i += 1) {
+    const row = input.rows[i]!
+    try {
+      if (!row.shopId?.trim()) throw new Error('缺少 shopId')
+      if (!row.externalSettlementId?.trim()) throw new Error('缺少 externalSettlementId')
+      const [shop] = await db
+        .select()
+        .from(shops)
+        .where(and(eq(shops.organizationId, organizationId), eq(shops.id, row.shopId.trim())))
+        .limit(1)
+      if (!shop) throw new Error(`店铺不存在：${row.shopId}`)
+      const extId = row.externalSettlementId.trim()
+      const [existing] = await db
+        .select()
+        .from(settlements)
+        .where(and(eq(settlements.organizationId, organizationId), eq(settlements.shopId, shop.id), eq(settlements.externalSettlementId, extId)))
+        .limit(1)
+      const dbStatus = toDbSettlementStatus(row.status) || 'pending'
+      const settlementId = existing?.id ?? createId()
+      const values = {
+        organizationId,
+        shopId: shop.id,
+        externalSettlementId: extId,
+        periodStart: row.periodStart ? new Date(row.periodStart) : null,
+        periodEnd: row.periodEnd ? new Date(row.periodEnd) : null,
+        currency: (row.currency || 'USD').toUpperCase(),
+        billAmount: row.billAmount != null ? String(row.billAmount) : null,
+        itemRevenue: row.itemRevenue != null ? String(row.itemRevenue) : null,
+        feesTotal: row.feesTotal != null ? String(row.feesTotal) : null,
+        payoutAmount: row.payoutAmount != null ? String(row.payoutAmount) : null,
+        status: dbStatus,
+        raw: { importNote: row.note || '', source: 'csv_import' },
+      }
+      if (existing) {
+        await db.update(settlements).set(values).where(eq(settlements.id, existing.id))
+      } else {
+        await db.insert(settlements).values({ id: settlementId, ...values, createdAt: new Date() })
+      }
+      if (row.lines?.length) {
+        for (const line of row.lines) {
+          await db.insert(settlementLines).values({
+            id: createId(),
+            settlementId,
+            organizationId,
+            feeKind: line.feeKind || 'platform',
+            feeType: line.feeType || line.feeName || 'import',
+            feeName: line.feeName || line.feeType || '导入费用',
+            externalOrderNo: line.externalOrderNo || null,
+            amount: line.amount != null ? String(line.amount) : '0',
+            currency: (line.currency || row.currency || 'USD').toUpperCase(),
+            sellerSku: line.sellerSku || null,
+            note: line.note || null,
+            externalTransactionId: `imp-${createId()}`,
+          })
+        }
+      }
+      ids.push(settlementId)
+      success += 1
+    } catch (error) {
+      errors.push({ index: i + 1, message: error instanceof Error ? error.message : '导入失败' })
+    }
+  }
+  return { total: input.rows.length, success, failed: errors.length, errors: errors.slice(0, 20), ids }
+}
+
+export type ProfitDetailDto = ProfitDto & {
+  feeLines: Array<{
+    id: string
+    source: 'settlement_line' | 'logistics_fee'
+    settlementId: string
+    feeKind: string
+    feeType: string
+    amount: number
+    currency: string
+    order: string
+    note: string
+  }>
+}
+
+export async function getProfit(
+  db: AppDatabase,
+  organizationId: string,
+  input: { id: string; view?: 'order' | 'sku' },
+): Promise<ProfitDetailDto | null> {
+  const view = input.view ?? (input.id.startsWith('SKU:') || input.id.includes('/') ? 'sku' : 'order')
+  const list = await listProfits(db, organizationId, { page: 1, pageSize: 200, view, q: input.id })
+  const row = list.items.find((i) => i.id === input.id || i.dimension === input.id) ?? list.items[0]
+  if (!row) return null
+
+  const feeLines: ProfitDetailDto['feeLines'] = []
+  if (view === 'order') {
+    const orderId = row.id
+    const sLines = await db
+      .select()
+      .from(settlementLines)
+      .where(and(eq(settlementLines.organizationId, organizationId), eq(settlementLines.orderId, orderId)))
+    for (const l of sLines) {
+      feeLines.push({
+        id: l.id,
+        source: 'settlement_line',
+        settlementId: l.settlementId,
+        feeKind: l.feeKind || '—',
+        feeType: l.feeType || l.feeName || '—',
+        amount: money(l.amount),
+        currency: l.currency || row.currency,
+        order: l.externalOrderNo || orderId,
+        note: l.note || '',
+      })
+    }
+    const logistics = await db
+      .select()
+      .from(logisticsFeeDetails)
+      .where(and(eq(logisticsFeeDetails.organizationId, organizationId), eq(logisticsFeeDetails.orderId, orderId)))
+    for (const l of logistics) {
+      feeLines.push({
+        id: l.id,
+        source: 'logistics_fee',
+        settlementId: l.settlementId || '',
+        feeKind: 'logistics',
+        feeType: l.feeCode || l.feeName || '物流费',
+        amount: money(l.amount),
+        currency: l.currency || row.currency,
+        order: l.externalOrderId || orderId,
+        note: '',
+      })
+    }
+  }
+  return { ...row, feeLines }
+}
+
+export async function profitKpis(db: AppDatabase, organizationId: string, view: 'order' | 'sku' = 'order') {
+  // 全量粗聚合（上限 5000 行派生）
+  const list = await listProfits(db, organizationId, { page: 1, pageSize: 5000, view })
+  const revenue = list.items.reduce((s, i) => s + i.revenue, 0)
+  const cost = list.items.reduce((s, i) => s + i.cost, 0)
+  const fees = list.items.reduce((s, i) => s + i.fees, 0)
+  const profit = list.items.reduce((s, i) => s + i.profit, 0)
+  const unsettled = list.items.filter((i) => i.status === '未结算').length
+  return {
+    revenue,
+    cost,
+    fees,
+    profit,
+    margin: revenue > 0 ? `${((profit / revenue) * 100).toFixed(1)}%` : '—',
+    rows: list.total,
+    unsettled,
   }
 }

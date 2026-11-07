@@ -35,13 +35,13 @@ export default function FreightPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">运费估算</h2>
+        <h2 className="text-xl font-semibold tracking-tight">运费测算</h2>
         <p className="text-sm text-muted-foreground">
-          主路径：fee_templates（物流/运费）+ ocean_shipments；不再用 DEMO_FREIGHT_ESTIMATES。
+          运价卡 commerce_freight_rate_cards + 费用模板 ocean_freight + 海运柜次 packing。
         </p>
       </div>
       <UedPrototypeNotice>
-        金额来自柜次 packing_details 或留空；税费/报价不写死。真实承运商报价 API 未接。
+        正式运价维护在运价卡；海运柜次金额来自 packing_details。成本测算读取同一套运价卡。
       </UedPrototypeNotice>
       <ConsoleFilterBar
         keyword={keyword}

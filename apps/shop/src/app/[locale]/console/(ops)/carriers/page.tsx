@@ -15,7 +15,7 @@ export default function CarriersPage() {
   const createMutation = trpc.carriers.create.useMutation({
     onSuccess: async () => {
       setOpen(false)
-      setNotice('承运商已落库。运费测算仍读 fee_templates / ocean，不伪造承运商报价 API。')
+      setNotice('承运商已落库。运价请在运价卡维护。')
       await utils.carriers.list.invalidate()
     },
     onError: (e) => setNotice(e.message),
@@ -24,7 +24,7 @@ export default function CarriersPage() {
   const editor = open ? (
     <UedDialog
       title="新增承运商"
-      description="租户自维护承运商主档；不提供假承运商实时报价。"
+      description="租户自维护承运商主档；运价卡可引用。"
       fields={[
         { key: 'name', label: '承运商名称', required: true },
         { key: 'type', label: '类型', options: [...(meta.data?.types ?? ['国际快递', '海运', '平台物流', '尾程派送'])], required: true },
@@ -78,7 +78,7 @@ export default function CarriersPage() {
         ]}
       >
         <UedPrototypeNotice>
-          {meta.data?.note || '承运商主档已接库；不伪造报价成功。'}
+          承运商主档已接库；运价卡可关联承运商。实时报价 API 未接。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
