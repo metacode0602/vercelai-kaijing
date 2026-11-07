@@ -71,6 +71,20 @@
       "when": 1794033737955,
       "tag": "0009_careless_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794042309078,
+      "tag": "0010_damp_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794045928557,
+      "tag": "0011_wooden_mordo",
+      "breakpoints": true
     }
   ]
 }

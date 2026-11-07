@@ -414,6 +414,7 @@ export const integrationStates = pgTable(
     lastListingsSyncAt: timestamp("last_listings_sync_at", { withTimezone: true }),
     lastLogisticsSyncAt: timestamp("last_logistics_sync_at", { withTimezone: true }),
     lastReviewsSyncAt: timestamp("last_reviews_sync_at", { withTimezone: true }),
+    lastReverseSyncAt: timestamp("last_reverse_sync_at", { withTimezone: true }),
     settlementsCursor: text("settlements_cursor"),
     lastSettlementsSyncAt: timestamp("last_settlements_sync_at", { withTimezone: true }),
     health: varchar("health", { length: 32 }).notNull().default("idle"),
@@ -1484,12 +1485,33 @@ export const reverseOrders = pgTable(
     disputeInProgress: boolean("dispute_in_progress").notNull().default(false),
     platformCreatedAt: timestamp("platform_created_at", { withTimezone: true }),
     platformUpdatedAt: timestamp("platform_updated_at", { withTimezone: true }),
+    /** 占库释放策略快照（建档时从 shop_aftersale_policies 复制）。 */
+    inventoryReleaseMode: varchar("inventory_release_mode", { length: 16 })
+      .notNull()
+      .default("manual"),
+    /** 占库释放状态：pending_manual / released / skipped / failed。 */
+    inventoryReleaseStatus: varchar("inventory_release_status", { length: 24 })
+      .notNull()
+      .default("pending_manual"),
+    inventoryReleasedAt: timestamp("inventory_released_at", {
+      withTimezone: true,
+    }),
+    /** 退款策略快照。 */
+    refundMode: varchar("refund_mode", { length: 16 }).notNull().default("manual"),
+    refundWaitDays: integer("refund_wait_days").notNull().default(1),
+    /** 退款决定状态：pending_manual / scheduled / deciding / agreed / rejected / skipped / unsupported。 */
+    refundDecision: varchar("refund_decision", { length: 24 })
+      .notNull()
+      .default("pending_manual"),
+    /** 自动退款到期时间（platform_created_at + refund_wait_days，受 sla 约束）。 */
+    refundDueAt: timestamp("refund_due_at", { withTimezone: true }),
     raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
     ...timestamps,
   },
   (t) => [
     index("reverse_orders_org_idx").on(t.organizationId),
     index("reverse_orders_shop_order_idx").on(t.shopId, t.orderId),
+    index("reverse_orders_refund_due_idx").on(t.refundDecision, t.refundDueAt),
     uniqueIndex("reverse_orders_shop_ext_uidx").on(t.shopId, t.externalReverseOrderId),
   ],
 )
@@ -1643,6 +1665,46 @@ export const returnShipments = pgTable(
   (t) => [
     index("return_shipments_org_idx").on(t.organizationId),
     index("return_shipments_reverse_order_idx").on(t.reverseOrderId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// shop_aftersale_policies — 店铺售后策略（取消占库释放 / 退款）
+// @see docs/design/aftersale-cancel-ingest-and-policy.md
+// ---------------------------------------------------------------------------
+
+export const aftersalePolicyReleaseModes = ["manual", "auto"] as const
+export type AftersalePolicyReleaseMode =
+  (typeof aftersalePolicyReleaseModes)[number]
+
+export const aftersalePolicyRefundModes = ["manual", "auto"] as const
+export type AftersalePolicyRefundMode = (typeof aftersalePolicyRefundModes)[number]
+
+export const shopAftersalePolicies = pgTable(
+  "shop_aftersale_policies",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    /** 未发货占库释放：manual = 人工点击；auto = 建档即释放。 */
+    inventoryReleaseMode: varchar("inventory_release_mode", { length: 16 })
+      .notNull()
+      .default("manual"),
+    /** 店铺退款：manual = 人工同意/拒绝；auto = 到期自动同意。 */
+    refundMode: varchar("refund_mode", { length: 16 }).notNull().default("manual"),
+    /** 自动退款等待天数（refund_mode=auto 时使用）；从 platform_created_at 起算。 */
+    refundWaitDays: integer("refund_wait_days").notNull().default(1),
+    ...timestamps,
+  },
+  (t) => [
+    index("shop_aftersale_policies_org_idx").on(t.organizationId),
+    uniqueIndex("shop_aftersale_policies_shop_uidx").on(t.shopId),
   ],
 )
 
@@ -3289,6 +3351,67 @@ export const syncJobRuns = pgTable(
   ],
 )
 
+// ---------------------------------------------------------------------------
+// cs_inbox_messages — 客服站内信收件箱（只读工作台）
+// ---------------------------------------------------------------------------
+
+export const csInboxMessageStatuses = ["unread", "read"] as const
+export type CsInboxMessageStatus = (typeof csInboxMessageStatuses)[number]
+
+/**
+ * 平台 IM 能力标记：
+ * - ready：API 已知且 adapter 已实现 listMessages
+ * - known_unimplemented：平台 API 文档已确认存在 IM 接口，adapter 未实现
+ * - unknown：文档未确认是否存在 IM API（按 docs/design/platform-apis）
+ * - unsupported：明确不存在 IM API
+ */
+export const marketplaceImCapabilities = [
+  "ready",
+  "known_unimplemented",
+  "unknown",
+  "unsupported",
+] as const
+export type MarketplaceImCapability = (typeof marketplaceImCapabilities)[number]
+
+export const csInboxMessages = pgTable(
+  "cs_inbox_messages",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shops.id),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    externalMessageId: varchar("external_message_id", { length: 128 }).notNull(),
+    externalSessionId: varchar("external_session_id", { length: 128 }),
+    customer: varchar("customer", { length: 255 }),
+    customerExternalId: varchar("customer_external_id", { length: 128 }),
+    subject: varchar("subject", { length: 512 }),
+    preview: text("preview"),
+    body: text("body"),
+    /** 关联 SKU（可选），用于按 SKU 筛选消息；来自消息内容或会话上下文。 */
+    sku: varchar("sku", { length: 64 }),
+    status: varchar("status", { length: 16 }).notNull().default("unread"),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    raw: jsonb("raw").$type<Record<string, unknown>>().default({}),
+    ...timestamps,
+  },
+  (t) => [
+    index("cs_inbox_messages_org_idx").on(t.organizationId),
+    index("cs_inbox_messages_org_received_idx").on(t.organizationId, t.receivedAt),
+    index("cs_inbox_messages_shop_idx").on(t.shopId),
+    index("cs_inbox_messages_platform_idx").on(t.platform),
+    index("cs_inbox_messages_sku_idx").on(t.sku),
+    index("cs_inbox_messages_status_idx").on(t.status),
+    uniqueIndex("cs_inbox_messages_shop_ext_uidx").on(t.shopId, t.externalMessageId),
+  ],
+)
+
 export type Shop = typeof shops.$inferSelect
 export type Product = typeof products.$inferSelect
 export type ProductVariant = typeof productVariants.$inferSelect
@@ -3312,6 +3435,7 @@ export type ReverseQcRecord = typeof reverseQcRecords.$inferSelect
 export type ReverseOrderEvent = typeof reverseOrderEvents.$inferSelect
 export type Refund = typeof refunds.$inferSelect
 export type ReturnShipment = typeof returnShipments.$inferSelect
+export type ShopAftersalePolicy = typeof shopAftersalePolicies.$inferSelect
 export type AccountTransaction = typeof accountTransactions.$inferSelect
 export type LogisticsFeeDetail = typeof logisticsFeeDetails.$inferSelect
 export type SkuCost = typeof skuCosts.$inferSelect
@@ -3347,3 +3471,4 @@ export type SupplierSkuRow = typeof supplierSkus.$inferSelect
 export type OrderExceptionCaseRow = typeof orderExceptionCases.$inferSelect
 export type SyncTaskRow = typeof syncTasks.$inferSelect
 export type SyncJobRunRow = typeof syncJobRuns.$inferSelect
+export type CsInboxMessageRow = typeof csInboxMessages.$inferSelect
