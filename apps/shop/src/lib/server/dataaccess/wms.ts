@@ -2542,23 +2542,23 @@ export async function listInventoryAlerts(
       skuCode: productVariants.skuCode,
       sku: productVariants.sku,
       title: products.title,
-      shopCount: sql<number>`count(*)`.mapWith(Number),
-      onHand: sql<number>`coalesce(sum(${inventoryBalances.onHand}), 0)`.mapWith(Number),
-      reserved: sql<number>`coalesce(sum(${inventoryBalances.reserved}), 0)`.mapWith(Number),
-      qcHold: sql<number>`coalesce(sum(${inventoryBalances.qcHold}), 0)`.mapWith(Number),
-      damaged: sql<number>`coalesce(sum(${inventoryBalances.damaged}), 0)`.mapWith(Number),
-      inTransit: sql<number>`coalesce(sum(${inventoryBalances.inTransit}), 0)`.mapWith(Number),
-      customsClearing: sql<number>`coalesce(sum(${inventoryBalances.customsClearing}), 0)`.mapWith(Number),
-      threshold: sql<number>`coalesce(${stockAlerts.threshold}, 20)`.mapWith(Number),
-      muted: sql<number>`case when ${stockAlerts.status} = 'muted' then 1 else 0 end`.mapWith(Number),
-      maxUpdatedAt: sql<Date>`max(${inventoryBalances.updatedAt})`,
+      shopCount: sql<number>`count(*)`.mapWith(Number).as('shop_count'),
+      onHand: sql<number>`coalesce(sum(${inventoryBalances.onHand}), 0)`.mapWith(Number).as('on_hand'),
+      reserved: sql<number>`coalesce(sum(${inventoryBalances.reserved}), 0)`.mapWith(Number).as('reserved'),
+      qcHold: sql<number>`coalesce(sum(${inventoryBalances.qcHold}), 0)`.mapWith(Number).as('qc_hold'),
+      damaged: sql<number>`coalesce(sum(${inventoryBalances.damaged}), 0)`.mapWith(Number).as('damaged'),
+      inTransit: sql<number>`coalesce(sum(${inventoryBalances.inTransit}), 0)`.mapWith(Number).as('in_transit'),
+      customsClearing: sql<number>`coalesce(sum(${inventoryBalances.customsClearing}), 0)`.mapWith(Number).as('customs_clearing'),
+      threshold: sql<number>`coalesce(${stockAlerts.threshold}, 20)`.mapWith(Number).as('threshold'),
+      muted: sql<number>`case when ${stockAlerts.status} = 'muted' then 1 else 0 end`.mapWith(Number).as('muted'),
+      maxUpdatedAt: sql<Date>`max(${inventoryBalances.updatedAt})`.as('max_updated_at'),
       lastInAt: sql<Date>`(
         select max(${inventoryMovements.occurredAt})
         from ${inventoryMovements}
         where ${inventoryMovements.organizationId} = ${inventoryBalances.organizationId}
           and ${inventoryMovements.variantId} = ${inventoryBalances.variantId}
           and ${inventoryMovements.movementType} in ('purchase_stock_in', 'return_restock')
-      )`,
+      )`.as('last_in_at'),
     })
     .from(inventoryBalances)
     .innerJoin(productVariants, eq(productVariants.id, inventoryBalances.variantId))
@@ -2572,6 +2572,7 @@ export async function listInventoryAlerts(
     )
     .where(where)
     .groupBy(
+      inventoryBalances.organizationId,
       inventoryBalances.variantId,
       productVariants.skuCode,
       productVariants.sku,
@@ -2586,7 +2587,7 @@ export async function listInventoryAlerts(
     ${agg.onHand} - ${agg.reserved} - ${agg.qcHold} - ${agg.damaged}
   )`.mapWith(Number)
   const ageDaysExpr = sql<number>`greatest(0, coalesce(
-    floor(extract(epoch from (now() - coalesce(${agg.lastInAt}, ${agg.maxUpdatedAt}))) / 86400)),
+    floor(extract(epoch from (now() - coalesce(${agg.lastInAt}, ${agg.maxUpdatedAt}))) / 86400),
     0
   ))`.mapWith(Number)
   const alertExpr = sql<string>`case
