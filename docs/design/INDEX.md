@@ -12,6 +12,7 @@
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
 | [marketplace-multitenant-app-credentials.md](marketplace-multitenant-app-credentials.md) | **已确认，待实现** | 租户级 Marketplace 应用凭据：`marketplace_app_credentials`、`/api/marketplace/{platform}/oauth/callback`、控制台配置页、`apps/api` 同步/webhook 按租户解析 |
 | [marketplace-inapp-cron-and-push.md](marketplace-inapp-cron-and-push.md) | **生效（2026-11-06）** | `apps/api` 应用内 cron（订单/物流/评论）+ LAZOP Push 验签接收；含签名规则、落库幂等键与 Daraz Push 待实测说明 |
+| [aftersale-cancel-ingest-and-policy.md](aftersale-cancel-ingest-and-policy.md) | **设计稿（2026-11-07）** | 取消/仅退款：定时拉取建档，占库释放与店铺退款分策略；释放只有手动/自动，退款另有等待天数且受平台 decide 能力限制 |
 | [platform-apis/](platform-apis/README.md) | **证据基线（Daraz 2026-10-31；Lazada 分域 2026-11-05）** | 各平台官方 Open API：授权后可读/可写范围；Daraz/Lazada 分域字段、状态映射与统一设计；Shopee/TikTok；Q38 客服 / Q43 字段 / Q44 券 |
 | [erp-requirements-q01-q35-dev-replies.md](erp-requirements-q01-q35-dev-replies.md) | **开发答复 · 第二轮（2026-10-31，`a51b142`）** | Q01–Q35 客户可读开发答复；本轮已定 Q04/Q09/Q10/Q12/Q15/Q17/Q30/Q33；仍待确认见文末清单；含 #36 费用模板 |
 | [erp-rectification-2026-11-03.md](erp-rectification-2026-11-03.md) | **整改设计响应（2026-11-03）** | 好时运 ERP 开发人员整改清单 26 项逐条设计响应：Q10 库位绑定禁删+履历表、Q23 RBAC country scope+六动作+测试账号演示、Q30 费用模板审核状态机+历史快照、Q07/Q08 库存状态机、Q29 报表口径等；C1–C30 确认清单（19 已拍板 / 10 待确认 / 5 待填细节） |
@@ -26,6 +27,7 @@
 | [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算：先做可交互 UED 并确认使用习惯，再接业务 API/tRPC；覆盖空运 DDP、海运 LCL/FCL；按有效报价和规则计算、展示费用边界/数据来源/历史快照；HS/税率/规则/费率/汇率版本化维护与消费方解耦 |
 | [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
 | [comment-scraping-and-report-design.md](comment-scraping-and-report-design.md) | **设计稿** | 评论抓取与入口设计：API 优先（Lazop Review）、AI 辅助兜底，统一 DomainReview，生成 HTML 报告（涵盖 KPI/评分分布/关键发现/负向中性/全部评价；规划输出目录 `docs/comments/`，样例在 `docs/design/comments/`） |
+| [console-sync-confirm-dialog.md](console-sync-confirm-dialog.md) | **设计稿，待实现** | 控制台同步 / 提交交运 / 重试入口确认对话框：17 处入口分级（A 真实调平台 / B 本地写 / C 纯本地），按操作差异化文案，明确作用店铺与不可逆影响 |
 
 ## 2. 模块内设计
 

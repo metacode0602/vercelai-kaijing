@@ -46,7 +46,7 @@ console/aftersales | aftersale-returns | aftersale-cancels
 
 | 项 | 默认 |
 | --- | --- |
-| 取消批准 | 对关联订单 **未发货** active 占库写 `order_release`；幂等键 `ledger:aftersale_cancel_release:{externalReverseId}:{orderLineId}` |
+| 取消批准（现行） | 对关联订单 **未发货** active 占库写 `order_release`；幂等键 `ledger:aftersale_cancel_release:{externalReverseId}:{orderLineId}`。目标行为改为建档即按策略释放，退款分开，见 [aftersale-cancel-ingest-and-policy.md](aftersale-cancel-ingest-and-policy.md) |
 | 已出库取消 | **本迭代不做**冲销出库（可 stub 状态，不写负向 `order_ship`） |
 | 退货收货 | 更新 `return_shipments.receivedAt`；**不**增加可用库存 |
 | 质检过账 | 合格 → `aftersale_restock`（`on_hand`↑，可用随之↑）；残次 → `aftersale_scrap`（`damaged`↑，不进可用） |
