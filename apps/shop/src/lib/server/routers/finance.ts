@@ -131,9 +131,16 @@ export const financeRouter = createTRPCRouter({
       return row
     }),
 
+  syncSettlementsFromPlatform: tenantProcedure
+    .input(z.object({ shopId: z.string().optional() }).optional())
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => financeDa.syncSettlementsFromPlatform(ctx.db, ctx.organizationId, input ?? {})),
+    ),
+
   meta: tenantProcedure.query(async ({ ctx }) => {
     const shops = await mappingsDa.listShopsForSelect(ctx.db, ctx.organizationId)
-    return { settlementStatuses: [...UI_SETTLEMENT_STATUSES], shops }
+    const settlementSync = await financeDa.settlementSyncCapability(ctx.db, ctx.organizationId)
+    return { settlementStatuses: [...UI_SETTLEMENT_STATUSES], shops, settlementSync }
   }),
 
 

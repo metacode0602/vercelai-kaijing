@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { DetailKpiRow } from '@/components/console/detail'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -29,7 +30,7 @@ import { Label } from '@workspace/ui/components/label'
 
 const PAGE_SIZE = 20
 
-/** 本地 ERP 状态机；平台 OpenAPI 拉取见 apps/api marketplace sync，控制台暂不伪造成功。 */
+/** 本地 ERP 状态机；平台拉取经 finance.syncSettlementsFromPlatform（无凭证/未配置则禁用）。 */
 const NEXT_STATUS: Record<string, string | null> = {
   待匹配: '已确认',
   差异待处理: '已确认',
@@ -47,6 +48,8 @@ export default function SettlementsPage() {
   const [pendingStatus, setPendingStatus] = React.useState<{ id: string; label: string; next: string } | null>(
     null,
   )
+  const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
+  const [syncShopId, setSyncShopId] = React.useState('')
   const utils = trpc.useUtils()
 
   const metaQuery = trpc.finance.meta.useQuery()
@@ -81,6 +84,20 @@ export default function SettlementsPage() {
     },
     onError: (error) => setNotice(error.message),
   })
+  const syncMutation = trpc.finance.syncSettlementsFromPlatform.useMutation({
+    onSuccess: async (res) => {
+      await utils.finance.listSettlements.invalidate()
+      await utils.finance.settlementStats.invalidate()
+      await utils.finance.overview.invalidate()
+      await utils.finance.meta.invalidate()
+      setSyncConfirmOpen(false)
+      setNotice(res.note || (res.ok ? '结算同步完成' : '结算同步未成功'))
+    },
+    onError: (error) => {
+      setSyncConfirmOpen(false)
+      setNotice(error.message)
+    },
+  })
 
   const rows = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
@@ -91,7 +108,7 @@ export default function SettlementsPage() {
     <>
       <UedWorkspace
         title="平台结算对账"
-        description="settlements / settlement_lines：账单批次、费用拆分、本地确认。平台账单请用 CSV/JSON 导入；OpenAPI 拉取走 marketplace 同步任务，控制台不假装成功。"
+        description="settlements / settlement_lines：账单批次、费用拆分、本地确认。可 CSV/JSON 导入，或经 apps/api 真实拉取 Lazop 结算（无凭证/未配置则禁用）。"
         rows={rows}
         detailHref={(row) => `/console/settlements/${encodeURIComponent(row.id)}`}
         search={q}
@@ -174,24 +191,42 @@ export default function SettlementsPage() {
         />
         <UedPrototypeNotice>
           费用拆分来自 settlement_lines.fee_kind。状态机：待匹配 / 差异待处理 → 已确认 → 已打款（需确认）。确认后的费用进入利润。
-          {/*
-            平台 OpenAPI 结算拉取：apps/api/src/lib/marketplace/sync-settlements.ts
-            （syncSettlementsForShop）已存在，由 marketplace 同步任务触发。
-            shop 控制台暂无 tRPC 入口，切勿加「假成功」拉取按钮；接好后可在此挂真同步。
-          */}
+          平台拉取经 finance.syncSettlementsFromPlatform → apps/api syncSettlementsForShop（仅 Daraz/Lazada）。
         </UedPrototypeNotice>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setImportOpen(true)}>
             导入账单
           </Button>
+          {metaQuery.data?.settlementSync?.canSync ? (
+            <select
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={syncShopId}
+              onChange={(e) => setSyncShopId(e.target.value)}
+              aria-label="同步店铺"
+            >
+              <option value="">全部已授权店铺</option>
+              {(metaQuery.data.settlementSync.shops.filter((s) => s.hasCredential) ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}（{s.platform}）
+                </option>
+              ))}
+            </select>
+          ) : null}
           <Button
             size="sm"
             variant="outline"
-            disabled
-            title="平台 OpenAPI 结算拉取尚未接到控制台 tRPC；请用 CSV/JSON 导入或等待 marketplace 同步任务。"
+            disabled={!metaQuery.data?.settlementSync?.canSync || syncMutation.isPending}
+            title={
+              metaQuery.data?.settlementSync?.disableReason ||
+              '从平台拉取结算账单（apps/api → Lazop finance OpenAPI）'
+            }
+            onClick={() => setSyncConfirmOpen(true)}
           >
-            从平台拉取（未接通）
+            从平台拉取
           </Button>
+          {metaQuery.data?.settlementSync?.disableReason ? (
+            <span className="text-xs text-muted-foreground">{metaQuery.data.settlementSync.disableReason}</span>
+          ) : null}
         </div>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
@@ -296,6 +331,39 @@ export default function SettlementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SyncConfirmDialog
+        open={syncConfirmOpen}
+        onOpenChange={setSyncConfirmOpen}
+        title="从平台拉取结算"
+        description="将调用 apps/api → syncSettlementsForShop，写入 settlements / settlement_lines。无假成功。"
+        scope={{
+          label: '作用店铺',
+          value: (() => {
+            const shops = metaQuery.data?.settlementSync?.shops?.filter((s) => s.hasCredential) ?? []
+            if (syncShopId) {
+              const hit = shops.find((s) => s.id === syncShopId)
+              return hit ? `${hit.name}（${hit.platform}）` : syncShopId
+            }
+            return shops.length ? `全部已授权 Lazop 店铺（${shops.length}）` : '无可用店铺'
+          })(),
+        }}
+        impacts={[
+          '按店铺拉取近期账单与交易行，upsert 到本地 settlements',
+          '仅支持已授权的 Daraz / Lazada 店铺',
+          '未配置 MARKETPLACE_API_BASE_URL 或缺少凭证时会失败，不会写入假数据',
+        ]}
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: 'Lazop finance：listSettlements + listSettlementTransactions',
+        }}
+        confirmLabel="确认拉取"
+        pending={syncMutation.isPending}
+        onConfirm={() => {
+          syncMutation.mutate(syncShopId ? { shopId: syncShopId } : {})
+        }}
+      />
+
     </>
   )
 }

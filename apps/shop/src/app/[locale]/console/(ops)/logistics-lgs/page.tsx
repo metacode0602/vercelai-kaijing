@@ -21,6 +21,11 @@ export default function LogisticsLgsPage() {
   const [notice, setNotice] = React.useState('')
 
   const listQuery = trpc.logistics.listBatches.useQuery({ page: 1, pageSize: 100, channel: 'lgs' })
+  const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const carrierOptions = (carriersQuery.data?.items ?? []).map((c) => ({
+    value: c.id,
+    title: `${c.code} · ${c.name}`,
+  }))
   const detailQuery = trpc.logistics.getBatch.useQuery(
     { id: selected },
     { enabled: Boolean(selected) },
@@ -84,7 +89,14 @@ export default function LogisticsLgsPage() {
         { key: 'event', label: '履约事件', options: eventOptions, required: true },
         { key: 'eventAt', label: '事件时间', type: 'datetime-local', required: true },
         { key: 'tracking', label: '运单号', placeholder: '可填写单个运单或批次号' },
-        { key: 'carrier', label: '承运商', options: ['LGS', 'Daraz Express', '平台官方尾程'], required: true },
+        {
+          key: 'carrierId',
+          label: '承运商',
+          options: carrierOptions.length
+            ? carrierOptions
+            : [{ value: '', title: '暂无启用承运商' }],
+          required: true,
+        },
         { key: 'operator', label: '操作人', required: true },
         { key: 'exception', label: '异常说明', type: 'textarea', fullWidth: true },
       ]}
@@ -104,7 +116,7 @@ export default function LogisticsLgsPage() {
           event: values.event,
           eventAt: values.eventAt,
           tracking: values.tracking,
-          carrier: values.carrier,
+          carrierId: values.carrierId || null,
           operator: values.operator,
           exception: values.exception,
           status,
@@ -120,7 +132,14 @@ export default function LogisticsLgsPage() {
       fields={[
         { key: 'batchNo', label: '批次号', placeholder: '留空自动生成' },
         { key: 'site', label: '站点', options: siteOptions, required: true },
-        { key: 'carrier', label: '承运商', options: ['LGS', 'Daraz Express'], required: true },
+        {
+          key: 'carrierId',
+          label: '承运商',
+          options: carrierOptions.length
+            ? carrierOptions
+            : [{ value: '', title: '暂无启用承运商，请先在仓储中心维护' }],
+          required: true,
+        },
         { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
         { key: 'trackingSummary', label: '运单摘要', placeholder: '如 LGS-MY-77120 等 5 单' },
       ]}
@@ -131,7 +150,7 @@ export default function LogisticsLgsPage() {
           channel: 'lgs',
           site: values.site,
           country: values.site,
-          carrier: values.carrier,
+          carrierId: values.carrierId || null,
           warehouseCode: values.warehouse,
           trackingSummary: values.trackingSummary,
         })
@@ -157,7 +176,14 @@ export default function LogisticsLgsPage() {
           { key: 'id', label: '交接批次' },
           { key: 'site', label: '站点' },
           { key: 'packages', label: '包裹数', render: (row) => String(row.packages) },
-          { key: 'carrier', label: '承运商' },
+          {
+            key: 'carrier',
+            label: '承运商',
+            render: (row) => {
+              const c = (carriersQuery.data?.items ?? []).find((x) => x.id === row.carrierId)
+              return c ? c.code : row.carrier || '—'
+            },
+          },
           { key: 'handedOver', label: '交接时间' },
           { key: 'tracking', label: '运单号' },
           {
@@ -170,7 +196,7 @@ export default function LogisticsLgsPage() {
         ]}
       >
         <UedPrototypeNotice>
-          已接 DB：fulfillment_batches（channel=lgs）+ fulfillment_batch_packages。提交交接经 apps/api → 平台 /order/fulfill/pack + /order/package/rts 真实交运；轨迹来源分接口 / 人工。无凭证时诚实失败。
+          已接 DB：fulfillment_batches（channel=lgs，含 carrier_id）+ fulfillment_batch_packages。承运商选自 commerce_carriers。提交交接经 apps/api → 平台真实交运；无凭证时诚实失败。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         <div className="flex flex-wrap gap-2">

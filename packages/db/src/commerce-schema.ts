@@ -1126,6 +1126,10 @@ export const fulfillmentBatches = pgTable(
     /** open | submitted | accepted | rejected | closed | in_transit | delivered | exception */
     status: varchar("status", { length: 32 }).notNull().default("open"),
     carrier: varchar("carrier", { length: 64 }),
+    /** 关联 commerce_carriers；与 carrier 文案并存，UI 优先 carrierId。 */
+    carrierId: text("carrier_id").references(() => commerceCarriers.id, {
+      onDelete: "set null",
+    }),
     trackingSummary: text("tracking_summary"),
     packageCount: integer("package_count").notNull().default(0),
     handedOverAt: timestamp("handed_over_at", { withTimezone: true }),
@@ -1137,6 +1141,7 @@ export const fulfillmentBatches = pgTable(
     uniqueIndex("fulfillment_batches_org_batch_no_uidx").on(t.organizationId, t.batchNo),
     index("fulfillment_batches_org_channel_idx").on(t.organizationId, t.channel),
     index("fulfillment_batches_org_status_idx").on(t.organizationId, t.status),
+    index("fulfillment_batches_carrier_idx").on(t.carrierId),
   ],
 )
 

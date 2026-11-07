@@ -20,6 +20,11 @@ export default function LogisticsJsbPage() {
   const [notice, setNotice] = React.useState('')
 
   const listQuery = trpc.logistics.listBatches.useQuery({ page: 1, pageSize: 100, channel: 'jsb' })
+  const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const carrierOptions = (carriersQuery.data?.items ?? []).map((c) => ({
+    value: c.id,
+    title: `${c.code} · ${c.name}`,
+  }))
   const detailQuery = trpc.logistics.getBatch.useQuery(
     { id: selected },
     { enabled: Boolean(selected) },
@@ -119,7 +124,14 @@ export default function LogisticsJsbPage() {
       description="channel=jsb_th；支持人工批量导入轨迹。"
       fields={[
         { key: 'batchNo', label: '批次号', placeholder: '留空自动生成' },
-        { key: 'carrier', label: '承运商', options: ['JSB'], required: true },
+        {
+          key: 'carrierId',
+          label: '承运商',
+          options: carrierOptions.length
+            ? carrierOptions
+            : [{ value: '', title: '暂无启用承运商，请先在仓储中心维护' }],
+          required: true,
+        },
         { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
         { key: 'fee', label: '费用提示', placeholder: '如 THB 1,240' },
         { key: 'trackingSummary', label: '运单摘要' },
@@ -131,7 +143,7 @@ export default function LogisticsJsbPage() {
           channel: 'jsb_th',
           site: 'TH',
           country: 'TH',
-          carrier: values.carrier || 'JSB',
+          carrierId: values.carrierId || null,
           warehouseCode: values.warehouse,
           trackingSummary: values.trackingSummary,
         })
@@ -148,7 +160,7 @@ export default function LogisticsJsbPage() {
         description="TH 站点自营仓发货全链路：出库 → 交接 JSB → 清关 → 官方尾程 → 签收（已接 PostgreSQL）。"
         rows={rows}
         detailHref={(row) => `/console/logistics-jsb/${encodeURIComponent(row.batchId)}`}
-        searchKeys={['id', 'status', 'customs', 'lastMile', 'signedAt', 'fee']}
+        searchKeys={['id', 'carrier', 'status', 'customs', 'lastMile', 'signedAt', 'fee']}
         searchPlaceholder="搜索批次号、清关状态或费用"
         filters={[{ label: '状态', options: ['开放中', '清关中', '运输中', '已签收', '物流异常'] }]}
         addLabel="新建灰清批次"
@@ -156,6 +168,14 @@ export default function LogisticsJsbPage() {
         columns={[
           { key: 'id', label: '交接批次' },
           { key: 'packages', label: '包裹数', render: (row) => String(row.packages) },
+          {
+            key: 'carrier',
+            label: '承运商',
+            render: (row) => {
+              const c = (carriersQuery.data?.items ?? []).find((x) => x.id === row.carrierId)
+              return c ? c.code : row.carrier || '—'
+            },
+          },
           { key: 'departedAt', label: '出库' },
           { key: 'jsbHandover', label: 'JSB 交接' },
           { key: 'customs', label: '清关' },
@@ -172,7 +192,7 @@ export default function LogisticsJsbPage() {
         ]}
       >
         <UedPrototypeNotice>
-          已接 DB：fulfillment_batches（channel=jsb_th）。Q17 JSB 无可靠 API，轨迹支持 import；平台 OpenAPI 仍 stub。
+          已接 DB：fulfillment_batches（channel=jsb_th，含 carrier_id）。承运商选自 commerce_carriers。Q17 JSB 无可靠 API，轨迹支持 import；平台交运不伪造成功。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         <div className="flex flex-wrap gap-2">
@@ -196,7 +216,10 @@ export default function LogisticsJsbPage() {
               <div>
                 <h2 className="font-medium">{current.batchNo}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {current.packageCount} 个包裹 · 费用 {current.fee || '—'}
+                  {(carriersQuery.data?.items ?? []).find((c) => c.id === current.carrierId)?.code ||
+                    current.carrier ||
+                    '—'}{' '}
+                  · {current.packageCount} 个包裹 · 费用 {current.fee || '—'}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

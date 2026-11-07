@@ -5,6 +5,7 @@
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
+  commerceCarriers,
   fulfillmentAttempts,
   fulfillmentBatchPackages,
   fulfillmentBatches,
@@ -137,6 +138,7 @@ export type FulfillmentBatchDto = {
   status: string
   statusLabel: UiBatchStatus
   carrier: string
+  carrierId: string
   trackingSummary: string
   packageCount: number
   handedOverAt: string
@@ -144,7 +146,7 @@ export type FulfillmentBatchDto = {
   createdAt: string
   packages: BatchPackageDto[]
   events: string[]
-  /** 兼容旧 DEMO 字段 */
+  /** 列表兼容字段（非 mock） */
   departedAt?: string
   jsbHandover?: string
   customs?: string
@@ -168,6 +170,23 @@ function rawMeta(row: { raw?: unknown }): Record<string, unknown> {
 function stampOrEmpty(d: Date | string | null | undefined): string {
   return formatStamp(d) || ''
 }
+
+async function resolveCarrierLabel(
+  db: DbLike,
+  organizationId: string,
+  carrierId: string | null | undefined,
+): Promise<{ carrierId: string | null; carrier: string | null }> {
+  const id = carrierId?.trim() || null
+  if (!id) return { carrierId: null, carrier: null }
+  const [row] = await db
+    .select()
+    .from(commerceCarriers)
+    .where(and(eq(commerceCarriers.organizationId, organizationId), eq(commerceCarriers.id, id)))
+    .limit(1)
+  if (!row) throw new Error(`承运商不存在：${id}`)
+  return { carrierId: row.id, carrier: row.code || row.name }
+}
+
 
 async function loadShopMap(db: DbLike, organizationId: string, shopIds: string[]) {
   if (shopIds.length === 0) return new Map<string, typeof shops.$inferSelect>()
@@ -914,6 +933,7 @@ async function toBatchDto(
     status: row.status,
     statusLabel: toUiBatchStatus(row.status),
     carrier: row.carrier || '',
+    carrierId: row.carrierId || '',
     trackingSummary: row.trackingSummary || '',
     packageCount: row.packageCount,
     handedOverAt: stampOrEmpty(row.handedOverAt),
@@ -988,6 +1008,7 @@ export async function listBatches(
       status: row.status,
       statusLabel: toUiBatchStatus(row.status),
       carrier: row.carrier || '',
+      carrierId: row.carrierId || '',
       trackingSummary: row.trackingSummary || '',
       packageCount: row.packageCount,
       handedOverAt: stampOrEmpty(row.handedOverAt),
@@ -1030,6 +1051,7 @@ export type CreateBatchInput = {
   country?: string
   warehouseCode?: string
   carrier?: string
+  carrierId?: string | null
   trackingSummary?: string
   shipmentIds?: string[]
 }
@@ -1063,6 +1085,7 @@ export async function createBatch(
     return dto
   }
 
+  const resolved = await resolveCarrierLabel(db, organizationId, input.carrierId)
   const id = createId()
   await db.insert(fulfillmentBatches).values({
     id,
@@ -1073,7 +1096,11 @@ export async function createBatch(
     country: input.country || input.site || null,
     warehouseCode: input.warehouseCode || DEFAULT_WAREHOUSE,
     status: 'open',
-    carrier: input.carrier || (channel.startsWith('jsb') ? 'JSB' : 'LGS'),
+    carrier:
+      resolved.carrier ||
+      input.carrier ||
+      (channel.startsWith('jsb') ? 'JSB' : 'LGS'),
+    carrierId: resolved.carrierId,
     trackingSummary: input.trackingSummary || '',
     packageCount: 0,
     raw: { events: [] },
@@ -1331,6 +1358,7 @@ export async function appendBatchEvent(
     operator?: string
     tracking?: string
     carrier?: string
+    carrierId?: string | null
     exception?: string
     /** 可选：同步推进批次状态（必须在白名单内） */
     status?: string
@@ -1361,6 +1389,10 @@ export async function appendBatchEvent(
   }`
   events.push(line)
 
+  const resolved =
+    input.carrierId !== undefined
+      ? await resolveCarrierLabel(db, organizationId, input.carrierId)
+      : null
   const patch: Partial<typeof fulfillmentBatches.$inferInsert> = {
     updatedAt: new Date(),
     raw: {
@@ -1369,7 +1401,13 @@ export async function appendBatchEvent(
       lastOperator: input.operator || null,
     },
     trackingSummary: input.tracking || batch.trackingSummary,
-    carrier: input.carrier || batch.carrier,
+    carrier:
+      (resolved && resolved.carrier) ||
+      input.carrier ||
+      batch.carrier,
+  }
+  if (resolved) {
+    patch.carrierId = resolved.carrierId
   }
   if (input.status) patch.status = input.status
   if (input.event.includes('交接') || input.event.includes('揽收')) {
@@ -1381,3 +1419,38 @@ export async function appendBatchEvent(
   if (!dto) throw new Error('追加事件后读取失败')
   return dto
 }
+
+/** 仅更新批次承运商（主档 carrierId + 展示文案）。 */
+export async function updateBatchCarrier(
+  db: AppDatabase,
+  organizationId: string,
+  input: { batchId: string; carrierId?: string | null; carrier?: string },
+) {
+  const [batch] = await db
+    .select()
+    .from(fulfillmentBatches)
+    .where(
+      and(
+        eq(fulfillmentBatches.organizationId, organizationId),
+        eq(fulfillmentBatches.id, input.batchId),
+      ),
+    )
+    .limit(1)
+  if (!batch) throw new Error(`批次不存在：${input.batchId}`)
+  const resolved =
+    input.carrierId !== undefined
+      ? await resolveCarrierLabel(db, organizationId, input.carrierId)
+      : { carrierId: batch.carrierId || null, carrier: batch.carrier || null }
+  await db
+    .update(fulfillmentBatches)
+    .set({
+      carrierId: resolved.carrierId,
+      carrier: resolved.carrier || input.carrier || batch.carrier,
+      updatedAt: new Date(),
+    })
+    .where(eq(fulfillmentBatches.id, batch.id))
+  const dto = await getBatch(db, organizationId, batch.id)
+  if (!dto) throw new Error('更新承运商后读取失败')
+  return dto
+}
+

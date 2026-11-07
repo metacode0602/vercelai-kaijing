@@ -160,6 +160,7 @@ export const logisticsRouter = createTRPCRouter({
         country: z.string().optional(),
         warehouseCode: z.string().optional(),
         carrier: z.string().optional(),
+        carrierId: z.string().nullable().optional(),
         trackingSummary: z.string().optional(),
         shipmentIds: z.array(z.string()).optional(),
       }),
@@ -202,12 +203,25 @@ export const logisticsRouter = createTRPCRouter({
         operator: z.string().optional(),
         tracking: z.string().optional(),
         carrier: z.string().optional(),
+        carrierId: z.string().nullable().optional(),
         exception: z.string().optional(),
         status: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>
       wrap(() => logisticsDa.appendBatchEvent(ctx.db, ctx.organizationId, input)),
+    ),
+
+  updateBatchCarrier: tenantProcedure
+    .input(
+      z.object({
+        batchId: z.string().min(1),
+        carrierId: z.string().nullable().optional(),
+        carrier: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => logisticsDa.updateBatchCarrier(ctx.db, ctx.organizationId, input)),
     ),
 
   meta: tenantProcedure.query(() => ({

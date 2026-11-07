@@ -1,13 +1,14 @@
 /**
  * 财务结算 / 成本 / 利润 / 运费估算 dataaccess（模块13）。
- * 不假装平台结算 API 已通；费用/税费不写死，按行汇总或记 0。
+ * 平台结算经 apps/api syncSettlementsForShop；费用/税费不写死，按行汇总或记 0。
  */
-import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   commerceFreightRateCards,
   feeTemplates,
   feeTemplateVersions,
+  integrationCredentials,
   logisticsFeeDetails,
   oceanShipments,
   orderLines,
@@ -37,6 +38,8 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import * as syncDa from '@/lib/server/dataaccess/sync'
+import { marketplaceApiConfigured } from '@/lib/server/marketplace/api-client'
 
 export type SettlementLineDto = {
   id: string
@@ -1128,3 +1131,117 @@ export async function profitKpis(db: AppDatabase, organizationId: string, view: 
     unsettled,
   }
 }
+
+const LAZOP_PLATFORMS = new Set(['daraz', 'lazada'])
+
+export type SettlementSyncCapability = {
+  marketplaceApiConfigured: boolean
+  lazopShopCount: number
+  credentialedLazopShopCount: number
+  canSync: boolean
+  disableReason: string | null
+  shops: Array<{ id: string; name: string; platform: string; hasCredential: boolean }>
+}
+
+/** 控制台「从平台拉取」是否可真实调用 apps/api 结算同步。 */
+export async function settlementSyncCapability(
+  db: AppDatabase,
+  organizationId: string,
+): Promise<SettlementSyncCapability> {
+  const apiOk = marketplaceApiConfigured()
+  const shopRows = await db
+    .select({
+      id: shops.id,
+      name: shops.name,
+      platform: shops.platform,
+    })
+    .from(shops)
+    .where(and(eq(shops.organizationId, organizationId), isNull(shops.deletedAt)))
+  const lazop = shopRows.filter((s) => LAZOP_PLATFORMS.has(String(s.platform || '').toLowerCase()))
+  const lazopIds = lazop.map((s) => s.id)
+  const credRows =
+    lazopIds.length === 0
+      ? []
+      : await db
+          .select({ shopId: integrationCredentials.shopId })
+          .from(integrationCredentials)
+          .where(
+            and(
+              eq(integrationCredentials.organizationId, organizationId),
+              inArray(integrationCredentials.shopId, lazopIds),
+            ),
+          )
+  const credSet = new Set(credRows.map((r) => r.shopId))
+  const shopsOut = lazop.map((s) => ({
+    id: s.id,
+    name: s.name,
+    platform: s.platform,
+    hasCredential: credSet.has(s.id),
+  }))
+  const credentialed = shopsOut.filter((s) => s.hasCredential).length
+  let disableReason: string | null = null
+  if (!apiOk) {
+    disableReason =
+      '未配置 MARKETPLACE_API_BASE_URL / INTERNAL_SYNC_API_KEY，无法调用 apps/api 结算同步。'
+  } else if (lazop.length === 0) {
+    disableReason = '组织内没有 Daraz/Lazada 店铺，结算 OpenAPI 仅支持 Lazop 平台。'
+  } else if (credentialed === 0) {
+    disableReason = 'Daraz/Lazada 店铺尚未授权（缺少 integration_credentials），无法拉取结算。'
+  }
+  return {
+    marketplaceApiConfigured: apiOk,
+    lazopShopCount: lazop.length,
+    credentialedLazopShopCount: credentialed,
+    canSync: Boolean(apiOk && credentialed > 0),
+    disableReason,
+    shops: shopsOut,
+  }
+}
+
+/**
+ * 触发平台结算同步：入队 sync_tasks（结算同步）并 wait 调用 apps/api → syncSettlementsForShop。
+ * 无凭证 / 未配置 API / 非 Lazop 时诚实失败，禁止假成功。
+ */
+export async function syncSettlementsFromPlatform(
+  db: AppDatabase,
+  organizationId: string,
+  input: { shopId?: string } = {},
+) {
+  const capability = await settlementSyncCapability(db, organizationId)
+  if (!capability.canSync) {
+    throw new Error(capability.disableReason || '无法从平台拉取结算')
+  }
+
+  let shopId = input.shopId?.trim() || undefined
+  if (shopId) {
+    const shop = capability.shops.find((s) => s.id === shopId)
+    if (!shop) {
+      throw new Error('所选店铺不是本组织下的 Daraz/Lazada 店铺')
+    }
+    if (!shop.hasCredential) {
+      throw new Error(`店铺「${shop.name}」尚未授权，无法拉取结算`)
+    }
+  }
+
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '结算同步',
+    target: shopId ? `shop:${shopId}` : 'lazop-shops',
+    shopId,
+    actor: 'console',
+    note: '结算拉取：apps/api → syncSettlementsForShop（Lazop finance OpenAPI）',
+  })
+
+  return {
+    ok: task.status === '成功',
+    syncTaskId: task.id,
+    taskNo: task.taskNo,
+    status: task.status,
+    note:
+      task.status === '成功'
+        ? `结算同步完成（task=${task.taskNo}）`
+        : task.error !== '—'
+          ? task.error
+          : '结算同步失败',
+  }
+}
+
