@@ -15,6 +15,8 @@ import {
   oauthStateCookieOptions,
 } from '@/lib/marketplace/oauth-state'
 import { persistOAuthCredentials } from '@/lib/marketplace/persist-credentials'
+import { ShopBindingConflictError } from '@/lib/marketplace/errors'
+import { logMarketplaceOAuth } from '@/lib/marketplace/audit'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resolveOrganizationContext } from '@/lib/server/context'
@@ -22,8 +24,18 @@ import {
   getOnboardingState,
   isShopBindingAllowed,
 } from '@/lib/server/dataaccess/onboarding'
+import { and, eq, isNull } from 'drizzle-orm'
+import { integrationStates, shops } from '@workspace/db/schema'
 
 export const runtime = 'nodejs'
+
+function oauthErrorMessage(raw: string): string {
+  const value = raw.toLowerCase()
+  if (value.includes('access_denied') || value.includes('cancel')) {
+    return '已取消授权'
+  }
+  return '平台授权失败，请重试'
+}
 
 function consoleRedirect(
   request: NextRequest,
@@ -60,8 +72,32 @@ export async function GET(request: NextRequest) {
   if (error) {
     const fallbackShop = state?.shopId ?? 'unknown'
     const locale = state?.locale ?? 'zh'
+    const message = oauthErrorMessage(error)
+    if (state) {
+      await db
+        .update(shops)
+        .set({ status: 'error', updatedAt: new Date() })
+        .where(
+          and(
+            eq(shops.id, state.shopId),
+            eq(shops.organizationId, state.organizationId),
+            isNull(shops.deletedAt),
+          ),
+        )
+      await logMarketplaceOAuth({
+        shopId: state.shopId,
+        action: 'oauth_callback',
+        status: 'error',
+        message: `authorization cancelled or rejected: ${state.platform}`,
+        detail: { reason: 'authorization_rejected', mode: state.mode },
+      })
+    }
     const res = NextResponse.redirect(
-      consoleRedirect(request, locale, fallbackShop, { oauth: 'error', message: error }),
+      consoleRedirect(request, locale, fallbackShop, {
+        oauth: 'error',
+        reason: 'authorization_rejected',
+        message,
+      }),
     )
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })
     return res
@@ -101,6 +137,24 @@ export async function GET(request: NextRequest) {
 
   if (!isMarketplacePlatform(state.platform)) {
     return NextResponse.json({ error: 'unsupported platform' }, { status: 400 })
+  }
+
+  const [boundShop] = await db
+    .select({ id: shops.id, platform: shops.platform, meta: shops.meta })
+    .from(shops)
+    .where(
+      and(
+        eq(shops.id, state.shopId),
+        eq(shops.organizationId, state.organizationId),
+        isNull(shops.deletedAt),
+      ),
+    )
+    .limit(1)
+  if (!boundShop) {
+    return NextResponse.json({ error: 'shop_not_found' }, { status: 404 })
+  }
+  if (boundShop.platform !== state.platform) {
+    return NextResponse.json({ error: 'shop_platform_mismatch' }, { status: 400 })
   }
 
   const env = getMarketplaceAppEnv(state.platform)
@@ -187,9 +241,48 @@ export async function GET(request: NextRequest) {
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })
     return res
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'oauth_failed'
+    const conflict = err instanceof ShopBindingConflictError
+    const internalMessage = err instanceof Error ? err.message : 'oauth_failed'
+    const reason = conflict ? 'shop_bound_other_org' : 'token_exchange_failed'
+    if (!conflict) {
+      await db
+        .update(shops)
+        .set({
+          status: 'error',
+          meta: {
+            ...(typeof boundShop.meta === 'object' && boundShop.meta
+              ? boundShop.meta
+              : {}),
+            lastError: internalMessage.slice(0, 500),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(shops.id, state.shopId))
+      await db
+        .insert(integrationStates)
+        .values({
+          shopId: state.shopId,
+          health: 'error',
+          lastError: internalMessage.slice(0, 1000),
+        })
+        .onConflictDoUpdate({
+          target: integrationStates.shopId,
+          set: { health: 'error', lastError: internalMessage.slice(0, 1000) },
+        })
+      await logMarketplaceOAuth({
+        shopId: state.shopId,
+        action: 'oauth_callback',
+        status: 'error',
+        message: internalMessage,
+        detail: { reason, mode: state.mode },
+      })
+    }
     const res = NextResponse.redirect(
-      consoleRedirect(request, state.locale, state.shopId, { oauth: 'error', message }),
+      consoleRedirect(request, state.locale, state.shopId, {
+        oauth: conflict ? 'conflict' : 'error',
+        reason,
+        message: conflict ? internalMessage : '平台授权失败，请重试',
+      }),
     )
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })
     return res

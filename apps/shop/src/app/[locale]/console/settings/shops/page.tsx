@@ -19,20 +19,25 @@ export default function ShopsSettingsPage() {
   const utils = trpc.useUtils()
   const router = useLocaleRouter()
   const locale = useLocale()
-  const listQuery = trpc.shops.list.useQuery({ page: 1, pageSize: 100 })
+  const [page, setPage] = React.useState(1)
+  const [q, setQ] = React.useState('')
+  const [authStatus, setAuthStatus] = React.useState<string | undefined>()
+  const listQuery = trpc.shops.list.useQuery({
+    page,
+    pageSize: 20,
+    q: q.trim() || undefined,
+    authStatus,
+  })
   const meta = trpc.shops.meta.useQuery()
-  const rows = React.useMemo(() => listQuery.data?.items ?? [], [listQuery.data?.items])
+  const rows = listQuery.data?.items ?? []
   const [notice, setNotice] = React.useState('')
-
-  const kpi = React.useMemo(() => {
-    return {
-      total: rows.length,
-      authorized: rows.filter((r) => r.authStatus === '已授权').length,
-      pending: rows.filter((r) => ['待授权', '连接中', '草稿'].includes(r.authStatus)).length,
-      expired: rows.filter((r) => r.authStatus === '授权失效').length,
-      paused: rows.filter((r) => r.syncPaused).length,
-    }
-  }, [rows])
+  const kpi = listQuery.data?.summary ?? {
+    total: 0,
+    authorized: 0,
+    pending: 0,
+    expired: 0,
+    paused: 0,
+  }
 
   const setPaused = trpc.shops.setSyncPaused.useMutation({
     onSuccess: async (row) => {
@@ -56,7 +61,18 @@ export default function ShopsSettingsPage() {
       detailHref={(row) => `/console/settings/shops/${encodeURIComponent(row.id)}`}
       searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'lastError', 'owner']}
       searchPlaceholder="搜索店铺、卖家 ID、分组或平台店铺 ID"
+      search={q}
+      onSearchChange={setQ}
+      pagination={{
+        page,
+        pageSize: 20,
+        total: listQuery.data?.total ?? 0,
+        onPageChange: setPage,
+      }}
       filters={[{ label: '授权状态', options: [...(meta.data?.authStatuses ?? [])], key: 'authStatus' }]}
+      onStatusFilterChange={(value) =>
+        setAuthStatus(value === '全部' ? undefined : value)
+      }
       emptyText={listQuery.isLoading ? '加载中…' : '暂无店铺。新增店铺后会跳转平台授权。'}
       addLabel="新增店铺"
       onAdd={() => router.push('/console/settings/shops/new')}

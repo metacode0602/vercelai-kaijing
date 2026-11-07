@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import {
+  auditEvents,
   member,
   organization,
   tenantOnboardingApplications,
@@ -335,8 +336,14 @@ function assertApplicationReady(application: OnboardingApplicationDto) {
   if (application.companyName.trim().length < 2) {
     throw new Error('请输入有效的主体名称')
   }
-  if (!application.registrationNo || application.registrationNo.trim().length < 4) {
-    throw new Error('请输入有效的注册号 / 证件号')
+  const registrationNo = application.registrationNo?.trim() ?? ''
+  const registrationNoMin = application.subjectType === 'enterprise' ? 8 : 4
+  if (registrationNo.length < registrationNoMin || registrationNo.length > 32) {
+    throw new Error(
+      application.subjectType === 'enterprise'
+        ? '企业注册号需为 8–32 位字母数字'
+        : '证件号需为 4–32 位字母数字',
+    )
   }
   if (!application.contactName.trim() || !application.contactPhone.trim()) {
     throw new Error('请填写联系人姓名和电话')
@@ -373,9 +380,12 @@ function assertApplicationReady(application: OnboardingApplicationDto) {
 
 export async function submitOnboarding(
   db: AppDatabase,
-  input: { userId: string; organizationId?: string | null },
+  input: { userId: string; organizationId?: string | null; agreement: true },
 ): Promise<{ status: 'submitted'; version: number }> {
   return db.transaction(async (tx) => {
+    if (!input.agreement) {
+      throw new Error('请先阅读并同意《卖家服务协议》和《隐私政策》')
+    }
     const membership = await loadMembershipWithApplication(
       tx,
       input.userId,
@@ -433,6 +443,17 @@ export async function submitOnboarding(
         entryApproved: false,
       })
       .where(eq(organization.id, membership.organizationId))
+
+    await tx.insert(auditEvents).values({
+      organizationId: membership.organizationId,
+      actorUserId: input.userId,
+      action: 'onboarding.submit',
+      entityType: 'tenant_onboarding_application',
+      entityId: application.id,
+      before: { status: application.status, version: application.version },
+      after: { status: 'submitted', version: nextVersion },
+      result: 'success',
+    })
 
     return { status: 'submitted' as const, version: nextVersion }
   })

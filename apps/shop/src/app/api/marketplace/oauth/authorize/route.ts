@@ -24,6 +24,8 @@ import {
   getOnboardingState,
   isShopBindingAllowed,
 } from '@/lib/server/dataaccess/onboarding'
+import { logMarketplaceOAuth } from '@/lib/marketplace/audit'
+import { allowRateLimited } from '@/lib/server/rate-limit'
 
 export const runtime = 'nodejs'
 
@@ -76,6 +78,9 @@ export async function GET(request: NextRequest) {
       { error: '请先完成入驻并通过审核后再绑定店铺' },
       { status: 403 },
     )
+  }
+  if (!(await allowRateLimited(`oauth.authorize:${organizationId}`, 20, 3600))) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 })
   }
 
   const [shop] = await db
@@ -133,6 +138,14 @@ export async function GET(request: NextRequest) {
     .update(shops)
     .set({ status: 'connecting', updatedAt: new Date() })
     .where(eq(shops.id, shopId))
+
+  await logMarketplaceOAuth({
+    shopId,
+    action: 'oauth_authorize',
+    status: 'success',
+    message: `${platformRaw} oauth authorize started`,
+    detail: { mode, region, userId: session.user.id },
+  })
 
   const response = NextResponse.redirect(authorizeUrl)
   const cookie = oauthStateCookieOptions()

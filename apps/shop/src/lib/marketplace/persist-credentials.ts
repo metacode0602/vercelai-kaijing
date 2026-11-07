@@ -6,10 +6,17 @@ import {
 } from '@workspace/marketplace'
 import {
   integrationCredentials,
+  integrationLogs,
   integrationStates,
   shops,
 } from '@workspace/db/schema'
 import { db } from '@/lib/db'
+import { ShopBindingConflictError } from '@/lib/marketplace/errors'
+
+function metaBoolean(meta: unknown, key: string): boolean {
+  if (!meta || typeof meta !== 'object') return false
+  return Boolean((meta as Record<string, unknown>)[key])
+}
 
 export async function persistOAuthCredentials(input: {
   organizationId: string
@@ -52,20 +59,40 @@ export async function persistOAuthCredentials(input: {
         )
         .limit(1)
       if (crossTenant) {
+        const message = '该平台店铺已绑定到其他租户，请联系平台运营处理'
         await tx
           .update(shops)
           .set({
             status: 'error',
             meta: {
               ...(currentShop.meta ?? {}),
-              lastError: '该平台店铺已绑定到其他租户，请联系平台运营处理',
+              lastError: message,
             },
             updatedAt: new Date(),
           })
           .where(eq(shops.id, currentShop.id))
+        await tx
+          .insert(integrationStates)
+          .values({
+            shopId: currentShop.id,
+            health: 'error',
+            lastError: 'shop_already_bound_other_org',
+          })
+          .onConflictDoUpdate({
+            target: integrationStates.shopId,
+            set: { health: 'error', lastError: 'shop_already_bound_other_org' },
+          })
+        await tx.insert(integrationLogs).values({
+          shopId: currentShop.id,
+          direction: 'in',
+          action: 'oauth_callback',
+          status: 'error',
+          message: 'cross-tenant shop binding conflict',
+          payloadSummary: JSON.stringify({ platform: input.platform }),
+        })
         return {
           conflict: true as const,
-          message: '该平台店铺已绑定到其他租户，请联系平台运营处理',
+          message,
         }
       }
 
@@ -111,6 +138,11 @@ export async function persistOAuthCredentials(input: {
       })
     }
 
+    const syncPaused =
+      targetShop.id === input.shopId
+        ? currentShop.status === 'active' && metaBoolean(targetShop.meta, 'syncPaused')
+        : metaBoolean(targetShop.meta, 'syncPaused')
+
     await tx
       .update(shops)
       .set({
@@ -121,6 +153,7 @@ export async function persistOAuthCredentials(input: {
         meta: {
           ...(targetShop.meta ?? {}),
           ...(input.shopMeta ?? {}),
+          syncPaused,
           lastError: null,
         },
         updatedAt: new Date(),
@@ -150,6 +183,22 @@ export async function persistOAuthCredentials(input: {
         set: { health: 'idle', lastError: null },
       })
 
+    await tx.insert(integrationLogs).values({
+      shopId: targetShop.id,
+      direction: 'in',
+      action: 'oauth_callback',
+      status: 'success',
+      message:
+        targetShop.id === currentShop.id
+          ? `${input.platform} oauth bound`
+          : `${input.platform} oauth duplicate merged`,
+      payloadSummary: JSON.stringify({
+        platform: input.platform,
+        duplicate: targetShop.id !== currentShop.id,
+        externalShopId: input.externalShopId ?? null,
+      }),
+    })
+
     return {
       conflict: false as const,
       shopId: targetShop.id,
@@ -157,6 +206,6 @@ export async function persistOAuthCredentials(input: {
     }
   })
 
-  if (result.conflict) throw new Error(result.message)
+  if (result.conflict) throw new ShopBindingConflictError(result.message)
   return result
 }

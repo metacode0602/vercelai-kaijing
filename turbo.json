@@ -3,6 +3,7 @@
   "ui": "tui",
   "globalEnv": [
     "BETTER_AUTH_SECRET",
+    "ONBOARDING_FILE_SECRET",
     "BETTER_AUTH_TRUSTED_ORIGINS",
     "BETTER_AUTH_URL",
     "CONSUMER_SITE_URL",

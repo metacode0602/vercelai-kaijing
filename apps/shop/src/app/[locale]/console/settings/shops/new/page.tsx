@@ -19,18 +19,28 @@ import { Spinner } from '@workspace/ui/components/spinner'
 const PLATFORMS = [
   { value: 'daraz', label: 'Daraz' },
   { value: 'lazada', label: 'Lazada' },
-  { value: 'tiktok_shop', label: 'TikTok Shop' },
 ]
 
-const REGIONS = [
-  { value: 'LK', label: '斯里兰卡（LK）', currency: 'LKR' },
-  { value: 'MY', label: '马来西亚（MY）', currency: 'MYR' },
-  { value: 'PH', label: '菲律宾（PH）', currency: 'PHP' },
-  { value: 'TH', label: '泰国（TH）', currency: 'THB' },
-  { value: 'SG', label: '新加坡（SG）', currency: 'SGD' },
-  { value: 'VN', label: '越南（VN）', currency: 'VND' },
-  { value: 'ID', label: '印度尼西亚（ID）', currency: 'IDR' },
-]
+const REGIONS_BY_PLATFORM: Record<
+  string,
+  Array<{ value: string; label: string; currency: string }>
+> = {
+  daraz: [
+    { value: 'LK', label: '斯里兰卡（LK）', currency: 'LKR' },
+    { value: 'PK', label: '巴基斯坦（PK）', currency: 'PKR' },
+    { value: 'BD', label: '孟加拉国（BD）', currency: 'BDT' },
+    { value: 'NP', label: '尼泊尔（NP）', currency: 'NPR' },
+    { value: 'MM', label: '缅甸（MM）', currency: 'MMK' },
+  ],
+  lazada: [
+    { value: 'MY', label: '马来西亚（MY）', currency: 'MYR' },
+    { value: 'PH', label: '菲律宾（PH）', currency: 'PHP' },
+    { value: 'TH', label: '泰国（TH）', currency: 'THB' },
+    { value: 'SG', label: '新加坡（SG）', currency: 'SGD' },
+    { value: 'VN', label: '越南（VN）', currency: 'VND' },
+    { value: 'ID', label: '印度尼西亚（ID）', currency: 'IDR' },
+  ],
+}
 
 const FULFILLMENT_MODES = ['自营仓发货', '平台仓', '混合']
 
@@ -45,7 +55,8 @@ export default function NewShopPage() {
   const [fulfillmentMode, setFulfillmentMode] = React.useState('自营仓发货')
   const [error, setError] = React.useState('')
 
-  const currency = REGIONS.find((item) => item.value === region)?.currency ?? 'USD'
+  const regions = REGIONS_BY_PLATFORM[platform] ?? []
+  const currency = regions.find((item) => item.value === region)?.currency ?? 'USD'
 
   const beginAuthorization = trpc.shops.beginAuthorization.useMutation({
     onSuccess: ({ url }) => {
@@ -74,16 +85,12 @@ export default function NewShopPage() {
       setError('请输入店铺名称')
       return
     }
-    if (!sellerId.trim()) {
-      setError('请输入卖家 ID')
-      return
-    }
     createDraft.mutate({
       name: name.trim(),
-      platform: platform as 'daraz' | 'lazada' | 'tiktok_shop',
+      platform: platform as 'daraz' | 'lazada',
       region,
       currency,
-      sellerId: sellerId.trim(),
+      sellerId: sellerId.trim() || undefined,
       shopGroup: shopGroup.trim() || undefined,
       fulfillmentMode,
     })
@@ -135,10 +142,11 @@ export default function NewShopPage() {
                     onChange={(event) => {
                       const value = event.target.value
                       setPlatform(value)
-                      setShopGroup(
-                        value === 'daraz' ? 'Daraz' : value === 'lazada' ? 'Lazada 五国' : 'TikTok',
-                      )
-                      if (value === 'daraz') setRegion('LK')
+                      setShopGroup(value === 'daraz' ? 'Daraz' : 'Lazada 五国')
+                      const nextRegions = REGIONS_BY_PLATFORM[value] ?? []
+                      if (!nextRegions.some((item) => item.value === region)) {
+                        setRegion(nextRegions[0]?.value ?? '')
+                      }
                     }}
                   >
                     {PLATFORMS.map((item) => (
@@ -155,7 +163,7 @@ export default function NewShopPage() {
                     value={region}
                     onChange={(event) => setRegion(event.target.value)}
                   >
-                    {REGIONS.map((item) => (
+                    {regions.map((item) => (
                       <option key={item.value} value={item.value}>
                         {item.label}
                       </option>
@@ -171,7 +179,7 @@ export default function NewShopPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>卖家 ID（sellerId）</Label>
+                  <Label>卖家 ID（可选）</Label>
                   <Input
                     value={sellerId}
                     placeholder="平台卖家账号 ID"

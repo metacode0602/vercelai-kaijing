@@ -8,6 +8,18 @@ import {
   userProcedure,
 } from '@/lib/server/trpc'
 import * as onboardingDa from '@/lib/server/dataaccess/onboarding'
+import { allowRateLimited } from '@/lib/server/rate-limit'
+
+async function assertRateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number,
+  message: string,
+) {
+  if (!(await allowRateLimited(key, limit, windowSeconds))) {
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message })
+  }
+}
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
   return fn().catch((error: unknown) => {
@@ -29,7 +41,7 @@ const textSchema = z.string().trim().max(255).nullish()
 const saveStepInput = z.object({
   subjectType: subjectTypeSchema,
   companyName: z.string().trim().min(2).max(255),
-  registrationNo: z.string().trim().min(4).max(64).nullish(),
+  registrationNo: z.string().trim().min(4).max(32).nullish(),
   countryCode: countryCodeSchema,
   handlerType: handlerTypeSchema.optional(),
   legalRepresentative: textSchema,
@@ -62,6 +74,12 @@ export const onboardingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertRateLimit(
+        `onboarding.start:${ctx.user.id}`,
+        5,
+        3600,
+        '提交过于频繁，请稍后再试',
+      )
       const result = await wrap(() =>
         onboardingDa.startOnboarding(ctx.db, {
           userId: ctx.user.id,
@@ -92,12 +110,47 @@ export const onboardingRouter = createTRPCRouter({
     ),
   ),
 
-  submit: tenantOwnerProcedure.mutation(async ({ ctx }) =>
-    wrap(() =>
-      onboardingDa.submitOnboarding(ctx.db, {
-        userId: ctx.user.id,
-        organizationId: ctx.organizationId,
-      }),
-    ),
-  ),
+  submit: tenantOwnerProcedure
+    .input(z.object({ agreement: z.literal(true) }))
+    .mutation(async ({ ctx, input }) => {
+      await assertRateLimit(
+        `onboarding.submit:${ctx.organizationId}`,
+        10,
+        3600,
+        '提交过于频繁，请稍后再试',
+      )
+      return wrap(() =>
+        onboardingDa.submitOnboarding(ctx.db, {
+          userId: ctx.user.id,
+          organizationId: ctx.organizationId,
+          agreement: input.agreement,
+        }),
+      )
+    }),
+
+  resubmit: tenantOwnerProcedure
+    .input(saveStepInput.extend({ agreement: z.literal(true) }))
+    .mutation(async ({ ctx, input }) => {
+      await assertRateLimit(
+        `onboarding.submit:${ctx.organizationId}`,
+        10,
+        3600,
+        '提交过于频繁，请稍后再试',
+      )
+      return wrap(async () => {
+        const { agreement, ...step } = input
+        void agreement
+        await onboardingDa.saveOnboardingStep(ctx.db, {
+          ...step,
+          userId: ctx.user.id,
+          organizationId: ctx.organizationId,
+          countryCode: step.countryCode.toUpperCase(),
+        })
+        return onboardingDa.submitOnboarding(ctx.db, {
+          userId: ctx.user.id,
+          organizationId: ctx.organizationId,
+          agreement: true,
+        })
+      })
+    }),
 })

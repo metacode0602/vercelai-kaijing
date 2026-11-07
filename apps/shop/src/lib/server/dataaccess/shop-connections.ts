@@ -2,10 +2,11 @@
  * shops + integration_credentials / integration_states（模块15）。
  * 店铺连接页读真实店铺；授权按钮不伪造 OAuth 成功，仅标记待平台授权。
  */
-import { and, count, desc, eq, gte, ilike, inArray, isNull, lt, notInArray, or, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, isNull, lt, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   integrationCredentials,
+  integrationLogs,
   integrationStates,
   shops,
 } from '@workspace/db/schema'
@@ -81,7 +82,10 @@ function mapShop(
   state: typeof integrationStates.$inferSelect | undefined,
   cred: typeof integrationCredentials.$inferSelect | undefined,
 ): ShopConnectionDto {
-  const syncPaused = metaFlag(shop.meta, 'syncPaused') || shop.status === 'disabled'
+  const syncPaused =
+    metaFlag(shop.meta, 'syncPaused') ||
+    state?.health === 'paused' ||
+    shop.status === 'disabled'
   return {
     id: shop.id,
     name: shop.name,
@@ -136,7 +140,17 @@ export async function listShopConnections(
   db: AppDatabase,
   organizationId: string,
   input: { page?: number; pageSize?: number; q?: string; authStatus?: string } = {},
-): Promise<PaginatedResult<ShopConnectionDto>> {
+): Promise<
+  PaginatedResult<ShopConnectionDto> & {
+    summary: {
+      total: number
+      authorized: number
+      pending: number
+      expired: number
+      paused: number
+    }
+  }
+> {
   const page = normalizePage(input.page)
   const pageSize = normalizePageSize(input.pageSize ?? 50)
   const filters: SQL[] = [eq(shops.organizationId, organizationId), isNull(shops.deletedAt)]
@@ -190,7 +204,32 @@ export async function listShopConnections(
   for (const c of creds) if (!credMap.has(c.shopId)) credMap.set(c.shopId, c)
 
   const items = all.map((s) => mapShop(s, stateMap.get(s.id), credMap.get(s.id)))
-  return { items, total, page, pageSize }
+
+  const [summaryRow] = await db
+    .select({
+      total: count(),
+      authorized: sql<number>`count(*) filter (where ${shops.status} = 'active' and (${shops.authExpiresAt} is null or ${shops.authExpiresAt} > now()))`,
+      pending: sql<number>`count(*) filter (where ${shops.status} in ('draft', 'connecting', 'pending'))`,
+      expired: sql<number>`count(*) filter (where ${shops.status} in ('error', 'disabled') or (${shops.status} = 'active' and ${shops.authExpiresAt} <= now()))`,
+      paused: sql<number>`count(*) filter (where coalesce((${shops.meta} ->> 'syncPaused')::boolean, false) or ${integrationStates.health} = 'paused')`,
+    })
+    .from(shops)
+    .leftJoin(integrationStates, eq(integrationStates.shopId, shops.id))
+    .where(and(eq(shops.organizationId, organizationId), isNull(shops.deletedAt)))
+
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+    summary: {
+      total: Number(summaryRow?.total ?? 0),
+      authorized: Number(summaryRow?.authorized ?? 0),
+      pending: Number(summaryRow?.pending ?? 0),
+      expired: Number(summaryRow?.expired ?? 0),
+      paused: Number(summaryRow?.paused ?? 0),
+    },
+  }
 }
 
 export async function getShopConnection(db: AppDatabase, organizationId: string, id: string) {
@@ -262,6 +301,120 @@ export async function createShopDraft(
   return getShopConnection(db as AppDatabase, organizationId, id)
 }
 
+export async function updateShopDraft(
+  db: DbLike,
+  organizationId: string,
+  input: {
+    id: string
+    name?: string
+    region?: string
+    currency?: string
+    externalShopId?: string
+    sellerId?: string
+    shopGroup?: string
+    fulfillmentMode?: string
+    owner?: string
+  },
+) {
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(
+      and(
+        eq(shops.organizationId, organizationId),
+        eq(shops.id, input.id),
+        isNull(shops.deletedAt),
+      ),
+    )
+    .limit(1)
+  if (!shop) throw new Error('店铺不存在')
+  if (shop.status !== 'draft') throw new Error('仅草稿店铺可编辑')
+
+  await db
+    .update(shops)
+    .set({
+      name: input.name?.trim() || shop.name,
+      region: input.region?.trim() || shop.region,
+      marketplaceCountry: input.region?.trim() || shop.marketplaceCountry,
+      currency: input.currency ? input.currency.toUpperCase() : shop.currency,
+      externalShopId:
+        input.externalShopId === undefined
+          ? shop.externalShopId
+          : input.externalShopId.trim() || null,
+      sellerId:
+        input.sellerId === undefined ? shop.sellerId : input.sellerId.trim() || null,
+      shopGroup:
+        input.shopGroup === undefined ? shop.shopGroup : input.shopGroup.trim() || null,
+      fulfillmentMode:
+        input.fulfillmentMode === undefined
+          ? shop.fulfillmentMode
+          : toDbFulfillmentMode(input.fulfillmentMode),
+      sellerName:
+        input.owner === undefined ? shop.sellerName : input.owner.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(shops.id, shop.id))
+
+  return getShopConnection(db as AppDatabase, organizationId, shop.id)
+}
+
+export async function removeShopCredential(
+  db: DbLike,
+  organizationId: string,
+  input: { id: string },
+) {
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(
+      and(
+        eq(shops.organizationId, organizationId),
+        eq(shops.id, input.id),
+        isNull(shops.deletedAt),
+      ),
+    )
+    .limit(1)
+  if (!shop) throw new Error('店铺不存在')
+
+  await db
+    .delete(integrationCredentials)
+    .where(
+      and(
+        eq(integrationCredentials.organizationId, organizationId),
+        eq(integrationCredentials.shopId, shop.id),
+      ),
+    )
+  await db
+    .update(shops)
+    .set({
+      status: 'draft',
+      authExpiresAt: null,
+      meta: {
+        ...(typeof shop.meta === 'object' && shop.meta ? shop.meta : {}),
+        syncPaused: true,
+        lastError: null,
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(shops.id, shop.id))
+  await db
+    .insert(integrationStates)
+    .values({ shopId: shop.id, health: 'idle', lastError: null })
+    .onConflictDoUpdate({
+      target: integrationStates.shopId,
+      set: { health: 'idle', lastError: null },
+    })
+  await db.insert(integrationLogs).values({
+    shopId: shop.id,
+    direction: 'in',
+    action: 'credential_remove',
+    status: 'success',
+    message: '店铺授权已解绑',
+  })
+
+  return getShopConnection(db as AppDatabase, organizationId, shop.id)
+}
+
 export async function setShopSyncPaused(
   db: DbLike,
   organizationId: string,
@@ -276,12 +429,32 @@ export async function setShopSyncPaused(
   const meta = { ...(typeof shop.meta === 'object' && shop.meta ? shop.meta : {}), syncPaused: input.paused }
   await db
     .update(shops)
-    .set({
-      meta,
-      status: input.paused && shop.status === 'active' ? shop.status : shop.status,
-      updatedAt: new Date(),
-    })
+    .set({ meta, updatedAt: new Date() })
     .where(eq(shops.id, shop.id))
+
+  const [state] = await db
+    .select({ health: integrationStates.health })
+    .from(integrationStates)
+    .where(eq(integrationStates.shopId, shop.id))
+    .limit(1)
+  if (input.paused) {
+    await db
+      .insert(integrationStates)
+      .values({ shopId: shop.id, health: 'paused', lastError: null })
+      .onConflictDoUpdate({
+        target: integrationStates.shopId,
+        set: { health: 'paused' },
+      })
+  } else if (state?.health === 'paused' || !state) {
+    await db
+      .insert(integrationStates)
+      .values({ shopId: shop.id, health: 'idle', lastError: null })
+      .onConflictDoUpdate({
+        target: integrationStates.shopId,
+        set: { health: 'idle', lastError: null },
+      })
+  }
+
   return getShopConnection(db as AppDatabase, organizationId, shop.id)
 }
 
@@ -322,7 +495,7 @@ export async function queueShopReauth(
     .where(and(eq(shops.organizationId, organizationId), eq(shops.id, input.id), isNull(shops.deletedAt)))
     .limit(1)
   if (!shop) throw new Error('店铺不存在')
-  const note = '待平台授权：OAuth / connector 未联调，未完成真实授权。'
+  const note = '待平台授权：请点击“重新授权”完成 OAuth 授权。'
   const meta = {
     ...(typeof shop.meta === 'object' && shop.meta ? shop.meta : {}),
     syncPaused: true,

@@ -253,6 +253,8 @@ export function OnboardingWizard() {
   const stateQuery = trpc.onboarding.getState.useQuery()
   const [step, setStep] = React.useState(1)
   const [form, setForm] = React.useState<FormState>(initialForm)
+  const [agreement, setAgreement] = React.useState(false)
+  const [bindNow, setBindNow] = React.useState(false)
   const [error, setError] = React.useState('')
   const hydratedId = React.useRef<string | null>(null)
 
@@ -290,10 +292,19 @@ export function OnboardingWizard() {
   })
   const submit = trpc.onboarding.submit.useMutation({
     onSuccess: () => {
-      router.push('/onboarding/status')
+      router.push(bindNow ? '/console/settings/shops/new' : '/onboarding/status')
     },
     onError: (mutationError) => setError(mutationError.message),
   })
+
+  function handleSubmit() {
+    setError('')
+    if (!agreement) {
+      setError('请先阅读并同意《卖家服务协议》和《隐私政策》')
+      return
+    }
+    submit.mutate({ agreement: true })
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -301,7 +312,12 @@ export function OnboardingWizard() {
 
   function validateStep2() {
     if (form.companyName.trim().length < 2) return '请输入有效的主体名称'
-    if (form.registrationNo.trim().length < 4) return '请输入有效的注册号 / 证件号'
+    const registrationMin = form.subjectType === 'enterprise' ? 8 : 4
+    if (form.registrationNo.trim().length < registrationMin) {
+      return form.subjectType === 'enterprise'
+        ? '企业注册号需为 8–32 位字母数字'
+        : '证件号需为 4–32 位字母数字'
+    }
     if (!form.contactName.trim() || !form.contactPhone.trim()) return '请填写联系人姓名和电话'
     if (!form.licenseFile) return '请上传营业执照 / 证件照片'
     if (form.subjectType === 'enterprise') {
@@ -666,6 +682,38 @@ export function OnboardingWizard() {
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-muted-foreground">
                 提交后资料不可编辑。审核结果会显示在状态页，店铺绑定权限以平台配置为准。
               </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4"
+                  checked={agreement}
+                  onChange={(event) => setAgreement(event.target.checked)}
+                />
+                <span>
+                  我已阅读并同意《卖家服务协议》和《隐私政策》，并确认所填信息真实有效。
+                </span>
+              </label>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">提交后</legend>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="binding-after-submit"
+                    checked={!bindNow}
+                    onChange={() => setBindNow(false)}
+                  />
+                  稍后绑定店铺，先查看审核状态
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="binding-after-submit"
+                    checked={bindNow}
+                    onChange={() => setBindNow(true)}
+                  />
+                  立即添加并授权店铺
+                </label>
+              </fieldset>
             </div>
           ) : null}
 
@@ -706,8 +754,8 @@ export function OnboardingWizard() {
               ) : (
                 <Button
                   type="button"
-                  onClick={() => submit.mutate()}
-                  disabled={busy}
+                  onClick={handleSubmit}
+                  disabled={busy || !agreement}
                 >
                   {submit.isPending ? <Spinner className="size-4" /> : null}
                   提交审核

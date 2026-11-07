@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto"
-import { and, desc, eq, gte, inArray, isNotNull, isNull } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import {
+  consoleNotifications,
   integrationLogs,
   integrationStates,
+  organization,
   listings,
   orderLines,
   orders,
@@ -216,6 +218,9 @@ async function loadShops(filter?: {
     inArray(shops.platform, ["daraz", "lazada", "tiktok_shop"]),
     inArray(shops.status, ["active", "error"]),
     isNull(shops.deletedAt),
+    eq(organization.entryApproved, true),
+    sql`coalesce((${shops.meta} ->> 'syncPaused')::boolean, false) = false`,
+    sql`coalesce(${integrationStates.health}, '') <> 'paused'`,
   ]
   if (filter?.shopId) conditions.push(eq(shops.id, filter.shopId))
   if (filter?.organizationId)
@@ -231,6 +236,8 @@ async function loadShops(filter?: {
       meta: shops.meta,
     })
     .from(shops)
+    .innerJoin(organization, eq(organization.id, shops.organizationId))
+    .leftJoin(integrationStates, eq(integrationStates.shopId, shops.id))
     .where(and(...conditions))
 }
 
@@ -259,6 +266,49 @@ async function logIntegration(input: {
     payloadSummary: input.payloadSummary
       ? JSON.stringify(input.payloadSummary).slice(0, 2000)
       : null,
+  })
+}
+
+async function markAuthFailure(
+  shop: MarketplaceSyncShop,
+  message: string
+): Promise<void> {
+  if (!/(token|401|403|unauthor|invalid_grant|expired)/i.test(message)) return
+  await db
+    .update(shops)
+    .set({
+      status: "error",
+      meta: {
+        ...(shop.meta && typeof shop.meta === "object" ? shop.meta : {}),
+        lastError: message.slice(0, 500),
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(shops.id, shop.id))
+
+  const [existing] = await db
+    .select({ id: consoleNotifications.id })
+    .from(consoleNotifications)
+    .where(
+      and(
+        eq(consoleNotifications.organizationId, shop.organizationId),
+        eq(consoleNotifications.sourceType, "shop_auth"),
+        eq(consoleNotifications.sourceId, shop.id),
+        isNull(consoleNotifications.readAt)
+      )
+    )
+    .limit(1)
+  if (existing) return
+
+  await db.insert(consoleNotifications).values({
+    organizationId: shop.organizationId,
+    category: "system",
+    title: `店铺 ${shop.name} 授权失效`,
+    summary: "平台令牌刷新或调用失败，请前往店铺连接重新授权。",
+    body: message.slice(0, 1000),
+    href: `/console/settings/shops/${shop.id}`,
+    sourceType: "shop_auth",
+    sourceId: shop.id,
   })
 }
 
@@ -1014,6 +1064,7 @@ export async function runMarketplaceSync(
           now,
           failure: message.slice(0, 1000),
         }).catch(() => undefined)
+        await markAuthFailure(shop, message).catch(() => undefined)
         await logIntegration({
           shopId: shop.id,
           action: `${resource}.sync`,

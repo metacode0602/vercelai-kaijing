@@ -85,6 +85,13 @@
       "when": 1793961431784,
       "tag": "0023_tenant_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0024_tenant_onboarding_handler_check",
+      "breakpoints": true
     }
   ]
 }

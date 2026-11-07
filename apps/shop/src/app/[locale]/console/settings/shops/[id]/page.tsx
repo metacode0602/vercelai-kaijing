@@ -15,6 +15,16 @@ import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@workspace/ui/components/dialog'
+import { Input } from '@workspace/ui/components/input'
+import { Label } from '@workspace/ui/components/label'
 
 export default function ShopDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
@@ -24,14 +34,26 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
   const query = trpc.shops.get.useQuery({ id })
   const row = query.data
   const [notice, setNotice] = React.useState('')
+  const [editOpen, setEditOpen] = React.useState(false)
+  const [draft, setDraft] = React.useState({
+    name: '',
+    region: '',
+    currency: '',
+    externalShopId: '',
+    sellerId: '',
+    shopGroup: '',
+    owner: '',
+  })
   const oauthNotice =
     searchParams.get('oauth') === 'success'
       ? searchParams.get('duplicate') === '1'
         ? '授权成功；该平台店铺已存在，已合并到已有店铺。'
         : '授权成功，凭证已加密保存。'
-      : searchParams.get('oauth') === 'error'
-        ? `授权失败：${searchParams.get('message') || '请稍后重试'}`
-        : ''
+      : searchParams.get('oauth') === 'conflict'
+        ? '该平台店铺已被其他租户绑定，已标记异常，请联系平台运营处理。'
+        : searchParams.get('oauth') === 'error'
+          ? `授权失败：${searchParams.get('message') || '请稍后重试'}`
+          : ''
 
   const setPaused = trpc.shops.setSyncPaused.useMutation({
     onSuccess: async (res) => {
@@ -50,6 +72,23 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
   const disable = trpc.shops.disable.useMutation({
     onSuccess: async () => {
       setNotice('店铺已停用。')
+      await utils.shops.get.invalidate({ id })
+      await utils.shops.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const updateDraft = trpc.shops.updateDraft.useMutation({
+    onSuccess: async () => {
+      setNotice('店铺资料已更新。')
+      setEditOpen(false)
+      await utils.shops.get.invalidate({ id })
+      await utils.shops.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const removeCredential = trpc.shops.removeCredential.useMutation({
+    onSuccess: async () => {
+      setNotice('已解绑授权，店铺保留为草稿，可重新授权。')
       await utils.shops.get.invalidate({ id })
       await utils.shops.list.invalidate()
     },
@@ -95,6 +134,40 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
             >
               {row.authStatus === '已授权' ? '重新授权' : '去平台授权'}
             </Button>
+            {row.dbStatus === 'draft' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setDraft({
+                    name: row.name,
+                    region: row.region || '',
+                    currency: row.currency,
+                    externalShopId: row.externalShopId || '',
+                    sellerId: row.sellerId || '',
+                    shopGroup: row.shopGroup || '',
+                    owner: row.owner || '',
+                  })
+                  setEditOpen(true)
+                }}
+              >
+                编辑资料
+              </Button>
+            ) : null}
+            {row.hasCredential ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (window.confirm('确认解绑授权？解绑后需重新授权才能同步。')) {
+                    removeCredential.mutate({ id: row.id })
+                  }
+                }}
+                disabled={removeCredential.isPending}
+              >
+                解绑授权
+              </Button>
+            ) : null}
             {row.dbStatus !== 'disabled' ? (
               <Button
                 size="sm"
@@ -144,6 +217,49 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
           { label: '负责人', value: row.owner || '—' },
         ]}
       />
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              updateDraft.mutate({ id: row.id, ...draft })
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>编辑店铺草稿</DialogTitle>
+              <DialogDescription>授权前可修改店铺基础资料。</DialogDescription>
+            </DialogHeader>
+            {(
+              [
+                ['name', '店铺名称'],
+                ['region', '站点'],
+                ['currency', '币种'],
+                ['externalShopId', '平台店铺 ID'],
+                ['sellerId', '卖家 ID'],
+                ['shopGroup', '分组'],
+                ['owner', '负责人'],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key} className="grid gap-1.5">
+                <Label htmlFor={`shop-${key}`}>{label}</Label>
+                <Input
+                  id={`shop-${key}`}
+                  value={draft[key]}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, [key]: event.target.value }))
+                  }
+                />
+              </div>
+            ))}
+            <DialogFooter>
+              <Button type="submit" disabled={updateDraft.isPending}>
+                保存
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       {notice || oauthNotice ? (
         <p className="text-sm text-muted-foreground">{notice || oauthNotice}</p>
       ) : null}

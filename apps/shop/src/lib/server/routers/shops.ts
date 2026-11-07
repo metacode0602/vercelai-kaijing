@@ -16,6 +16,7 @@ import {
   assertMarketplaceAppConfigured,
   getMarketplaceAppEnv,
 } from '@/lib/marketplace/env'
+import { allowRateLimited } from '@/lib/server/rate-limit'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
   return fn().catch((error: unknown) => {
@@ -77,6 +78,18 @@ export const shopsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (
+        !(await allowRateLimited(
+          `oauth.authorize:${ctx.organizationId}`,
+          20,
+          3600,
+        ))
+      ) {
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: '授权操作过于频繁，请稍后再试',
+        })
+      }
       const shop = await shopsDa.getShopConnection(ctx.db, ctx.organizationId, input.id)
       if (!shop) throw new TRPCError({ code: 'NOT_FOUND', message: '店铺不存在' })
       if (!isMarketplacePlatform(shop.platform)) {
@@ -105,6 +118,28 @@ export const shopsRouter = createTRPCRouter({
       })
       return { url: `/api/marketplace/oauth/authorize?${params.toString()}` }
     }),
+  updateDraft: tenantAdminProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(120).optional(),
+        region: z.string().max(32).optional(),
+        currency: z.string().max(8).optional(),
+        externalShopId: z.string().max(120).optional(),
+        sellerId: z.string().max(120).optional(),
+        shopGroup: z.string().max(120).optional(),
+        fulfillmentMode: z.string().max(32).optional(),
+        owner: z.string().max(120).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => shopsDa.updateShopDraft(ctx.db, ctx.organizationId, input)),
+    ),
+  removeCredential: tenantAdminProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => shopsDa.removeShopCredential(ctx.db, ctx.organizationId, input)),
+    ),
   setSyncPaused: tenantAdminProcedure
     .input(z.object({ id: z.string().min(1), paused: z.boolean() }))
     .mutation(async ({ ctx, input }) => wrap(() => shopsDa.setShopSyncPaused(ctx.db, ctx.organizationId, input))),
