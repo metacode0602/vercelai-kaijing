@@ -3,8 +3,11 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { trpc } from '@/lib/trpc/client'
+import { useSearchParams } from 'next/navigation'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 export default function InventoryLedgerPage() {
@@ -12,6 +15,9 @@ export default function InventoryLedgerPage() {
   const statsQuery = trpc.wms.movementStats.useQuery()
   const metaQuery = trpc.wms.meta.useQuery()
   const rows = listQuery.data?.items ?? []
+  const searchParams = useSearchParams()
+  const skuFromQuery = searchParams.get('sku') || undefined
+  const { openWith, dialog, notice } = useStockAdjustmentDialog()
 
   const kpiItems = [
     { label: '流水笔数', value: String(statsQuery.data?.total ?? rows.length), hint: '追加式 · 禁改删' },
@@ -29,6 +35,17 @@ export default function InventoryLedgerPage() {
         </AlertDescription>
       </Alert>
       <DetailKpiRow items={kpiItems} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          发现异常流水？发起调整修正，审批后过账写反向/补充流水。
+        </p>
+        <Button
+          size="sm"
+          onClick={() => openWith(skuFromQuery ? { sku: skuFromQuery } : undefined)}
+        >
+          发起调整
+        </Button>
+      </div>
       <UedWorkspace
         title="库存流水"
         description="inventory_movements · DB 分页 · 修正一律反向流水"
@@ -74,6 +91,8 @@ export default function InventoryLedgerPage() {
           },
         ]}
       />
+      {dialog}
+      {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </div>
   )
 }

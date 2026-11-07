@@ -408,7 +408,8 @@
       "notifications": "通知 / 钉钉",
       "members": "组织成员",
       "preferences": "偏好",
-      "fxRates": "汇率配置"
+      "fxRates": "汇率配置",
+      "stockAlerts": "库存预警阈值"
     },
     "profile": {
       "account": "账号",

@@ -10,6 +10,7 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -28,6 +29,8 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
   const utils = trpc.useUtils()
   const [editOpen, setEditOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const { openWith: openAdjustWith, dialog: adjustDialog, notice: adjustNotice } =
+    useStockAdjustmentDialog()
 
   const detailQuery = trpc.purchase.getInbound.useQuery({ id })
   const orderQuery = trpc.purchase.getOrder.useQuery(
@@ -167,6 +170,20 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
                 查看来源收货
               </Button>
             ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                openAdjustWith({
+                  sku: current.sku,
+                  warehouse: current.warehouse,
+                  bin: current.bin,
+                  qtySystem: current.quantity,
+                })
+              }
+            >
+              发起调整
+            </Button>
           </div>
         }
       />
@@ -339,6 +356,13 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
           }}
           saveLabel="保存"
         />
+      ) : null}
+
+      {adjustDialog}
+      {adjustNotice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {adjustNotice}
+        </p>
       ) : null}
     </div>
   )

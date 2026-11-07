@@ -3,9 +3,11 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { trpc } from '@/lib/trpc/client'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 export default function InventoryBalancesPage() {
@@ -15,6 +17,7 @@ export default function InventoryBalancesPage() {
   const rows = listQuery.data?.items ?? []
   const stats = statsQuery.data
   const oceanBuckets = oceanBucketsQuery.data ?? []
+  const { openWith, dialog, notice } = useStockAdjustmentDialog()
   const oceanKpi = React.useMemo(
     () =>
       oceanBuckets.reduce(
@@ -86,15 +89,36 @@ export default function InventoryBalancesPage() {
           },
           {
             key: 'id',
-            label: '流水',
+            label: '操作',
             render: (row) => (
-              <LocaleLink className="underline" href={`/console/inventory-ledger?sku=${encodeURIComponent(row.sku)}`}>
-                台账
-              </LocaleLink>
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    openWith({
+                      sku: row.sku,
+                      warehouse: row.warehouse,
+                      bin: row.bin,
+                      qtySystem: row.onHand,
+                    })
+                  }
+                >
+                  发起调整
+                </Button>
+                <LocaleLink
+                  className="underline text-sm"
+                  href={`/console/inventory-ledger?sku=${encodeURIComponent(row.sku)}`}
+                >
+                  台账
+                </LocaleLink>
+              </div>
             ),
           },
         ]}
       />
+      {dialog}
+      {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </div>
   )
 }

@@ -46,6 +46,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { recomputeStockAlerts } from '@/lib/server/dataaccess/stock-alerts'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -1300,6 +1301,8 @@ export async function completeReturnQc(
           raw: { reason: `售后回库 ${pickUiId(ro, ext)}`, sku, qty: pass, lineId },
         })
         notes.push(`回库流水 ${idem}`)
+        // 回库写 on_hand，available 变化：重算该 variant 预警。
+        await recomputeStockAlerts(tx, organizationId, [variantId])
       } else {
         notes.push(`回库幂等命中 ${dup.id}`)
       }
@@ -1351,6 +1354,8 @@ export async function completeReturnQc(
           raw: { reason: `售后报损 ${pickUiId(ro, ext)}`, sku, qty: defect, lineId },
         })
         notes.push(`报损流水 ${idem}`)
+        // 报损写 damaged，available 变化：重算该 variant 预警。
+        await recomputeStockAlerts(tx, organizationId, [variantId])
       } else {
         notes.push(`报损幂等命中 ${dup.id}`)
       }
@@ -1536,6 +1541,8 @@ export async function approveCancel(
               })
               releaseLedgerId = idem
               notes.push(`释放锁定 ${res.qty} · 流水 ${idem}`)
+              // 释放占库改 reserved，available 变化：重算该 variant 预警。
+              await recomputeStockAlerts(tx, organizationId, [res.variantId])
             } else if (dup) {
               releaseLedgerId = idem
               notes.push(`释放幂等命中 ${dup.id}`)

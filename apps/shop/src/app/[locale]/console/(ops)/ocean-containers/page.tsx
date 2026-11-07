@@ -5,7 +5,6 @@ import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
-import { Button } from '@workspace/ui/components/button'
 
 export default function OceanContainersPage() {
   const utils = trpc.useUtils()
@@ -14,7 +13,6 @@ export default function OceanContainersPage() {
 
   const listQuery = trpc.ocean.list.useQuery({ page: 1, pageSize: 100 })
   const statsQuery = trpc.ocean.stats.useQuery()
-  const bucketsQuery = trpc.ocean.inventoryBuckets.useQuery({})
 
   const createMutation = trpc.ocean.create.useMutation({
     onSuccess: async (row) => {
@@ -25,21 +23,8 @@ export default function OceanContainersPage() {
     onError: (e) => setNotice(e.message),
   })
 
-  const advanceMutation = trpc.ocean.advance.useMutation({
-    onSuccess: async (row) => {
-      await Promise.all([
-        utils.ocean.list.invalidate(),
-        utils.ocean.stats.invalidate(),
-        utils.ocean.inventoryBuckets.invalidate(),
-      ])
-      setNotice(`已推进 ${row.lotCode} → ${row.status}`)
-    },
-    onError: (e) => setNotice(e.message),
-  })
-
   const lots = listQuery.data?.items ?? []
   const kpi = statsQuery.data
-  const buckets = bucketsQuery.data ?? []
 
   const editor = open ? (
     <UedDialog
@@ -140,61 +125,8 @@ export default function OceanContainersPage() {
       />
       <UedPrototypeNotice>
         主路径已接 PostgreSQL（tRPC ocean.*）。开船写 in_transit，清关转入 customs_clearing，到仓转 on_hand/damaged；幂等键
-        ledger:ocean_*。不共享 WH-CN-XMN。审批相关：杨洁 / 黄发聪。
+        ledger:ocean_*。不共享 WH-CN-XMN。审批相关：杨洁 / 黄发聪。库存桶与状态推进请进柜次详情页。
       </UedPrototypeNotice>
-      <div className="rounded-lg border p-4">
-        <h3 className="mb-2 text-sm font-medium">库存桶（inventory_balances）</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 pr-3">SKU</th>
-                <th className="py-1 pr-3">仓</th>
-                <th className="py-1 pr-3">在途</th>
-                <th className="py-1 pr-3">清关中</th>
-                <th className="py-1 pr-3">可用</th>
-                <th className="py-1 pr-3">残次</th>
-              </tr>
-            </thead>
-            <tbody>
-              {buckets.length === 0 ? (
-                <tr>
-                  <td className="py-2 text-muted-foreground" colSpan={6}>
-                    暂无余额；推进柜次开船后出现在途数量。
-                  </td>
-                </tr>
-              ) : (
-                buckets.map((b) => (
-                  <tr key={b.id} className="border-t">
-                    <td className="py-1 pr-3">{b.sku}</td>
-                    <td className="py-1 pr-3">{b.warehouse}</td>
-                    <td className="py-1 pr-3 tabular-nums">{b.inTransit}</td>
-                    <td className="py-1 pr-3 tabular-nums">{b.customsClearing}</td>
-                    <td className="py-1 pr-3 tabular-nums">{b.available}</td>
-                    <td className="py-1 pr-3 tabular-nums">{b.damaged}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {lots
-          .filter((l) => !['已入本地仓', '已取消'].includes(l.status))
-          .slice(0, 4)
-          .map((lot) => (
-            <Button
-              key={lot.id}
-              size="sm"
-              variant="outline"
-              disabled={advanceMutation.isPending}
-              onClick={() => advanceMutation.mutate({ id: lot.id })}
-            >
-              推进 {lot.lotCode}
-            </Button>
-          ))}
-      </div>
       {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载柜次中…</p> : null}
       {listQuery.error ? <p className="text-sm text-destructive">{listQuery.error.message}</p> : null}
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

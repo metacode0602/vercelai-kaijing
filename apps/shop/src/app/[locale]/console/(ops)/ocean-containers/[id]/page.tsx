@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useParams } from 'next/navigation'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -23,6 +24,12 @@ export default function OceanContainerDetailPage() {
 
   const detailQuery = trpc.ocean.get.useQuery({ id }, { retry: false })
   const lot = detailQuery.data
+  const bucketsQuery = trpc.ocean.inventoryBuckets.useQuery(
+    { warehouse: lot?.warehouse || undefined },
+    { enabled: Boolean(lot?.warehouse) },
+  )
+  const { openWith: openAdjustWith, dialog: adjustDialog, notice: adjustNotice } =
+    useStockAdjustmentDialog()
 
   const invalidate = async () => {
     await Promise.all([
@@ -123,6 +130,22 @@ export default function OceanContainerDetailPage() {
               取消柜次
             </Button>
           )}
+          {(lot.lines || []).some((l) => l.qtyDamaged > 0) ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const damaged = (lot.lines || []).find((l) => l.qtyDamaged > 0)
+                openAdjustWith({
+                  sku: damaged?.sku,
+                  warehouse: lot.warehouse,
+                  qtySystem: damaged?.qtyDamaged,
+                })
+              }}
+            >
+              发起报损调整
+            </Button>
+          ) : null}
         </div>
       </div>
       <DetailKpiRow
@@ -312,8 +335,51 @@ export default function OceanContainerDetailPage() {
         </div>
       </div>
 
+      <div className="rounded-lg border p-4 space-y-3">
+        <h3 className="text-sm font-medium">目的仓库存桶（inventory_balances）</h3>
+        <p className="text-xs text-muted-foreground">
+          按 {lot.warehouse} 过滤的在途 / 清关中 / 可用 / 残次桶；推进柜次时由 ledger:ocean_* 写入。
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-muted-foreground">
+                <th className="py-1 pr-3">SKU</th>
+                <th className="py-1 pr-3">仓</th>
+                <th className="py-1 pr-3">在途</th>
+                <th className="py-1 pr-3">清关中</th>
+                <th className="py-1 pr-3">可用</th>
+                <th className="py-1 pr-3">残次</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(bucketsQuery.data ?? []).length === 0 ? (
+                <tr>
+                  <td className="py-2 text-muted-foreground" colSpan={6}>
+                    暂无余额；推进柜次开船后出现在途数量。
+                  </td>
+                </tr>
+              ) : (
+                (bucketsQuery.data ?? []).map((b) => (
+                  <tr key={b.id} className="border-t">
+                    <td className="py-1 pr-3">{b.sku}</td>
+                    <td className="py-1 pr-3">{b.warehouse}</td>
+                    <td className="py-1 pr-3 tabular-nums">{b.inTransit}</td>
+                    <td className="py-1 pr-3 tabular-nums">{b.customsClearing}</td>
+                    <td className="py-1 pr-3 tabular-nums">{b.available}</td>
+                    <td className="py-1 pr-3 tabular-nums">{b.damaged}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <p className="text-sm text-muted-foreground">{lot.notes}</p>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+      {adjustDialog}
+      {adjustNotice ? <p role="status" className="text-sm text-muted-foreground">{adjustNotice}</p> : null}
     </div>
   )
 }

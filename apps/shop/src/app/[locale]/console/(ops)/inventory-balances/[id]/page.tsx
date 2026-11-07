@@ -21,6 +21,7 @@ import {
 } from '@/lib/console/related-info'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -29,6 +30,7 @@ export default function InventoryBalanceDetailPage({ params }: { params: Promise
   const id = decodeRouteParam(React.use(params).id)
   const balanceQuery = trpc.wms.getBalance.useQuery({ id }, { retry: false })
   const balance = balanceQuery.data
+  const { openWith, dialog, notice: adjustNotice } = useStockAdjustmentDialog()
 
   const movementsQuery = trpc.wms.listMovements.useQuery(
     { page: 1, pageSize: 50, sku: balance?.sku, warehouse: balance?.warehouse },
@@ -125,7 +127,22 @@ export default function InventoryBalanceDetailPage({ params }: { params: Promise
               </LocaleLink>
             </Button>
             <Button size="sm" variant="outline" asChild>
-              <LocaleLink href="/console/stock-adjustments">发起调整</LocaleLink>
+              <LocaleLink href="/console/stock-adjustments">调整列表</LocaleLink>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!balance}
+              onClick={() =>
+                openWith({
+                  sku: balance.sku,
+                  warehouse: balance.warehouse,
+                  bin: balance.bin,
+                  qtySystem: balance.onHand,
+                })
+              }
+            >
+              发起调整
             </Button>
             <Button size="sm" variant="ghost" asChild>
               <LocaleLink href={`/console/warehouse/${encodeURIComponent(balance.warehouse)}`}>
@@ -197,6 +214,8 @@ export default function InventoryBalanceDetailPage({ params }: { params: Promise
               ]
         }
       />
+      {dialog}
+      {adjustNotice ? <p role="status" className="text-sm text-muted-foreground">{adjustNotice}</p> : null}
     </div>
   )
 }

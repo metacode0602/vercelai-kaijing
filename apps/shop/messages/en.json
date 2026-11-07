@@ -390,7 +390,8 @@
       "notifications": "Notifications",
       "members": "Members",
       "preferences": "Preferences",
-      "fxRates": "FX rates"
+      "fxRates": "FX rates",
+      "stockAlerts": "Stock alert thresholds"
     },
     "profile": {
       "account": "Account",

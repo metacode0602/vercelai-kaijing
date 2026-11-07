@@ -39,7 +39,7 @@ export default function WarehouseZoneDetailPage({ params }: { params: Promise<{ 
   const zoneQuery = trpc.wms.getZone.useQuery({ id }, { retry: false })
   const row = zoneQuery.data
   const binsQuery = trpc.wms.listBins.useQuery(
-    { page: 1, pageSize: 200, warehouse: row?.warehouseCode },
+    { page: 1, pageSize: 100, warehouse: row?.warehouseCode },
     { enabled: !!row?.warehouseCode },
   )
   const balancesQuery = trpc.wms.listBalances.useQuery(

@@ -12,7 +12,7 @@ export default function WarehouseZonesPage() {
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
-  const zonesQuery = trpc.wms.listZones.useQuery({ page: 1, pageSize: 200 })
+  const zonesQuery = trpc.wms.listZones.useQuery({ page: 1, pageSize: 100 })
   const statsQuery = trpc.wms.zoneStats.useQuery()
   const warehousesQuery = trpc.wms.listWarehouses.useQuery({ page: 1, pageSize: 100, status: '启用' })
 

@@ -36,6 +36,7 @@ import {
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
 import * as syncDa from '@/lib/server/dataaccess/sync'
+import { recomputeStockAlerts } from '@/lib/server/dataaccess/stock-alerts'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -911,6 +912,8 @@ async function reserveOrderInternal(
           qty,
         },
       })
+      // 占库改 reserved，available 变化：重算该 variant 预警。
+      await recomputeStockAlerts(db, organizationId, [line.variantId!])
     }
 
     const [existRes] = await db
@@ -1080,6 +1083,8 @@ export async function releaseOrderReservations(
           occurredAt: new Date(),
           raw: { reason: '订单释放占库', qty: res.qty, orderLineId: res.orderLineId },
         })
+        // 释放占库改 reserved，available 变化：重算该 variant 预警。
+        await recomputeStockAlerts(tx, organizationId, [res.variantId])
       }
       await tx
         .update(inventoryReservations)
@@ -1524,6 +1529,8 @@ export async function postOutbound(
           reason: '订单出库',
         },
       })
+      // 出库改 on_hand + reserved，available 变化：重算该 variant 预警。
+      await recomputeStockAlerts(tx, organizationId, [line.variantId])
 
       if (line.orderLineId) {
         await tx

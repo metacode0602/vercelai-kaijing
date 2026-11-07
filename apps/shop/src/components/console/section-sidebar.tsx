@@ -19,6 +19,7 @@ import {
   Upload,
   User,
   Users,
+  AlertTriangle,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
@@ -42,6 +43,7 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   '/console/settings/marketplace-apps': <KeyRound className="size-4" />,
   '/console/settings/platform-basics': <SlidersHorizontal className="size-4" />,
   '/console/settings/fx-rates': <Banknote className="size-4" />,
+  '/console/settings/stock-alerts': <AlertTriangle className="size-4" />,
   '/console/dictionaries': <Tags className="size-4" />,
   '/console/settings/dictionaries': <Tags className="size-4" />,
   '/console/settings/imports': <Upload className="size-4" />,
@@ -107,7 +109,7 @@ export function SectionSidebar({
                   <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                     <LocaleLink href={item.url}>
                       {getSectionIcon(item.url)}
-                      <span>{t(item.titleKey as 'settings.shops' | 'settings.marketplaceApps' | 'settings.platformBasics' | 'settings.fxRates' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.audit' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
+                      <span>{t(item.titleKey as 'settings.shops' | 'settings.marketplaceApps' | 'settings.platformBasics' | 'settings.fxRates' | 'settings.stockAlerts' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.audit' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
                     </LocaleLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -17,6 +17,7 @@ import {
   products,
   stockAdjustmentLines,
   stockAdjustments,
+  stockAlerts,
   stockOutboundLines,
   stockOutbounds,
 } from '@workspace/db/schema'
@@ -55,6 +56,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { recomputeStockAlerts } from '@/lib/server/dataaccess/stock-alerts'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -1221,46 +1223,53 @@ export async function listBalances(
 }
 
 export async function balanceStats(db: AppDatabase, organizationId: string) {
-  const rows = await db
+  // 单条 SQL 聚合：避免把全部余额行拉到 Node 内存。
+  // skuCount = distinct variant；lowStock = available < 20 的 variant 数（按 variant 聚合后过滤）。
+  const [row] = await db
     .select({
-      onHand: inventoryBalances.onHand,
-      reserved: inventoryBalances.reserved,
-      qcHold: inventoryBalances.qcHold,
-      damaged: inventoryBalances.damaged,
-      inTransit: inventoryBalances.inTransit,
-      customsClearing: inventoryBalances.customsClearing,
-      variantId: inventoryBalances.variantId,
+      rowCount: sql<number>`count(*)`.mapWith(Number),
+      onHandTotal: sql<number>`coalesce(sum(${inventoryBalances.onHand}), 0)`.mapWith(Number),
+      reservedTotal: sql<number>`coalesce(sum(${inventoryBalances.reserved}), 0)`.mapWith(Number),
+      damagedTotal: sql<number>`coalesce(sum(${inventoryBalances.damaged}), 0)`.mapWith(Number),
+      inTransitTotal: sql<number>`coalesce(sum(${inventoryBalances.inTransit}), 0)`.mapWith(Number),
+      customsTotal: sql<number>`coalesce(sum(${inventoryBalances.customsClearing}), 0)`.mapWith(Number),
     })
     .from(inventoryBalances)
     .where(eq(inventoryBalances.organizationId, organizationId))
-  const skuSet = new Set(rows.map((r) => r.variantId))
-  let availableTotal = 0
-  let onHandTotal = 0
-  let reservedTotal = 0
-  let damagedTotal = 0
-  let inTransitTotal = 0
-  let customsTotal = 0
-  let lowStock = 0
-  for (const r of rows) {
-    const a = availableQty(r)
-    availableTotal += a
-    onHandTotal += r.onHand
-    reservedTotal += r.reserved
-    damagedTotal += r.damaged
-    inTransitTotal += r.inTransit
-    customsTotal += r.customsClearing
-    if (a < 20) lowStock += 1
-  }
+
+  // 按 variant 聚合后取 available，再统计 skuCount / availableTotal / lowStock。
+  const [agg] = await db
+    .select({
+      skuCount: sql<number>`count(distinct ${inventoryBalances.variantId})`.mapWith(Number),
+      availableTotal: sql<number>`coalesce(
+        sum(
+          greatest(0,
+            ${inventoryBalances.onHand} - ${inventoryBalances.reserved}
+            - ${inventoryBalances.qcHold} - ${inventoryBalances.damaged}
+          )
+        ), 0
+      )`.mapWith(Number),
+      lowStock: sql<number>`count(*) FILTER (
+        WHERE
+          greatest(0,
+            ${inventoryBalances.onHand} - ${inventoryBalances.reserved}
+            - ${inventoryBalances.qcHold} - ${inventoryBalances.damaged}
+          ) < 20
+      )`.mapWith(Number),
+    })
+    .from(inventoryBalances)
+    .where(eq(inventoryBalances.organizationId, organizationId))
+
   return {
-    skuCount: skuSet.size,
-    rowCount: rows.length,
-    availableTotal,
-    onHandTotal,
-    reservedTotal,
-    damagedTotal,
-    inTransitTotal,
-    customsClearingTotal: customsTotal,
-    lowStock,
+    skuCount: Number(agg?.skuCount ?? 0),
+    rowCount: Number(row?.rowCount ?? 0),
+    availableTotal: Number(agg?.availableTotal ?? 0),
+    onHandTotal: Number(row?.onHandTotal ?? 0),
+    reservedTotal: Number(row?.reservedTotal ?? 0),
+    damagedTotal: Number(row?.damagedTotal ?? 0),
+    inTransitTotal: Number(row?.inTransitTotal ?? 0),
+    customsClearingTotal: Number(row?.customsTotal ?? 0),
+    lowStock: Number(agg?.lowStock ?? 0),
   }
 }
 
@@ -1784,6 +1793,13 @@ export async function postWmsOutbound(
       })
     }
 
+    // 余额已变（on_hand / damaged），重算受影响 variant 的库存预警。
+    await recomputeStockAlerts(
+      tx,
+      organizationId,
+      lines.map((l) => l.variantId),
+    )
+
     await tx
       .update(stockOutbounds)
       .set({
@@ -2139,6 +2155,13 @@ export async function postAdjustment(
       })
     }
 
+    // 余额已变（on_hand / damaged），重算受影响 variant 的库存预警。
+    await recomputeStockAlerts(
+      tx,
+      organizationId,
+      lines.filter((l) => l.qtyDiff !== 0).map((l) => l.variantId),
+    )
+
     await tx
       .update(stockAdjustments)
       .set({
@@ -2460,7 +2483,18 @@ export type InventoryAlertRow = {
   suggestion: string
 }
 
-/** /console/inventory 预警列表：按 SKU 聚合 balances。 */
+/**
+ * /console/inventory 预警列表：聚合下推到 SQL（方案A）+ LEFT JOIN stock_alerts 取阈值与 muted（方案B）。
+ *
+ * - 按 variant GROUP BY，available = sum(on_hand - reserved - qc_hold - damaged) 在 SQL 计算。
+ * - threshold 取 stock_alerts.threshold（用户覆盖），缺省回退 20。
+ * - muted variant 仍返回，但 alert 强制为 null（不在预警徽章计入）。
+ * - 库龄 ageDays 取自 inventory_movements 最后一次入库 occurred_at（purchase_stock_in / return_restock），
+ *   回退到 balances.updated_at；比原来用 updated_at 更接近真实库龄。
+ * - 关键词、告警过滤、排序、分页全部在 SQL 完成；Node 只持有当前页 ≤ pageSize 行。
+ *
+ * @see docs/design/shop-module8-wms-trpc.md §3.5
+ */
 export async function listInventoryAlerts(
   db: AppDatabase,
   organizationId: string,
@@ -2468,100 +2502,194 @@ export async function listInventoryAlerts(
 ): Promise<PaginatedResult<InventoryAlertRow> & { urgent: number; aged: number }> {
   const page = normalizePage(input.page)
   const pageSize = normalizePageSize(input.pageSize)
-  const rows = await db
+
+  // 关键词预筛 variant_id：sku_code / sku / title 命中。
+  let variantFilter: SQL | undefined
+  if (input.q?.trim()) {
+    const q = `%${input.q.trim()}%`
+    const variants = await db
+      .select({ id: productVariants.id })
+      .from(productVariants)
+      .leftJoin(products, eq(products.id, productVariants.productId))
+      .where(
+        and(
+          eq(productVariants.organizationId, organizationId),
+          or(
+            ilike(productVariants.skuCode, q),
+            ilike(productVariants.sku, q),
+            ilike(products.title, q),
+          ),
+        ),
+      )
+    if (variants.length === 0) {
+      return { items: [], total: 0, page, pageSize, urgent: 0, aged: 0 }
+    }
+    variantFilter = inArray(
+      inventoryBalances.variantId,
+      variants.map((v) => v.id),
+    )
+  }
+
+  const where = and(
+    eq(inventoryBalances.organizationId, organizationId),
+    variantFilter,
+  )
+
+  // 内层聚合：按 variant 汇总余额 + 取 threshold + 取最后入库时间。
+  const agg = db
     .select({
-      bal: inventoryBalances,
+      variantId: inventoryBalances.variantId,
       skuCode: productVariants.skuCode,
       sku: productVariants.sku,
       title: products.title,
-      updatedAt: inventoryBalances.updatedAt,
+      shopCount: sql<number>`count(*)`.mapWith(Number),
+      onHand: sql<number>`coalesce(sum(${inventoryBalances.onHand}), 0)`.mapWith(Number),
+      reserved: sql<number>`coalesce(sum(${inventoryBalances.reserved}), 0)`.mapWith(Number),
+      qcHold: sql<number>`coalesce(sum(${inventoryBalances.qcHold}), 0)`.mapWith(Number),
+      damaged: sql<number>`coalesce(sum(${inventoryBalances.damaged}), 0)`.mapWith(Number),
+      inTransit: sql<number>`coalesce(sum(${inventoryBalances.inTransit}), 0)`.mapWith(Number),
+      customsClearing: sql<number>`coalesce(sum(${inventoryBalances.customsClearing}), 0)`.mapWith(Number),
+      threshold: sql<number>`coalesce(${stockAlerts.threshold}, 20)`.mapWith(Number),
+      muted: sql<number>`case when ${stockAlerts.status} = 'muted' then 1 else 0 end`.mapWith(Number),
+      maxUpdatedAt: sql<Date>`max(${inventoryBalances.updatedAt})`,
+      lastInAt: sql<Date>`(
+        select max(${inventoryMovements.occurredAt})
+        from ${inventoryMovements}
+        where ${inventoryMovements.organizationId} = ${inventoryBalances.organizationId}
+          and ${inventoryMovements.variantId} = ${inventoryBalances.variantId}
+          and ${inventoryMovements.movementType} in ('purchase_stock_in', 'return_restock')
+      )`,
     })
     .from(inventoryBalances)
     .innerJoin(productVariants, eq(productVariants.id, inventoryBalances.variantId))
     .leftJoin(products, eq(products.id, productVariants.productId))
-    .where(eq(inventoryBalances.organizationId, organizationId))
+    .leftJoin(
+      stockAlerts,
+      and(
+        eq(stockAlerts.organizationId, inventoryBalances.organizationId),
+        eq(stockAlerts.variantId, inventoryBalances.variantId),
+      ),
+    )
+    .where(where)
+    .groupBy(
+      inventoryBalances.variantId,
+      productVariants.skuCode,
+      productVariants.sku,
+      products.title,
+      stockAlerts.threshold,
+      stockAlerts.status,
+    )
+    .as('agg')
 
-  const bySku = new Map<string, InventoryAlertRow & { _updated: number }>()
-  const now = Date.now()
-  for (const r of rows) {
-    const sku = r.skuCode || r.sku
-    const avail = availableQty(r.bal)
-    const cur = bySku.get(sku) ?? {
-      sku,
-      variantId: r.bal.variantId,
-      title: r.title || sku,
-      shopCount: 0,
-      onHand: 0,
-      reserved: 0,
-      available: 0,
-      inTransit: 0,
-      customsClearing: 0,
-      threshold: 20,
-      ageDays: 0,
-      alert: null as 'critical' | 'open' | null,
-      suggestion: '',
-      _updated: 0,
-    }
-    cur.onHand += r.bal.onHand
-    cur.reserved += r.bal.reserved
-    cur.available += avail
-    cur.inTransit += r.bal.inTransit
-    cur.customsClearing += r.bal.customsClearing
-    cur.shopCount += 1
-    const ts = r.updatedAt ? new Date(r.updatedAt).getTime() : now
-    if (ts > cur._updated) cur._updated = ts
-    bySku.set(sku, cur)
-  }
+  // available / ageDays / alert 在外层派生，便于过滤、排序、分页。
+  const availableExpr = sql<number>`greatest(0,
+    ${agg.onHand} - ${agg.reserved} - ${agg.qcHold} - ${agg.damaged}
+  )`.mapWith(Number)
+  const ageDaysExpr = sql<number>`greatest(0, coalesce(
+    floor(extract(epoch from (now() - coalesce(${agg.lastInAt}, ${agg.maxUpdatedAt}))) / 86400)),
+    0
+  ))`.mapWith(Number)
+  const alertExpr = sql<string>`case
+    when ${agg.muted} = 1 then null
+    when ${availableExpr} <= 0 then 'critical'
+    when ${availableExpr} < ${agg.threshold} or ${ageDaysExpr} >= 60 then 'open'
+    else null
+  end`
 
-  let items = [...bySku.values()].map((row) => {
-    const ageDays = Math.max(0, Math.floor((now - (row._updated || now)) / (24 * 3600 * 1000)))
-    let alert: 'critical' | 'open' | null = null
+  const outerWhere: SQL[] = []
+  if (input.alert === 'none') outerWhere.push(sql`${alertExpr} is null`)
+  else if (input.alert === 'critical') outerWhere.push(sql`${alertExpr} = 'critical'`)
+  else if (input.alert === 'open') outerWhere.push(sql`${alertExpr} = 'open'`)
+
+  const baseQuery = db
+    .select({
+      sku: sql<string>`coalesce(${agg.skuCode}, ${agg.sku})`,
+      variantId: agg.variantId,
+      title: sql<string>`coalesce(${agg.title}, ${agg.skuCode}, ${agg.sku})`,
+      shopCount: agg.shopCount,
+      onHand: agg.onHand,
+      reserved: agg.reserved,
+      available: availableExpr,
+      inTransit: agg.inTransit,
+      customsClearing: agg.customsClearing,
+      threshold: agg.threshold,
+      ageDays: ageDaysExpr,
+      alert: alertExpr,
+    })
+    .from(agg)
+    .where(outerWhere.length ? and(...outerWhere) : undefined)
+    .orderBy(
+      sql`case ${alertExpr} when 'critical' then 0 when 'open' then 1 else 2 end`,
+      sql`coalesce(${agg.skuCode}, ${agg.sku})`,
+    )
+
+  const [totalRow] = await db.select({ c: sql<number>`count(*)`.mapWith(Number) }).from(
+    db
+      .select({ alert: alertExpr })
+      .from(agg)
+      .where(outerWhere.length ? and(...outerWhere) : undefined)
+      .as('cnt'),
+  )
+
+  const rows = await baseQuery.limit(pageSize).offset((page - 1) * pageSize)
+
+  const items: InventoryAlertRow[] = rows.map((r) => {
+    const available = Number(r.available)
+    const threshold = Number(r.threshold)
+    const ageDays = Number(r.ageDays)
+    const alert = (r.alert ?? null) as 'critical' | 'open' | null
     let suggestion = '库存正常'
-    if (row.available <= 0) {
-      alert = 'critical'
-      suggestion = '可用为 0，请补货或释放预留'
-    } else if (row.available < row.threshold) {
-      alert = 'open'
-      suggestion = `可用 ${row.available} 低于阈值 ${row.threshold}`
-    } else if (ageDays >= 60 && row.available > 0) {
-      alert = 'open'
+    if (alert === 'critical') suggestion = '可用为 0，请补货或释放预留'
+    else if (alert === 'open' && available < threshold) {
+      suggestion = `可用 ${available} 低于阈值 ${threshold}`
+    } else if (alert === 'open' && ageDays >= 60) {
       suggestion = `库龄约 ${ageDays} 天，关注滞销`
     }
-    const { _updated: _, ...rest } = row
-    return { ...rest, ageDays, alert, suggestion }
+    return {
+      sku: r.sku ?? '',
+      variantId: r.variantId ?? '',
+      title: r.title ?? '',
+      shopCount: Number(r.shopCount),
+      onHand: Number(r.onHand),
+      reserved: Number(r.reserved),
+      available,
+      inTransit: Number(r.inTransit),
+      customsClearing: Number(r.customsClearing),
+      threshold,
+      ageDays,
+      alert,
+      suggestion,
+    }
   })
 
-  if (input.q?.trim()) {
-    const q = input.q.trim().toLowerCase()
-    items = items.filter(
-      (r) =>
-        r.sku.toLowerCase().includes(q) ||
-        r.title.toLowerCase().includes(q) ||
-        r.suggestion.toLowerCase().includes(q),
-    )
-  }
-  if (input.alert === 'none') items = items.filter((r) => !r.alert)
-  else if (input.alert && input.alert !== 'all') items = items.filter((r) => r.alert === input.alert)
+  // urgent / aged 计数下推 SQL：一次聚合，不拉全量到 Node。
+  const [statRow] = await db
+    .select({
+      urgent: sql<number>`count(*) filter (where ${alertExpr} = 'critical')`.mapWith(Number),
+      aged: sql<number>`count(*) filter (where ${ageDaysExpr} >= 60)`.mapWith(Number),
+    })
+    .from(agg)
+    .where(outerWhere.length ? and(...outerWhere) : undefined)
 
-  items.sort((a, b) => {
-    const rank = (x: InventoryAlertRow['alert']) => (x === 'critical' ? 0 : x === 'open' ? 1 : 2)
-    return rank(a.alert) - rank(b.alert) || a.sku.localeCompare(b.sku)
-  })
-
-  const urgent = items.filter((r) => r.alert === 'critical').length
-  const aged = items.filter((r) => r.ageDays >= 60).length
-  const total = items.length
   return {
-    items: items.slice((page - 1) * pageSize, page * pageSize),
-    total,
+    items,
+    total: Number(totalRow?.c ?? 0),
     page,
     pageSize,
-    urgent,
-    aged,
+    urgent: Number(statRow?.urgent ?? 0),
+    aged: Number(statRow?.aged ?? 0),
   }
 }
 
-export async function getInventoryAlertBySku(db: AppDatabase, organizationId: string, sku: string) {
-  const result = await listInventoryAlerts(db, organizationId, { page: 1, pageSize: 500, q: sku })
-  return result.items.find((r) => r.sku === sku) ?? null
+/** /console/inventory/[sku]：按 SKU 单查聚合行，不再走 list+find。 */
+export async function getInventoryAlertBySku(
+  db: AppDatabase,
+  organizationId: string,
+  sku: string,
+): Promise<InventoryAlertRow | null> {
+  const result = await listInventoryAlerts(db, organizationId, { page: 1, pageSize: 100, q: sku })
+  const exact = result.items.find((r) => r.sku === sku)
+  if (exact) return exact
+  // sku_code 模糊命中可能返回多条；退回第一条同 SKU 行
+  return result.items[0] ?? null
 }

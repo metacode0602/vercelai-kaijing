@@ -33,6 +33,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { recomputeStockAlert } from '@/lib/server/dataaccess/stock-alerts'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -1287,6 +1288,10 @@ async function upsertBalanceDelta(
       pendingInbound: Math.max(0, input.pendingInboundDelta || 0),
       damaged: Math.max(0, input.damagedDelta || 0),
     })
+    // 新建余额行后也重算预警（available 可能从 0 变为正）。
+    if (input.onHandDelta || input.damagedDelta) {
+      await recomputeStockAlert(db, input.organizationId, input.variantId)
+    }
     return
   }
 
@@ -1300,6 +1305,11 @@ async function upsertBalanceDelta(
       updatedAt: new Date(),
     })
     .where(eq(inventoryBalances.id, existing.id))
+
+  // on_hand / damaged 变化才影响 available；pending_inbound 不计可用，跳过以减少写。
+  if (input.onHandDelta || input.damagedDelta) {
+    await recomputeStockAlert(db, input.organizationId, input.variantId)
+  }
 }
 
 export async function listStockInbounds(
@@ -1513,6 +1523,9 @@ export async function confirmStockInboundShelve(
         },
       })
     }
+
+    // 上架写 on_hand，available 变化：重算该 variant 的库存预警。
+    await recomputeStockAlert(tx, organizationId, row.variantId)
 
     await tx
       .update(stockInbounds)

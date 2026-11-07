@@ -32,6 +32,7 @@ import { pendingRouter } from './pending'
 import { reportsRouter } from './reports'
 import { fxRatesRouter } from './fx-rates'
 import { integrationLogsRouter } from './integration-logs'
+import { stockAlertsRouter } from './stock-alerts'
 
 export * from '@/lib/server/trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -70,6 +71,7 @@ export const appRouter = router({
   reports: reportsRouter,
   fxRates: fxRatesRouter,
   integrationLogs: integrationLogsRouter,
+  stockAlerts: stockAlertsRouter,
 })
 
 export type AppRouter = typeof appRouter
