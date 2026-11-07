@@ -243,6 +243,10 @@ export type UedDialogField = {
   fullWidth?: boolean
 }
 
+function uniqueOptions(options: string[]): string[] {
+  return Array.from(new Set(options))
+}
+
 function UedSearchableSelect(props: {
   id: string
   value: string
@@ -253,11 +257,12 @@ function UedSearchableSelect(props: {
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
+  const options = React.useMemo(() => uniqueOptions(props.options), [props.options])
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return props.options
-    return props.options.filter((option) => option.toLowerCase().includes(q))
-  }, [props.options, query])
+    if (!q) return options
+    return options.filter((option) => option.toLowerCase().includes(q))
+  }, [options, query])
 
   React.useEffect(() => {
     if (!open) setQuery('')
@@ -372,25 +377,26 @@ export function UedDialog(props: {
               const value = values[key] ?? ''
               const setValue = (next: string) => setValues((current) => ({ ...current, [key]: next }))
               const searchable = Boolean(field.searchable || field.type === 'search-select')
+              const options = field.options ? uniqueOptions(field.options) : undefined
               return (
                 <div key={key} className={field.fullWidth ? 'flex flex-col gap-2 sm:col-span-2' : 'flex flex-col gap-2'}>
                   <Label htmlFor={`ued-field-${key}`}>{field.label}{field.required ? <span className="text-destructive">*</span> : null}</Label>
-                  {field.options && searchable ? (
+                  {options && searchable ? (
                     <UedSearchableSelect
                       id={`ued-field-${key}`}
                       value={value}
-                      options={field.options}
+                      options={options}
                       placeholder={field.placeholder}
                       disabled={field.readOnly}
                       onChange={setValue}
                     />
-                  ) : field.options ? (
+                  ) : options ? (
                     <Select value={value === '' ? '__empty__' : value} onValueChange={(next) => setValue(next === '__empty__' ? '' : next)} disabled={field.readOnly}>
                       <SelectTrigger id={`ued-field-${key}`}>
                         <SelectValue placeholder="请选择" />
                       </SelectTrigger>
                       <SelectContent>
-                        {field.options.map((option) => <SelectItem key={option || '__empty__'} value={option || '__empty__'}>{option || '（不限）'}</SelectItem>)}
+                        {options.map((option) => <SelectItem key={option || '__empty__'} value={option || '__empty__'}>{option || '（不限）'}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   ) : field.type === 'textarea' ? (
