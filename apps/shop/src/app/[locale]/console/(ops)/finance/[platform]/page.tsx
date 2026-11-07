@@ -17,7 +17,7 @@ export default function FinanceDetailPage({ params }: { params: Promise<{ platfo
     return (
       <div className="space-y-4">
         <DetailPageHeader
-          backHref="/console/finance"
+          backHref="/console/settlements"
           title="未找到平台财务"
           description={`平台 ${platform} 无店铺或订单数据。`}
         />
@@ -43,13 +43,13 @@ export default function FinanceDetailPage({ params }: { params: Promise<{ platfo
 
   return (
     <UedRecordDetail
-      backHref="/console/finance"
+      backHref="/console/settlements"
       moduleTitle="财务总览"
       module="finance"
       idKey="platformKey"
       titleKeys={['platform']}
       row={flat as unknown as Record<string, unknown>}
-      notice="按平台聚合订单营收与结算批次；不假装平台结算 OpenAPI 已通。左侧菜单仍以结算/利润等子模块为准。"
+      notice="按平台聚合订单营收与结算批次。平台结算 OpenAPI 仅 Lazop（Daraz/Lazada）可拉取；其他平台请用导入或等待适配器。左侧以结算/利润等子模块为准。"
       description={`${row.platform} · 营收 / 成本 / 结算粗览`}
     />
   )

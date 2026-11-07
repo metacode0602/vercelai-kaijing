@@ -1184,7 +1184,8 @@ export async function settlementSyncCapability(
     disableReason =
       '未配置 MARKETPLACE_API_BASE_URL / INTERNAL_SYNC_API_KEY，无法调用 apps/api 结算同步。'
   } else if (lazop.length === 0) {
-    disableReason = '组织内没有 Daraz/Lazada 店铺，结算 OpenAPI 仅支持 Lazop 平台。'
+    disableReason =
+      '组织内没有 Daraz/Lazada 店铺。结算平台同步仅支持 Lazop（listSettlements）；TikTok/Shopee 等暂无适配器，请用 CSV/JSON 导入，禁止假成功。'
   } else if (credentialed === 0) {
     disableReason = 'Daraz/Lazada 店铺尚未授权（缺少 integration_credentials），无法拉取结算。'
   }
