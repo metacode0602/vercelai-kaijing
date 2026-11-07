@@ -3,7 +3,7 @@
  * Q08：取消批准写 order_release 流水，禁止静默改余额。
  * Q18：质检完成写 aftersale_restock / aftersale_scrap 流水；不合格不入可用。
  */
-import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   inventoryBalances,
@@ -18,6 +18,7 @@ import {
   reverseOrderItems,
   reverseOrders,
   reverseQcRecords,
+  shopAftersalePolicies,
   shops,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -26,6 +27,8 @@ import {
   isCancelLike,
   isReturnLike,
   money,
+  REFUND_DECISION_LABELS,
+  RELEASE_STATUS_LABELS,
   toDbCancelStatus,
   toDbRequestType,
   toDbReturnStatus,
@@ -34,6 +37,8 @@ import {
   toUiRequestType,
   toUiReturnStatus,
   toUiTicketStatus,
+  type RefundDecision,
+  type ReleaseStatus,
   type UiCancelStatus,
   type UiReturnStatus,
   type UiTicketStatus,
@@ -261,6 +266,18 @@ export type AftersaleCancelDto = {
   reverseOrderDbId: string
   lineId: string
   variantId: string
+  /** 占库释放策略快照 manual/auto */
+  inventoryReleaseMode: string
+  /** 占库释放状态 pending_manual/released/skipped/failed */
+  inventoryReleaseStatus: string
+  inventoryReleaseStatusLabel: string
+  /** 退款策略快照 manual/auto */
+  refundMode: string
+  refundWaitDays: number
+  /** 退款决定 pending_manual/scheduled/deciding/agreed/rejected/skipped/unsupported */
+  refundDecision: string
+  refundDecisionLabel: string
+  refundDueAt: string
 }
 
 function pickUiId(ro: typeof reverseOrders.$inferSelect, fallbackExt: string): string {
@@ -419,6 +436,8 @@ function toCancelDto(
   const typeLabel =
     str(raw.typeLabel) ||
     (ro.requestType === 'ONLY_REFUND' ? '仅退款' : '取消订单')
+  const releaseStatus = (ro.inventoryReleaseStatus || 'pending_manual') as ReleaseStatus
+  const refundDecision = (ro.refundDecision || 'pending_manual') as RefundDecision
   return {
     id: pickUiId(ro, ro.externalReverseOrderId),
     reverseOrderId: ro.id,
@@ -443,12 +462,20 @@ function toCancelDto(
     reason: str(raw.reason) || str(ctx.line?.reasonText),
     reasonCode: str(raw.reasonCode) || str(ctx.line?.reasonCode),
     remark: str(raw.remark),
-    releasedAt: str(raw.releasedAt),
+    releasedAt: formatStamp(ro.inventoryReleasedAt) || str(raw.releasedAt),
     releaseLedgerId: str(raw.releaseLedgerId),
     orderId: ro.orderId || '',
     reverseOrderDbId: ro.id,
     lineId: ctx.line?.id || '',
     variantId: ctx.variantId,
+    inventoryReleaseMode: ro.inventoryReleaseMode || 'manual',
+    inventoryReleaseStatus: releaseStatus,
+    inventoryReleaseStatusLabel: RELEASE_STATUS_LABELS[releaseStatus] ?? releaseStatus,
+    refundMode: ro.refundMode || 'manual',
+    refundWaitDays: ro.refundWaitDays ?? 1,
+    refundDecision,
+    refundDecisionLabel: REFUND_DECISION_LABELS[refundDecision] ?? refundDecision,
+    refundDueAt: formatStamp(ro.refundDueAt),
   }
 }
 
@@ -501,6 +528,12 @@ export async function listTickets(
       )!,
     )
   }
+  if (input.status?.trim()) {
+    conditions.push(sql`${reverseOrders.raw}->>'uiStatus' = ${input.status.trim()}`)
+  }
+  if (input.type?.trim()) {
+    conditions.push(sql`${reverseOrders.raw}->>'typeLabel' = ${input.type.trim()}`)
+  }
   const where = and(...conditions)
   const [totalRow] = await db.select({ c: count() }).from(reverseOrders).where(where)
   const rows = await db
@@ -513,21 +546,27 @@ export async function listTickets(
   const items: AftersaleTicketDto[] = []
   for (const ro of rows) {
     const ctx = await loadRelated(db, organizationId, ro)
-    const dto = toTicketDto(ro, ctx)
-    if (input.status && dto.status !== input.status) continue
-    if (input.type && dto.type !== input.type) continue
-    items.push(dto)
+    items.push(toTicketDto(ro, ctx))
   }
   return { items, total: Number(totalRow?.c || 0), page, pageSize }
 }
 
 export async function ticketStats(db: AppDatabase, organizationId: string) {
-  const { items } = await listTickets(db, organizationId, { page: 1, pageSize: 500 })
+  const rows = await db
+    .select({
+      status: sql<string>`coalesce(${reverseOrders.raw}->>'uiStatus', '待确认')`,
+      c: count(),
+    })
+    .from(reverseOrders)
+    .where(eq(reverseOrders.organizationId, organizationId))
+    .groupBy(sql`coalesce(${reverseOrders.raw}->>'uiStatus', '待确认')`)
+  const map = new Map(rows.map((r) => [r.status, Number(r.c)]))
+  const total = rows.reduce((sum, r) => sum + Number(r.c), 0)
   return {
-    total: items.length,
-    pending: items.filter((r) => r.status === '待确认').length,
-    approved: items.filter((r) => r.status === '已审核' || r.status === '已入库').length,
-    withReturn: items.filter((r) => r.returned > 0).length,
+    total,
+    pending: map.get('待确认') ?? 0,
+    approved: (map.get('已审核') ?? 0) + (map.get('已入库') ?? 0),
+    withReturn: 0,
   }
 }
 
@@ -548,44 +587,71 @@ export async function listReturns(
 ): Promise<PaginatedResult<AftersaleReturnDto>> {
   const page = normalizePage(input.page)
   const pageSize = normalizePageSize(input.pageSize)
+  const conditions: SQL[] = [
+    eq(reverseOrders.organizationId, organizationId),
+    or(
+      eq(reverseOrders.requestType, 'RETURN'),
+      sql`${reverseOrders.raw}->>'typeLabel' in ('退货退款','换货')`,
+    )!,
+  ]
+  if (input.status?.trim()) {
+    conditions.push(sql`${reverseOrders.raw}->>'returnStatus' = ${input.status.trim()}`)
+  }
+  if (input.q?.trim()) {
+    const q = `%${input.q.trim()}%`
+    conditions.push(
+      or(
+        ilike(reverseOrders.externalReverseOrderId, q),
+        ilike(reverseOrders.externalTradeOrderId, q),
+        sql`${reverseOrders.raw}->>'uiId' ilike ${q}`,
+        sql`${reverseOrders.raw}->>'sku' ilike ${q}`,
+        sql`${reverseOrders.raw}->>'shopName' ilike ${q}`,
+        sql`${reverseOrders.raw}->>'tracking' ilike ${q}`,
+      )!,
+    )
+  }
+  const where = and(...conditions)
+  const [totalRow] = await db.select({ c: count() }).from(reverseOrders).where(where)
   const rows = await db
     .select()
+    .from(reverseOrders)
+    .where(where)
+    .orderBy(desc(reverseOrders.createdAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+  const items: AftersaleReturnDto[] = []
+  for (const ro of rows) {
+    const ctx = await loadRelated(db, organizationId, ro)
+    items.push(toReturnDto(ro, ctx))
+  }
+  return { items, total: Number(totalRow?.c || 0), page, pageSize }
+}
+
+export async function returnStats(db: AppDatabase, organizationId: string) {
+  const rows = await db
+    .select({
+      status: sql<string>`coalesce(${reverseOrders.raw}->>'returnStatus', '待收货确认')`,
+      c: count(),
+    })
     .from(reverseOrders)
     .where(
       and(
         eq(reverseOrders.organizationId, organizationId),
-        or(eq(reverseOrders.requestType, 'RETURN'), sql`${reverseOrders.raw}->>'typeLabel' in ('退货退款','换货')`),
+        or(
+          eq(reverseOrders.requestType, 'RETURN'),
+          sql`${reverseOrders.raw}->>'typeLabel' in ('退货退款','换货')`,
+        ),
       ),
     )
-    .orderBy(desc(reverseOrders.createdAt))
-    .limit(500)
-  const items: AftersaleReturnDto[] = []
-  for (const ro of rows) {
-    const ctx = await loadRelated(db, organizationId, ro)
-    const dto = toReturnDto(ro, ctx)
-    if (input.status && dto.status !== input.status) continue
-    if (input.q?.trim()) {
-      const q = input.q.trim().toLowerCase()
-      const hay = [dto.id, dto.order, dto.sku, dto.tracking, dto.externalReturnId, dto.shop]
-        .join(' ')
-        .toLowerCase()
-      if (!hay.includes(q)) continue
-    }
-    items.push(dto)
-  }
-  const total = items.length
-  const slice = items.slice((page - 1) * pageSize, page * pageSize)
-  return { items: slice, total, page, pageSize }
-}
-
-export async function returnStats(db: AppDatabase, organizationId: string) {
-  const { items } = await listReturns(db, organizationId, { page: 1, pageSize: 500 })
+    .groupBy(sql`coalesce(${reverseOrders.raw}->>'returnStatus', '待收货确认')`)
+  const map = new Map(rows.map((r) => [r.status, Number(r.c)]))
+  const total = rows.reduce((sum, r) => sum + Number(r.c), 0)
   return {
-    total: items.length,
-    pendingReceive: items.filter((r) => r.status === '待收货确认').length,
-    pendingQc: items.filter((r) => r.status === '待质检' || r.status === '质检中').length,
-    restocked: items.filter((r) => r.status === '已回库' || r.status === '部分回库').length,
-    scrapped: items.filter((r) => r.status === '已报损').length,
+    total,
+    pendingReceive: map.get('待收货确认') ?? 0,
+    pendingQc: (map.get('待质检') ?? 0) + (map.get('质检中') ?? 0),
+    restocked: (map.get('已回库') ?? 0) + (map.get('部分回库') ?? 0),
+    scrapped: map.get('已报损') ?? 0,
   }
 }
 
@@ -609,8 +675,53 @@ export async function listCancels(
 ): Promise<PaginatedResult<AftersaleCancelDto>> {
   const page = normalizePage(input.page)
   const pageSize = normalizePageSize(input.pageSize)
+  const conditions: SQL[] = [
+    eq(reverseOrders.organizationId, organizationId),
+    or(
+      eq(reverseOrders.requestType, 'CANCEL'),
+      eq(reverseOrders.requestType, 'ONLY_REFUND'),
+      sql`${reverseOrders.raw}->>'typeLabel' in ('取消','取消订单','仅退款')`,
+    )!,
+  ]
+  if (input.status?.trim()) {
+    conditions.push(sql`${reverseOrders.raw}->>'cancelStatus' = ${input.status.trim()}`)
+  }
+  if (input.q?.trim()) {
+    const q = `%${input.q.trim()}%`
+    conditions.push(
+      or(
+        ilike(reverseOrders.externalReverseOrderId, q),
+        ilike(reverseOrders.externalTradeOrderId, q),
+        sql`${reverseOrders.raw}->>'uiId' ilike ${q}`,
+        sql`${reverseOrders.raw}->>'sku' ilike ${q}`,
+        sql`${reverseOrders.raw}->>'shopName' ilike ${q}`,
+        sql`${reverseOrders.raw}->>'reason' ilike ${q}`,
+      )!,
+    )
+  }
+  const where = and(...conditions)
+  const [totalRow] = await db.select({ c: count() }).from(reverseOrders).where(where)
   const rows = await db
     .select()
+    .from(reverseOrders)
+    .where(where)
+    .orderBy(desc(reverseOrders.createdAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+  const items: AftersaleCancelDto[] = []
+  for (const ro of rows) {
+    const ctx = await loadRelated(db, organizationId, ro)
+    items.push(toCancelDto(ro, ctx))
+  }
+  return { items, total: Number(totalRow?.c || 0), page, pageSize }
+}
+
+export async function cancelStats(db: AppDatabase, organizationId: string) {
+  const rows = await db
+    .select({
+      status: sql<string>`coalesce(${reverseOrders.raw}->>'cancelStatus', '待确认')`,
+      c: count(),
+    })
     .from(reverseOrders)
     .where(
       and(
@@ -622,38 +733,14 @@ export async function listCancels(
         ),
       ),
     )
-    .orderBy(desc(reverseOrders.createdAt))
-    .limit(500)
-  const items: AftersaleCancelDto[] = []
-  for (const ro of rows) {
-    const ctx = await loadRelated(db, organizationId, ro)
-    const dto = toCancelDto(ro, ctx)
-    if (input.status && dto.status !== input.status) continue
-    if (input.q?.trim()) {
-      const q = input.q.trim().toLowerCase()
-      const hay = [dto.id, dto.order, dto.sku, dto.externalReverseId, dto.shop, dto.reason]
-        .join(' ')
-        .toLowerCase()
-      if (!hay.includes(q)) continue
-    }
-    items.push(dto)
-  }
-  const total = items.length
+    .groupBy(sql`coalesce(${reverseOrders.raw}->>'cancelStatus', '待确认')`)
+  const map = new Map(rows.map((r) => [r.status, Number(r.c)]))
+  const total = rows.reduce((sum, r) => sum + Number(r.c), 0)
   return {
-    items: items.slice((page - 1) * pageSize, page * pageSize),
     total,
-    page,
-    pageSize,
-  }
-}
-
-export async function cancelStats(db: AppDatabase, organizationId: string) {
-  const { items } = await listCancels(db, organizationId, { page: 1, pageSize: 500 })
-  return {
-    total: items.length,
-    pending: items.filter((r) => r.status === '待确认').length,
-    approved: items.filter((r) => r.status === '已审核').length,
-    rejected: items.filter((r) => r.status === '已驳回').length,
+    pending: map.get('待确认') ?? 0,
+    approved: map.get('已审核') ?? 0,
+    rejected: map.get('已驳回') ?? 0,
   }
 }
 
@@ -949,7 +1036,9 @@ export async function upsertAftersale(
 
 /**
  * 平台售后列表 OpenAPI 尚未接线（marketplace 仅有 reverse cancel validate/create）。
- * 禁止写入演示逆向单冒充同步成功。
+ * 由 apps/api cron 调用 connector.listReverseOrders 后映射为 UpsertAftersaleInput，
+ * 再经 ingestReverse 落库并按店铺策略释放占库 / 排期退款。
+ * 控制台手工登记请用 createTicket / createCancel。
  */
 export async function syncAftersaleFromPlatform(
   _db: AppDatabase,
@@ -1690,3 +1779,507 @@ export async function updateRefundStatus(
 
 // silence
 void toDbTicketStatus
+
+// ---------------------------------------------------------------------------
+// 售后策略 + 取消占库释放 + 退款决定
+// @see docs/design/aftersale-cancel-ingest-and-policy.md
+// ---------------------------------------------------------------------------
+
+export type AftersalePolicyDto = {
+  shopId: string
+  shopName: string
+  platform: string
+  inventoryReleaseMode: string
+  refundMode: string
+  refundWaitDays: number
+  /** 平台是否提供 seller decide 接口（决定自动退款是否可选）。 */
+  refundAutoSupported: boolean
+  updatedAt: string
+}
+
+const REFUND_AUTO_PLATFORMS = new Set(['lazada'])
+
+function platformSupportsAutoRefund(platform: string | null | undefined): boolean {
+  return Boolean(platform && REFUND_AUTO_PLATFORMS.has(platform))
+}
+
+export async function listAftersalePolicies(
+  db: AppDatabase,
+  organizationId: string,
+): Promise<AftersalePolicyDto[]> {
+  const shopRows = await db
+    .select()
+    .from(shops)
+    .where(and(eq(shops.organizationId, organizationId), isNull(shops.deletedAt)))
+    .orderBy(desc(shops.updatedAt))
+  if (shopRows.length === 0) return []
+  const shopIds = shopRows.map((s) => s.id)
+  const policyRows = await db
+    .select()
+    .from(shopAftersalePolicies)
+    .where(inArray(shopAftersalePolicies.shopId, shopIds))
+  const byShop = new Map(policyRows.map((p) => [p.shopId, p]))
+  return shopRows.map((s) => {
+    const p = byShop.get(s.id)
+    return {
+      shopId: s.id,
+      shopName: s.name,
+      platform: s.platform,
+      inventoryReleaseMode: p?.inventoryReleaseMode ?? 'manual',
+      refundMode: p?.refundMode ?? 'manual',
+      refundWaitDays: p?.refundWaitDays ?? 1,
+      refundAutoSupported: platformSupportsAutoRefund(s.platform),
+      updatedAt: formatStamp(p?.updatedAt ?? s.updatedAt),
+    }
+  })
+}
+
+export async function getAftersalePolicy(
+  db: AppDatabase,
+  organizationId: string,
+  shopId: string,
+): Promise<AftersalePolicyDto | null> {
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(and(eq(shops.organizationId, organizationId), eq(shops.id, shopId)))
+    .limit(1)
+  if (!shop) return null
+  const [p] = await db
+    .select()
+    .from(shopAftersalePolicies)
+    .where(eq(shopAftersalePolicies.shopId, shopId))
+    .limit(1)
+  return {
+    shopId: shop.id,
+    shopName: shop.name,
+    platform: shop.platform,
+    inventoryReleaseMode: p?.inventoryReleaseMode ?? 'manual',
+    refundMode: p?.refundMode ?? 'manual',
+    refundWaitDays: p?.refundWaitDays ?? 1,
+    refundAutoSupported: platformSupportsAutoRefund(shop.platform),
+    updatedAt: formatStamp(p?.updatedAt ?? shop.updatedAt),
+  }
+}
+
+export async function upsertAftersalePolicy(
+  db: AppDatabase,
+  organizationId: string,
+  input: {
+    shopId: string
+    inventoryReleaseMode: 'manual' | 'auto'
+    refundMode: 'manual' | 'auto'
+    refundWaitDays?: number
+  },
+): Promise<AftersalePolicyDto> {
+  const [shop] = await db
+    .select()
+    .from(shops)
+    .where(and(eq(shops.organizationId, organizationId), eq(shops.id, input.shopId)))
+    .limit(1)
+  if (!shop) throw new Error('店铺不存在')
+  const refundWaitDays =
+    Number.isFinite(input.refundWaitDays) && (input.refundWaitDays ?? 1) >= 0
+      ? Math.floor(input.refundWaitDays as number)
+      : 1
+  if (input.refundMode === 'auto' && !platformSupportsAutoRefund(shop.platform)) {
+    throw new Error(`${shop.platform} 平台未提供同意退款接口，自动退款不可选`)
+  }
+  const [existing] = await db
+    .select()
+    .from(shopAftersalePolicies)
+    .where(eq(shopAftersalePolicies.shopId, input.shopId))
+    .limit(1)
+  const now = new Date()
+  if (existing) {
+    await db
+      .update(shopAftersalePolicies)
+      .set({
+        inventoryReleaseMode: input.inventoryReleaseMode,
+        refundMode: input.refundMode,
+        refundWaitDays,
+        updatedAt: now,
+      })
+      .where(eq(shopAftersalePolicies.id, existing.id))
+  } else {
+    await db.insert(shopAftersalePolicies).values({
+      id: createId(),
+      organizationId,
+      shopId: input.shopId,
+      inventoryReleaseMode: input.inventoryReleaseMode,
+      refundMode: input.refundMode,
+      refundWaitDays,
+    })
+  }
+  const fresh = await getAftersalePolicy(db, organizationId, input.shopId)
+  if (!fresh) throw new Error('策略保存失败')
+  return fresh
+}
+
+// ---------------------------------------------------------------------------
+// ingestReverse：从平台同步建档并按策略释放占库 / 排期退款
+// ---------------------------------------------------------------------------
+
+export type IngestReverseInput = UpsertAftersaleInput & {
+  platformCreatedAt?: string | Date | null
+  slaAt?: string | Date | null
+  disputeInProgress?: boolean
+}
+
+async function resolvePolicy(
+  db: DbLike,
+  organizationId: string,
+  shopId: string,
+): Promise<{
+  inventoryReleaseMode: 'manual' | 'auto'
+  refundMode: 'manual' | 'auto'
+  refundWaitDays: number
+}> {
+  const [p] = await db
+    .select()
+    .from(shopAftersalePolicies)
+    .where(eq(shopAftersalePolicies.shopId, shopId))
+    .limit(1)
+  return {
+    inventoryReleaseMode: (p?.inventoryReleaseMode as 'manual' | 'auto') ?? 'manual',
+    refundMode: (p?.refundMode as 'manual' | 'auto') ?? 'manual',
+    refundWaitDays: p?.refundWaitDays ?? 1,
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function computeRefundDueAt(
+  platformCreatedAt: Date | null,
+  slaAt: Date | null,
+  waitDays: number,
+  now: Date,
+): Date | null {
+  if (!platformCreatedAt) return null
+  const base = new Date(platformCreatedAt.getTime() + waitDays * DAY_MS)
+  if (slaAt) {
+    const slaFloor = new Date(slaAt.getTime() - 2 * 60 * 60 * 1000)
+    if (base > slaFloor) return slaFloor
+  }
+  if (base < now) return now
+  return base
+}
+
+/**
+ * 从平台同步建档。CANCEL / ONLY_REFUND：
+ * - 占库策略 auto 且为未发货 CANCEL → 同事务写 order_release
+ * - 退款策略 auto 且平台支持 → 计算 refund_due_at，置 scheduled
+ * - 否则保持 pending_manual
+ * 退货（RETURN）按原 upsertAftersale 路径，不在此处理策略。
+ */
+export async function ingestReverse(
+  db: AppDatabase,
+  organizationId: string,
+  input: IngestReverseInput,
+): Promise<AftersaleCancelDto> {
+  const ticket = await upsertAftersale(db, organizationId, input)
+  const ro = await findReverseByIdOrUi(db, organizationId, ticket.reverseOrderId)
+  if (!ro) throw new Error('建档失败：未找到逆向单')
+
+  const requestType = (ro.requestType || '').toUpperCase()
+  if (requestType !== 'CANCEL' && requestType !== 'ONLY_REFUND') {
+    return (await getCancel(db, organizationId, ro.id))!
+  }
+
+  const policy = await resolvePolicy(db, organizationId, ro.shopId)
+  const platformCreatedAt = input.platformCreatedAt
+    ? input.platformCreatedAt instanceof Date
+      ? input.platformCreatedAt
+      : new Date(input.platformCreatedAt)
+    : ro.platformCreatedAt ?? ro.createdAt
+  const slaAt = input.slaAt
+    ? input.slaAt instanceof Date
+      ? input.slaAt
+      : new Date(input.slaAt)
+    : null
+  const now = new Date()
+
+  let releaseStatus = ro.inventoryReleaseStatus as ReleaseStatus
+  let releasedAt = ro.inventoryReleasedAt
+  if (
+    requestType === 'CANCEL' &&
+    policy.inventoryReleaseMode === 'auto' &&
+    releaseStatus !== 'released'
+  ) {
+    const result = await releaseReservedInternal(db, organizationId, ro.id, 'system.sync')
+    releaseStatus = result.status
+    releasedAt = result.releasedAt
+  }
+
+  let refundDecision = ro.refundDecision as RefundDecision
+  let refundDueAt = ro.refundDueAt
+  const [shop] = await db.select().from(shops).where(eq(shops.id, ro.shopId)).limit(1)
+  const autoSupported = platformSupportsAutoRefund(shop?.platform)
+  if (policy.refundMode === 'auto' && autoSupported) {
+    const due = computeRefundDueAt(platformCreatedAt, slaAt, policy.refundWaitDays, now)
+    refundDueAt = due
+    refundDecision = 'scheduled'
+  } else if (!autoSupported) {
+    refundDecision = 'unsupported'
+  } else {
+    refundDecision = 'pending_manual'
+  }
+
+  await db
+    .update(reverseOrders)
+    .set({
+      inventoryReleaseMode: policy.inventoryReleaseMode,
+      inventoryReleaseStatus: releaseStatus,
+      inventoryReleasedAt: releasedAt,
+      refundMode: policy.refundMode,
+      refundWaitDays: policy.refundWaitDays,
+      refundDecision,
+      refundDueAt,
+      updatedAt: now,
+    })
+    .where(eq(reverseOrders.id, ro.id))
+
+  return (await getCancel(db, organizationId, ro.id))!
+}
+
+// ---------------------------------------------------------------------------
+// releaseReserved：手动或自动释放未发货占库
+// ---------------------------------------------------------------------------
+
+async function releaseReservedInternal(
+  db: AppDatabase,
+  organizationId: string,
+  id: string,
+  actor: string,
+): Promise<{ status: ReleaseStatus; releasedAt: Date | null; note: string }> {
+  return db.transaction(async (tx) => {
+    const ro = await findReverseByIdOrUi(tx, organizationId, id)
+    if (!ro) throw new Error('取消/退款单不存在')
+    const requestType = (ro.requestType || '').toUpperCase()
+    if (requestType !== 'CANCEL') {
+      await markReleaseSkipped(tx, ro, 'skipped', '仅退款/退货不释放占库')
+      return { status: 'skipped', releasedAt: null, note: '仅退款/退货不释放占库' }
+    }
+    if (!ro.orderId) {
+      await markReleaseSkipped(tx, ro, 'skipped', '无关联订单')
+      return { status: 'skipped', releasedAt: null, note: '无关联订单' }
+    }
+    const [order] = await tx.select().from(orders).where(eq(orders.id, ro.orderId)).limit(1)
+    if (!order) {
+      await markReleaseSkipped(tx, ro, 'skipped', '关联订单不存在')
+      return { status: 'skipped', releasedAt: null, note: '关联订单不存在' }
+    }
+    if (order.fulfillmentStatus === 'shipped' || order.status === 'shipped') {
+      await markReleaseSkipped(tx, ro, 'skipped', '订单已出库，本迭代不冲销')
+      return { status: 'skipped', releasedAt: null, note: '订单已出库，本迭代不冲销' }
+    }
+    const reservations = await tx
+      .select()
+      .from(inventoryReservations)
+      .where(
+        and(
+          eq(inventoryReservations.organizationId, organizationId),
+          eq(inventoryReservations.orderId, order.id),
+          eq(inventoryReservations.status, 'active'),
+        ),
+      )
+    if (reservations.length === 0) {
+      await markReleaseSkipped(tx, ro, 'skipped', '无 active 占库')
+      return { status: 'skipped', releasedAt: null, note: '无 active 占库' }
+    }
+    const notes: string[] = []
+    const now = new Date()
+    for (const res of reservations) {
+      const idem = `ledger:aftersale_cancel_release:${ro.externalReverseOrderId}:${res.orderLineId}`
+      const [dup] = await tx
+        .select({ id: inventoryMovements.id })
+        .from(inventoryMovements)
+        .where(
+          and(
+            eq(inventoryMovements.organizationId, organizationId),
+            eq(inventoryMovements.idempotencyKey, idem),
+          ),
+        )
+        .limit(1)
+      const [balance] = await tx
+        .select()
+        .from(inventoryBalances)
+        .where(
+          and(
+            eq(inventoryBalances.organizationId, organizationId),
+            eq(inventoryBalances.warehouseCode, res.warehouseCode),
+            eq(inventoryBalances.variantId, res.variantId),
+            res.binCode
+              ? eq(inventoryBalances.binCode, res.binCode)
+              : sql`${inventoryBalances.binCode} is not null`,
+          ),
+        )
+        .limit(1)
+      if (balance && !dup) {
+        const reservedAfter = Math.max(0, balance.reserved - res.qty)
+        await tx
+          .update(inventoryBalances)
+          .set({
+            reserved: reservedAfter,
+            version: balance.version + 1,
+            updatedAt: now,
+          })
+          .where(eq(inventoryBalances.id, balance.id))
+        await tx.insert(inventoryMovements).values({
+          id: createId(),
+          organizationId,
+          shopId: ro.shopId,
+          variantId: res.variantId,
+          warehouseCode: balance.warehouseCode,
+          binCode: balance.binCode,
+          movementType: 'order_release',
+          qtyDelta: 0,
+          onHandAfter: balance.onHand,
+          reservedAfter,
+          qcHoldAfter: balance.qcHold,
+          damagedAfter: balance.damaged,
+          sourceType: 'aftersale_cancel',
+          sourceId: ro.id,
+          operator: actor,
+          idempotencyKey: idem,
+          occurredAt: now,
+          raw: {
+            reason: `取消释放占库 ${order.externalOrderId}`,
+            qty: res.qty,
+            orderLineId: res.orderLineId,
+            externalReverseId: ro.externalReverseOrderId,
+          },
+        })
+        notes.push(`释放 ${res.qty} · ${idem}`)
+        await recomputeStockAlerts(tx, organizationId, [res.variantId])
+      } else if (dup) {
+        notes.push(`幂等命中 ${dup.id}`)
+      }
+      await tx
+        .update(inventoryReservations)
+        .set({ status: 'released', releasedAt: now, updatedAt: now })
+        .where(eq(inventoryReservations.id, res.id))
+    }
+    await tx
+      .update(orders)
+      .set({
+        fulfillmentStatus: 'unfulfilled',
+        status: order.status === 'cancelled' ? order.status : 'cancelled',
+        updatedAt: now,
+      })
+      .where(eq(orders.id, order.id))
+    await tx
+      .update(reverseOrders)
+      .set({
+        inventoryReleaseStatus: 'released',
+        inventoryReleasedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(reverseOrders.id, ro.id))
+    await appendEvent(
+      tx,
+      organizationId,
+      ro.id,
+      'release_reserved',
+      notes.join('；') || '释放占库',
+    )
+    return { status: 'released', releasedAt: now, note: notes.join('；') || '释放占库' }
+  })
+}
+
+async function markReleaseSkipped(
+  tx: Parameters<Parameters<AppDatabase['transaction']>[0]>[0],
+  ro: typeof reverseOrders.$inferSelect,
+  status: ReleaseStatus,
+  reason: string,
+) {
+  await tx
+    .update(reverseOrders)
+    .set({
+      inventoryReleaseStatus: status,
+      updatedAt: new Date(),
+    })
+    .where(eq(reverseOrders.id, ro.id))
+  await appendEvent(tx, ro.organizationId, ro.id, 'release_skip', reason)
+}
+
+export async function releaseReserved(
+  db: AppDatabase,
+  organizationId: string,
+  id: string,
+  actor?: string,
+): Promise<{ row: AftersaleCancelDto; note: string }> {
+  const result = await releaseReservedInternal(
+    db,
+    organizationId,
+    id,
+    actor?.trim() || '当前用户',
+  )
+  const row = await getCancel(db, organizationId, id)
+  if (!row) throw new Error('取消单不存在')
+  return { row, note: result.note }
+}
+
+// ---------------------------------------------------------------------------
+// decideRefund：人工同意 / 拒绝；或取消已排期改为人工
+// ---------------------------------------------------------------------------
+
+export async function decideRefund(
+  db: AppDatabase,
+  organizationId: string,
+  input: { id: string; action: 'agree' | 'reject'; reason?: string; actor?: string },
+): Promise<AftersaleCancelDto> {
+  return db.transaction(async (tx) => {
+    const ro = await findReverseByIdOrUi(tx, organizationId, input.id)
+    if (!ro) throw new Error('取消/退款单不存在')
+    const decision = ro.refundDecision as RefundDecision
+    if (decision === 'agreed' || decision === 'rejected') {
+      throw new Error(`已${decision === 'agreed' ? '同意' : '拒绝'}，不可重复操作`)
+    }
+    const now = new Date()
+    const next: RefundDecision = input.action === 'agree' ? 'agreed' : 'rejected'
+    await tx
+      .update(reverseOrders)
+      .set({
+        refundDecision: next,
+        updatedAt: now,
+      })
+      .where(eq(reverseOrders.id, ro.id))
+    // 平台 decide 接口由 apps/api 侧调用；此处只记录本地决定。
+    // 退款完成（refunds.status=refunded）由后续同步回拉详情时更新。
+    await appendEvent(
+      tx,
+      organizationId,
+      ro.id,
+      input.action === 'agree' ? 'refund_agree' : 'refund_reject',
+      input.reason || `by ${input.actor?.trim() || '当前用户'}`,
+    )
+    const fresh = (await findReverseByIdOrUi(tx, organizationId, ro.id))!
+    return toCancelDto(fresh, await loadRelated(tx, organizationId, fresh))
+  })
+}
+
+export async function cancelScheduledRefund(
+  db: AppDatabase,
+  organizationId: string,
+  id: string,
+): Promise<AftersaleCancelDto> {
+  return db.transaction(async (tx) => {
+    const ro = await findReverseByIdOrUi(tx, organizationId, id)
+    if (!ro) throw new Error('取消/退款单不存在')
+    if (ro.refundDecision !== 'scheduled') {
+      throw new Error('仅已排期单可改为人工')
+    }
+    await tx
+      .update(reverseOrders)
+      .set({ refundDecision: 'pending_manual', updatedAt: new Date() })
+      .where(eq(reverseOrders.id, ro.id))
+    await appendEvent(tx, organizationId, ro.id, 'refund_to_manual', '改为人工处理')
+    const fresh = (await findReverseByIdOrUi(tx, organizationId, ro.id))!
+    return toCancelDto(fresh, await loadRelated(tx, organizationId, fresh))
+  })
+}
+
+// 到期退款决定的扫描与执行由 apps/api cron 负责：
+// @see apps/api/src/lib/marketplace/aftersale-cron.ts runDueRefundDecisions
+// apps/shop 不直接持有 db 客户端的 cron 调度，避免与 apps/api 双写。

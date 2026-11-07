@@ -391,7 +391,8 @@
       "members": "Members",
       "preferences": "Preferences",
       "fxRates": "FX rates",
-      "stockAlerts": "Stock alert thresholds"
+      "stockAlerts": "Stock alert thresholds",
+      "aftersalePolicy": "Aftersale policy"
     },
     "profile": {
       "account": "Account",

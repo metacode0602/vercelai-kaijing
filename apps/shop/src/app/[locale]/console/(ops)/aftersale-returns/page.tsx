@@ -3,7 +3,6 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { RETURN_STATUSES } from '@/lib/crossborder/aftersale-store'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 
@@ -17,6 +16,7 @@ export default function AftersaleReturnsPage() {
   const utils = trpc.useUtils()
   const listQuery = trpc.aftersale.listReturns.useQuery({ page: 1, pageSize: 100 })
   const statsQuery = trpc.aftersale.returnStats.useQuery()
+  const metaQuery = trpc.aftersale.meta.useQuery()
   const receiveMutation = trpc.aftersale.registerReceive.useMutation({
     onSuccess: async (row) => {
       await Promise.all([
@@ -134,7 +134,7 @@ export default function AftersaleReturnsPage() {
         'platformStatus',
       ]}
       searchPlaceholder="搜索售后单、订单、SKU 或运单"
-      filters={[{ label: '状态', options: [...RETURN_STATUSES], key: 'status' }]}
+      filters={[{ label: '状态', options: [...(metaQuery.data?.returnStatuses ?? [])], key: 'status' }]}
       emptyText={listQuery.isLoading ? '加载中…' : '暂无退货收货单。登记寄回运单收货后进入待质检。'}
       addLabel="登记退货收货"
       onAdd={() => setOpen(true)}

@@ -203,14 +203,26 @@ export const aftersaleRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) =>
-      wrap(() => aftersaleDa.completeReturnQc(ctx.db, ctx.organizationId, input)),
+      wrap(() =>
+        aftersaleDa.completeReturnQc(ctx.db, ctx.organizationId, {
+          id: input.id,
+          qcPass: input.qcPass,
+          qcDefect: input.qcDefect,
+          actor: input.actor ?? ctx.user?.id ?? ctx.user?.email ?? undefined,
+        }),
+      ),
     ),
 
   approveCancel: tenantProcedure
     .input(z.object({ id: z.string().min(1), actor: z.string().optional() }))
     .mutation(async ({ ctx, input }) =>
       wrap(() =>
-        aftersaleDa.approveCancel(ctx.db, ctx.organizationId, input.id, input.actor),
+        aftersaleDa.approveCancel(
+          ctx.db,
+          ctx.organizationId,
+          input.id,
+          input.actor ?? ctx.user?.id ?? ctx.user?.email ?? undefined,
+        ),
       ),
     ),
 
@@ -229,7 +241,7 @@ export const aftersaleRouter = createTRPCRouter({
           ctx.organizationId,
           input.id,
           input.reason,
-          input.actor,
+          input.actor ?? ctx.user?.id ?? ctx.user?.email ?? undefined,
         ),
       ),
     ),
@@ -244,5 +256,70 @@ export const aftersaleRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) =>
       wrap(() => aftersaleDa.updateRefundStatus(ctx.db, ctx.organizationId, input)),
+    ),
+
+  // ---- 售后策略 / 占库释放 / 退款决定 ----
+  policyList: tenantProcedure.query(async ({ ctx }) =>
+    aftersaleDa.listAftersalePolicies(ctx.db, ctx.organizationId),
+  ),
+
+  policyGet: tenantProcedure
+    .input(z.object({ shopId: z.string().min(1) }))
+    .query(async ({ ctx, input }) =>
+      aftersaleDa.getAftersalePolicy(ctx.db, ctx.organizationId, input.shopId),
+    ),
+
+  policyUpsert: tenantProcedure
+    .input(
+      z.object({
+        shopId: z.string().min(1),
+        inventoryReleaseMode: z.enum(['manual', 'auto']),
+        refundMode: z.enum(['manual', 'auto']),
+        refundWaitDays: z.number().int().min(0).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => aftersaleDa.upsertAftersalePolicy(ctx.db, ctx.organizationId, input)),
+    ),
+
+  releaseReserved: tenantProcedure
+    .input(z.object({ id: z.string().min(1), actor: z.string().optional() }))
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        aftersaleDa.releaseReserved(
+          ctx.db,
+          ctx.organizationId,
+          input.id,
+          input.actor ?? ctx.user?.id ?? ctx.user?.email ?? undefined,
+        ),
+      ),
+    ),
+
+  decideRefund: tenantProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        action: z.enum(['agree', 'reject']),
+        reason: z.string().optional(),
+        actor: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        aftersaleDa.decideRefund(ctx.db, ctx.organizationId, {
+          id: input.id,
+          action: input.action,
+          reason: input.reason,
+          actor: input.actor ?? ctx.user?.id ?? ctx.user?.email ?? undefined,
+        }),
+      ),
+    ),
+
+  cancelScheduledRefund: tenantProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        aftersaleDa.cancelScheduledRefund(ctx.db, ctx.organizationId, input.id),
+      ),
     ),
 })

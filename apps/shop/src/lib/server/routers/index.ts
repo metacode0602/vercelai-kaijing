@@ -5,6 +5,7 @@ import { orderRouter } from './order'
 import { logisticsRouter } from './logistics'
 import { feeTemplatesRouter } from './fee-templates'
 import { aftersaleRouter } from './aftersale'
+import { csInboxRouter } from './cs-inbox'
 import { oceanRouter } from './ocean'
 import { wmsRouter } from './wms'
 import { listingsRouter } from './listings'
@@ -44,6 +45,7 @@ export const appRouter = router({
   logistics: logisticsRouter,
   feeTemplates: feeTemplatesRouter,
   aftersale: aftersaleRouter,
+  csInbox: csInboxRouter,
   ocean: oceanRouter,
   wms: wmsRouter,
   listings: listingsRouter,

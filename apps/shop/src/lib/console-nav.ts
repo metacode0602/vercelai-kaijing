@@ -214,6 +214,7 @@ export const SETTINGS_NAV = [
   { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
   { url: '/console/settings/fx-rates', titleKey: 'settings.fxRates' as const },
   { url: '/console/settings/stock-alerts', titleKey: 'settings.stockAlerts' as const },
+  { url: '/console/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy' as const },
   { url: '/console/dictionaries', titleKey: 'settings.dictionaries' as const },
   { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
   { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },

@@ -180,6 +180,23 @@ export const orderRouter = createTRPCRouter({
       ),
     ),
 
+  assignPicker: tenantProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        picker: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        orderDa.assignOutboundPicker(ctx.db, ctx.organizationId, input.id, input.picker),
+      ),
+    ),
+
+  listPickers: tenantProcedure.query(async ({ ctx }) =>
+    orderDa.listOutboundPickers(ctx.db, ctx.organizationId),
+  ),
+
   meta: tenantProcedure.query(() => ({
     orderStatuses: UI_ORDER_STATUSES,
     outboundStatuses: UI_OUTBOUND_STATUSES,

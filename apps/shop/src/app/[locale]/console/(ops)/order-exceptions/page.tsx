@@ -163,7 +163,7 @@ export default function OrderExceptionsPage() {
         <AlertTitle>规则视图 · 非假列表</AlertTitle>
         <AlertDescription>
           超时未发货（已支付超 48h）、占库失败（映射阻断 / 无活跃预留）、拣货异常（出库 reason）、同步失败（fulfillment_attempts）。Seller
-          SKU 映射异常仍在「店铺映射」处理。
+          SKU 映射异常仍在「店铺映射」处理。后台 cron 每小时自动扫描（apps/api ORDER_EXCEPTIONS_SCAN_CRON）。
         </AlertDescription>
       </Alert>
       <UedPrototypeNotice>

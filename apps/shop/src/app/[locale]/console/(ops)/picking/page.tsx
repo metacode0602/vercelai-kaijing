@@ -6,12 +6,19 @@ import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 export default function PickingPage() {
   const utils = trpc.useUtils()
   const [notice, setNotice] = React.useState('')
+  const [pickerFilter, setPickerFilter] = React.useState('all')
+  const [assigningId, setAssigningId] = React.useState<string | null>(null)
+  const [assignName, setAssignName] = React.useState('')
+
   const listQuery = trpc.order.listOutbounds.useQuery({ page: 1, pageSize: 100 })
+  const pickersQuery = trpc.order.listPickers.useQuery()
+
   const advanceMutation = trpc.order.advanceOutbound.useMutation({
     onSuccess: async (row) => {
       await utils.order.listOutbounds.invalidate()
@@ -24,7 +31,18 @@ export default function PickingPage() {
     onError: (e) => setNotice(e.message),
   })
 
-  const rows = (listQuery.data?.items ?? []).map((ob) => ({
+  const assignMutation = trpc.order.assignPicker.useMutation({
+    onSuccess: async (row) => {
+      await utils.order.listOutbounds.invalidate()
+      await utils.order.listPickers.invalidate()
+      setNotice(`${row.outboundNo} 已分配拣货人 ${row.picker}`)
+      setAssigningId(null)
+      setAssignName('')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const allRows = (listQuery.data?.items ?? []).map((ob) => ({
     id: ob.id,
     packageId: ob.packageId || ob.outboundNo,
     outboundNo: ob.outboundNo,
@@ -38,15 +56,50 @@ export default function PickingPage() {
     createdAt: ob.createdAt,
   }))
 
+  const rows = React.useMemo(() => {
+    if (pickerFilter === 'all') return allRows
+    if (pickerFilter === 'unassigned') return allRows.filter((r) => r.picker === '—')
+    return allRows.filter((r) => r.picker === pickerFilter)
+  }, [allRows, pickerFilter])
+
+  const pickers = pickersQuery.data ?? []
+
   return (
     <>
       <Alert className="mb-4">
         <AlertTitle>拣货打包 = 出库单作业视图</AlertTitle>
         <AlertDescription>
           主路径已切 tRPC / PostgreSQL（stock_outbounds）。请先在订单详情「确认占库」后「创建出库 / 拣货单」。
-          推进至「已出库」会过账扣减 on_hand / reserved。
+          推进至「已出库」会过账扣减 on_hand / reserved。可按拣货人筛选并分配。
         </AlertDescription>
       </Alert>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">拣货人：</span>
+        <Button
+          size="sm"
+          variant={pickerFilter === 'all' ? 'default' : 'outline'}
+          onClick={() => setPickerFilter('all')}
+        >
+          全部
+        </Button>
+        <Button
+          size="sm"
+          variant={pickerFilter === 'unassigned' ? 'default' : 'outline'}
+          onClick={() => setPickerFilter('unassigned')}
+        >
+          未分配
+        </Button>
+        {pickers.map((p) => (
+          <Button
+            key={p}
+            size="sm"
+            variant={pickerFilter === p ? 'default' : 'outline'}
+            onClick={() => setPickerFilter(p)}
+          >
+            {p}
+          </Button>
+        ))}
+      </div>
       <UedWorkspace
         title="拣货打包"
         description="出库单状态机：待拣货 → 拣货中 → 已复核 → 已出库（过账）。数据来自 PostgreSQL。"
@@ -82,7 +135,54 @@ export default function PickingPage() {
             render: (row) => String(row.items),
           },
           { key: 'warehouse', label: '仓库' },
-          { key: 'picker', label: '拣货人' },
+          {
+            key: 'picker',
+            label: '拣货人',
+            render: (row) =>
+              assigningId === row.id ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    autoFocus
+                    value={assignName}
+                    onChange={(e) => setAssignName(e.target.value)}
+                    placeholder="输入拣货人"
+                    className="h-7 w-24 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && assignName.trim()) {
+                        assignMutation.mutate({ id: row.id, picker: assignName.trim() })
+                      }
+                      if (e.key === 'Escape') {
+                        setAssigningId(null)
+                        setAssignName('')
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={!assignName.trim() || assignMutation.isPending}
+                    onClick={() =>
+                      assignName.trim() &&
+                      assignMutation.mutate({ id: row.id, picker: assignName.trim() })
+                    }
+                  >
+                    确定
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setAssigningId(null)
+                      setAssignName('')
+                    }}
+                  >
+                    取消
+                  </Button>
+                </div>
+              ) : (
+                <span>{row.picker}</span>
+              ),
+          },
           {
             key: 'status',
             label: '状态',
@@ -95,27 +195,45 @@ export default function PickingPage() {
           {
             key: 'id',
             label: '操作',
-            render: (row) =>
-              row.status !== '已出库' && row.status !== '已取消' ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={advanceMutation.isPending}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    advanceMutation.mutate({ id: row.id })
-                  }}
-                >
-                  推进
-                </Button>
-              ) : (
-                <LocaleLink
-                  href={`/console/stock-outbounds/${encodeURIComponent(row.id)}`}
-                  className="text-xs underline-offset-2 hover:underline"
-                >
-                  查看出库
-                </LocaleLink>
-              ),
+            render: (row) => {
+              if (row.status === '已出库' || row.status === '已取消') {
+                return (
+                  <LocaleLink
+                    href={`/console/stock-outbounds/${encodeURIComponent(row.id)}`}
+                    className="text-xs underline-offset-2 hover:underline"
+                  >
+                    查看出库
+                  </LocaleLink>
+                )
+              }
+              return (
+                <div className="flex gap-1">
+                  {assigningId !== row.id && row.picker === '—' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setAssigningId(row.id)
+                        setAssignName('')
+                      }}
+                    >
+                      分配拣货人
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={advanceMutation.isPending}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      advanceMutation.mutate({ id: row.id })
+                    }}
+                  >
+                    推进
+                  </Button>
+                </div>
+              )
+            },
           },
         ]}
       />

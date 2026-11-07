@@ -10,12 +10,48 @@ import {
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
+import { UedDialog } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
+
+const eventOptions = ['自营仓出库', '交接 JSB', '清关资料提交', '清关中', '清关完成', '官方尾程派送', '已签收', '物流异常']
 
 export default function LogisticsJsbDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
+  const utils = trpc.useUtils()
   const query = trpc.logistics.getBatch.useQuery({ id })
+  const [notice, setNotice] = React.useState('')
+  const [eventOpen, setEventOpen] = React.useState(false)
+  const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
+  const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
+
+  const appendMutation = trpc.logistics.appendBatchEvent.useMutation({
+    onSuccess: async (row) => {
+      await utils.logistics.getBatch.invalidate({ id })
+      await utils.logistics.listBatches.invalidate()
+      setNotice(`已追加节点到 ${row.batchNo}`)
+      setEventOpen(false)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const submitMutation = trpc.logistics.submitBatch.useMutation({
+    onSuccess: async (row) => {
+      await utils.logistics.getBatch.invalidate({ id })
+      await utils.logistics.listBatches.invalidate()
+      setNotice(`批次 ${row.batchNo} 已提交交接`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const closeMutation = trpc.logistics.closeBatch.useMutation({
+    onSuccess: async (row) => {
+      await utils.logistics.getBatch.invalidate({ id })
+      await utils.logistics.listBatches.invalidate()
+      setNotice(`批次 ${row.batchNo} 已关闭`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
 
   if (query.isLoading) {
     return <DetailPageHeader backHref="/console/logistics-jsb" title="加载 JSB 批次…" description="PostgreSQL" />
@@ -24,16 +60,77 @@ export default function LogisticsJsbDetailPage({ params }: { params: Promise<{ i
     return <DetailPageHeader backHref="/console/logistics-jsb" title="未找到批次" description={id} />
   }
   const row = query.data
+  const canSubmit = row.statusLabel === '开放中' || row.statusLabel === '已驳回'
+  const canClose = row.statusLabel !== '已关闭' && row.statusLabel !== '已提交'
+
   return (
     <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbRegistration
         items={[{ label: 'JSB 与 TH 物流', href: '/console/logistics-jsb' }, { label: row.batchNo }]}
       />
+      {eventOpen ? (
+        <UedDialog
+          title="补录 TH 链路节点"
+          description="JSB 无可靠 API（Q17）：节点以 source=import/manual 写入。"
+          fields={[
+            { key: 'event', label: '链路节点', options: eventOptions, required: true },
+            { key: 'eventAt', label: '节点时间', type: 'datetime-local', required: true },
+            { key: 'fee', label: '费用（含币种）', placeholder: '如 THB 1,240' },
+            { key: 'operator', label: '操作人', options: ['杨洁', '黄发聪'], required: true },
+            { key: 'exception', label: '异常说明', type: 'textarea', fullWidth: true },
+          ]}
+          onClose={() => setEventOpen(false)}
+          onSave={(values) => {
+            const status =
+              values.event === '已签收'
+                ? 'delivered'
+                : values.event === '物流异常'
+                  ? 'exception'
+                  : values.event.includes('清关') || values.event.includes('尾程') || values.event.includes('交接')
+                    ? 'in_transit'
+                    : undefined
+            appendMutation.mutate({
+              batchId: row.id,
+              event: values.event,
+              eventAt: values.eventAt,
+              operator: values.operator,
+              exception: values.exception,
+              status,
+            })
+          }}
+        />
+      ) : null}
       <DetailPageHeader
         backHref="/console/logistics-jsb"
         title={row.batchNo}
         description={`TH · ${row.carrier} · ${row.statusLabel}`}
         badges={<Badge variant="secondary">{row.statusLabel}</Badge>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setEventOpen(true)}>
+              补录链路节点
+            </Button>
+            {canSubmit ? (
+              <Button
+                size="sm"
+                disabled={submitMutation.isPending}
+                onClick={() => setSubmitConfirmOpen(true)}
+              >
+                提交交接
+              </Button>
+            ) : null}
+            {canClose ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={closeMutation.isPending}
+                onClick={() => setCloseConfirmOpen(true)}
+              >
+                关闭批次
+              </Button>
+            ) : null}
+          </div>
+        }
       />
       <DetailKpiRow
         items={[
@@ -85,6 +182,49 @@ export default function LogisticsJsbDetailPage({ params }: { params: Promise<{ i
           />
         )}
       </DetailSection>
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      <SyncConfirmDialog
+        open={submitConfirmOpen}
+        onOpenChange={setSubmitConfirmOpen}
+        title="提交 JSB 交接"
+        description="将批次标记为已交接给 JSB 物流。"
+        scope={{
+          label: '作用批次',
+          value: `批次 ${row.batchNo} · ${row.packageCount} 个包裹`,
+        }}
+        impacts={[
+          'JSB 无可靠平台 API，仅更新本地批次状态为已交接',
+          '实际物流节点需在批次详情手工补录',
+          '提交后批次状态不可自动回退',
+        ]}
+        confirmLabel="确认提交交接"
+        pending={submitMutation.isPending}
+        onConfirm={() => {
+          setSubmitConfirmOpen(false)
+          submitMutation.mutate({ id: row.id })
+        }}
+      />
+      <SyncConfirmDialog
+        open={closeConfirmOpen}
+        onOpenChange={setCloseConfirmOpen}
+        title="关闭批次"
+        description="关闭该批次，后续不可再追加包裹或补录节点。"
+        scope={{
+          label: '作用批次',
+          value: `批次 ${row.batchNo} · ${row.packageCount} 个包裹`,
+        }}
+        impacts={[
+          '批次状态变更为 closed，不可逆',
+          '已关联的 shipment 不受影响',
+        ]}
+        confirmLabel="确认关闭"
+        destructive
+        pending={closeMutation.isPending}
+        onConfirm={() => {
+          setCloseConfirmOpen(false)
+          closeMutation.mutate({ id: row.id })
+        }}
+      />
     </div>
   )
 }

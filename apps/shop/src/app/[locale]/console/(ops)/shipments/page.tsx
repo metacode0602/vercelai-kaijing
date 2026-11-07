@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { Badge } from '@workspace/ui/components/badge'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -26,6 +27,7 @@ export default function ShipmentsPage() {
   const [eventTarget, setEventTarget] = React.useState('')
   const [notice, setNotice] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('all')
+  const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
 
   const listQuery = trpc.logistics.list.useQuery({ page: 1, pageSize: 100, status: statusFilter })
   const statsQuery = trpc.logistics.stats.useQuery()
@@ -243,7 +245,7 @@ export default function ShipmentsPage() {
                 size="sm"
                 variant="outline"
                 disabled={syncMutation.isPending}
-                onClick={() => syncMutation.mutate({ id: current.id })}
+                onClick={() => setSyncConfirmOpen(true)}
               >
                 {syncMutation.isPending ? '同步中…' : '同步平台轨迹（stub）'}
               </Button>
@@ -285,6 +287,28 @@ export default function ShipmentsPage() {
           </p>
         ) : null}
       </UedWorkspace>
+      {current ? (
+        <SyncConfirmDialog
+          open={syncConfirmOpen}
+          onOpenChange={setSyncConfirmOpen}
+          title="同步平台物流轨迹"
+          description="拉取该包裹的最新物流轨迹。"
+          scope={{
+            label: '作用包裹',
+            value: `包裹 ${current.externalPackageId} · ${current.shop}`,
+          }}
+          impacts={[
+            '当前为 stub：仅写一条 fulfillment_attempts 记录，不调用平台',
+            '真实轨迹同步需待 connector 联调',
+          ]}
+          confirmLabel="同步轨迹"
+          pending={syncMutation.isPending}
+          onConfirm={() => {
+            setSyncConfirmOpen(false)
+            syncMutation.mutate({ id: current.id })
+          }}
+        />
+      ) : null}
     </>
   )
 }

@@ -20,6 +20,44 @@ export type UiReturnStatus = (typeof UI_RETURN_STATUSES)[number]
 export const UI_CANCEL_STATUSES = ['待确认', '已审核', '已驳回'] as const
 export type UiCancelStatus = (typeof UI_CANCEL_STATUSES)[number]
 
+/** 占库释放状态 @see docs/design/aftersale-cancel-ingest-and-policy.md §3 */
+export const RELEASE_STATUSES = [
+  'pending_manual',
+  'released',
+  'skipped',
+  'failed',
+] as const
+export type ReleaseStatus = (typeof RELEASE_STATUSES)[number]
+
+export const RELEASE_STATUS_LABELS: Record<ReleaseStatus, string> = {
+  pending_manual: '待释放',
+  released: '已释放',
+  skipped: '跳过',
+  failed: '失败',
+}
+
+/** 退款决定状态 @see docs/design/aftersale-cancel-ingest-and-policy.md §4 */
+export const REFUND_DECISIONS = [
+  'pending_manual',
+  'scheduled',
+  'deciding',
+  'agreed',
+  'rejected',
+  'skipped',
+  'unsupported',
+] as const
+export type RefundDecision = (typeof REFUND_DECISIONS)[number]
+
+export const REFUND_DECISION_LABELS: Record<RefundDecision, string> = {
+  pending_manual: '待人工',
+  scheduled: '已排期',
+  deciding: '决定中',
+  agreed: '已同意',
+  rejected: '已拒绝',
+  skipped: '跳过',
+  unsupported: '平台不支持',
+}
+
 export const UI_AFTERSALE_TYPES = ['取消', '取消订单', '仅退款', '退货退款', '换货'] as const
 export type UiAftersaleType = (typeof UI_AFTERSALE_TYPES)[number]
 
@@ -120,7 +158,6 @@ export function toDbReturnStatus(ui: string): string {
 
 export function toUiReturnStatus(db: string | null | undefined): UiReturnStatus {
   if (!db) return '待收货确认'
-  if ((UI_RETURN_STATUSES as readonly string[]).includes(db)) return db as UiReturnStatus
   return RETURN_DB_TO_UI[db] || '待收货确认'
 }
 

@@ -217,6 +217,6 @@ export const logisticsRouter = createTRPCRouter({
     trackingEventTypes: TRACKING_EVENT_TYPES,
     trackingSources: UI_TRACKING_SOURCES,
     batchStatuses: UI_BATCH_STATUSES,
-    note: '轨迹同步经 apps/api；包裹/交接批次写入 PostgreSQL。出库过账与 LGS 交接解耦。平台回复/刊登写入本轮不做。',
+    note: '轨迹同步经 apps/api；包裹/交接批次写入 PostgreSQL。LGS 提交交运经 apps/api → 平台 OpenAPI；JSB 无 API 走人工/import。平台回复/刊登写入本轮不做。',
   })),
 })

@@ -11,6 +11,7 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -34,6 +35,7 @@ function statusVariant(status: string) {
 export default function SyncTaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
   const [notice, setNotice] = React.useState('')
+  const [retryConfirmOpen, setRetryConfirmOpen] = React.useState(false)
   const utils = trpc.useUtils()
   const detailQuery = trpc.sync.get.useQuery({ id })
   const retryMutation = trpc.sync.retry.useMutation({
@@ -79,7 +81,7 @@ export default function SyncTaskDetailPage({ params }: { params: Promise<{ id: s
             <Button
               size="sm"
               disabled={retryMutation.isPending}
-              onClick={() => retryMutation.mutate({ id: task.id })}
+              onClick={() => setRetryConfirmOpen(true)}
             >
               重试入队
             </Button>
@@ -166,6 +168,31 @@ export default function SyncTaskDetailPage({ params }: { params: Promise<{ id: s
           {notice}
         </p>
       ) : null}
+      <SyncConfirmDialog
+        open={retryConfirmOpen}
+        onOpenChange={setRetryConfirmOpen}
+        title="重试同步任务"
+        description="重新执行该同步任务，按任务类型调用对应平台接口。"
+        scope={{
+          label: '作用任务',
+          value: `任务 ${task.taskNo} · ${task.type} · ${task.shop !== '—' ? task.shop : '全部店铺'}`,
+        }}
+        impacts={[
+          '会按任务类型（订单/刊登/物流/评论/结算）真实调用平台 OpenAPI',
+          '结果会回写 sync_job_runs 与 integration_logs',
+          '失败可在任务详情查看错误详情',
+        ]}
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: '按 task.type 路由（orders/listings/logistics/reviews/settlements）',
+        }}
+        confirmLabel="确认重试"
+        pending={retryMutation.isPending}
+        onConfirm={() => {
+          setRetryConfirmOpen(false)
+          retryMutation.mutate({ id: task.id })
+        }}
+      />
     </div>
   )
 }

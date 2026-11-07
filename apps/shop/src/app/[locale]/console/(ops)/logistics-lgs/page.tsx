@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -15,6 +16,8 @@ export default function LogisticsLgsPage() {
   const [selected, setSelected] = React.useState('')
   const [open, setOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
+  const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
+  const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const listQuery = trpc.logistics.listBatches.useQuery({ page: 1, pageSize: 100, channel: 'lgs' })
@@ -45,7 +48,7 @@ export default function LogisticsLgsPage() {
   const submitMutation = trpc.logistics.submitBatch.useMutation({
     onSuccess: async (row) => {
       await utils.logistics.listBatches.invalidate()
-      setNotice(`批次 ${row.batchNo} 已提交（stub 平台应答）`)
+      setNotice(`批次 ${row.batchNo} 已提交交运（apps/api → 平台 OpenAPI）`)
     },
     onError: (e) => setNotice(e.message),
   })
@@ -167,7 +170,7 @@ export default function LogisticsLgsPage() {
         ]}
       >
         <UedPrototypeNotice>
-          已接 DB：fulfillment_batches（channel=lgs）+ fulfillment_batch_packages。平台交运仍为 stub；轨迹来源分接口 / 人工。
+          已接 DB：fulfillment_batches（channel=lgs）+ fulfillment_batch_packages。提交交接经 apps/api → 平台 /order/fulfill/pack + /order/package/rts 真实交运；轨迹来源分接口 / 人工。无凭证时诚实失败。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         <div className="flex flex-wrap gap-2">
@@ -196,10 +199,10 @@ export default function LogisticsLgsPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{current.statusLabel}</Badge>
-                <Button size="sm" variant="outline" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate({ id: current.id })}>
+                <Button size="sm" variant="outline" disabled={submitMutation.isPending} onClick={() => setSubmitConfirmOpen(true)}>
                   提交交接
                 </Button>
-                <Button size="sm" variant="ghost" disabled={closeMutation.isPending} onClick={() => closeMutation.mutate({ id: current.id })}>
+                <Button size="sm" variant="ghost" disabled={closeMutation.isPending} onClick={() => setCloseConfirmOpen(true)}>
                   关闭批次
                 </Button>
                 <Button size="sm" variant="ghost" asChild>
@@ -227,6 +230,57 @@ export default function LogisticsLgsPage() {
         ) : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
+      {current ? (
+        <>
+          <SyncConfirmDialog
+            open={submitConfirmOpen}
+            onOpenChange={setSubmitConfirmOpen}
+            title="提交 LGS 交运"
+            description="将批次内所有包裹提交到平台，标记为已发货。"
+            scope={{
+              label: '作用批次',
+              value: `批次 ${current.batchNo} · ${current.packageCount} 个包裹 · ${current.carrier}`,
+            }}
+            impacts={[
+              '提交后平台侧会标记这些订单为已发货，不可撤销',
+              '成功包裹的 shipment 状态会推进为 shipped',
+              '全部成功 → 批次状态 accepted；部分失败 → rejected（可修正后重提）',
+            ]}
+            platformCall={{
+              label: '将调用平台 OpenAPI',
+              detail: 'Lazop /order/fulfill/pack + /order/package/rts',
+            }}
+            confirmLabel="确认提交交运"
+            destructive
+            pending={submitMutation.isPending}
+            onConfirm={() => {
+              setSubmitConfirmOpen(false)
+              submitMutation.mutate({ id: current.id })
+            }}
+          />
+          <SyncConfirmDialog
+            open={closeConfirmOpen}
+            onOpenChange={setCloseConfirmOpen}
+            title="关闭批次"
+            description="关闭该批次，后续不可再追加包裹或提交交运。"
+            scope={{
+              label: '作用批次',
+              value: `批次 ${current.batchNo} · ${current.packageCount} 个包裹`,
+            }}
+            impacts={[
+              '批次状态变更为 closed，不可逆',
+              '已关联的 shipment 不受影响',
+            ]}
+            confirmLabel="确认关闭"
+            destructive
+            pending={closeMutation.isPending}
+            onConfirm={() => {
+              setCloseConfirmOpen(false)
+              closeMutation.mutate({ id: current.id })
+            }}
+          />
+        </>
+      ) : null}
     </>
   )
 }

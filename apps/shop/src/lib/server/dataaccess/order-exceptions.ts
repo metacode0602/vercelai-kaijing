@@ -2,7 +2,7 @@
  * 订单履约异常案件 dataaccess（模块12）。
  * 规则扫描：超时未发货 / 占库失败 / 拣货异常 / 同步失败；处理写 audit_events。
  */
-import { and, count, desc, eq, ilike, inArray, lt, ne, or, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, lt, ne, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   auditEvents,
@@ -404,61 +404,72 @@ export async function scanOrderExceptions(
 
   const cutoff = new Date(Date.now() - TIMEOUT_HOURS * 3600 * 1000)
 
-  // 1) 超时未发货：已支付且未发货/未送达，超过阈值
+  // 1) 超时未发货：已支付且未发货/未送达，超过阈值 — 分页扫描避免大租户超时
   const unpaidShipStatuses = ['shipped', 'delivered', 'cancelled', 'returned']
-  const timeoutOrders = await db
-    .select({
-      order: orders,
-      shopName: shops.name,
-    })
-    .from(orders)
-    .innerJoin(shops, eq(orders.shopId, shops.id))
-    .where(
-      and(
-        eq(orders.organizationId, organizationId),
-        or(eq(orders.status, 'paid'), eq(orders.status, 'ready_to_ship'), eq(orders.status, 'created')),
-        lt(orders.paidAt, cutoff),
-      ),
-    )
-    .limit(200)
-
-  for (const row of timeoutOrders) {
-    if (row.order.paidAt == null) continue
-    if (unpaidShipStatuses.includes(row.order.status)) continue
-    const [ship] = await db
-      .select({ id: shipments.id })
-      .from(shipments)
+  const MAX_TIMEOUT_SCAN = 5000
+  let scannedTimeout = 0
+  let lastTimeoutId: string | null = null
+  while (scannedTimeout < MAX_TIMEOUT_SCAN) {
+    const timeoutOrders = await db
+      .select({
+        order: orders,
+        shopName: shops.name,
+      })
+      .from(orders)
+      .innerJoin(shops, eq(orders.shopId, shops.id))
       .where(
         and(
-          eq(shipments.organizationId, organizationId),
-          eq(shipments.orderId, row.order.id),
-          ne(shipments.status, 'cancelled'),
+          eq(orders.organizationId, organizationId),
+          or(eq(orders.status, 'paid'), eq(orders.status, 'ready_to_ship'), eq(orders.status, 'created')),
+          lt(orders.paidAt, cutoff),
+          ...(lastTimeoutId ? [sql`${orders.id} > ${lastTimeoutId}`] : []),
         ),
       )
-      .limit(1)
-    if (ship) continue
-    const [line] = await db
-      .select()
-      .from(orderLines)
-      .where(eq(orderLines.orderId, row.order.id))
-      .limit(1)
-    bump(
-      await upsertCase(db, organizationId, {
-        kind: 'timeout_unshipped',
-        sourceType: 'order',
-        sourceId: row.order.id,
-        shopId: row.order.shopId,
-        orderId: row.order.id,
-        orderLineId: line?.id,
-        externalOrderId: row.order.externalOrderId,
-        sellerSku: line?.sellerSku,
-        internalSku: line?.sku,
-        title: `超时未发货 · ${row.order.externalOrderId}`,
-        detail: `订单已支付超过 ${TIMEOUT_HOURS} 小时仍未发货（店铺 ${row.shopName}）`,
-        blocksFulfillment: true,
-        raw: { paidAt: row.order.paidAt?.toISOString(), status: row.order.status },
-      }),
-    )
+      .orderBy(orders.id)
+      .limit(200)
+    if (timeoutOrders.length === 0) break
+
+    for (const row of timeoutOrders) {
+      if (row.order.paidAt == null) continue
+      if (unpaidShipStatuses.includes(row.order.status)) continue
+      const [ship] = await db
+        .select({ id: shipments.id })
+        .from(shipments)
+        .where(
+          and(
+            eq(shipments.organizationId, organizationId),
+            eq(shipments.orderId, row.order.id),
+            ne(shipments.status, 'cancelled'),
+          ),
+        )
+        .limit(1)
+      if (ship) continue
+      const [line] = await db
+        .select()
+        .from(orderLines)
+        .where(eq(orderLines.orderId, row.order.id))
+        .limit(1)
+      bump(
+        await upsertCase(db, organizationId, {
+          kind: 'timeout_unshipped',
+          sourceType: 'order',
+          sourceId: row.order.id,
+          shopId: row.order.shopId,
+          orderId: row.order.id,
+          orderLineId: line?.id,
+          externalOrderId: row.order.externalOrderId,
+          sellerSku: line?.sellerSku,
+          internalSku: line?.sku,
+          title: `超时未发货 · ${row.order.externalOrderId}`,
+          detail: `订单已支付超过 ${TIMEOUT_HOURS} 小时仍未发货（店铺 ${row.shopName}）`,
+          blocksFulfillment: true,
+          raw: { paidAt: row.order.paidAt?.toISOString(), status: row.order.status },
+        }),
+      )
+    }
+    lastTimeoutId = timeoutOrders[timeoutOrders.length - 1]!.order.id
+    scannedTimeout += timeoutOrders.length
+    if (timeoutOrders.length < 200) break
   }
 
   // 2) 占库失败：开放且带外部订单号的 mapping_exceptions；或已支付无活跃占库

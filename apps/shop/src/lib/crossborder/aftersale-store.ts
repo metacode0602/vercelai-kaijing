@@ -2,7 +2,7 @@
 
 /**
  * @deprecated 模块6：Console 主路径已切 tRPC `aftersale` → dataaccess → PostgreSQL。
- * 本文件仅保留类型 / RETURN_STATUSES / CANCEL_STATUSES / toRelated*Shape 供页面与 related-info 使用。
+ * 本文件仅保留 toRelated*Shape 供页面 related-info 使用；状态枚举以 aftersale.meta（server mappers）为准。
  * 勿再调用 createTicket / createCancel / registerReturnReceive / completeReturnQc / approveCancel 写 localStorage。
  *
  * 历史：售后 / 退货质检回库 / 取消退款 原型会话 store（Phase 4 UED）。
@@ -15,12 +15,6 @@ import {
   applyAftersaleScrap,
   applyOrderReleaseReserved,
 } from '@/lib/crossborder/wms-store'
-
-export const RETURN_STATUSES = ['待收货确认', '待质检', '质检中', '已回库', '已报损', '部分回库'] as const
-export type ReturnStatus = (typeof RETURN_STATUSES)[number]
-
-export const CANCEL_STATUSES = ['待确认', '已审核', '已驳回'] as const
-export type CancelStatus = (typeof CANCEL_STATUSES)[number]
 
 export type AftersaleReturn = {
   id: string
@@ -40,7 +34,7 @@ export type AftersaleReturn = {
   qc: string
   restock: number
   scrap: number
-  status: ReturnStatus | string
+  status: string
   platformStatus: string
   qcDecision: string
   inspectedAt: string
@@ -71,7 +65,7 @@ export type AftersaleCancel = {
   refund: number
   currency: string
   releaseReserved: number
-  status: CancelStatus | string
+  status: string
   reason: string
   reasonCode: string
   remark: string
@@ -493,7 +487,7 @@ export function completeReturnQc(input: {
     notes.push(result.duplicated ? `报损幂等命中 ${result.entry.id}` : `报损流水 ${result.entry.id}`)
   }
 
-  const status: ReturnStatus =
+  const status: string =
     pass > 0 && defect > 0 ? '部分回库' : pass > 0 ? '已回库' : '已报损'
 
   const updated: AftersaleReturn = {

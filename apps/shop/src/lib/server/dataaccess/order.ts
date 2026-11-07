@@ -2,7 +2,7 @@
  * 订单同步 → 占库 → 拣货出库 dataaccess（模块3）。
  * Q07/C12：默认 paid/ready_to_ship 自动占库 + 人工补锁；扣减在出库过账；流水幂等。
  */
-import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   inventoryBalances,
@@ -388,6 +388,8 @@ async function mapOrderDto(
   organizationId: string,
   order: typeof orders.$inferSelect,
   shop?: typeof shops.$inferSelect | null,
+  preloadedLines?: typeof orderLines.$inferSelect[],
+  mappingByShopSku?: Map<string, { status: string; variantId: string | null }>,
 ): Promise<OrderDto> {
   const shopRow =
     shop ??
@@ -395,11 +397,13 @@ async function mapOrderDto(
       await db.select().from(shops).where(eq(shops.id, order.shopId)).limit(1)
     )[0] ??
     null
-  const lines = await db
-    .select()
-    .from(orderLines)
-    .where(and(eq(orderLines.organizationId, organizationId), eq(orderLines.orderId, order.id)))
-    .orderBy(orderLines.externalLineId)
+  const lines =
+    preloadedLines ??
+    (await db
+      .select()
+      .from(orderLines)
+      .where(and(eq(orderLines.organizationId, organizationId), eq(orderLines.orderId, order.id)))
+      .orderBy(orderLines.externalLineId))
 
   let mappingStatus: 'ok' | 'pending' | 'exception' = 'ok'
   const lineDtos: OrderLineDto[] = []
@@ -408,6 +412,25 @@ async function mapOrderDto(
     if (!line.variantId) {
       lineMapping = 'exception'
       mappingStatus = 'exception'
+    } else if (mappingByShopSku) {
+      // 批量预加载路径：纯读，不回写映射
+      const sku = (line.sellerSku || line.sku || '').trim()
+      const key = sku ? `${order.shopId}::${sku}` : ''
+      const cached = key ? mappingByShopSku.get(key) : undefined
+      if (cached) {
+        if (cached.status === 'active' && cached.variantId === line.variantId) {
+          lineMapping = 'ok'
+        } else if (cached.status === 'pending') {
+          lineMapping = 'pending'
+          if (mappingStatus === 'ok') mappingStatus = 'pending'
+        } else {
+          lineMapping = 'exception'
+          mappingStatus = 'exception'
+        }
+      } else {
+        // 无映射记录但 variantId 存在：视为 ok（历史数据兼容）
+        lineMapping = 'ok'
+      }
     } else {
       const resolved = await resolveVariantBySellerSku(
         db,
@@ -520,6 +543,9 @@ export async function listOrders(
   if (input.shopId && input.shopId !== 'all') {
     filters.push(eq(orders.shopId, input.shopId))
   }
+  if (input.platform && input.platform !== 'all') {
+    filters.push(eq(shops.platform, input.platform))
+  }
   if (input.q?.trim()) {
     const q = `%${input.q.trim()}%`
     filters.push(
@@ -532,7 +558,12 @@ export async function listOrders(
   }
 
   const where = and(...filters)
-  const [totalRow] = await db.select({ c: count() }).from(orders).where(where)
+  // count 需要带 shops join 才能让 platform 过滤生效
+  const [totalRow] = await db
+    .select({ c: count() })
+    .from(orders)
+    .leftJoin(shops, eq(orders.shopId, shops.id))
+    .where(where)
   const total = Number(totalRow?.c ?? 0)
   const rows = await db
     .select({ order: orders, shop: shops })
@@ -543,10 +574,79 @@ export async function listOrders(
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
-  let items: OrderListRow[] = []
+  // 批量预加载 order_lines + seller_sku_mappings，避免 N+1
+  const orderIds = rows.map((r) => r.order.id)
+  const allLines = orderIds.length
+    ? await db
+        .select()
+        .from(orderLines)
+        .where(
+          and(
+            eq(orderLines.organizationId, organizationId),
+            inArray(orderLines.orderId, orderIds),
+          ),
+        )
+        .orderBy(orderLines.externalLineId)
+    : []
+  const linesByOrder = new Map<string, typeof allLines>()
+  for (const l of allLines) {
+    const list = linesByOrder.get(l.orderId) ?? []
+    list.push(l)
+    linesByOrder.set(l.orderId, list)
+  }
+  // orderId → shopId 映射（orderLines 无 shopId，从 orders 行取）
+  const shopByOrder = new Map<string, string>()
+  for (const r of rows) {
+    shopByOrder.set(r.order.id, r.order.shopId)
+  }
+  // 预加载 seller_sku_mappings（按 shopId + sellerSku 批量查）
+  const mappingKeys = new Set<string>()
+  const shopIds = new Set<string>()
+  for (const l of allLines) {
+    const sku = (l.sellerSku || l.sku || '').trim()
+    const shopId = shopByOrder.get(l.orderId)
+    if (sku && shopId) {
+      mappingKeys.add(`${shopId}::${sku}`)
+      shopIds.add(shopId)
+    }
+  }
+  const mappingByShopSku = new Map<string, { status: string; variantId: string | null }>()
+  if (mappingKeys.size > 0) {
+    // 逐 shop 批量查（inArray 组合 shopId+sellerSku 无法直接表达，按 shop 分组）
+    for (const shopId of shopIds) {
+      const skus = [...mappingKeys]
+        .filter((k) => k.startsWith(`${shopId}::`))
+        .map((k) => k.slice(`${shopId}::`.length))
+      if (!skus.length) continue
+      const mapRows = await db
+        .select()
+        .from(sellerSkuMappings)
+        .where(
+          and(
+            eq(sellerSkuMappings.organizationId, organizationId),
+            eq(sellerSkuMappings.shopId, shopId),
+            inArray(sellerSkuMappings.sellerSku, skus),
+          ),
+        )
+      for (const m of mapRows) {
+        mappingByShopSku.set(`${shopId}::${m.sellerSku}`, {
+          status: m.status,
+          variantId: m.variantId,
+        })
+      }
+    }
+  }
+
+  const items: OrderListRow[] = []
   for (const row of rows) {
-    const dto = await mapOrderDto(db, organizationId, row.order, row.shop)
-    if (input.platform && input.platform !== 'all' && dto.platform !== input.platform) continue
+    const dto = await mapOrderDto(
+      db,
+      organizationId,
+      row.order,
+      row.shop,
+      linesByOrder.get(row.order.id),
+      mappingByShopSku,
+    )
     items.push(toListRow(dto))
   }
   return { items, total, page, pageSize }
@@ -1627,6 +1727,64 @@ export async function importOrders(
     out.push(toListRow(dto))
   }
   return { upserted: out.length, orders: out }
+}
+
+/**
+ * 分配拣货人：仅 pending_pick / picking 状态可改；posted/cancelled 锁定。
+ */
+export async function assignOutboundPicker(
+  db: AppDatabase,
+  organizationId: string,
+  outboundId: string,
+  picker: string,
+): Promise<OutboundDto> {
+  const [row] = await db
+    .select()
+    .from(stockOutbounds)
+    .where(
+      and(
+        eq(stockOutbounds.organizationId, organizationId),
+        or(
+          eq(stockOutbounds.id, outboundId),
+          eq(stockOutbounds.outboundNo, outboundId),
+          eq(stockOutbounds.packageId, outboundId),
+        ),
+      ),
+    )
+    .limit(1)
+  if (!row) throw new Error('出库单不存在')
+  if (row.status === 'posted' || row.status === 'cancelled') {
+    throw new Error(`出库单状态「${row.status}」不可改拣货人`)
+  }
+  const name = picker.trim()
+  if (!name) throw new Error('拣货人不能为空')
+  await db
+    .update(stockOutbounds)
+    .set({ picker: name, updatedAt: new Date() })
+    .where(eq(stockOutbounds.id, row.id))
+  const dto = await getOutbound(db, organizationId, row.id)
+  if (!dto) throw new Error('分配后读取失败')
+  return dto
+}
+
+/**
+ * 列出当前组织出库单中已出现的拣货人（用于筛选下拉）。
+ */
+export async function listOutboundPickers(
+  db: AppDatabase,
+  organizationId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ picker: stockOutbounds.picker })
+    .from(stockOutbounds)
+    .where(
+      and(
+        eq(stockOutbounds.organizationId, organizationId),
+        sql`${stockOutbounds.picker} is not null and ${stockOutbounds.picker} <> ''`,
+      ),
+    )
+    .groupBy(stockOutbounds.picker)
+  return rows.map((r) => r.picker || '').filter(Boolean)
 }
 
 void sql

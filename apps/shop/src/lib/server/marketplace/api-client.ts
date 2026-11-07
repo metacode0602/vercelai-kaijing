@@ -11,6 +11,7 @@ export type MarketplaceSyncResource =
   | 'reviews'
   | 'listings'
   | 'settlements'
+  | 'ship_batch'
   | 'all'
 
 export interface TriggerMarketplaceSyncInput {
@@ -19,6 +20,8 @@ export interface TriggerMarketplaceSyncInput {
   shopId?: string
   syncTaskId?: string
   requestId?: string
+  /** Required when resource === 'ship_batch'. */
+  batchId?: string
   /** Default true — wait for API result. */
   wait?: boolean
 }
@@ -78,6 +81,7 @@ export async function triggerMarketplaceSync(
         shopId: input.shopId,
         syncTaskId: input.syncTaskId,
         requestId: input.requestId,
+        batchId: input.batchId,
         wait: input.wait !== false,
       }),
       cache: 'no-store',
@@ -133,6 +137,8 @@ export function resourceForSyncTaskType(type: string): MarketplaceSyncResource {
       return 'settlements'
     case 'returns':
       return 'orders'
+    case 'ship_batch':
+      return 'ship_batch'
     default:
       return 'orders'
   }

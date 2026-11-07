@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 
 function listingVariant(status: string) {
   if (status === '在售') return 'default' as const
@@ -53,6 +54,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   )
   const [editOpen, setEditOpen] = React.useState(false)
   const [lineOpen, setLineOpen] = React.useState(false)
+  const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const updateMutation = trpc.listings.update.useMutation({
@@ -271,7 +273,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
               size="sm"
               variant="outline"
               disabled={syncMutation.isPending}
-              onClick={() => syncMutation.mutate({ id: listing.id })}
+              onClick={() => setSyncConfirmOpen(true)}
             >
               请求刊登读同步
             </Button>
@@ -434,6 +436,30 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
       <DetailRelatedTables sections={related.sections ?? []} />
       <ProductReviewsSection sku={listing.sku} />
+      <SyncConfirmDialog
+        open={syncConfirmOpen}
+        onOpenChange={setSyncConfirmOpen}
+        title="请求刊登读同步"
+        description="从平台拉取该刊登的最新头信息与状态。"
+        scope={{
+          label: '作用刊登',
+          value: `刊登 ${listing.externalItemId || '—'} · ${listing.shopName}`,
+        }}
+        impacts={[
+          '仅读取平台刊登头信息，不会推送任何修改到平台',
+          '本地 publishState / 售价 / 上下架状态会按平台返回更新',
+        ]}
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: 'Lazop /products/get',
+        }}
+        confirmLabel="开始同步"
+        pending={syncMutation.isPending}
+        onConfirm={() => {
+          setSyncConfirmOpen(false)
+          syncMutation.mutate({ id: listing.id })
+        }}
+      />
     </div>
   )
 }

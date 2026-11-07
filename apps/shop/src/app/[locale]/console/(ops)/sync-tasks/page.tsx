@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -22,6 +23,13 @@ export default function SyncTasksPage() {
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState('全部')
   const [notice, setNotice] = React.useState('')
+  const [retryTarget, setRetryTarget] = React.useState<{
+    id: string
+    taskNo: string
+    type: string
+    shop: string
+    target: string
+  } | null>(null)
   const utils = trpc.useUtils()
 
   const metaQuery = trpc.sync.meta.useQuery()
@@ -130,7 +138,7 @@ export default function SyncTasksPage() {
           .slice(0, 6)
           .map((row) => (
             <React.Fragment key={row.id}>
-              <Button size="sm" disabled={retryMutation.isPending} onClick={() => retryMutation.mutate({ id: row.id })}>
+              <Button size="sm" disabled={retryMutation.isPending} onClick={() => setRetryTarget(row)}>
                 重试 · {row.taskNo}
               </Button>
               <Button variant="ghost" size="sm" asChild>
@@ -148,6 +156,37 @@ export default function SyncTasksPage() {
           {notice}
         </p>
       ) : null}
+      <SyncConfirmDialog
+        open={Boolean(retryTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRetryTarget(null)
+        }}
+        title="重试同步任务"
+        description="重新执行该同步任务，按任务类型调用对应平台接口。"
+        scope={{
+          label: '作用任务',
+          value: retryTarget
+            ? `任务 ${retryTarget.taskNo} · ${retryTarget.type} · ${retryTarget.shop !== '—' ? retryTarget.shop : '全部店铺'}`
+            : '',
+        }}
+        impacts={[
+          '会按任务类型（订单/刊登/物流/评论/结算）真实调用平台 OpenAPI',
+          '结果会回写 sync_job_runs 与 integration_logs',
+          '失败可在任务详情查看错误详情',
+        ]}
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: '按 task.type 路由（orders/listings/logistics/reviews/settlements）',
+        }}
+        confirmLabel="确认重试"
+        pending={retryMutation.isPending}
+        onConfirm={() => {
+          if (!retryTarget) return
+          const target = retryTarget
+          setRetryTarget(null)
+          retryMutation.mutate({ id: target.id })
+        }}
+      />
     </UedWorkspace>
   )
 }

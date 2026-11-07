@@ -3,7 +3,6 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { CANCEL_STATUSES } from '@/lib/crossborder/aftersale-store'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -14,53 +13,88 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+function releaseVariant(status: string) {
+  if (status === 'released') return 'secondary' as const
+  if (status === 'skipped' || status === 'failed') return 'outline' as const
+  return 'outline' as const
+}
+
+function refundVariant(decision: string) {
+  if (decision === 'agreed') return 'secondary' as const
+  if (decision === 'rejected') return 'destructive' as const
+  if (decision === 'scheduled') return 'default' as const
+  if (decision === 'unsupported' || decision === 'skipped') return 'outline' as const
+  return 'outline' as const
+}
+
 export default function AftersaleCancelsPage() {
   const utils = trpc.useUtils()
   const listQuery = trpc.aftersale.listCancels.useQuery({ page: 1, pageSize: 100 })
   const statsQuery = trpc.aftersale.cancelStats.useQuery()
+  const metaQuery = trpc.aftersale.meta.useQuery()
+
+  const invalidateAll = async () =>
+    Promise.all([
+      utils.aftersale.listCancels.invalidate(),
+      utils.aftersale.cancelStats.invalidate(),
+      utils.aftersale.list.invalidate(),
+    ])
+
   const createMutation = trpc.aftersale.createCancel.useMutation({
     onSuccess: async (row) => {
-      await Promise.all([
-        utils.aftersale.listCancels.invalidate(),
-        utils.aftersale.cancelStats.invalidate(),
-        utils.aftersale.list.invalidate(),
-      ])
+      await invalidateAll()
       setOpen(false)
       setNotice(`${row.id} 已登记，待审核`)
     },
     onError: (e) => setNotice(e.message),
   })
-  const approveMutation = trpc.aftersale.approveCancel.useMutation({
+  const releaseMutation = trpc.aftersale.releaseReserved.useMutation({
     onSuccess: async (res) => {
-      await Promise.all([
-        utils.aftersale.listCancels.invalidate(),
-        utils.aftersale.cancelStats.invalidate(),
-        utils.aftersale.list.invalidate(),
-      ])
+      await invalidateAll()
       setNotice(`${res.row.id}：${res.note}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const agreeMutation = trpc.aftersale.decideRefund.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setNotice(`${row.id} 已同意退款`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const rejectMutation = trpc.aftersale.decideRefund.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setNotice(`${row.id} 已拒绝退款`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const toManualMutation = trpc.aftersale.cancelScheduledRefund.useMutation({
+    onSuccess: async (row) => {
+      await invalidateAll()
+      setNotice(`${row.id} 已改为人工处理`)
     },
     onError: (e) => setNotice(e.message),
   })
 
   const rows = listQuery.data?.items ?? []
-  const kpi = statsQuery.data ?? { total: 0, pending: 0, approved: 0, rejected: 0 }
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const kpiItems = React.useMemo(
     () => [
-      { label: '取消/退款单', value: String(kpi.total) },
-      { label: '待确认', value: String(kpi.pending) },
-      { label: '已审核', value: String(kpi.approved) },
-      { label: '已驳回', value: String(kpi.rejected) },
+      { label: '取消/退款单', value: String(statsQuery.data?.total ?? 0) },
+      { label: '待确认', value: String(statsQuery.data?.pending ?? 0) },
+      { label: '已审核', value: String(statsQuery.data?.approved ?? 0) },
+      { label: '已驳回', value: String(statsQuery.data?.rejected ?? 0) },
     ],
-    [kpi],
+    [statsQuery.data],
   )
 
   const editor = open ? (
     <UedDialog
       title="登记取消 / 退款"
-      description="取消订单审核通过后可释放预留库存（写 order_release 流水）；仅退款不释放。"
+      description="人工补录例外单据；正常取消由平台同步建档，按店铺策略自动处理。"
       fields={[
         { key: 'order', label: '原订单', required: true },
         { key: 'shop', label: '店铺', options: ['Daraz LK', 'Lazada MY', 'Lazada PH'] },
@@ -120,7 +154,7 @@ export default function AftersaleCancelsPage() {
   return (
     <UedWorkspace
       title="取消与退款"
-      description="取消订单 / 仅退款：审核后记账；取消类可经库存流水释放预留库存。"
+      description="买家在平台发起取消 / 仅退款，系统同步建档并按店铺策略释放未发货占库、按等待天数处理退款。占库释放与退款分开执行。"
       rows={rows}
       detailHref={(row) => `/console/aftersale-cancels/${encodeURIComponent(row.id)}`}
       searchKeys={[
@@ -139,60 +173,106 @@ export default function AftersaleCancelsPage() {
         'reasonCode',
       ]}
       searchPlaceholder="搜索单号、订单或 SKU"
-      filters={[{ label: '状态', options: [...CANCEL_STATUSES], key: 'status' }]}
+      filters={[{ label: '状态', options: [...(metaQuery.data?.cancelStatuses ?? [])], key: 'status' }]}
       emptyText={listQuery.isLoading ? '加载中…' : '暂无取消/退款单。'}
       addLabel="登记取消/退款"
       onAdd={() => setOpen(true)}
       columns={[
         { key: 'id', label: '单号' },
-        { key: 'reverseOrderId', label: '逆向单 ID' },
         { key: 'externalReverseId', label: '平台逆向单号' },
         { key: 'order', label: '原订单' },
         { key: 'shop', label: '店铺' },
         { key: 'sku', label: 'SKU' },
         { key: 'type', label: '类型' },
-        { key: 'reasonCode', label: '原因码' },
         {
           key: 'refund',
           label: '退款',
           render: (row) => `${row.refund} ${row.currency}`,
         },
-        { key: 'refundId', label: '退款单号' },
-        { key: 'refundStatus', label: '退款状态' },
         {
-          key: 'releaseReserved',
-          label: '释放锁定',
-          render: (row) => String(row.releaseReserved),
+          key: 'inventoryReleaseStatus',
+          label: '占库释放',
+          render: (row) => (
+            <Badge variant={releaseVariant(row.inventoryReleaseStatus)}>
+              {row.inventoryReleaseStatusLabel}
+            </Badge>
+          ),
         },
-        { key: 'platformStatus', label: '平台状态' },
+        {
+          key: 'refundDecision',
+          label: '退款决定',
+          render: (row) => (
+            <Badge variant={refundVariant(row.refundDecision)}>
+              {row.refundDecisionLabel}
+              {row.refundDueAt && row.refundDecision === 'scheduled'
+                ? ` · ${row.refundDueAt}`
+                : ''}
+            </Badge>
+          ),
+        },
+        {
+          key: 'platformStatus',
+          label: '平台状态',
+          render: (row) => <Badge variant="outline">{row.platformStatus}</Badge>,
+        },
         {
           key: 'status',
           label: '审核状态',
           render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge>,
         },
+        {
+          key: 'actions',
+          label: '操作',
+          render: (row) => (
+            <div className="flex flex-wrap justify-end gap-1">
+              {row.inventoryReleaseStatus === 'pending_manual' && row.type !== '仅退款' ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={releaseMutation.isPending}
+                  onClick={() => releaseMutation.mutate({ id: row.id })}
+                >
+                  释放占库
+                </Button>
+              ) : null}
+              {(row.refundDecision === 'pending_manual' || row.refundDecision === 'scheduled') ? (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={agreeMutation.isPending}
+                    onClick={() => agreeMutation.mutate({ id: row.id, action: 'agree' })}
+                  >
+                    同意退款
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={rejectMutation.isPending}
+                    onClick={() => rejectMutation.mutate({ id: row.id, action: 'reject', reason: '人工拒绝' })}
+                  >
+                    拒绝
+                  </Button>
+                </>
+              ) : null}
+              {row.refundDecision === 'scheduled' ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={toManualMutation.isPending}
+                  onClick={() => toManualMutation.mutate({ id: row.id })}
+                >
+                  改为人工
+                </Button>
+              ) : null}
+            </div>
+          ),
+        },
       ]}
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        {
-          "审核「取消订单」且存在 active 占库时写 order_release（幂等键 ledger:aftersale_cancel_release:{ext}:{orderLineId}）；已出库不做冲销。"
-        }
+        {'占库释放与退款分开：买家取消入库后按策略释放未发货占库（order_release 流水）；退款按等待天数处理，平台支持时自动同意。详见 docs/design/aftersale-cancel-ingest-and-policy.md。'}
       </UedPrototypeNotice>
-      <div className="flex flex-wrap gap-2">
-        {rows
-          .filter((row) => row.status === '待确认')
-          .map((row) => (
-            <Button
-              key={row.id}
-              size="sm"
-              variant="outline"
-              disabled={approveMutation.isPending}
-              onClick={() => approveMutation.mutate({ id: row.id })}
-            >
-              审核通过 · {row.id}
-            </Button>
-          ))}
-      </div>
       {editor}
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">

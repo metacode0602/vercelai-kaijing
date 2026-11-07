@@ -10,6 +10,7 @@ import {
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -18,6 +19,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
   const id = decodeRouteParam(React.use(params).id)
   const utils = trpc.useUtils()
   const [notice, setNotice] = React.useState('')
+  const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
   const query = trpc.logistics.get.useQuery({ id })
   const syncMutation = trpc.logistics.syncFromPlatform.useMutation({
     onSuccess: async (res) => {
@@ -56,7 +58,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         title={row.externalPackageId}
         description={`${row.shop} · ${row.mode} · ${row.statusLabel}`}
         actions={
-          <Button size="sm" variant="outline" disabled={syncMutation.isPending} onClick={() => syncMutation.mutate({ id: row.id })}>
+          <Button size="sm" variant="outline" disabled={syncMutation.isPending} onClick={() => setSyncConfirmOpen(true)}>
             {syncMutation.isPending ? '同步中…' : '同步平台轨迹'}
           </Button>
         }
@@ -109,6 +111,26 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         )}
       </DetailSection>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      <SyncConfirmDialog
+        open={syncConfirmOpen}
+        onOpenChange={setSyncConfirmOpen}
+        title="同步平台物流轨迹"
+        description="拉取该包裹的最新物流轨迹。"
+        scope={{
+          label: '作用包裹',
+          value: `包裹 ${row.externalPackageId} · ${row.shop}`,
+        }}
+        impacts={[
+          '当前为 stub：仅写一条 fulfillment_attempts 记录，不调用平台',
+          '真实轨迹同步需待 connector 联调',
+        ]}
+        confirmLabel="同步轨迹"
+        pending={syncMutation.isPending}
+        onConfirm={() => {
+          setSyncConfirmOpen(false)
+          syncMutation.mutate({ id: row.id })
+        }}
+      />
     </div>
   )
 }

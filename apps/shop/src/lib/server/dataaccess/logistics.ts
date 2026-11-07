@@ -13,6 +13,7 @@ import {
   shipmentItems,
   shipments,
   shops,
+  syncTasks,
   trackingEvents,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -37,10 +38,25 @@ import {
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
 import * as syncDa from '@/lib/server/dataaccess/sync'
+import {
+  triggerMarketplaceSync,
+} from '@/lib/server/marketplace/api-client'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
 const DEFAULT_WAREHOUSE = 'WH-CN-XMN-001'
+
+/** 批次状态机白名单（与 fulfillment_batches.status 注释一致） */
+const VALID_BATCH_STATUSES = [
+  'open',
+  'submitted',
+  'accepted',
+  'rejected',
+  'closed',
+  'in_transit',
+  'delivered',
+  'exception',
+] as const
 
 export type TrackingEventDto = {
   id: string
@@ -959,17 +975,36 @@ export async function listBatches(
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
-  const items: FulfillmentBatchListRow[] = []
-  for (const row of rows) {
-    const dto = await toBatchDto(db, organizationId, row)
-    const { packages: pkgList, events, ...rest } = dto
-    items.push({
-      ...rest,
-      tracking: dto.trackingSummary || pkgList.map((p) => p.trackingNumber).join('、') || '—',
-      packages: dto.packageCount,
-      handedOver: dto.handedOverAt || '—',
-    })
-  }
+  // 列表行不加载 packages（packageCount 已在批次行上），避免 N+1；tracking 用 trackingSummary
+  const items: FulfillmentBatchListRow[] = rows.map((row) => {
+    const meta = rawMeta(row)
+    return {
+      id: row.id,
+      batchNo: row.batchNo,
+      channel: row.channel,
+      site: row.site || '',
+      country: row.country || '',
+      warehouseCode: row.warehouseCode || DEFAULT_WAREHOUSE,
+      status: row.status,
+      statusLabel: toUiBatchStatus(row.status),
+      carrier: row.carrier || '',
+      trackingSummary: row.trackingSummary || '',
+      packageCount: row.packageCount,
+      handedOverAt: stampOrEmpty(row.handedOverAt),
+      submittedAt: stampOrEmpty(row.submittedAt),
+      createdAt: stampOrEmpty(row.createdAt),
+      departedAt: typeof meta.departedAt === 'string' ? meta.departedAt : stampOrEmpty(row.createdAt),
+      jsbHandover:
+        typeof meta.jsbHandover === 'string' ? meta.jsbHandover : stampOrEmpty(row.handedOverAt),
+      customs: typeof meta.customs === 'string' ? meta.customs : '—',
+      lastMile: typeof meta.lastMile === 'string' ? meta.lastMile : '—',
+      signedAt: typeof meta.signedAt === 'string' ? meta.signedAt : '',
+      fee: typeof meta.fee === 'string' ? meta.fee : '',
+      tracking: row.trackingSummary || '—',
+      packages: row.packageCount,
+      handedOver: stampOrEmpty(row.handedOverAt) || '—',
+    }
+  })
   return { items, total: Number(totalRow?.n ?? 0), page, pageSize }
 }
 
@@ -1004,8 +1039,10 @@ export async function createBatch(
   organizationId: string,
   input: CreateBatchInput,
 ) {
-  const channel = input.channel.trim()
-  if (!channel) throw new Error('请指定 channel（lgs / jsb_th）')
+  // 统一 JSB 渠道：旧数据可能为 'jsb'，新批次一律写 'jsb_th'
+  const rawChannel = input.channel.trim()
+  if (!rawChannel) throw new Error('请指定 channel（lgs / jsb_th）')
+  const channel = rawChannel === 'jsb' ? 'jsb_th' : rawChannel
   const batchNo =
     input.batchNo?.trim() ||
     `BATCH-${channel.toUpperCase()}-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`
@@ -1120,10 +1157,14 @@ export async function submitBatch(
   }
   if (batch.packageCount <= 0) throw new Error('批次内没有包裹，不能提交')
 
+  // JSB / jsb_th 无平台 API（Q17）：保持人工/import 路径，仅写 submitted + stub attempt。
+  const isJsb = batch.channel === 'jsb' || batch.channel === 'jsb_th'
   const now = new Date()
   const meta = rawMeta(batch)
   const events = Array.isArray(meta.events) ? [...(meta.events as string[])] : []
-  events.push(`提交交接 · ${formatStamp(now)}${operator ? ` · ${operator}` : ''}（stub）`)
+  events.push(
+    `提交交接 · ${formatStamp(now)}${operator ? ` · ${operator}` : ''}${isJsb ? '（人工/import）' : ''}`,
+  )
 
   await db
     .update(fulfillmentBatches)
@@ -1132,30 +1173,116 @@ export async function submitBatch(
       submittedAt: now,
       handedOverAt: batch.handedOverAt || now,
       updatedAt: now,
-      raw: { ...meta, events, lastOperator: operator || null, stubSubmit: true },
+      raw: { ...meta, events, lastOperator: operator || null, stubSubmit: isJsb },
     })
     .where(eq(fulfillmentBatches.id, batch.id))
 
-  // stub attempt on first package
-  const [link] = await db
+  if (isJsb) {
+    // JSB 无 API：仅记录 stub attempt，不调用 apps/api
+    const [link] = await db
+      .select()
+      .from(fulfillmentBatchPackages)
+      .where(eq(fulfillmentBatchPackages.batchId, batch.id))
+      .limit(1)
+    if (link) {
+      const [ship] = await db.select().from(shipments).where(eq(shipments.id, link.shipmentId)).limit(1)
+      if (ship) {
+        await recordAttempt(db, organizationId, {
+          shopId: ship.shopId,
+          shipmentId: ship.id,
+          orderId: ship.orderId,
+          externalPackageId: ship.externalPackageId,
+          action: 'submit_batch',
+          idempotencyKey: `submit-batch:${batch.id}`,
+          result: 'success',
+          raw: { stub: true, batchNo: batch.batchNo, channel: batch.channel },
+        })
+      }
+    }
+    const dto = await getBatch(db, organizationId, batch.id)
+    if (!dto) throw new Error('提交后读取失败')
+    return dto
+  }
+
+  // LGS：入队同步任务并调用 apps/api → 平台 OpenAPI 真实交运
+  const links = await db
     .select()
     .from(fulfillmentBatchPackages)
     .where(eq(fulfillmentBatchPackages.batchId, batch.id))
-    .limit(1)
-  if (link) {
-    const [ship] = await db.select().from(shipments).where(eq(shipments.id, link.shipmentId)).limit(1)
-    if (ship) {
+  const shipRows = await db
+    .select()
+    .from(shipments)
+    .where(inArray(shipments.id, links.map((l) => l.shipmentId)))
+  if (shipRows.length === 0) {
+    throw new Error('批次内包裹读取失败，无法提交交运')
+  }
+  // 取首个包裹的 shopId（LGS 批次通常单店铺；多店铺由 apps/api 分组处理）
+  const shopId = shipRows[0]!.shopId
+
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '物流交运',
+    target: `batch:${batch.batchNo}`,
+    shopId,
+    actor: operator?.trim() || 'console',
+    note: `LGS 交运：apps/api → 平台 /order/fulfill/pack + /order/package/rts（批次 ${batch.batchNo}）`,
+    skipPlatformTrigger: true,
+  })
+
+  const triggered = await triggerMarketplaceSync({
+    resource: 'ship_batch',
+    organizationId,
+    shopId,
+    syncTaskId: task.id,
+    batchId: batch.id,
+    wait: true,
+  })
+
+  if (!triggered.ok) {
+    // 平台交运失败：批次回退到 open，写 failed attempt
+    await db
+      .update(fulfillmentBatches)
+      .set({ status: 'open', updatedAt: new Date() })
+      .where(eq(fulfillmentBatches.id, batch.id))
+    await db
+      .update(syncTasks)
+      .set({
+        status: 'failed',
+        error: triggered.error || '平台交运失败',
+        finishedAt: new Date(),
+        note: triggered.error || 'apps/api 调用失败',
+        updatedAt: new Date(),
+      })
+      .where(and(eq(syncTasks.organizationId, organizationId), eq(syncTasks.id, task.id)))
+    for (const ship of shipRows) {
       await recordAttempt(db, organizationId, {
         shopId: ship.shopId,
         shipmentId: ship.id,
         orderId: ship.orderId,
         externalPackageId: ship.externalPackageId,
         action: 'submit_batch',
-        idempotencyKey: `submit-batch:${batch.id}`,
-        result: 'success',
-        raw: { stub: true, batchNo: batch.batchNo },
+        idempotencyKey: `submit-batch:${batch.id}:${ship.id}`,
+        result: 'failed',
+        errorMessage: triggered.error || 'apps/api 调用失败',
+        raw: { batchNo: batch.batchNo, syncTaskId: task.id },
       })
     }
+    throw new Error(
+      triggered.error || `批次 ${batch.batchNo} 提交交运失败：apps/api 调用失败`,
+    )
+  }
+
+  // 成功：apps/api 已推进批次状态为 accepted/rejected；写 success attempt
+  for (const ship of shipRows) {
+    await recordAttempt(db, organizationId, {
+      shopId: ship.shopId,
+      shipmentId: ship.id,
+      orderId: ship.orderId,
+      externalPackageId: ship.externalPackageId,
+      action: 'submit_batch',
+      idempotencyKey: `submit-batch:${batch.id}:${ship.id}`,
+      result: 'success',
+      raw: { batchNo: batch.batchNo, syncTaskId: task.id },
+    })
   }
 
   const dto = await getBatch(db, organizationId, batch.id)
@@ -1205,7 +1332,7 @@ export async function appendBatchEvent(
     tracking?: string
     carrier?: string
     exception?: string
-    /** 可选：同步推进批次状态 */
+    /** 可选：同步推进批次状态（必须在白名单内） */
     status?: string
   },
 ) {
@@ -1220,6 +1347,12 @@ export async function appendBatchEvent(
     )
     .limit(1)
   if (!batch) throw new Error(`批次不存在：${input.batchId}`)
+  // 状态机白名单：仅允许合法批次状态
+  if (input.status && !VALID_BATCH_STATUSES.includes(input.status as (typeof VALID_BATCH_STATUSES)[number])) {
+    throw new Error(
+      `非法批次状态：${input.status}（允许：${VALID_BATCH_STATUSES.join(', ')}）`,
+    )
+  }
   const at = input.eventAt || formatStamp(new Date())
   const meta = rawMeta(batch)
   const events = Array.isArray(meta.events) ? [...(meta.events as string[])] : []

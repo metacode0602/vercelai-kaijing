@@ -21,6 +21,10 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 import { Button } from '@workspace/ui/components/button'
+import {
+  SyncConfirmDialog,
+  formatShopScope,
+} from '@/components/console/sync-confirm-dialog'
 
 function statusVariant(status: string) {
   if (status === 'paid' || status === 'ready_to_ship') return 'secondary' as const
@@ -39,6 +43,9 @@ export default function OrdersPage() {
   const listQuery = trpc.order.list.useQuery({ page: 1, pageSize: 100, status, platform })
   const statsQuery = trpc.order.stats.useQuery()
   const metaQuery = trpc.order.meta.useQuery()
+  const shopsQuery = trpc.mappings.listShops.useQuery()
+
+  const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
 
   const syncMutation = trpc.order.syncIncremental.useMutation({
     onSuccess: async (res) => {
@@ -107,12 +114,45 @@ export default function OrdersPage() {
           </p>
         </div>
         <Button
-          onClick={() => syncMutation.mutate({ limit: 10 })}
+          onClick={() => setSyncConfirmOpen(true)}
           disabled={syncMutation.isPending}
         >
           {syncMutation.isPending ? '同步中…' : '人工增量同步'}
         </Button>
       </div>
+      <SyncConfirmDialog
+        open={syncConfirmOpen}
+        onOpenChange={setSyncConfirmOpen}
+        title="人工增量同步订单"
+        description="从平台拉取增量订单写入控制台。"
+        scope={{
+          label: '作用店铺',
+          value: formatShopScope(
+            (shopsQuery.data ?? [])
+              .filter((s) => s.status === 'active' || s.status === 'error')
+              .map((s) => ({
+                name: s.name,
+                platform: s.platform,
+                region: s.site,
+              })),
+          ),
+        }}
+        impacts={[
+          '拉取窗口：上次同步时间 ~ 现在（首次回填近 7 天，每店铺最多 500 单）',
+          '同步完成后，已支付订单会自动占库（映射确认后生效）',
+          '订单数据可重复同步（幂等），不会重复下单',
+        ]}
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: 'Daraz/Lazada /orders/get + /order/items/get',
+        }}
+        confirmLabel="开始同步"
+        pending={syncMutation.isPending}
+        onConfirm={() => {
+          setSyncConfirmOpen(false)
+          syncMutation.mutate({ limit: 10 })
+        }}
+      />
       <DetailKpiRow items={kpis} />
       <p className="text-xs text-muted-foreground">
         Q07：{metaQuery.data?.q07Note ?? 'paid 自动占库 + 出库过账扣减'}

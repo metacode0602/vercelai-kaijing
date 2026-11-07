@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -14,6 +15,8 @@ export default function LogisticsJsbPage() {
   const [selected, setSelected] = React.useState('')
   const [open, setOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
+  const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
+  const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const listQuery = trpc.logistics.listBatches.useQuery({ page: 1, pageSize: 100, channel: 'jsb' })
@@ -198,10 +201,10 @@ export default function LogisticsJsbPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">TH 链路</Badge>
-                <Button size="sm" variant="outline" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate({ id: current.id })}>
+                <Button size="sm" variant="outline" disabled={submitMutation.isPending} onClick={() => setSubmitConfirmOpen(true)}>
                   提交交接
                 </Button>
-                <Button size="sm" variant="ghost" disabled={closeMutation.isPending} onClick={() => closeMutation.mutate({ id: current.id })}>
+                <Button size="sm" variant="ghost" disabled={closeMutation.isPending} onClick={() => setCloseConfirmOpen(true)}>
                   关闭批次
                 </Button>
                 <Button size="sm" variant="ghost" asChild>
@@ -224,6 +227,52 @@ export default function LogisticsJsbPage() {
         ) : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
+      {current ? (
+        <>
+          <SyncConfirmDialog
+            open={submitConfirmOpen}
+            onOpenChange={setSubmitConfirmOpen}
+            title="提交 JSB 交接"
+            description="将批次标记为已交接给 JSB 物流。"
+            scope={{
+              label: '作用批次',
+              value: `批次 ${current.batchNo} · ${current.packageCount} 个包裹`,
+            }}
+            impacts={[
+              'JSB 无可靠平台 API，仅更新本地批次状态为已交接',
+              '实际物流节点需在批次详情手工补录',
+              '提交后批次状态不可自动回退',
+            ]}
+            confirmLabel="确认提交交接"
+            pending={submitMutation.isPending}
+            onConfirm={() => {
+              setSubmitConfirmOpen(false)
+              submitMutation.mutate({ id: current.id })
+            }}
+          />
+          <SyncConfirmDialog
+            open={closeConfirmOpen}
+            onOpenChange={setCloseConfirmOpen}
+            title="关闭批次"
+            description="关闭该批次，后续不可再追加包裹或补录节点。"
+            scope={{
+              label: '作用批次',
+              value: `批次 ${current.batchNo} · ${current.packageCount} 个包裹`,
+            }}
+            impacts={[
+              '批次状态变更为 closed，不可逆',
+              '已关联的 shipment 不受影响',
+            ]}
+            confirmLabel="确认关闭"
+            destructive
+            pending={closeMutation.isPending}
+            onConfirm={() => {
+              setCloseConfirmOpen(false)
+              closeMutation.mutate({ id: current.id })
+            }}
+          />
+        </>
+      ) : null}
     </>
   )
 }
