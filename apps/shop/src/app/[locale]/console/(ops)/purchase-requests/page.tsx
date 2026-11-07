@@ -5,6 +5,16 @@ import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/consol
 import { countByStatus } from '@/lib/crossborder/purchase-request-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@workspace/ui/components/alert-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -23,6 +33,9 @@ export default function PurchaseRequestsPage() {
   const router = useLocaleRouter()
   const utils = trpc.useUtils()
   const [open, setOpen] = React.useState(false)
+  const [withdrawTarget, setWithdrawTarget] = React.useState<{ id: string; requestNo: string } | null>(
+    null,
+  )
   const [notice, setNotice] = React.useState('')
   const listQuery = trpc.purchase.listRequests.useQuery({
     page: 1,
@@ -200,7 +213,7 @@ export default function PurchaseRequestsPage() {
                 variant="outline"
                 size="sm"
                 disabled={withdrawMutation.isPending}
-                onClick={() => withdrawMutation.mutate({ id: row.id })}
+                onClick={() => setWithdrawTarget({ id: row.id, requestNo: row.requestNo })}
               >
                 撤回 · {row.requestNo}
               </Button>
@@ -219,6 +232,31 @@ export default function PurchaseRequestsPage() {
           </p>
         ) : null}
       </UedWorkspace>
+      <AlertDialog
+        open={withdrawTarget !== null}
+        onOpenChange={(open) => !open && setWithdrawTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认撤回申请？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {withdrawTarget?.requestNo} 撤回后将回到草稿状态，可修改后重新提交审核。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={withdrawMutation.isPending}
+              onClick={() => {
+                if (withdrawTarget) withdrawMutation.mutate({ id: withdrawTarget.id })
+                setWithdrawTarget(null)
+              }}
+            >
+              确认撤回
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

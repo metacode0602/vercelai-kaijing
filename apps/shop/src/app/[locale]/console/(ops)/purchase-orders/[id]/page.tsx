@@ -30,6 +30,12 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+function todayDateInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 10)
+}
+
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
   const router = useLocaleRouter()
@@ -237,14 +243,31 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
       {receiveOpen ? (
         <UedDialog
           title="登记到货批次"
-          description="按行填写本批到货数量；提交后生成待质检收货单并回写采购单到货投影。"
-          fields={current.lines.map((line) => ({
-            key: line.id,
-            label: `${line.sku}（订 ${line.qtyOrdered} / 已收 ${line.qtyReceived}）`,
-            type: 'number' as const,
-            defaultValue: qtyDraft[line.id] || '0',
-            required: false,
-          }))}
+          description="填写本批到货批次、物流与行到货数量；提交后生成待质检收货单并回写采购单到货投影。"
+          fields={[
+            {
+              key: 'batchNo',
+              label: '到货批次编号',
+              placeholder: '如 BATCH-20261107-01',
+              required: true,
+            },
+            {
+              key: 'arrivedAt',
+              label: '到货日期',
+              type: 'date',
+              defaultValue: todayDateInput(),
+              required: true,
+            },
+            { key: 'carrier', label: '物流商', placeholder: '如 顺丰 / DHL / 货代名称' },
+            { key: 'trackingNo', label: '物流单号', placeholder: '填写物流运单号' },
+            ...current.lines.map((line) => ({
+              key: line.id,
+              label: `${line.sku}（订 ${line.qtyOrdered} / 已收 ${line.qtyReceived}）`,
+              type: 'number' as const,
+              defaultValue: qtyDraft[line.id] || '0',
+              required: false,
+            })),
+          ]}
           initialValues={qtyDraft}
           onClose={() => setReceiveOpen(false)}
           onSave={(values) => {
@@ -261,6 +284,10 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
             }
             registerMutation.mutate({
               purchaseOrderId: current.id,
+              batchNo: values.batchNo?.trim() || undefined,
+              arrivedAt: values.arrivedAt || undefined,
+              carrier: values.carrier?.trim() || undefined,
+              trackingNo: values.trackingNo?.trim() || undefined,
               receivedBy: '当前用户',
               lines,
             })

@@ -13,6 +13,16 @@ import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-work
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@workspace/ui/components/alert-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -40,6 +50,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
   const [lineOpen, setLineOpen] = React.useState(false)
   const [lineSku, setLineSku] = React.useState('')
   const [headerOpen, setHeaderOpen] = React.useState(false)
+  const [confirmAction, setConfirmAction] = React.useState<'submit' | 'withdraw' | null>(null)
   const [notice, setNotice] = React.useState('')
 
   const detailQuery = trpc.purchase.getRequest.useQuery({ id })
@@ -310,7 +321,11 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
 
       <div className="flex flex-wrap gap-2">
         {canSubmit ? (
-          <Button size="sm" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate({ id: current.id })}>
+          <Button
+            size="sm"
+            disabled={submitMutation.isPending}
+            onClick={() => setConfirmAction('submit')}
+          >
             提交审核
           </Button>
         ) : null}
@@ -319,7 +334,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
             size="sm"
             variant="outline"
             disabled={withdrawMutation.isPending}
-            onClick={() => withdrawMutation.mutate({ id: current.id })}
+            onClick={() => setConfirmAction('withdraw')}
           >
             撤回申请
           </Button>
@@ -346,6 +361,37 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
           {notice}
         </p>
       ) : null}
+
+      <AlertDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => !open && setConfirmAction(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction === 'submit' ? '确认提交审核？' : '确认撤回申请？'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction === 'submit'
+                ? `${current.requestNo} 提交后将进入「采购审核」，审核期间不可修改主信息与明细。`
+                : `${current.requestNo} 撤回后将回到草稿状态，可修改后重新提交审核。`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={submitMutation.isPending || withdrawMutation.isPending}
+              onClick={() => {
+                if (confirmAction === 'submit') submitMutation.mutate({ id: current.id })
+                if (confirmAction === 'withdraw') withdrawMutation.mutate({ id: current.id })
+                setConfirmAction(null)
+              }}
+            >
+              {confirmAction === 'submit' ? '确认提交' : '确认撤回'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {headerOpen ? (
         <UedDialog

@@ -15,6 +15,12 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+function todayDateInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 10)
+}
+
 export default function PurchaseReceiptsPage() {
   const router = useLocaleRouter()
   const utils = trpc.useUtils()
@@ -76,6 +82,29 @@ export default function PurchaseReceiptsPage() {
           helper: '仅展示仍可收货的采购单；供应商/仓库随单带出',
         },
         {
+          key: 'batchNo',
+          label: '到货批次编号',
+          placeholder: '如 BATCH-20261107-01',
+          required: true,
+        },
+        {
+          key: 'arrivedAt',
+          label: '到货日期',
+          type: 'date',
+          defaultValue: todayDateInput(),
+          required: true,
+        },
+        {
+          key: 'carrier',
+          label: '物流商',
+          placeholder: '如 顺丰 / DHL / 货代名称',
+        },
+        {
+          key: 'trackingNo',
+          label: '物流单号',
+          placeholder: '填写物流运单号',
+        },
+        {
           key: 'receivedBy',
           label: '收货操作人',
           required: true,
@@ -84,7 +113,7 @@ export default function PurchaseReceiptsPage() {
         {
           key: 'deliveryNote',
           label: '送货单号',
-          placeholder: '供应商送货单 / 物流单号',
+          placeholder: '供应商送货单',
         },
         {
           key: 'remark',
@@ -118,6 +147,10 @@ export default function PurchaseReceiptsPage() {
           }
           registerMutation.mutate({
             purchaseOrderId: order.id,
+            batchNo: values.batchNo?.trim() || undefined,
+            arrivedAt: values.arrivedAt || undefined,
+            carrier: values.carrier?.trim() || undefined,
+            trackingNo: values.trackingNo?.trim() || undefined,
             receivedBy: values.receivedBy,
             deliveryNote: values.deliveryNote,
             remark: values.remark,
@@ -147,19 +180,31 @@ export default function PurchaseReceiptsPage() {
           'firstSku',
           'supplier',
           'warehouse',
+          'batchNo',
+          'carrier',
+          'trackingNo',
           'receivedBy',
           'status',
           'deliveryNote',
         ]}
-        searchPlaceholder="搜索收货单号、采购单、SKU 或供应商"
+        searchPlaceholder="搜索收货单号、采购单、SKU、批次或物流单号"
         filters={[{ label: '状态', options: ['草稿', '待质检', '已完成', '已取消'] }]}
         emptyText="暂无收货批次。请从可收货采购单登记到货。"
         addLabel="登记到货"
         onAdd={() => setOpen(true)}
         columns={[
           { key: 'receiptNo', label: '收货单号' },
+          { key: 'batchNo', label: '批次编号' },
           { key: 'purchaseOrderId', label: '采购单' },
           { key: 'supplier', label: '供应商' },
+          {
+            key: 'trackingNo',
+            label: '物流',
+            render: (row) =>
+              row.carrier || row.trackingNo
+                ? [row.carrier, row.trackingNo].filter(Boolean).join(' · ')
+                : '—',
+          },
           {
             key: 'firstSku',
             label: '首行 SKU',

@@ -176,6 +176,10 @@ export const purchaseRouter = createTRPCRouter({
     .input(
       z.object({
         purchaseOrderId: z.string().min(1),
+        batchNo: z.string().optional(),
+        arrivedAt: z.string().optional(),
+        carrier: z.string().optional(),
+        trackingNo: z.string().optional(),
         receivedBy: z.string().optional(),
         deliveryNote: z.string().optional(),
         remark: z.string().optional(),

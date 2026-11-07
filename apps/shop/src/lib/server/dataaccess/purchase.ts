@@ -125,7 +125,10 @@ export type PurchaseReceiptDto = {
   supplier: string
   warehouse: string
   status: UiPurchaseReceiptStatus
+  batchNo: string
   arrivedAt: string
+  carrier: string
+  trackingNo: string
   receivedBy: string
   deliveryNote: string
   remark: string
@@ -339,7 +342,10 @@ function mapReceipt(
     supplier: header.supplierName,
     warehouse: header.warehouseCode,
     status: toUiReceiptStatus(header.status),
+    batchNo: header.batchNo ?? '',
     arrivedAt: formatStamp(header.arrivedAt),
+    carrier: header.carrier ?? '',
+    trackingNo: header.trackingNo ?? '',
     receivedBy: header.receivedBy ?? '',
     deliveryNote: header.deliveryNote ?? '',
     remark: header.remark ?? '',
@@ -961,7 +967,10 @@ export async function listPurchaseReceipts(
       supplier: dto.supplier,
       warehouse: dto.warehouse,
       status: dto.status,
+      batchNo: dto.batchNo,
       arrivedAt: dto.arrivedAt,
+      carrier: dto.carrier,
+      trackingNo: dto.trackingNo,
       receivedBy: dto.receivedBy,
       deliveryNote: dto.deliveryNote,
       remark: dto.remark,
@@ -1015,6 +1024,10 @@ export async function registerPurchaseReceipt(
   organizationId: string,
   input: {
     purchaseOrderId: string
+    batchNo?: string
+    arrivedAt?: string
+    carrier?: string
+    trackingNo?: string
     receivedBy?: string
     deliveryNote?: string
     remark?: string
@@ -1029,6 +1042,11 @@ export async function registerPurchaseReceipt(
     }
     if (!input.lines.length) throw new Error('请至少登记一行到货数量')
 
+    const arrivedAt = input.arrivedAt?.trim()
+      ? new Date(`${input.arrivedAt.trim()}T00:00:00`)
+      : new Date()
+    if (Number.isNaN(arrivedAt.getTime())) throw new Error('到货日期格式无效')
+
     const receiptNo = await nextDocNo(tx, organizationId, 'rcv')
     const receiptId = createId()
     await tx.insert(purchaseReceipts).values({
@@ -1040,7 +1058,10 @@ export async function registerPurchaseReceipt(
       supplierName: order.supplier,
       warehouseCode: order.warehouse,
       status: 'qc_pending',
-      arrivedAt: new Date(),
+      batchNo: input.batchNo?.trim() || null,
+      arrivedAt,
+      carrier: input.carrier?.trim() || null,
+      trackingNo: input.trackingNo?.trim() || null,
       receivedBy: input.receivedBy?.trim() || '当前用户',
       deliveryNote: input.deliveryNote?.trim() || null,
       remark: input.remark?.trim() || null,

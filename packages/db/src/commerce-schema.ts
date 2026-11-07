@@ -501,8 +501,8 @@ export const commerceBrands = pgTable(
   },
   (t) => [
     uniqueIndex("commerce_brands_org_code_uidx").on(t.organizationId, t.code),
+    uniqueIndex("commerce_brands_org_name_uidx").on(t.organizationId, t.name),
     index("commerce_brands_org_status_idx").on(t.organizationId, t.status),
-    index("commerce_brands_org_name_idx").on(t.organizationId, t.name),
   ],
 )
 
@@ -2517,7 +2517,10 @@ export const purchaseReceipts = pgTable(
     supplierName: text("supplier_name").notNull(),
     warehouseCode: varchar("warehouse_code", { length: 64 }).notNull(),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
+    batchNo: varchar("batch_no", { length: 64 }),
     arrivedAt: timestamp("arrived_at", { withTimezone: true }),
+    carrier: varchar("carrier", { length: 64 }),
+    trackingNo: varchar("tracking_no", { length: 128 }),
     receivedBy: text("received_by"),
     deliveryNote: text("delivery_note"),
     remark: text("remark"),

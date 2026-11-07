@@ -2,7 +2,7 @@
  * commerce_brands 品牌主档 dataaccess。
  * 勿与 platform_brands（平台类目/品牌缓存）混用。
  */
-import { and, asc, count, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { commerceBrands, products } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -43,6 +43,23 @@ async function nextBrandCode(db: DbLike, organizationId: string): Promise<string
     if (m) max = Math.max(max, Number(m[1]))
   }
   return `BRD-${String(max + 1).padStart(4, '0')}`
+}
+
+/** 将数据库唯一约束冲突转换为可读业务错误（并发写入兜底）。 */
+function uniqueBrandErrorMessage(
+  error: unknown,
+  values: { name: string; code: string },
+): string | null {
+  if (typeof error !== 'object' || error === null) return null
+  if ((error as { code?: unknown }).code !== '23505') return null
+  const constraint = (error as { constraint?: string }).constraint
+  if (constraint === 'commerce_brands_org_name_uidx') {
+    return `品牌名称 ${values.name} 已存在`
+  }
+  if (constraint === 'commerce_brands_org_code_uidx') {
+    return `品牌编码 ${values.code} 已存在`
+  }
+  return '品牌名称或编码已存在'
 }
 
 function mapRow(row: typeof commerceBrands.$inferSelect, productCount = 0): BrandDto {
@@ -177,20 +194,32 @@ export async function createBrand(
     .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.code, code)))
     .limit(1)
   if (existing[0]) throw new Error(`品牌编码 ${code} 已存在`)
+  const [nameExisting] = await db
+    .select({ id: commerceBrands.id })
+    .from(commerceBrands)
+    .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.name, name)))
+    .limit(1)
+  if (nameExisting) throw new Error(`品牌名称 ${name} 已存在`)
   const id = createId()
   const now = new Date()
   const coverImage = input.coverImage?.trim() || null
-  await db.insert(commerceBrands).values({
-    id,
-    organizationId,
-    code,
-    name,
-    status: toDbActiveStatus(input.status),
-    note: input.note?.trim() || '',
-    coverImage,
-    createdAt: now,
-    updatedAt: now,
-  })
+  try {
+    await db.insert(commerceBrands).values({
+      id,
+      organizationId,
+      code,
+      name,
+      status: toDbActiveStatus(input.status),
+      note: input.note?.trim() || '',
+      coverImage,
+      createdAt: now,
+      updatedAt: now,
+    })
+  } catch (error) {
+    const message = uniqueBrandErrorMessage(error, { name, code })
+    if (message) throw new Error(message)
+    throw error
+  }
   return getBrand(db as AppDatabase, organizationId, id)
 }
 
@@ -203,20 +232,38 @@ export async function updateBrand(
   if (!existing) throw new Error('品牌不存在')
   const nextName = input.name?.trim() ?? existing.name
   if (!nextName) throw new Error('品牌名称不能为空')
+  const [nameExisting] = await db
+    .select({ id: commerceBrands.id })
+    .from(commerceBrands)
+    .where(
+      and(
+        eq(commerceBrands.organizationId, organizationId),
+        eq(commerceBrands.name, nextName),
+        ne(commerceBrands.id, input.id),
+      ),
+    )
+    .limit(1)
+  if (nameExisting) throw new Error(`品牌名称 ${nextName} 已存在`)
   const nextCover =
     input.coverImage === undefined
       ? existing.coverImage ?? null
       : input.coverImage?.trim() || null
-  await db
-    .update(commerceBrands)
-    .set({
-      name: nextName,
-      status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
-      note: input.note ?? existing.note,
-      coverImage: nextCover,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.id, input.id)))
+  try {
+    await db
+      .update(commerceBrands)
+      .set({
+        name: nextName,
+        status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
+        note: input.note ?? existing.note,
+        coverImage: nextCover,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.id, input.id)))
+  } catch (error) {
+    const message = uniqueBrandErrorMessage(error, { name: nextName, code: existing.code })
+    if (message) throw new Error(message)
+    throw error
+  }
 
   // 同步兼容展示名
   if (input.name != null && nextName !== existing.name) {
