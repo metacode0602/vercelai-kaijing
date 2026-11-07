@@ -233,12 +233,86 @@ export type UedDialogField = {
   label: string
   placeholder?: string
   options?: string[]
+  /** 普通 select；设 searchable / type=search-select 时支持按名称模糊筛选 */
   type?: string
+  searchable?: boolean
   required?: boolean
   helper?: string
   defaultValue?: string
   readOnly?: boolean
   fullWidth?: boolean
+}
+
+function UedSearchableSelect(props: {
+  id: string
+  value: string
+  options: string[]
+  placeholder?: string
+  disabled?: boolean
+  onChange: (next: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState('')
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return props.options
+    return props.options.filter((option) => option.toLowerCase().includes(q))
+  }, [props.options, query])
+
+  React.useEffect(() => {
+    if (!open) setQuery('')
+  }, [open])
+
+  return (
+    <div className="relative">
+      <Input
+        id={props.id}
+        value={open ? query : props.value}
+        placeholder={props.placeholder ?? '输入关键词筛选…'}
+        disabled={props.disabled}
+        autoComplete="off"
+        onFocus={() => {
+          if (props.disabled) return
+          setQuery(props.value)
+          setOpen(true)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+        }}
+        onBlur={() => {
+          // 延迟关闭，便于点击选项
+          window.setTimeout(() => setOpen(false), 120)
+        }}
+      />
+      {open && !props.disabled ? (
+        <ul
+          role="listbox"
+          className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-background py-1 shadow-md"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted-foreground">无匹配项</li>
+          ) : (
+            filtered.map((option) => (
+              <li key={option || '__empty__'} role="option" aria-selected={option === props.value}>
+                <button
+                  type="button"
+                  className={`flex w-full px-3 py-1.5 text-left text-sm hover:bg-muted ${option === props.value ? 'bg-muted/70' : ''}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    props.onChange(option)
+                    setOpen(false)
+                  }}
+                >
+                  {option || '（不限）'}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      ) : null}
+    </div>
+  )
 }
 
 export function UedDialog(props: {
@@ -259,6 +333,32 @@ export function UedDialog(props: {
     }
     return initial
   })
+
+  // 异步 options（如供应商列表）到达后补默认值
+  const optionsSignature = props.fields
+    .map((field) => `${field.key ?? field.label}:${(field.options ?? []).join('|')}`)
+    .join('||')
+  React.useEffect(() => {
+    setValues((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const field of props.fields) {
+        const key = field.key ?? field.label
+        const preferred = props.initialValues?.[key] ?? field.defaultValue
+        if (!(next[key] ?? '').trim()) {
+          if (preferred && (!field.options?.length || field.options.includes(preferred))) {
+            next[key] = preferred
+            changed = true
+          } else if (field.options?.[0]) {
+            next[key] = field.options[0]
+            changed = true
+          }
+        }
+      }
+      return changed ? next : current
+    })
+  }, [optionsSignature, props.fields, props.initialValues])
+
   const missing = props.fields.some((field) => field.required && !(values[field.key ?? field.label] ?? '').trim())
 
   return (
@@ -271,10 +371,20 @@ export function UedDialog(props: {
               const key = field.key ?? field.label
               const value = values[key] ?? ''
               const setValue = (next: string) => setValues((current) => ({ ...current, [key]: next }))
+              const searchable = Boolean(field.searchable || field.type === 'search-select')
               return (
                 <div key={key} className={field.fullWidth ? 'flex flex-col gap-2 sm:col-span-2' : 'flex flex-col gap-2'}>
                   <Label htmlFor={`ued-field-${key}`}>{field.label}{field.required ? <span className="text-destructive">*</span> : null}</Label>
-                  {field.options ? (
+                  {field.options && searchable ? (
+                    <UedSearchableSelect
+                      id={`ued-field-${key}`}
+                      value={value}
+                      options={field.options}
+                      placeholder={field.placeholder}
+                      disabled={field.readOnly}
+                      onChange={setValue}
+                    />
+                  ) : field.options ? (
                     <Select value={value === '' ? '__empty__' : value} onValueChange={(next) => setValue(next === '__empty__' ? '' : next)} disabled={field.readOnly}>
                       <SelectTrigger id={`ued-field-${key}`}>
                         <SelectValue placeholder="请选择" />
@@ -295,8 +405,8 @@ export function UedDialog(props: {
             {props.children ? <div className="flex flex-col gap-4 sm:col-span-2">{props.children}</div> : null}
           </div>
           <footer className="flex items-center justify-between gap-2 border-t p-4">
-            <p className="text-xs text-muted-foreground">带 <span className="text-destructive">*</span> 为必填字段；示例保存不写入数据库。</p>
-            <div className="flex gap-2"><Button type="button" variant="outline" onClick={props.onClose}>取消</Button><Button type="submit" disabled={missing}><Check data-icon="inline-start" />{props.saveLabel ?? '保存示例'}</Button></div>
+            <p className="text-xs text-muted-foreground">带 <span className="text-destructive">*</span> 为必填字段</p>
+            <div className="flex gap-2"><Button type="button" variant="outline" onClick={props.onClose}>取消</Button><Button type="submit" disabled={missing}><Check data-icon="inline-start" />{props.saveLabel ?? '保存'}</Button></div>
           </footer>
         </form>
       </section>

@@ -9,8 +9,6 @@ import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
-const SUPPLIER_OPTIONS = ['厦门优品服饰有限公司', '泉州联创数码配件厂']
-const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
 const REASON_OPTIONS = ['备货', '补货', '订单采购']
 const PAGE_SIZE = 50
 
@@ -31,6 +29,19 @@ export default function PurchaseRequestsPage() {
     pageSize: PAGE_SIZE,
   })
   const statsQuery = trpc.purchase.requestStats.useQuery()
+  const suppliersMeta = trpc.suppliers.meta.useQuery(undefined, { enabled: open })
+  const warehousesQuery = trpc.wms.listWarehouses.useQuery(
+    { page: 1, pageSize: 100, status: '启用' },
+    { enabled: open },
+  )
+  const supplierOptions = React.useMemo(
+    () => (suppliersMeta.data?.suppliers ?? []).map((row) => row.name),
+    [suppliersMeta.data?.suppliers],
+  )
+  const warehouseOptions = React.useMemo(
+    () => (warehousesQuery.data?.items ?? []).map((row) => row.code),
+    [warehousesQuery.data?.items],
+  )
   const createMutation = trpc.purchase.createRequest.useMutation({
     onSuccess: async (created) => {
       await utils.purchase.listRequests.invalidate()
@@ -59,8 +70,24 @@ export default function PurchaseRequestsPage() {
       description="第一步只保存申请主信息（purchase_requests）。保存后进入详情页，再添加申请明细（purchase_request_lines）；提交审核通过后才会生成采购单。"
       fields={[
         { key: 'reason', label: '采购原因', options: REASON_OPTIONS, required: true },
-        { key: 'supplier', label: '供应商', options: SUPPLIER_OPTIONS, required: true, helper: '对应 supplier_name；停用供应商不可新建' },
-        { key: 'warehouse', label: '预计入库仓', options: WAREHOUSE_OPTIONS, required: true, helper: '对应 warehouse_code' },
+        {
+          key: 'supplier',
+          label: '供应商',
+          options: supplierOptions,
+          searchable: true,
+          required: true,
+          placeholder: supplierOptions.length ? '输入名称模糊搜索供应商' : '暂无启用供应商，请先在供应商主档维护',
+          helper: '读取启用供应商列表；对应 supplier_name；停用供应商不可新建',
+        },
+        {
+          key: 'warehouse',
+          label: '预计入库仓',
+          options: warehouseOptions,
+          searchable: true,
+          required: true,
+          placeholder: warehouseOptions.length ? '输入仓编码模糊搜索' : '暂无启用仓库',
+          helper: '读取启用仓库 code；对应 warehouse_code',
+        },
         { key: 'currency', label: '币种', options: ['CNY', 'USD'], required: true },
         { key: 'expectedAt', label: '期望到货', type: 'date', required: true, helper: '对应 expected_arrival_at' },
         {
@@ -73,10 +100,18 @@ export default function PurchaseRequestsPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
+        if (!values.supplier?.trim()) {
+          setNotice('请选择启用供应商')
+          return
+        }
+        if (!values.warehouse?.trim()) {
+          setNotice('请选择预计入库仓')
+          return
+        }
         createMutation.mutate({
           reason: values.reason || REASON_OPTIONS[0]!,
-          supplier: values.supplier || SUPPLIER_OPTIONS[0]!,
-          warehouse: values.warehouse || WAREHOUSE_OPTIONS[0]!,
+          supplier: values.supplier,
+          warehouse: values.warehouse,
           currency: values.currency || 'CNY',
           expectedAt: values.expectedAt || new Date().toISOString().slice(0, 10),
           remark: values.remark,

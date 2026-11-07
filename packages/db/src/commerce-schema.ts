@@ -445,6 +445,8 @@ export const commerceBrands = pgTable(
     name: text("name").notNull(),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     note: text("note"),
+    /** 品牌封面图：URL 或 data URL，可空 */
+    coverImage: text("cover_image"),
     ...timestamps,
   },
   (t) => [

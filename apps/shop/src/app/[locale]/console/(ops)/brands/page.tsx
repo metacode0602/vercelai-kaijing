@@ -3,6 +3,8 @@
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
+import { ProductCover, ProductImageField } from '@/components/console/product-images'
+import type { DemoImageSet } from '@/lib/crossborder/product-image-store'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -15,8 +17,14 @@ type BrandRow = {
   name: string
   status: string
   note: string
+  coverImage?: string
   productCount: number
   updatedAt: string
+}
+
+function coverFromRow(row?: BrandRow | null): DemoImageSet {
+  const cover = row?.coverImage?.trim() || undefined
+  return { cover, images: cover ? [cover] : [] }
 }
 
 export default function BrandsPage() {
@@ -26,6 +34,8 @@ export default function BrandsPage() {
   const [page, setPage] = React.useState(1)
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState('全部')
+  const [createCover, setCreateCover] = React.useState<DemoImageSet>({ images: [] })
+  const [editCover, setEditCover] = React.useState<DemoImageSet>({ images: [] })
 
   const utils = trpc.useUtils()
   const statsQuery = trpc.brands.stats.useQuery()
@@ -42,6 +52,7 @@ export default function BrandsPage() {
       await utils.brands.stats.invalidate()
       await utils.brands.meta.invalidate()
       setOpen(false)
+      setCreateCover({ images: [] })
       setNotice(`${created?.code} ${created?.name} 已写入 commerce_brands。`)
     },
     onError: (error) => setNotice(error.message),
@@ -65,7 +76,7 @@ export default function BrandsPage() {
   const createDialog = open ? (
     <UedDialog
       title="新增品牌"
-      description="维护商户品牌主档；商品 SPU 创建/编辑将从此列表选择品牌。"
+      description="维护商户品牌主档；商品 SPU 创建/编辑将从此列表选择品牌。封面图写入 commerce_brands.cover_image。"
       fields={[
         { key: 'name', label: '品牌名称', required: true },
         { key: 'code', label: '品牌编码', placeholder: '可空，自动生成 BRD-0001' },
@@ -73,23 +84,34 @@ export default function BrandsPage() {
         { key: 'note', label: '备注', type: 'textarea', fullWidth: true },
       ]}
       initialValues={{ status: '启用' }}
-      onClose={() => setOpen(false)}
+      onClose={() => {
+        setOpen(false)
+        setCreateCover({ images: [] })
+      }}
       onSave={(values) => {
         createMutation.mutate({
           name: values.name ?? '',
           code: values.code || undefined,
           status: values.status === '停用' ? '停用' : '启用',
           note: values.note ?? '',
+          coverImage: createCover.cover ?? createCover.images[0] ?? undefined,
         })
       }}
       saveLabel={createMutation.isPending ? '保存中…' : '保存品牌'}
-    />
+    >
+      <ProductImageField
+        label="品牌封面"
+        description="封面图用于品牌列表展示；可上传一张图片（存为 data URL）。"
+        value={createCover}
+        onChange={setCreateCover}
+      />
+    </UedDialog>
   ) : null
 
   const editDialog = edit ? (
     <UedDialog
       title="编辑品牌"
-      description="编码创建后不可改；停用后商品新建不可再选该品牌（已关联商品保留）。"
+      description="编码创建后不可改；停用后商品新建不可再选该品牌（已关联商品保留）。封面可随时更换。"
       fields={[
         { key: 'code', label: '品牌编码', defaultValue: edit.code, readOnly: true },
         { key: 'name', label: '品牌名称', defaultValue: edit.name, required: true },
@@ -109,10 +131,18 @@ export default function BrandsPage() {
           name: values.name || edit.name,
           status: values.status === '停用' ? '停用' : '启用',
           note: values.note ?? '',
+          coverImage: editCover.cover ?? editCover.images[0] ?? null,
         })
       }}
       saveLabel={updateMutation.isPending ? '保存中…' : '保存修改'}
-    />
+    >
+      <ProductImageField
+        label="品牌封面"
+        description="封面图用于品牌列表展示；清空后保存将移除封面。"
+        value={editCover}
+        onChange={setEditCover}
+      />
+    </UedDialog>
   ) : null
 
   return (
@@ -121,7 +151,7 @@ export default function BrandsPage() {
       {editDialog}
       <UedWorkspace
         title="品牌管理"
-        description="商户品牌主档 commerce_brands；与平台缓存 platform_brands 分离。已接 PostgreSQL。"
+        description="商户品牌主档 commerce_brands；与平台缓存 platform_brands 分离。已接 PostgreSQL，支持封面图。"
         rows={rows}
         search={q}
         onSearchChange={(value) => {
@@ -135,16 +165,24 @@ export default function BrandsPage() {
           setPage(1)
         }}
         addLabel="新增品牌"
-        onAdd={() => setOpen(true)}
+        onAdd={() => {
+          setCreateCover({ images: [] })
+          setOpen(true)
+        }}
         pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
         emptyText={
           listQuery.isError
             ? `加载失败：${listQuery.error.message}`
             : listQuery.isLoading
               ? '正在从数据库加载品牌…'
-              : '暂无品牌。请新增，或部署迁移 0025 后由历史商品 brand 文本回填。'
+              : '暂无品牌。请新增，或部署迁移 0001/0002 后由历史商品 brand 文本回填。'
         }
         columns={[
+          {
+            key: 'coverImage',
+            label: '封面',
+            render: (row) => <ProductCover src={row.coverImage} alt={row.name} />,
+          },
           { key: 'code', label: '编码' },
           { key: 'name', label: '名称' },
           {
@@ -165,9 +203,47 @@ export default function BrandsPage() {
             key: 'id',
             label: '操作',
             render: (row) => (
-              <Button size="sm" variant="outline" onClick={() => setEdit(row)}>
-                编辑
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditCover(coverFromRow(row))
+                    setEdit(row)
+                  }}
+                >
+                  编辑
+                </Button>
+                {row.status === '启用' ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={updateMutation.isPending}
+                    onClick={() =>
+                      updateMutation.mutate({
+                        id: row.id,
+                        status: '停用',
+                      })
+                    }
+                  >
+                    停用
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={updateMutation.isPending}
+                    onClick={() =>
+                      updateMutation.mutate({
+                        id: row.id,
+                        status: '启用',
+                      })
+                    }
+                  >
+                    启用
+                  </Button>
+                )}
+              </div>
             ),
           },
         ]}
@@ -180,7 +256,7 @@ export default function BrandsPage() {
           ]}
         />
         <UedPrototypeNotice>
-          软停用：状态改为停用后不再出现在商品品牌下拉；不硬删除品牌行。改名会同步已关联商品的 brand 展示名。
+          软停用：状态改为停用后不再出现在商品品牌下拉；不硬删除品牌行。改名会同步已关联商品的 brand 展示名。封面经 tRPC 写入 cover_image。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

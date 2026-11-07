@@ -15,6 +15,13 @@
       "when": 1794015682973,
       "tag": "0001_parched_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1762479600000,
+      "tag": "0002_commerce_brands_cover_image",
+      "breakpoints": true
     }
   ]
 }

@@ -44,6 +44,7 @@ export const brandsRouter = createTRPCRouter({
         code: z.string().optional(),
         status: z.string().optional(),
         note: z.string().optional(),
+        coverImage: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>
@@ -57,6 +58,7 @@ export const brandsRouter = createTRPCRouter({
         name: z.string().optional(),
         status: z.string().optional(),
         note: z.string().optional(),
+        coverImage: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>

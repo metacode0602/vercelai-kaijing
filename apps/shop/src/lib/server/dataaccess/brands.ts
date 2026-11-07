@@ -27,6 +27,7 @@ export type BrandDto = {
   status: UiActiveStatus
   dbStatus: string
   note: string
+  coverImage?: string
   productCount: number
   updatedAt: string
 }
@@ -52,6 +53,7 @@ function mapRow(row: typeof commerceBrands.$inferSelect, productCount = 0): Bran
     status: toUiActiveStatus(row.status),
     dbStatus: row.status,
     note: row.note ?? '',
+    coverImage: row.coverImage ?? undefined,
     productCount,
     updatedAt: formatStamp(row.updatedAt),
   }
@@ -164,7 +166,7 @@ export async function getBrandByCode(db: AppDatabase, organizationId: string, co
 export async function createBrand(
   db: DbLike,
   organizationId: string,
-  input: { name: string; code?: string; status?: string; note?: string },
+  input: { name: string; code?: string; status?: string; note?: string; coverImage?: string },
 ) {
   const name = input.name.trim()
   if (!name) throw new Error('品牌名称不能为空')
@@ -177,6 +179,7 @@ export async function createBrand(
   if (existing[0]) throw new Error(`品牌编码 ${code} 已存在`)
   const id = createId()
   const now = new Date()
+  const coverImage = input.coverImage?.trim() || null
   await db.insert(commerceBrands).values({
     id,
     organizationId,
@@ -184,6 +187,7 @@ export async function createBrand(
     name,
     status: toDbActiveStatus(input.status),
     note: input.note?.trim() || '',
+    coverImage,
     createdAt: now,
     updatedAt: now,
   })
@@ -193,18 +197,23 @@ export async function createBrand(
 export async function updateBrand(
   db: DbLike,
   organizationId: string,
-  input: { id: string; name?: string; status?: string; note?: string },
+  input: { id: string; name?: string; status?: string; note?: string; coverImage?: string | null },
 ) {
   const existing = await getBrand(db as AppDatabase, organizationId, input.id)
   if (!existing) throw new Error('品牌不存在')
   const nextName = input.name?.trim() ?? existing.name
   if (!nextName) throw new Error('品牌名称不能为空')
+  const nextCover =
+    input.coverImage === undefined
+      ? existing.coverImage ?? null
+      : input.coverImage?.trim() || null
   await db
     .update(commerceBrands)
     .set({
       name: nextName,
       status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
       note: input.note ?? existing.note,
+      coverImage: nextCover,
       updatedAt: new Date(),
     })
     .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.id, input.id)))

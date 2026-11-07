@@ -24,8 +24,6 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 
-const SUPPLIER_OPTIONS = ['厦门优品服饰有限公司', '泉州联创数码配件厂']
-const WAREHOUSE_OPTIONS = ['WH-CN-XMN-001']
 const REASON_OPTIONS = ['备货', '补货', '订单采购']
 
 function statusVariant(status: string) {
@@ -45,6 +43,11 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
   const [notice, setNotice] = React.useState('')
 
   const detailQuery = trpc.purchase.getRequest.useQuery({ id })
+  const suppliersMeta = trpc.suppliers.meta.useQuery(undefined, { enabled: headerOpen })
+  const warehousesQuery = trpc.wms.listWarehouses.useQuery(
+    { page: 1, pageSize: 100, status: '启用' },
+    { enabled: headerOpen },
+  )
   const skuCodesQuery = trpc.purchase.listSkuCodes.useQuery()
   const skuOptions = skuCodesQuery.data?.length ? skuCodesQuery.data : ['HSY000001001']
   const preferredSku = lineSku || skuOptions[0] || 'HSY000001001'
@@ -350,8 +353,33 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
           description="仅修改 purchase_requests 表头字段；明细行在下方单独维护。"
           fields={[
             { key: 'reason', label: '采购原因', options: REASON_OPTIONS, defaultValue: current.reason, required: true },
-            { key: 'supplier', label: '供应商', options: SUPPLIER_OPTIONS, defaultValue: current.supplier, required: true },
-            { key: 'warehouse', label: '预计入库仓', options: WAREHOUSE_OPTIONS, defaultValue: current.warehouse, required: true },
+            {
+              key: 'supplier',
+              label: '供应商',
+              options: (() => {
+                const names = (suppliersMeta.data?.suppliers ?? []).map((row) => row.name)
+                if (current.supplier && !names.includes(current.supplier)) names.unshift(current.supplier)
+                return names
+              })(),
+              searchable: true,
+              defaultValue: current.supplier,
+              required: true,
+              placeholder: '输入名称模糊搜索供应商',
+              helper: '仅启用供应商可选；当前值若不在启用列表中仍可保留',
+            },
+            {
+              key: 'warehouse',
+              label: '预计入库仓',
+              options: (() => {
+                const codes = (warehousesQuery.data?.items ?? []).map((row) => row.code)
+                if (current.warehouse && !codes.includes(current.warehouse)) codes.unshift(current.warehouse)
+                return codes
+              })(),
+              searchable: true,
+              defaultValue: current.warehouse,
+              required: true,
+              placeholder: '输入仓编码模糊搜索',
+            },
             { key: 'currency', label: '币种', options: ['CNY', 'USD'], defaultValue: current.currency, required: true },
             { key: 'expectedAt', label: '期望到货', type: 'date', defaultValue: current.expectedAt, required: true },
             { key: 'remark', label: '申请说明', type: 'textarea', fullWidth: true, defaultValue: current.remark },
