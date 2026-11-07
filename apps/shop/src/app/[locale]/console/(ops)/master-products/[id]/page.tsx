@@ -10,6 +10,10 @@ import {
 import { useConsoleBreadcrumbs } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { parseUedMultiValue, UedDialog } from '@/components/console/erp-ued-workspace'
+import {
+  buildCreateInternalSkuFields,
+  parseCreateInternalSkuValues,
+} from '@/components/console/create-internal-sku-fields'
 import { ProductImageEditor } from '@/components/console/product-images'
 import { trpc } from '@/lib/trpc/client'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -448,45 +452,20 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         <UedDialog
           title="添加内部 SKU"
           description={`归属 ${current.spu}；编号按 SPU+三位流水自动生成并写入 product_variants。`}
-          fields={[
-            {
-              key: 'color',
-              label: '颜色',
-              options: colorChoices,
-              required: true,
-            },
-            {
-              key: 'size',
-              label: '尺码',
-              options: sizeChoices,
-              required: true,
-            },
-            {
-              key: 'pack',
-              label: '包装规格',
-              options: packChoices,
-              required: true,
-            },
-            { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，刊登前必补' },
-            { key: 'weight', label: '重量（g）', type: 'number', required: true },
-            {
-              key: 'status',
-              label: '状态',
-              options: ['待确认', '启用', '停用'],
-              defaultValue: '待确认',
-              required: true,
-            },
-          ]}
+          fields={buildCreateInternalSkuFields({
+            colorOptions: colorChoices,
+            sizeOptions: sizeChoices,
+            packOptions: packChoices,
+            spu: { mode: 'fixed', value: `${current.spu} · ${current.name}` },
+          })}
           onClose={() => setVariantOpen(false)}
           onSave={(values) => {
+            const parsed = parseCreateInternalSkuValues(values, {
+              defaultPack: packChoices[0] || '单件',
+            })
             createVariantMutation.mutate({
               spu: current.spu,
-              color: values.color || '黑色',
-              size: values.size || 'L',
-              pack: values.pack || packChoices[0] || '单件',
-              barcode: values.barcode,
-              weight: Number(values.weight) || 0,
-              status: (values.status as UiProductStatus) || '待确认',
+              ...parsed,
             })
           }}
           saveLabel={createVariantMutation.isPending ? '生成中…' : '生成 SKU'}

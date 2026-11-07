@@ -47,6 +47,7 @@ export type VariantDto = {
   widthMm: number
   heightMm: number
   status: UiProductStatus
+  remark: string
   coverImage?: string
   images: string[]
 }
@@ -98,6 +99,7 @@ export type CreateVariantInput = {
   widthMm?: number
   heightMm?: number
   status?: UiProductStatus
+  remark?: string
   coverImage?: string
   images?: string[]
 }
@@ -114,6 +116,7 @@ export type UpdateVariantInput = Partial<
     | 'widthMm'
     | 'heightMm'
     | 'status'
+    | 'remark'
     | 'coverImage'
     | 'images'
   >
@@ -142,6 +145,7 @@ function mapVariantRow(row: typeof productVariants.$inferSelect): VariantDto {
     widthMm: row.widthMm ?? 0,
     heightMm: row.heightMm ?? 0,
     status: toUiStatus(row.status),
+    remark: typeof attrs.remark === 'string' ? attrs.remark : '',
     coverImage: typeof attrs.coverImage === 'string' ? attrs.coverImage : images[0],
     images,
   }
@@ -500,6 +504,7 @@ export async function createVariant(
         color: input.color.trim(),
         size: input.size.trim(),
         pack: input.pack.trim(),
+        remark: input.remark?.trim() || undefined,
         coverImage: input.coverImage,
         images,
       },
@@ -658,6 +663,8 @@ export async function updateVariant(
       color: patch.color?.trim() ?? attrs.color,
       size: patch.size?.trim() ?? attrs.size,
       pack: patch.pack?.trim() ?? attrs.pack,
+      remark:
+        patch.remark !== undefined ? patch.remark.trim() || undefined : attrs.remark,
       coverImage: patch.coverImage ?? attrs.coverImage,
       images: patch.images ?? attrs.images,
     }

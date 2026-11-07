@@ -51,6 +51,7 @@ const createVariantInput = z.object({
   widthMm: z.number().optional(),
   heightMm: z.number().optional(),
   status: statusSchema.optional(),
+  remark: z.string().optional(),
   coverImage: z.string().optional(),
   images: z.array(z.string()).optional(),
 })
@@ -80,6 +81,7 @@ const updateVariantInput = z.object({
   widthMm: z.number().optional(),
   heightMm: z.number().optional(),
   status: statusSchema.optional(),
+  remark: z.string().optional(),
   coverImage: z.string().optional(),
   images: z.array(z.string()).optional(),
 })
