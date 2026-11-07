@@ -2,19 +2,20 @@
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-finance-sync-dashboard`。
 > 基线：`feat/shop-trpc-supplier-order-exceptions`（PR #49 栈，含 #44–#49）；**不依赖 / 不合并** 售后 #43。
+> **闭环升级（2026-11-07）**：见 [cost-finance-production-closure.md](cost-finance-production-closure.md)（PR #64–#68）：导航 B、运价卡、结算导入/Lazop 同步、去 mock；迁移 0012/0013。
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界 |
 | --- | --- |
-| `sync_tasks` / `sync_job_runs` 列表/详情/stats/入队/重试 | 真实 Daraz/Lazada OpenAPI 联调（入队只写请求记录） |
-| `integration_logs` 随入队写入 requestId | 设置·接口日志整页若仍有 demo 过滤可后续对齐 |
-| `settlements` / `settlement_lines` 列表详情汇总 | 平台结算账单拉取 API |
-| `sku_costs` 成本列表 | 成本测算工作台本地试算 UI（可并存） |
-| 订单/SKU 利润：营收−成本−费用；无结算→「未结算」 | 候选选品 |
-| 运费估算：`fee_templates` + `ocean_shipments`（弃用 DEMO_FREIGHT 主路径） | Dashboard 部分图表系列（平台占比/分类周转仍示意） |
-| Dashboard KPI/待办/趋势/库存汇总 | 今日预警文案仍有示意条目 |
-| 采购申请明细 `preferredForSku` 自动带价/交期 | 店铺 OAuth 连接器；售后 #43 |
+| `sync_tasks` / `sync_job_runs` 列表/详情/stats/入队/重试 | 非结算类同步的真实 connector 深度联调 |
+| `integration_logs` 随入队写入 requestId | 设置·接口日志若仍有过滤偏差可后续对齐 |
+| `settlements` / `settlement_lines`；`importSettlements`；`syncSettlementsFromPlatform`（Lazop） | 非 Lazop 结算适配器；店铺 OAuth 重写 |
+| `sku_costs` + `ocean.saveCost`；测算强制 `fxRates` + 费用模板 | — |
+| 订单/SKU 利润：`listProfits` / `getProfit` / `profitKpis` | 候选选品 |
+| 运费：`commerce_freight_rate_cards` + `ocean_freight` 模板 + ocean packing（`listFreight`） | 完整独立运费引擎（见 freight-estimation-design） |
+| Dashboard KPI/待办/趋势/库存汇总 | 部分图表系列仍可能示意 |
+| 采购申请明细 `preferredForSku` 自动带价/交期 | 售后 #43 |
 
 ## 架构
 
@@ -22,10 +23,10 @@
 console/sync-tasks
   → trpc.sync.* → dataaccess/sync → sync_tasks / sync_job_runs (+ integration_logs)
 
-console/finance | settlements | profits | costs | freight
-  → trpc.finance.* → dataaccess/finance
-  → settlements / settlement_lines / sku_costs / logistics_fee_details
-  → orders / order_lines / fee_templates / ocean_shipments
+console/settlements | profits | costs | freight | freight-rate-cards
+  → trpc.finance.* / freightRateCards.* → dataaccess
+  → settlements / settlement_lines / sku_costs / commerce_freight_rate_cards
+  → orders / fee_templates / ocean_shipments / fx_rates
 
 console/dashboard
   → trpc.dashboard.* → dataaccess/dashboard
@@ -42,15 +43,18 @@ console/dashboard
 ## 财务约定
 
 - 费用拆分按 `settlement_lines.fee_kind` 汇总；空则 0，不写死税费
-- 利润：`orders.total_amount − sku_costs(最新) − 结算/物流费用`
+- 利润：`orders.total_amount − sku_costs(最新) − 结算/物流费用`；提供 `getProfit` / `profitKpis`
 - 无结算关联 → 状态「未结算」
-- 运费页主路径不再读 `DEMO_FREIGHT_ESTIMATES`
+- 正式成本只经 `ocean.saveCost`；禁止 localStorage / 已删 demo store
+- 结算：CSV/JSON `importSettlements`；Lazop `syncSettlementsFromPlatform`（经 apps/api）；`updateSettlementStatus` 需确认
+- 运费页：`freightRateCards` + `fee_templates(type=ocean_freight)` + ocean packing；无 DEMO_FREIGHT
+- 导航方案 B：承运商/箱规在仓储中心；成本财务保留 costs / fee-templates / settlements / profits / freight-rate-cards / freight
 
 ## 迁移与种子
 
-迁移：`packages/db/drizzle/0017_commerce_sync_tasks.sql`（`sync_tasks` / `sync_job_runs`）
-
-财务表沿用既有 commerce schema（0008+），无新财务表。
+- 同步：`packages/db/drizzle/0017_commerce_sync_tasks.sql`（`sync_tasks` / `sync_job_runs`）— 历史编号，以仓库现有 drizzle 目录为准
+- 成本财务闭环：`0012_cost_finance_closure.sql`（运价卡、carrier/carton/fx FK、`ocean_freight`）、`0013_fulfillment_batch_carrier.sql`
+- 财务基表沿用早期 commerce schema（`settlements` / `sku_costs` / `fx_rates` 等）
 
 ```bash
 docker compose up -d
@@ -71,8 +75,9 @@ pnpm --filter shop dev
 
 ### `finance`
 
-`overview` / `settlementStats` / `listSettlements` / `getSettlement` / `updateSettlementStatus`  
-`listCosts` / `listProfits` / `listFreight` / `getFreight` / `meta`
+`overview` / `settlementStats` / `listSettlements` / `getSettlement` / `updateSettlementStatus` / `importSettlements` / `syncSettlementsFromPlatform`  
+`listCosts` / `listProfits` / `getProfit` / `profitKpis` / `listFreight` / `getFreight` / `meta`（含 `settlementSync`）  
+另见独立 router：`freightRateCards` / `carriers` / `cartonSpecs` / `fxRates`
 
 ### `dashboard`
 
@@ -89,6 +94,7 @@ pnpm --filter shop dev
 | `packages/db/src/scripts/seed-commerce-finance.ts` | 演示种子 |
 | `docs/design/shop-module13-finance-sync-dashboard-trpc.md` | 本文档 |
 
-## 本 PR 不做
+## 本模块初始 PR 不做 / 后续已补
 
-合并售后 #43 / 合入 develop；真实平台 OpenAPI；候选选品全量；改左侧菜单。
+初始模块13 PR：不合并售后 #43；不改左侧菜单。  
+#64–#68 已补：导航 B、运价卡、结算导入与 Lazop 同步、去 mock。仍不做：非 Lazop 结算适配器、OAuth 重写、候选选品全量。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。

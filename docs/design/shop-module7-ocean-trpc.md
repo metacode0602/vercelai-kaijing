@@ -2,6 +2,7 @@
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-ocean-intransit`。
 > 对齐：`daraz-lk-erp-p0-ued.md` F22 / F32；成本测算见 `cost-calculator-sl-landed-ued.md`。
+> 闭环：[#64–#68](cost-finance-production-closure.md) — `carrier_id` / `carton_spec_code`（0012）；`ocean-container-store` 已删除（#68）。
 
 ## 范围
 
@@ -10,8 +11,8 @@
 | `ocean_shipments` / `ocean_shipment_lines` / `ocean_shipment_boxes` | 真实船司/清关 OpenAPI |
 | 状态机 draft→booked→departed→arrived→customs→received | WMS 非海运出库入口 |
 | 开船/清关/到仓写 `inventory_balances` 桶 + `inventory_movements` | 售后 #43（独立 PR，未合） |
-| 柜次成本 `sku_costs.container_lot_id`（saveCost / 测算工作台） | 左侧菜单结构调整 |
-| Console `/console/ocean-containers` 列表/详情 + 库存桶 | Dashboard 其它 KPI |
+| 柜次成本 `sku_costs.container_lot_id` + `fx_rate_id`（saveCost / 测算工作台） | — |
+| Console `/console/ocean-containers` 列表/详情 + 库存桶；承运商/箱规选择 | Dashboard 其它 KPI |
 | seed `db:seed:commerce-ocean` | 采购入库港重写（复用 m2，不重做） |
 
 ## 架构
@@ -25,7 +26,7 @@ console/ocean-containers | inventory-balances | cost-calculator-workbench
   → Drizzle → ocean_* / inventory_* / sku_costs
 ```
 
-`ocean-container-store` 主路径已停用（类型/常量保留）。
+`ocean-container-store` 已在 #68 **删除**；正式路径仅 `trpc.ocean.*`。
 
 ## 状态机与库存桶
 
@@ -64,11 +65,9 @@ draft → booked → departed → arrived → customs → received
 
 ## 迁移与种子
 
-迁移：`packages/db/drizzle/0014_commerce_ocean_intransit.sql`
-
-- 创建 `ocean_shipments` / `ocean_shipment_lines` / `ocean_shipment_boxes`（历史 schema-only）
-- 补齐 `inventory_balances` 在途/清关等列（IF NOT EXISTS）
-- 确保 `sku_costs` 存在（柜次成本）
+- 海运基线：历史 ocean 相关 drizzle（以仓库 `packages/db/drizzle/` 为准；早期文档中的 `0014_commerce_ocean_intransit` 编号可能已重排）
+- 闭环补强：`0012_cost_finance_closure.sql`（`ocean_shipments.carrier_id`、`ocean_shipment_boxes.carton_spec_code`、`sku_costs.fx_rate_id`）
+- `sku_costs.container_lot_id` / `ocean_shipment_lines.sku_cost_id` FK 见更早 ocean 补丁迁移
 
 ```bash
 docker compose up -d
@@ -90,10 +89,11 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/ocean.ts` | tRPC API |
 | `apps/shop/src/lib/server/dataaccess/ocean.ts` | DB 读写与事务 |
 | `apps/shop/src/lib/server/mappers/ocean.ts` | 中文状态映射 |
-| `packages/db/drizzle/0014_commerce_ocean_intransit.sql` | 迁移 |
+| `packages/db/drizzle/0012_cost_finance_closure.sql` | carrier / carton / fx_rate FK |
 | `packages/db/src/scripts/seed-commerce-ocean.ts` | 演示种子 |
-| `apps/shop/src/lib/crossborder/ocean-container-store.ts` | 主路径停用；类型保留 |
+| （已删）`ocean-container-store.ts` | #68 移除 |
 
-## 本 PR 不做
+## 本模块初始 PR 不做 / 后续已补
 
-合并售后 #43、真实船司 API、改左侧菜单、重写采购入库（m2）。
+初始：不合并售后 #43、不接真实船司 API、不重写采购入库。  
+#64–#68 已补承运商/箱规字段与成本财务联动。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。

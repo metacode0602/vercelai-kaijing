@@ -1,6 +1,7 @@
 # 模块4：LGS / 物流履约（包裹 + 轨迹 + LGS/JSB 交接批次）
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-lgs-fulfillment`。
+> #66：`fulfillment_batches.carrier_id` → `commerce_carriers`（迁移 `0013_fulfillment_batch_carrier`）；LGS/JSB UI 可选承运商。见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
 
 ## 范围
 
@@ -9,7 +10,7 @@
 | 包裹列表 / 详情 / 从订单创建 | 真实 Lazada / Daraz / Shopee OpenAPI |
 | 轨迹追加（强制 `source`）/ 幂等 | 费用模板、海运柜次业务化 |
 | stub 同步运单与轨迹 + `fulfillment_attempts` | 售后回库 |
-| LGS / JSB 交接批次 CRUD、加包、提交/关闭 | 左侧菜单结构调整 |
+| LGS / JSB 交接批次 CRUD、加包、提交/关闭；可选 `carrier_id` | — |
 | Console `shipments` / `logistics-lgs` / `logistics-jsb` | Dashboard 其它 KPI |
 | 中文 UI ↔ DB 状态映射 | — |
 

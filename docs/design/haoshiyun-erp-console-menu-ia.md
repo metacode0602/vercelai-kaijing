@@ -222,12 +222,18 @@
 
 ### 3.8 成本财务
 
+> **导航方案 B（#64–#68，已落地）**：成本财务组保留 costs / fee-templates / settlements / profits / freight-rate-cards / freight；**承运商、箱规迁至仓库中心**。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
+
 | 二级页 | 主要功能（子功能） | 核心数据表 | 权限 | 阶段 | 来源 |
 |---|---|---|---|---|---|
-| SKU成本 | 成本模板、版本、测算（LK 工作台）、审核、历史；汇率快照选择 | cost_templates(+versions)、sku_costs、fx_rates | 历史版本不覆盖 | P1 | 现有 `/costs`（重构） |
-| 平台结算对账 | 导入账单、自动匹配、差异处理、确认 | settlements(+settlement_lines) | 蔡值只读 | P1 | 拆分（finance） |
-| 订单与SKU利润 | 费用归集、汇率折算、订单/SKU 维度汇总、下钻、利润快照 | order_fees、order_profit_snapshots | 各维度汇总一致 | P1 | 拆分 |
-| 运费测算 | 情景测算（air_ddp/sea_lcl/sea_fcl）、报价/牌价比较、HS 税率匹配、快照采纳；参考数据维护（承运商/线路/HS/箱规） | freight_estimates、freight_quotes(_lines)、freight_rate_cards(_versions/_tiers)、hs_*、freight_carriers/lanes、packaging_specs | 平台参考数据=平台运营写 | P1 | 新增（域 K，D4） |
+| SKU成本 | 测算（LK 工作台）、柜次成本写 `sku_costs`；汇率选自设置·fx-rates；费用模板 resolve | sku_costs、fx_rates、fee_templates(+versions)、ocean_shipments | 正式成本禁 localStorage | P1 | `/costs`（#64 闭环） |
+| 费用模板 | import_tax / platform_fee / ocean_freight；版本审核与 resolve | fee_templates、fee_template_versions | 审核状态机 | P1 | `/fee-templates` |
+| 平台结算对账 | CSV/JSON 导入、Lazop 同步、状态确认 | settlements(+settlement_lines)、sync_tasks | 确认后改状态 | P1 | `/settlements` |
+| 订单与SKU利润 | 营收−成本−结算/物流费；下钻 | orders、sku_costs、settlement_lines | 只读派生 | P1 | `/profits` |
+| 运价卡 | 空运/LCL/FCL 牌价 CRUD；可选承运商 | commerce_freight_rate_cards、commerce_carriers | 组织主档 | P1 | `/freight-rate-cards`（#64/#65） |
+| 运费测算 | 只读拼盘：运价卡 + ocean_freight 模板 + ocean packing | commerce_freight_rate_cards、fee_templates、ocean_* | 只读 | P1 | `/freight` |
+| （迁出）承运商 | 主档 CRUD → **仓库中心** | commerce_carriers | — | P1 | `/carriers` |
+| （迁出）箱规 | 主档 CRUD → **仓库中心**；海运装箱引用 code | commerce_carton_specs | — | P1 | `/carton-specs` |
 
 ### 3.9 报表中心
 
@@ -328,6 +334,8 @@
 
 ### 4.8 域 H 成本财务（8）
 
+> 生产闭环补充表：`commerce_freight_rate_cards`（0012）；承运商/箱规展示路径改为仓库中心（导航 B）。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
+
 | 表 | 展示路径 |
 |---|---|
 | fx_rates | 成本财务·SKU成本（汇率快照选择器）+ 运费测算（fx 引用展示） |
@@ -386,7 +394,7 @@
 | 仓库中心 | **仓库中心** | 独立成组（原归「采购与库存」） |
 | 订单履约 | **订单履约** | 发货/物流按 Excel 拆 3 页 |
 | 售后中心 | **售后中心** | 独立成组（原平铺 fulfillment） |
-| 成本财务 | **成本财务** | 独立成组 + 运费测算（D4） |
+| 成本财务 | **成本财务** | 独立成组 + 运费测算 + 运价卡；承运商/箱规迁仓库中心（方案 B，#64） |
 | 报表中心 | **报表中心** | 4 报表为页内 Tab（Excel 单页口径） |
 | AI辅助 | → 工作台 | D1 |
 | 系统设置 | → 设置区 | D2（主侧栏 administration 组移除） |
