@@ -41,6 +41,12 @@
 | [console-inbox-sheet.md](../../apps/shop/content/design/console-inbox-sheet.md) | Demo | 控制台站内信 Sheet 交互 |
 | [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md) | **生效（P0 原型）** | Daraz LK 架构差分（非厦门共享池）、F22 柜次/清关库存、F33 汇率、F32 柜次成本版本；P1 壳；P2 推迟；官方 API 能力见 [platform-apis/](platform-apis/README.md) |
 
+### `apps/shop` — 操作手册（`apps/shop/content/guide/`）
+
+| 文档 | 状态 | 定位 |
+| --- | --- | --- |
+| [marketplace-oauth-admin-setup.md](../../apps/shop/content/guide/marketplace-oauth-admin-setup.md) | **生效** | 平台 OAuth 管理员配置：`Missing app credentials for platform daraz` 根因、`DARAZ_*` / `MARKETPLACE_CREDENTIALS_KEY` 变量、本地与生产配置、授权验证与排错 |
+
 ### `apps/web` — 平台运营后台
 
 当前无独立设计文档；租户/店铺审核、同步健康、待审抽检见总览中的模块边界。

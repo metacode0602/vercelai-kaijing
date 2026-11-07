@@ -1,6 +1,6 @@
 # Marketplace `.env` checklist
 
-Use with real partner-center app keys. Copy into root `.env` (see `.env.example`).
+Use with real partner-center app keys. `apps/shop` loads `apps/shop/.env*` or process env during dev — the monorepo root `.env` is **not** loaded automatically. See `apps/shop/content/guide/marketplace-oauth-admin-setup.md` for the full admin runbook.
 
 ## Required for OAuth Connect
 

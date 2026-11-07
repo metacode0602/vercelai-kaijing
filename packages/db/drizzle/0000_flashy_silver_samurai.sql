@@ -1,3 +1,5 @@
+CREATE SCHEMA "web_auth";
+--> statement-breakpoint
 CREATE TABLE "account" (
 	"id" text PRIMARY KEY NOT NULL,
 	"account_id" text NOT NULL,
@@ -264,6 +266,143 @@ CREATE TABLE "audit_events" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "commerce_bins" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"warehouse_id" text NOT NULL,
+	"warehouse_code" varchar(64) NOT NULL,
+	"zone_code" varchar(32),
+	"code" varchar(64) NOT NULL,
+	"name" text,
+	"bound_sku" varchar(64),
+	"status" varchar(16) DEFAULT 'empty' NOT NULL,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_carriers" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"code" varchar(64) NOT NULL,
+	"name" text NOT NULL,
+	"type" varchar(32) DEFAULT 'express' NOT NULL,
+	"coverage" text DEFAULT '' NOT NULL,
+	"contact" text DEFAULT '' NOT NULL,
+	"phone" text DEFAULT '' NOT NULL,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_carton_specs" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"code" varchar(64) NOT NULL,
+	"name" text NOT NULL,
+	"applicable_pack" text DEFAULT '单件' NOT NULL,
+	"length_cm" numeric(12, 2) DEFAULT '0' NOT NULL,
+	"width_cm" numeric(12, 2) DEFAULT '0' NOT NULL,
+	"height_cm" numeric(12, 2) DEFAULT '0' NOT NULL,
+	"gross_weight_kg" numeric(12, 3) DEFAULT '0' NOT NULL,
+	"units_per_carton" integer DEFAULT 1 NOT NULL,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_categories" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"code" varchar(64) NOT NULL,
+	"name" text NOT NULL,
+	"parent_id" text,
+	"sort" integer DEFAULT 10 NOT NULL,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text DEFAULT '' NOT NULL,
+	"cover_image" text,
+	"screenshots" jsonb DEFAULT '[]'::jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_dictionaries" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"key" varchar(64) NOT NULL,
+	"label" text NOT NULL,
+	"description" text DEFAULT '' NOT NULL,
+	"shared" boolean DEFAULT true NOT NULL,
+	"values" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"inactive_values" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_import_templates" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"kind" varchar(64) NOT NULL,
+	"version" varchar(32) DEFAULT 'v1' NOT NULL,
+	"fields" text DEFAULT '' NOT NULL,
+	"duplicate_strategy" text DEFAULT '' NOT NULL,
+	"rollback_strategy" text DEFAULT '' NOT NULL,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_suppliers" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"code" varchar(32) NOT NULL,
+	"name" text NOT NULL,
+	"contact" text DEFAULT '' NOT NULL,
+	"phone" varchar(64) DEFAULT '' NOT NULL,
+	"email" text DEFAULT '' NOT NULL,
+	"settlement" text DEFAULT '' NOT NULL,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "commerce_warehouses" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"code" varchar(64) NOT NULL,
+	"name" text NOT NULL,
+	"type" varchar(32) DEFAULT 'self_operated' NOT NULL,
+	"country" varchar(8) DEFAULT 'CN' NOT NULL,
+	"timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"operating_currency" varchar(3) DEFAULT 'CNY' NOT NULL,
+	"address" text,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text,
+	"raw" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "console_notifications" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"user_id" text,
+	"category" varchar(32) DEFAULT 'system' NOT NULL,
+	"title" text NOT NULL,
+	"summary" text DEFAULT '' NOT NULL,
+	"body" text DEFAULT '' NOT NULL,
+	"href" text,
+	"read_at" timestamp with time zone,
+	"source_type" varchar(64),
+	"source_id" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "external_id_mappings" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -372,7 +511,10 @@ CREATE TABLE "fx_rates" (
 	"rate" numeric(18, 8) NOT NULL,
 	"effective_date" varchar(10) NOT NULL,
 	"source" varchar(32) DEFAULT 'manual' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"note" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "integration_credentials" (
@@ -412,6 +554,8 @@ CREATE TABLE "integration_states" (
 	"last_listings_sync_at" timestamp with time zone,
 	"last_logistics_sync_at" timestamp with time zone,
 	"last_reviews_sync_at" timestamp with time zone,
+	"settlements_cursor" text,
+	"last_settlements_sync_at" timestamp with time zone,
 	"health" varchar(32) DEFAULT 'idle' NOT NULL,
 	"last_error" text
 );
@@ -565,6 +709,20 @@ CREATE TABLE "marketplace_webhook_events" (
 	"processed_at" timestamp with time zone
 );
 --> statement-breakpoint
+CREATE TABLE "ocean_shipment_boxes" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"shipment_id" text NOT NULL,
+	"box_no" varchar(64) NOT NULL,
+	"lead_ref" varchar(64),
+	"cbm" numeric(12, 4),
+	"weight_kg" numeric(12, 3),
+	"seal_no" varchar(64),
+	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "ocean_shipment_lines" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -583,15 +741,46 @@ CREATE TABLE "ocean_shipments" (
 	"lot_code" varchar(64) NOT NULL,
 	"container_no" varchar(64),
 	"container_type" varchar(16),
+	"freight_mode" varchar(16),
 	"platform" varchar(32) DEFAULT 'daraz' NOT NULL,
 	"origin_port" varchar(16),
 	"dest_port" varchar(16),
 	"destination_warehouse_code" varchar(64),
-	"status" varchar(32) DEFAULT 'in_transit' NOT NULL,
+	"status" varchar(32) DEFAULT 'draft' NOT NULL,
 	"etd" varchar(10),
 	"eta_port" varchar(10),
 	"eta_warehouse" varchar(10),
 	"notes" text,
+	"packing_details" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "order_exception_cases" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"case_no" varchar(32) NOT NULL,
+	"kind" varchar(32) NOT NULL,
+	"status" varchar(16) DEFAULT 'open' NOT NULL,
+	"shop_id" text,
+	"order_id" text,
+	"order_line_id" text,
+	"external_order_id" varchar(128),
+	"outbound_id" text,
+	"reservation_id" text,
+	"source_type" varchar(32) NOT NULL,
+	"source_id" text NOT NULL,
+	"seller_sku" varchar(128),
+	"internal_sku" varchar(128),
+	"title" text DEFAULT '' NOT NULL,
+	"detail" text,
+	"blocks_fulfillment" boolean DEFAULT true NOT NULL,
+	"assigned_to" text,
+	"resolution" text,
+	"resolved_at" timestamp with time zone,
+	"resolved_by" text,
+	"last_scanned_at" timestamp with time zone,
+	"raw" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -731,8 +920,14 @@ CREATE TABLE "product_candidates" (
 	"score" numeric(8, 4),
 	"rationale" jsonb DEFAULT '{}'::jsonb,
 	"status" varchar(16) DEFAULT 'new' NOT NULL,
+	"source" varchar(16) DEFAULT 'manual' NOT NULL,
+	"reject_reason" text,
+	"product_id" text,
 	"pending_action_id" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"reviewed_by" text,
+	"reviewed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "product_review_media" (
@@ -775,6 +970,10 @@ CREATE TABLE "product_reviews" (
 	"useful_count" integer DEFAULT 0 NOT NULL,
 	"source" varchar(16) DEFAULT 'api' NOT NULL,
 	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"reply_status" varchar(16) DEFAULT 'none' NOT NULL,
+	"reply_content" text,
+	"replied_at" timestamp with time zone,
+	"reply_source" varchar(16),
 	"raw" jsonb DEFAULT '{}'::jsonb,
 	"fetched_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -828,6 +1027,8 @@ CREATE TABLE "purchase_order_lines" (
 	"line_no" integer NOT NULL,
 	"variant_id" text NOT NULL,
 	"sku_code" varchar(64) NOT NULL,
+	"supplier_sku" varchar(128),
+	"supplier_sku_id" text,
 	"qty_ordered" integer NOT NULL,
 	"qty_received" integer DEFAULT 0 NOT NULL,
 	"qty_qc_passed" integer DEFAULT 0 NOT NULL,
@@ -845,6 +1046,7 @@ CREATE TABLE "purchase_orders" (
 	"purchase_request_id" text,
 	"source_request_no" varchar(32),
 	"supplier_name" text NOT NULL,
+	"supplier_id" text,
 	"warehouse_code" varchar(64) DEFAULT 'WH-CN-XMN-001' NOT NULL,
 	"status" varchar(32) DEFAULT 'sent' NOT NULL,
 	"expected_arrival_at" varchar(10),
@@ -903,6 +1105,7 @@ CREATE TABLE "purchase_request_lines" (
 	"variant_id" text NOT NULL,
 	"sku_code" varchar(64) NOT NULL,
 	"supplier_sku" varchar(128),
+	"supplier_sku_id" text,
 	"qty" integer NOT NULL,
 	"unit_price" numeric(15, 4) DEFAULT '0' NOT NULL,
 	"amount" numeric(15, 4) DEFAULT '0' NOT NULL,
@@ -916,6 +1119,7 @@ CREATE TABLE "purchase_requests" (
 	"organization_id" text NOT NULL,
 	"request_no" varchar(32) NOT NULL,
 	"supplier_name" text NOT NULL,
+	"supplier_id" text,
 	"warehouse_code" varchar(64) DEFAULT 'WH-CN-XMN-001' NOT NULL,
 	"status" varchar(32) DEFAULT 'draft' NOT NULL,
 	"expected_arrival_at" varchar(10),
@@ -1189,6 +1393,41 @@ CREATE TABLE "sku_costs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "stock_adjustment_lines" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"stock_adjustment_id" text NOT NULL,
+	"line_no" integer NOT NULL,
+	"variant_id" text NOT NULL,
+	"sku_code" varchar(64) NOT NULL,
+	"bin_code" varchar(64) NOT NULL,
+	"qty_system" integer DEFAULT 0 NOT NULL,
+	"qty_counted" integer DEFAULT 0 NOT NULL,
+	"qty_diff" integer DEFAULT 0 NOT NULL,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "stock_adjustments" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"adjustment_no" varchar(32) NOT NULL,
+	"kind" varchar(32) NOT NULL,
+	"warehouse_code" varchar(64) NOT NULL,
+	"status" varchar(32) DEFAULT 'draft' NOT NULL,
+	"reason" text NOT NULL,
+	"applicant" text,
+	"approver" text,
+	"reject_reason" text,
+	"remark" text,
+	"idempotency_key" varchar(191) NOT NULL,
+	"approved_at" timestamp with time zone,
+	"posted_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "stock_alerts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -1261,6 +1500,99 @@ CREATE TABLE "stock_outbounds" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "supplier_skus" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"supplier_id" text NOT NULL,
+	"variant_id" text NOT NULL,
+	"sku_code" varchar(64) NOT NULL,
+	"factory_code" varchar(128) NOT NULL,
+	"unit_price" numeric(15, 4) DEFAULT '0' NOT NULL,
+	"currency" varchar(3) DEFAULT 'CNY' NOT NULL,
+	"moq" integer DEFAULT 1 NOT NULL,
+	"lead_days" integer DEFAULT 0 NOT NULL,
+	"effective_from" varchar(10) NOT NULL,
+	"preferred" boolean DEFAULT false NOT NULL,
+	"status" varchar(16) DEFAULT 'active' NOT NULL,
+	"remark" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "sync_job_runs" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"sync_task_id" text NOT NULL,
+	"run_no" integer DEFAULT 1 NOT NULL,
+	"status" varchar(32) DEFAULT 'queued' NOT NULL,
+	"request_id" text,
+	"http_status" integer,
+	"latency_ms" integer,
+	"message" text,
+	"detail" text,
+	"actor" text,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "sync_tasks" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"shop_id" text,
+	"task_no" varchar(32) NOT NULL,
+	"type" varchar(32) NOT NULL,
+	"target" text DEFAULT '' NOT NULL,
+	"status" varchar(32) DEFAULT 'queued' NOT NULL,
+	"progress_done" integer DEFAULT 0 NOT NULL,
+	"progress_total" integer DEFAULT 0 NOT NULL,
+	"error" text,
+	"retries" integer DEFAULT 0 NOT NULL,
+	"request_id" text,
+	"last_run_at" timestamp with time zone,
+	"enqueued_at" timestamp with time zone,
+	"started_at" timestamp with time zone,
+	"finished_at" timestamp with time zone,
+	"note" text,
+	"raw" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "tenant_onboarding_applications" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"applicant_user_id" text NOT NULL,
+	"subject_type" varchar(16) NOT NULL,
+	"company_name" text NOT NULL,
+	"registration_no" varchar(64),
+	"country_code" varchar(8) NOT NULL,
+	"handler_type" varchar(16) DEFAULT 'legal_rep' NOT NULL,
+	"legal_representative" text,
+	"legal_rep_id_no" varchar(64),
+	"legal_rep_id_front_key" text,
+	"legal_rep_id_back_key" text,
+	"authorization_file_key" text,
+	"agent_name" text,
+	"agent_id_no" varchar(64),
+	"agent_id_front_key" text,
+	"agent_id_back_key" text,
+	"contact_name" text NOT NULL,
+	"contact_phone" varchar(32) NOT NULL,
+	"contact_email" text,
+	"license_file_key" text,
+	"license_file_name" text,
+	"status" varchar(16) DEFAULT 'draft' NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"submitted_at" timestamp with time zone,
+	"reviewed_at" timestamp with time zone,
+	"reviewed_by" text,
+	"review_note" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "tracking_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -1273,6 +1605,116 @@ CREATE TABLE "tracking_events" (
 	"source" varchar(16) DEFAULT 'manual' NOT NULL,
 	"raw" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."account" (
+	"id" text PRIMARY KEY NOT NULL,
+	"account_id" text NOT NULL,
+	"provider_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"access_token" text,
+	"refresh_token" text,
+	"id_token" text,
+	"access_token_expires_at" timestamp,
+	"refresh_token_expires_at" timestamp,
+	"scope" text,
+	"password" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."invitation" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"email" text NOT NULL,
+	"role" text,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"inviter_id" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."member" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"role" text DEFAULT 'member' NOT NULL,
+	"scope_type" varchar(16),
+	"scope_id" text,
+	"created_at" timestamp NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."organization" (
+	"id" text PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"slug" text,
+	"logo" text,
+	"created_at" timestamp NOT NULL,
+	"metadata" jsonb,
+	"entry_approved" boolean DEFAULT false NOT NULL,
+	"is_current" boolean DEFAULT false NOT NULL,
+	"status" text DEFAULT 'active' NOT NULL,
+	"org_type" varchar(16) DEFAULT 'tenant' NOT NULL,
+	"parent_merchant_org_id" text,
+	"supplier_type" varchar(16),
+	"supplier_tier" varchar(16),
+	"supplier_status" varchar(16),
+	"commission_rate" integer,
+	"merchant_tier" varchar(16),
+	"merchant_status" varchar(16),
+	"merchant_commission_rate" integer,
+	"enterprise_verification_status" varchar(16) DEFAULT 'unverified' NOT NULL,
+	"identity_status" varchar(32) DEFAULT 'unverified' NOT NULL,
+	"capsule_namespace_ready" boolean DEFAULT false NOT NULL,
+	"capsule_sync_status" varchar(20) DEFAULT 'pending',
+	"capsule_synced_at" timestamp,
+	"capsule_sync_error" text,
+	CONSTRAINT "organization_slug_unique" UNIQUE("slug")
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."session" (
+	"id" text PRIMARY KEY NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"token" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	"ip_address" text,
+	"user_agent" text,
+	"user_id" text NOT NULL,
+	"active_organization_id" text,
+	"impersonated_by" text,
+	CONSTRAINT "session_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."users" (
+	"id" text PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"email" text NOT NULL,
+	"email_verified" boolean NOT NULL,
+	"image" text,
+	"phone_number" text,
+	"phone_number_verified" boolean DEFAULT false NOT NULL,
+	"role" varchar(256) DEFAULT 'user',
+	"must_change_password" boolean DEFAULT false NOT NULL,
+	"provisioned_by" text,
+	"provisioned_at" timestamp with time zone,
+	"banned" boolean,
+	"ban_reason" text,
+	"ban_expires" timestamp,
+	"customer_id" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email"),
+	CONSTRAINT "users_phone_number_unique" UNIQUE("phone_number")
+);
+--> statement-breakpoint
+CREATE TABLE "web_auth"."verification" (
+	"id" text PRIMARY KEY NOT NULL,
+	"identifier" text NOT NULL,
+	"value" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1291,6 +1733,16 @@ ALTER TABLE "user_site_message" ADD CONSTRAINT "user_site_message_user_id_users_
 ALTER TABLE "account_transactions" ADD CONSTRAINT "account_transactions_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "account_transactions" ADD CONSTRAINT "account_transactions_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_bins" ADD CONSTRAINT "commerce_bins_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_bins" ADD CONSTRAINT "commerce_bins_warehouse_id_commerce_warehouses_id_fk" FOREIGN KEY ("warehouse_id") REFERENCES "public"."commerce_warehouses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_carriers" ADD CONSTRAINT "commerce_carriers_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_carton_specs" ADD CONSTRAINT "commerce_carton_specs_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_categories" ADD CONSTRAINT "commerce_categories_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_dictionaries" ADD CONSTRAINT "commerce_dictionaries_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_import_templates" ADD CONSTRAINT "commerce_import_templates_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_suppliers" ADD CONSTRAINT "commerce_suppliers_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commerce_warehouses" ADD CONSTRAINT "commerce_warehouses_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "console_notifications" ADD CONSTRAINT "console_notifications_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "external_id_mappings" ADD CONSTRAINT "external_id_mappings_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "external_id_mappings" ADD CONSTRAINT "external_id_mappings_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "fee_template_versions" ADD CONSTRAINT "fee_template_versions_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1335,10 +1787,18 @@ ALTER TABLE "mapping_exceptions" ADD CONSTRAINT "mapping_exceptions_organization
 ALTER TABLE "mapping_exceptions" ADD CONSTRAINT "mapping_exceptions_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "marketplace_webhook_events" ADD CONSTRAINT "marketplace_webhook_events_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "marketplace_webhook_events" ADD CONSTRAINT "marketplace_webhook_events_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ocean_shipment_boxes" ADD CONSTRAINT "ocean_shipment_boxes_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ocean_shipment_boxes" ADD CONSTRAINT "ocean_shipment_boxes_shipment_id_ocean_shipments_id_fk" FOREIGN KEY ("shipment_id") REFERENCES "public"."ocean_shipments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocean_shipment_lines" ADD CONSTRAINT "ocean_shipment_lines_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocean_shipment_lines" ADD CONSTRAINT "ocean_shipment_lines_shipment_id_ocean_shipments_id_fk" FOREIGN KEY ("shipment_id") REFERENCES "public"."ocean_shipments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocean_shipment_lines" ADD CONSTRAINT "ocean_shipment_lines_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ocean_shipments" ADD CONSTRAINT "ocean_shipments_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_exception_cases" ADD CONSTRAINT "order_exception_cases_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_exception_cases" ADD CONSTRAINT "order_exception_cases_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_exception_cases" ADD CONSTRAINT "order_exception_cases_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_exception_cases" ADD CONSTRAINT "order_exception_cases_order_line_id_order_lines_id_fk" FOREIGN KEY ("order_line_id") REFERENCES "public"."order_lines"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_exception_cases" ADD CONSTRAINT "order_exception_cases_outbound_id_stock_outbounds_id_fk" FOREIGN KEY ("outbound_id") REFERENCES "public"."stock_outbounds"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "order_exception_cases" ADD CONSTRAINT "order_exception_cases_reservation_id_inventory_reservations_id_" FOREIGN KEY ("reservation_id") REFERENCES "public"."inventory_reservations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_lines" ADD CONSTRAINT "order_lines_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1355,6 +1815,7 @@ ALTER TABLE "platform_brands" ADD CONSTRAINT "platform_brands_shop_id_shops_id_f
 ALTER TABLE "platform_categories" ADD CONSTRAINT "platform_categories_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "platform_categories" ADD CONSTRAINT "platform_categories_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_candidates" ADD CONSTRAINT "product_candidates_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_candidates" ADD CONSTRAINT "product_candidates_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_candidates" ADD CONSTRAINT "product_candidates_pending_action_id_pending_actions_id_fk" FOREIGN KEY ("pending_action_id") REFERENCES "public"."pending_actions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_review_media" ADD CONSTRAINT "product_review_media_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_review_media" ADD CONSTRAINT "product_review_media_review_id_product_reviews_id_fk" FOREIGN KEY ("review_id") REFERENCES "public"."product_reviews"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1420,6 +1881,10 @@ ALTER TABLE "shipments" ADD CONSTRAINT "shipments_order_id_orders_id_fk" FOREIGN
 ALTER TABLE "shops" ADD CONSTRAINT "shops_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sku_costs" ADD CONSTRAINT "sku_costs_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sku_costs" ADD CONSTRAINT "sku_costs_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stock_adjustment_lines" ADD CONSTRAINT "stock_adjustment_lines_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stock_adjustment_lines" ADD CONSTRAINT "stock_adjustment_lines_stock_adjustment_id_stock_adjustments_id" FOREIGN KEY ("stock_adjustment_id") REFERENCES "public"."stock_adjustments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stock_adjustment_lines" ADD CONSTRAINT "stock_adjustment_lines_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stock_adjustments" ADD CONSTRAINT "stock_adjustments_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stock_alerts" ADD CONSTRAINT "stock_alerts_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stock_alerts" ADD CONSTRAINT "stock_alerts_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stock_alerts" ADD CONSTRAINT "stock_alerts_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1434,8 +1899,24 @@ ALTER TABLE "stock_outbound_lines" ADD CONSTRAINT "stock_outbound_lines_variant_
 ALTER TABLE "stock_outbounds" ADD CONSTRAINT "stock_outbounds_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stock_outbounds" ADD CONSTRAINT "stock_outbounds_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "stock_outbounds" ADD CONSTRAINT "stock_outbounds_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "supplier_skus" ADD CONSTRAINT "supplier_skus_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "supplier_skus" ADD CONSTRAINT "supplier_skus_supplier_id_commerce_suppliers_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "public"."commerce_suppliers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "supplier_skus" ADD CONSTRAINT "supplier_skus_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sync_job_runs" ADD CONSTRAINT "sync_job_runs_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sync_job_runs" ADD CONSTRAINT "sync_job_runs_sync_task_id_sync_tasks_id_fk" FOREIGN KEY ("sync_task_id") REFERENCES "public"."sync_tasks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sync_tasks" ADD CONSTRAINT "sync_tasks_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sync_tasks" ADD CONSTRAINT "sync_tasks_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tenant_onboarding_applications" ADD CONSTRAINT "tenant_onboarding_applications_organization_id_organization_id_" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tracking_events" ADD CONSTRAINT "tracking_events_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tracking_events" ADD CONSTRAINT "tracking_events_shipment_id_shipments_id_fk" FOREIGN KEY ("shipment_id") REFERENCES "public"."shipments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."account" ADD CONSTRAINT "account_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "web_auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."invitation" ADD CONSTRAINT "invitation_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "web_auth"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."invitation" ADD CONSTRAINT "invitation_inviter_id_users_id_fk" FOREIGN KEY ("inviter_id") REFERENCES "web_auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."member" ADD CONSTRAINT "member_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "web_auth"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."member" ADD CONSTRAINT "member_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "web_auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."organization" ADD CONSTRAINT "organization_parent_merchant_org_id_organization_id_fk" FOREIGN KEY ("parent_merchant_org_id") REFERENCES "web_auth"."organization"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."session" ADD CONSTRAINT "session_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "web_auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "web_auth"."session" ADD CONSTRAINT "session_active_organization_id_organization_id_fk" FOREIGN KEY ("active_organization_id") REFERENCES "web_auth"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "invitation_organization_id_idx" ON "invitation" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "invitation_email_idx" ON "invitation" USING btree ("email");--> statement-breakpoint
@@ -1463,6 +1944,25 @@ CREATE INDEX "account_transactions_shop_time_idx" ON "account_transactions" USIN
 CREATE UNIQUE INDEX "account_transactions_shop_ext_uidx" ON "account_transactions" USING btree ("shop_id","transaction_number");--> statement-breakpoint
 CREATE INDEX "audit_events_org_created_idx" ON "audit_events" USING btree ("organization_id","created_at");--> statement-breakpoint
 CREATE INDEX "audit_events_entity_idx" ON "audit_events" USING btree ("entity_type","entity_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_bins_wh_code_uidx" ON "commerce_bins" USING btree ("organization_id","warehouse_id","code");--> statement-breakpoint
+CREATE INDEX "commerce_bins_org_wh_idx" ON "commerce_bins" USING btree ("organization_id","warehouse_code");--> statement-breakpoint
+CREATE INDEX "commerce_bins_bound_sku_idx" ON "commerce_bins" USING btree ("organization_id","bound_sku");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_carriers_org_code_uidx" ON "commerce_carriers" USING btree ("organization_id","code");--> statement-breakpoint
+CREATE INDEX "commerce_carriers_org_status_idx" ON "commerce_carriers" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_carton_specs_org_code_uidx" ON "commerce_carton_specs" USING btree ("organization_id","code");--> statement-breakpoint
+CREATE INDEX "commerce_carton_specs_org_status_idx" ON "commerce_carton_specs" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_categories_org_code_uidx" ON "commerce_categories" USING btree ("organization_id","code");--> statement-breakpoint
+CREATE INDEX "commerce_categories_org_parent_idx" ON "commerce_categories" USING btree ("organization_id","parent_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_dictionaries_org_key_uidx" ON "commerce_dictionaries" USING btree ("organization_id","key");--> statement-breakpoint
+CREATE INDEX "commerce_import_templates_org_kind_idx" ON "commerce_import_templates" USING btree ("organization_id","kind");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_suppliers_org_code_uidx" ON "commerce_suppliers" USING btree ("organization_id","code");--> statement-breakpoint
+CREATE INDEX "commerce_suppliers_org_status_idx" ON "commerce_suppliers" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "commerce_suppliers_org_name_idx" ON "commerce_suppliers" USING btree ("organization_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "commerce_warehouses_org_code_uidx" ON "commerce_warehouses" USING btree ("organization_id","code");--> statement-breakpoint
+CREATE INDEX "commerce_warehouses_org_status_idx" ON "commerce_warehouses" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "console_notifications_org_user_idx" ON "console_notifications" USING btree ("organization_id","user_id");--> statement-breakpoint
+CREATE INDEX "console_notifications_org_read_idx" ON "console_notifications" USING btree ("organization_id","read_at");--> statement-breakpoint
+CREATE INDEX "console_notifications_org_created_idx" ON "console_notifications" USING btree ("organization_id","created_at");--> statement-breakpoint
 CREATE INDEX "external_id_mappings_org_idx" ON "external_id_mappings" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "external_id_mappings_shop_ext_uidx" ON "external_id_mappings" USING btree ("shop_id","entity_type","external_id");--> statement-breakpoint
 CREATE INDEX "external_id_mappings_shop_int_idx" ON "external_id_mappings" USING btree ("shop_id","entity_type","internal_id");--> statement-breakpoint
@@ -1482,6 +1982,7 @@ CREATE UNIQUE INDEX "fulfillment_batches_org_batch_no_uidx" ON "fulfillment_batc
 CREATE INDEX "fulfillment_batches_org_channel_idx" ON "fulfillment_batches" USING btree ("organization_id","channel");--> statement-breakpoint
 CREATE INDEX "fulfillment_batches_org_status_idx" ON "fulfillment_batches" USING btree ("organization_id","status");--> statement-breakpoint
 CREATE INDEX "fx_rates_lookup_idx" ON "fx_rates" USING btree ("platform","base_currency","quote_currency","effective_date");--> statement-breakpoint
+CREATE INDEX "fx_rates_org_status_idx" ON "fx_rates" USING btree ("organization_id","status");--> statement-breakpoint
 CREATE INDEX "integration_credentials_org_idx" ON "integration_credentials" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "integration_credentials_shop_idx" ON "integration_credentials" USING btree ("shop_id");--> statement-breakpoint
 CREATE INDEX "integration_logs_shop_created_idx" ON "integration_logs" USING btree ("shop_id","created_at");--> statement-breakpoint
@@ -1507,10 +2008,20 @@ CREATE INDEX "mapping_exceptions_org_status_idx" ON "mapping_exceptions" USING b
 CREATE INDEX "mapping_exceptions_shop_idx" ON "mapping_exceptions" USING btree ("shop_id");--> statement-breakpoint
 CREATE INDEX "marketplace_webhook_events_platform_received_idx" ON "marketplace_webhook_events" USING btree ("platform","received_at");--> statement-breakpoint
 CREATE INDEX "marketplace_webhook_events_shop_order_idx" ON "marketplace_webhook_events" USING btree ("shop_id","external_order_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ocean_shipment_boxes_ship_box_uidx" ON "ocean_shipment_boxes" USING btree ("shipment_id","box_no");--> statement-breakpoint
+CREATE INDEX "ocean_shipment_boxes_shipment_idx" ON "ocean_shipment_boxes" USING btree ("shipment_id");--> statement-breakpoint
+CREATE INDEX "ocean_shipment_boxes_org_idx" ON "ocean_shipment_boxes" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ocean_shipment_lines_ship_variant_uidx" ON "ocean_shipment_lines" USING btree ("shipment_id","variant_id");--> statement-breakpoint
 CREATE INDEX "ocean_shipment_lines_shipment_idx" ON "ocean_shipment_lines" USING btree ("shipment_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ocean_shipments_org_lot_uidx" ON "ocean_shipments" USING btree ("organization_id","lot_code");--> statement-breakpoint
 CREATE INDEX "ocean_shipments_status_idx" ON "ocean_shipments" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "ocean_shipments_org_idx" ON "ocean_shipments" USING btree ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "order_exception_cases_org_no_uidx" ON "order_exception_cases" USING btree ("organization_id","case_no");--> statement-breakpoint
+CREATE UNIQUE INDEX "order_exception_cases_org_source_uidx" ON "order_exception_cases" USING btree ("organization_id","kind","source_type","source_id");--> statement-breakpoint
+CREATE INDEX "order_exception_cases_org_status_idx" ON "order_exception_cases" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "order_exception_cases_org_kind_idx" ON "order_exception_cases" USING btree ("organization_id","kind");--> statement-breakpoint
+CREATE INDEX "order_exception_cases_order_idx" ON "order_exception_cases" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "order_exception_cases_shop_idx" ON "order_exception_cases" USING btree ("shop_id");--> statement-breakpoint
 CREATE INDEX "order_lines_order_idx" ON "order_lines" USING btree ("order_id");--> statement-breakpoint
 CREATE INDEX "order_lines_org_idx" ON "order_lines" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "order_lines_org_seller_sku_idx" ON "order_lines" USING btree ("organization_id","seller_sku");--> statement-breakpoint
@@ -1531,6 +2042,7 @@ CREATE INDEX "platform_categories_org_idx" ON "platform_categories" USING btree 
 CREATE UNIQUE INDEX "platform_categories_shop_ext_uidx" ON "platform_categories" USING btree ("shop_id","external_id");--> statement-breakpoint
 CREATE INDEX "product_candidates_org_idx" ON "product_candidates" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "product_candidates_status_idx" ON "product_candidates" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "product_candidates_product_idx" ON "product_candidates" USING btree ("product_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_review_media_review_url_uidx" ON "product_review_media" USING btree ("review_id","url");--> statement-breakpoint
 CREATE INDEX "product_review_media_org_type_idx" ON "product_review_media" USING btree ("organization_id","media_type");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_reviews_shop_ext_uidx" ON "product_reviews" USING btree ("shop_id","external_review_id");--> statement-breakpoint
@@ -1594,6 +2106,12 @@ CREATE UNIQUE INDEX "shops_org_platform_ext_uidx" ON "shops" USING btree ("organ
 CREATE INDEX "sku_costs_org_idx" ON "sku_costs" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "sku_costs_variant_idx" ON "sku_costs" USING btree ("variant_id");--> statement-breakpoint
 CREATE INDEX "sku_costs_lot_idx" ON "sku_costs" USING btree ("container_lot_id");--> statement-breakpoint
+CREATE INDEX "stock_adjustment_lines_adj_idx" ON "stock_adjustment_lines" USING btree ("stock_adjustment_id");--> statement-breakpoint
+CREATE INDEX "stock_adjustment_lines_org_idx" ON "stock_adjustment_lines" USING btree ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "stock_adjustment_lines_adj_line_uidx" ON "stock_adjustment_lines" USING btree ("stock_adjustment_id","line_no");--> statement-breakpoint
+CREATE UNIQUE INDEX "stock_adjustments_org_no_uidx" ON "stock_adjustments" USING btree ("organization_id","adjustment_no");--> statement-breakpoint
+CREATE UNIQUE INDEX "stock_adjustments_org_idem_uidx" ON "stock_adjustments" USING btree ("organization_id","idempotency_key");--> statement-breakpoint
+CREATE INDEX "stock_adjustments_org_status_idx" ON "stock_adjustments" USING btree ("organization_id","status");--> statement-breakpoint
 CREATE INDEX "stock_alerts_org_idx" ON "stock_alerts" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "stock_alerts_variant_idx" ON "stock_alerts" USING btree ("variant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "stock_inbounds_org_no_uidx" ON "stock_inbounds" USING btree ("organization_id","inbound_no");--> statement-breakpoint
@@ -1607,7 +2125,30 @@ CREATE UNIQUE INDEX "stock_outbounds_org_no_uidx" ON "stock_outbounds" USING btr
 CREATE UNIQUE INDEX "stock_outbounds_org_idem_uidx" ON "stock_outbounds" USING btree ("organization_id","idempotency_key");--> statement-breakpoint
 CREATE INDEX "stock_outbounds_org_status_idx" ON "stock_outbounds" USING btree ("organization_id","status");--> statement-breakpoint
 CREATE INDEX "stock_outbounds_order_idx" ON "stock_outbounds" USING btree ("order_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "supplier_skus_org_sup_sku_factory_uidx" ON "supplier_skus" USING btree ("organization_id","supplier_id","sku_code","factory_code");--> statement-breakpoint
+CREATE INDEX "supplier_skus_org_sku_idx" ON "supplier_skus" USING btree ("organization_id","sku_code");--> statement-breakpoint
+CREATE INDEX "supplier_skus_org_status_idx" ON "supplier_skus" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "supplier_skus_supplier_idx" ON "supplier_skus" USING btree ("supplier_id");--> statement-breakpoint
+CREATE INDEX "supplier_skus_variant_idx" ON "supplier_skus" USING btree ("variant_id");--> statement-breakpoint
+CREATE INDEX "sync_job_runs_task_idx" ON "sync_job_runs" USING btree ("sync_task_id");--> statement-breakpoint
+CREATE INDEX "sync_job_runs_org_idx" ON "sync_job_runs" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "sync_job_runs_request_idx" ON "sync_job_runs" USING btree ("request_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "sync_job_runs_task_run_uidx" ON "sync_job_runs" USING btree ("sync_task_id","run_no");--> statement-breakpoint
+CREATE UNIQUE INDEX "sync_tasks_org_no_uidx" ON "sync_tasks" USING btree ("organization_id","task_no");--> statement-breakpoint
+CREATE INDEX "sync_tasks_org_status_idx" ON "sync_tasks" USING btree ("organization_id","status");--> statement-breakpoint
+CREATE INDEX "sync_tasks_org_type_idx" ON "sync_tasks" USING btree ("organization_id","type");--> statement-breakpoint
+CREATE INDEX "sync_tasks_shop_idx" ON "sync_tasks" USING btree ("shop_id");--> statement-breakpoint
+CREATE INDEX "sync_tasks_request_idx" ON "sync_tasks" USING btree ("request_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "tenant_onboarding_applications_org_uidx" ON "tenant_onboarding_applications" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "tenant_onboarding_applications_status_idx" ON "tenant_onboarding_applications" USING btree ("status","submitted_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "tenant_onboarding_applications_subject_uidx" ON "tenant_onboarding_applications" USING btree ("country_code","registration_no") WHERE "tenant_onboarding_applications"."status" in ('submitted', 'approved');--> statement-breakpoint
 CREATE INDEX "tracking_events_org_idx" ON "tracking_events" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "tracking_events_shipment_time_idx" ON "tracking_events" USING btree ("shipment_id","event_time");--> statement-breakpoint
 CREATE INDEX "tracking_events_source_idx" ON "tracking_events" USING btree ("source");--> statement-breakpoint
-CREATE UNIQUE INDEX "tracking_events_shipment_time_status_uidx" ON "tracking_events" USING btree ("shipment_id","event_time","status_code");
+CREATE UNIQUE INDEX "tracking_events_shipment_time_status_uidx" ON "tracking_events" USING btree ("shipment_id","event_time","status_code");--> statement-breakpoint
+CREATE INDEX "account_userId_idx" ON "web_auth"."account" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "invitation_organization_id_idx" ON "web_auth"."invitation" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "invitation_email_idx" ON "web_auth"."invitation" USING btree ("email");--> statement-breakpoint
+CREATE INDEX "invitation_inviter_id_idx" ON "web_auth"."invitation" USING btree ("inviter_id");--> statement-breakpoint
+CREATE INDEX "session_userId_idx" ON "web_auth"."session" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "verification_identifier_idx" ON "web_auth"."verification" USING btree ("identifier");
