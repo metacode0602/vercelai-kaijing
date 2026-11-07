@@ -1,11 +1,14 @@
 /**
  * 供应商主档 + 供应商货号 dataaccess（模块12）。
  */
-import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, ne, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   commerceSuppliers,
   productVariants,
+  purchaseOrderLines,
+  purchaseOrders,
+  purchaseReceipts,
   purchaseRequestLines,
   purchaseRequests,
   supplierSkus,
@@ -22,6 +25,7 @@ import {
   type UiSupplierSkuStatus,
   type UiSupplierStatus,
 } from '@/lib/server/mappers/suppliers'
+import { toUiPoStatus } from '@/lib/server/mappers/purchase'
 import {
   normalizePage,
   normalizePageSize,
@@ -61,6 +65,21 @@ export type SupplierSkuDto = {
   status: UiSupplierSkuStatus
   remark: string
   updatedAt: string
+}
+
+export type SupplierSkuPurchaseBatchDto = {
+  poId: string
+  poNo: string
+  lineNo: number
+  qtyOrdered: number
+  qtyReceived: number
+  unitPrice: number
+  currency: string
+  status: string
+  orderedAt: string
+  expectedArrivalAt: string
+  receiptNos: string
+  factoryCode: string
 }
 
 async function nextSupplierCode(db: DbLike, organizationId: string): Promise<string> {
@@ -188,6 +207,7 @@ export async function listSuppliers(
       .where(
         and(
           eq(supplierSkus.organizationId, organizationId),
+          ne(supplierSkus.status, 'disabled'),
           sql`${supplierSkus.supplierId} in (${sql.join(
             ids.map((id) => sql`${id}`),
             sql`, `,
@@ -244,7 +264,11 @@ export async function getSupplier(
     .select({ c: count() })
     .from(supplierSkus)
     .where(
-      and(eq(supplierSkus.organizationId, organizationId), eq(supplierSkus.supplierId, row.id)),
+      and(
+        eq(supplierSkus.organizationId, organizationId),
+        eq(supplierSkus.supplierId, row.id),
+        ne(supplierSkus.status, 'disabled'),
+      ),
     )
   return mapSupplier(row, Number(c?.c ?? 0))
 }
@@ -335,6 +359,8 @@ export async function listSupplierSkus(
     supplierId?: string
     sku?: string
     preferredOnly?: boolean
+    /** 默认列表隐藏逻辑删除（停用）行；显式传 status=停用时可查看 */
+    excludeDisabled?: boolean
   } = {},
 ): Promise<PaginatedResult<SupplierSkuDto>> {
   const page = normalizePage(input.page)
@@ -342,6 +368,8 @@ export async function listSupplierSkus(
   const filters: SQL[] = [eq(supplierSkus.organizationId, organizationId)]
   if (input.status && input.status !== '全部') {
     filters.push(eq(supplierSkus.status, toDbSupplierSkuStatus(input.status)))
+  } else if (input.excludeDisabled) {
+    filters.push(ne(supplierSkus.status, 'disabled'))
   }
   if (input.supplierId) filters.push(eq(supplierSkus.supplierId, input.supplierId))
   if (input.sku) filters.push(eq(supplierSkus.skuCode, input.sku.trim()))
@@ -645,6 +673,114 @@ export async function linkPurchaseRequestSupplier(
       })
       .where(eq(purchaseRequestLines.id, line.id))
   }
+}
+
+/** 逻辑删除供应商货号：仅将 status 置为 disabled，不物理删行 */
+export async function hideSupplierSku(
+  db: DbLike,
+  organizationId: string,
+  id: string,
+): Promise<SupplierSkuDto> {
+  return updateSupplierSku(db, organizationId, { id, status: '停用', preferred: false })
+}
+
+/**
+ * 供应商货号关联的采购批次：按 supplierId（或 name 回退）+ 内部 skuCode 匹配采购单行。
+ * 优先匹配 purchase_order_lines.supplier_sku_id；否则按 sku_code + 供应商匹配。
+ */
+export async function listSkuPurchaseBatches(
+  db: DbLike,
+  organizationId: string,
+  input: { supplierSkuId: string },
+): Promise<SupplierSkuPurchaseBatchDto[]> {
+  const sku = await getSupplierSku(db, organizationId, input.supplierSkuId)
+  if (!sku) throw new Error(`供应商货号 ${input.supplierSkuId} 不存在`)
+
+  const [supplier] = await db
+    .select()
+    .from(commerceSuppliers)
+    .where(
+      and(
+        eq(commerceSuppliers.organizationId, organizationId),
+        eq(commerceSuppliers.id, sku.supplierId),
+      ),
+    )
+    .limit(1)
+  if (!supplier) throw new Error('供应商不存在')
+
+  const rows = await db
+    .select({
+      line: purchaseOrderLines,
+      po: purchaseOrders,
+    })
+    .from(purchaseOrderLines)
+    .innerJoin(purchaseOrders, eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id))
+    .where(
+      and(
+        eq(purchaseOrderLines.organizationId, organizationId),
+        eq(purchaseOrderLines.skuCode, sku.sku),
+        or(
+          eq(purchaseOrderLines.supplierSkuId, sku.id),
+          and(
+            eq(purchaseOrders.supplierId, supplier.id),
+            eq(purchaseOrderLines.skuCode, sku.sku),
+          ),
+          and(
+            eq(purchaseOrders.supplierName, supplier.name),
+            eq(purchaseOrderLines.skuCode, sku.sku),
+          ),
+        ),
+      ),
+    )
+    .orderBy(desc(purchaseOrders.createdAt), purchaseOrderLines.lineNo)
+
+  // Deduplicate by line id (or/and may overlap)
+  const seen = new Set<string>()
+  const unique = rows.filter((r) => {
+    if (seen.has(r.line.id)) return false
+    seen.add(r.line.id)
+    return true
+  })
+
+  const poIds = [...new Set(unique.map((r) => r.po.id))]
+  const receiptMap = new Map<string, string[]>()
+  if (poIds.length) {
+    const receipts = await db
+      .select({
+        purchaseOrderId: purchaseReceipts.purchaseOrderId,
+        receiptNo: purchaseReceipts.receiptNo,
+      })
+      .from(purchaseReceipts)
+      .where(
+        and(
+          eq(purchaseReceipts.organizationId, organizationId),
+          sql`${purchaseReceipts.purchaseOrderId} in (${sql.join(
+            poIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        ),
+      )
+    for (const r of receipts) {
+      const list = receiptMap.get(r.purchaseOrderId) ?? []
+      list.push(r.receiptNo)
+      receiptMap.set(r.purchaseOrderId, list)
+    }
+  }
+
+  return unique.map((r) => ({
+    poId: r.po.id,
+    poNo: r.po.poNo,
+    lineNo: r.line.lineNo,
+    qtyOrdered: r.line.qtyOrdered,
+    qtyReceived: r.line.qtyReceived,
+    unitPrice: money(r.line.unitPrice),
+    currency: r.po.currency,
+    status: toUiPoStatus(r.po.status),
+    orderedAt: formatStamp(r.po.sentAt ?? r.po.createdAt),
+    expectedArrivalAt: r.po.expectedArrivalAt ?? '—',
+    receiptNos: (receiptMap.get(r.po.id) ?? []).join(', ') || '—',
+    factoryCode: r.line.supplierSku || sku.factoryCode,
+  }))
 }
 
 export async function listSuppliersForSelect(db: DbLike, organizationId: string) {

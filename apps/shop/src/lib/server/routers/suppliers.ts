@@ -12,6 +12,7 @@ const paginationInput = z.object({
   supplierId: z.string().optional(),
   sku: z.string().optional(),
   preferredOnly: z.boolean().optional(),
+  excludeDisabled: z.boolean().optional(),
 })
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
@@ -143,6 +144,19 @@ export const suppliersRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       return suppliersDa.getPreferredForSku(ctx.db, ctx.organizationId, input.sku)
     }),
+
+  /** 逻辑删除：status → 停用，默认列表不再展示 */
+  hideSku: tenantProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => suppliersDa.hideSupplierSku(ctx.db, ctx.organizationId, input.id)),
+    ),
+
+  skuPurchaseBatches: tenantProcedure
+    .input(z.object({ supplierSkuId: z.string().min(1) }))
+    .query(async ({ ctx, input }) =>
+      wrap(() => suppliersDa.listSkuPurchaseBatches(ctx.db, ctx.organizationId, input)),
+    ),
 
   linkPurchaseRequest: tenantProcedure
     .input(
