@@ -33,6 +33,8 @@ const DICTS = [
   { key: 'product_color', label: '颜色', description: '规格标准色', values: ['黑色', '白色', '深灰色', '蓝色', '红色'] },
   { key: 'product_size', label: '尺码', description: '规格标准尺码', values: ['M', 'L', 'XL', '2XL'] },
   { key: 'product_pack', label: '包装规格', description: '售卖单元', values: ['单件', '两件装', '礼盒'] },
+  { key: 'product_style', label: '款式/版型', description: '商品款式与版型，可在字典页维护', values: ['基础款', '修身', '宽松', '运动款', '商务正装'] },
+  { key: 'product_material', label: '材质', description: '商品材质，可在字典页维护', values: ['棉', '涤纶', '尼龙', '混纺', '皮革', '金属'] },
 ] as const
 
 async function main() {

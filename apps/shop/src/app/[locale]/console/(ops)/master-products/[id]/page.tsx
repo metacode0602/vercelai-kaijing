@@ -61,6 +61,25 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const brandRows = brandsMetaQuery.data?.brands ?? []
   const brandOptions = brandRows.map((b) => b.name)
   const brandIdByName = Object.fromEntries(brandRows.map((b) => [b.name, b.id]))
+  const categoriesQuery = trpc.categories.list.useQuery({})
+  type Cat = { id: string; name: string; parentId: string | null; status: string }
+  const categoryRows = (categoriesQuery.data ?? []) as Cat[]
+  const categoryPathOf = (node: Cat) => {
+    const parts = [node.name]
+    let parentId = node.parentId
+    const seen = new Set<string>()
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId)
+      const parent = categoryRows.find((r) => r.id === parentId)
+      if (!parent) break
+      parts.unshift(parent.name)
+      parentId = parent.parentId
+    }
+    return parts.join(' / ')
+  }
+  const categoryOptions = categoryRows.filter((c) => c.status === '启用').map((c) => categoryPathOf(c))
+  const styleOptions = activeVals('product_style')
+  const materialOptions = activeVals('product_material')
   const productQuery = trpc.products.bySpu.useQuery({ spu: id })
   const updateMutation = trpc.products.update.useMutation({
     onSuccess: async () => {
@@ -267,9 +286,37 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               required: true,
               helper: brandOptions.length === 0 ? '暂无启用品牌，请先到「品牌」菜单维护' : undefined,
             },
-            { key: 'category', label: '品类', defaultValue: current.category, required: true },
-            { key: 'material', label: '材质', defaultValue: current.material, required: true },
-            { key: 'style', label: '款式 / 版型', defaultValue: current.style, required: true },
+            {
+              key: 'category',
+              label: '多级分类',
+              options: Array.from(
+                new Set(
+                  [
+                    current.category,
+                    ...categoryOptions,
+                  ].filter(Boolean),
+                ),
+              ),
+              defaultValue: current.category,
+              searchable: true,
+              required: true,
+            },
+            {
+              key: 'style',
+              label: '款式 / 版型',
+              options: Array.from(new Set([current.style, ...styleOptions].filter(Boolean))),
+              defaultValue: current.style,
+              required: true,
+              helper: styleOptions.length === 0 ? '请到「数据字典」维护 product_style' : undefined,
+            },
+            {
+              key: 'material',
+              label: '材质',
+              options: Array.from(new Set([current.material, ...materialOptions].filter(Boolean))),
+              defaultValue: current.material,
+              required: true,
+              helper: materialOptions.length === 0 ? '请到「数据字典」维护 product_material' : undefined,
+            },
             { key: 'owner', label: '负责人', defaultValue: current.owner, required: true },
             {
               key: 'status',

@@ -42,21 +42,30 @@ export default function SettingsMembersPage() {
   const editor = open ? (
     <UedDialog
       title="邀请成员"
-      description="写入 invitation（pending）；不发送邮件，请线下告知受邀人走现有注册/登录接受。"
+      description="至少填写手机号或邮箱。填写邮箱将发送邀请邮件；受邀人设密后需重新登录。仅填手机号时，对方用该号 OTP 登录后自动加入本组织。"
       fields={[
-        { key: 'name', label: '姓名' },
-        { key: 'email', label: '邮箱', type: 'email', required: true },
+        { key: 'name', label: '姓名（可选）' },
+        { key: 'phone', label: '手机号', placeholder: '11 位中国大陆手机号' },
+        { key: 'email', label: '邮箱（可选，填写则发信）', type: 'email' },
         { key: 'role', label: '角色', options: ['admin', 'member', 'viewer'], required: true },
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
+        const phone = (values.phone || '').trim()
+        const email = (values.email || '').trim().toLowerCase()
+        if (!phone && !email) {
+          setNotice('请至少填写手机号或邮箱')
+          return
+        }
         invite.mutate({
-          email: (values.email || '').trim().toLowerCase(),
+          phone: phone || undefined,
+          email: email || undefined,
           role: values.role || 'member',
           name: values.name,
+          locale: 'zh',
         })
       }}
-      saveLabel="创建邀请"
+      saveLabel={invite.isPending ? '提交中…' : '创建邀请'}
     />
   ) : null
 
@@ -66,12 +75,15 @@ export default function SettingsMembersPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">组织成员</h2>
-          <p className="text-sm text-muted-foreground">better-auth member + invitation；不再使用 DEMO 成员。</p>
+          <p className="text-sm text-muted-foreground">
+            better-auth member + invitation；支持手机号自动绑定与邮箱邀请设密。
+          </p>
         </div>
         <Button onClick={() => setOpen(true)}>邀请成员</Button>
       </div>
       <UedPrototypeNotice>
-        列表读真实组织成员。邀请仅落库 pending，UI 明确「待线下发送」；仅 owner 可撤销 pending。不移除成员、不改 owner。
+        列表读真实组织成员。有邮箱的邀请会真实发信；纯手机邀请在 OTP 登录时自动加入组织。仅 owner 可撤销
+        pending。不移除成员、不改 owner。
       </UedPrototypeNotice>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
       <ConsoleListSection title="成员列表" description={listQuery.isLoading ? '加载中…' : `共 ${rows.length} 条`} pagination={pagination}>
@@ -79,6 +91,7 @@ export default function SettingsMembersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>姓名</TableHead>
+              <TableHead>手机号</TableHead>
               <TableHead>邮箱</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>来源</TableHead>
@@ -89,7 +102,7 @@ export default function SettingsMembersPage() {
           <TableBody>
             {pagedRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="text-sm text-muted-foreground">
                   暂无成员。请确认组织上下文或邀请。
                 </TableCell>
               </TableRow>
@@ -97,9 +110,16 @@ export default function SettingsMembersPage() {
               pagedRows.map((row) => (
                 <TableRow key={`${row.source}-${row.id}`}>
                   <TableCell>{row.name}</TableCell>
-                  <TableCell className="font-mono text-xs">{row.email}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.phone || '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.email || '—'}</TableCell>
                   <TableCell>{row.role}</TableCell>
-                  <TableCell>{row.source === 'invitation' ? '待接受 · 待线下发送' : '成员'}</TableCell>
+                  <TableCell>
+                    {row.source === 'invitation'
+                      ? row.emailSent
+                        ? '待接受 · 已发邮件'
+                        : '待接受 · 待手机登录绑定'
+                      : '成员'}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
                   </TableCell>
