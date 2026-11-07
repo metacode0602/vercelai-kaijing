@@ -313,6 +313,70 @@ export async function updateMarketplaceAppCredential(
   return mapRow(row)
 }
 
+export async function setMarketplaceAppCredentialStatus(
+  db: AppDatabase,
+  organizationId: string,
+  input: {
+    id: string
+    status: 'active' | 'disabled'
+    actorUserId?: string
+    actorLabel?: string
+  },
+) {
+  const [existing] = await db
+    .select()
+    .from(marketplaceAppCredentials)
+    .where(
+      and(
+        eq(marketplaceAppCredentials.id, input.id),
+        eq(marketplaceAppCredentials.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!existing) throw new Error('平台应用配置不存在')
+  if (existing.status === input.status) return mapRow(existing)
+
+  const [row] = await db
+    .update(marketplaceAppCredentials)
+    .set({
+      status: input.status,
+      updatedBy: input.actorUserId,
+      updatedAt: new Date(),
+    })
+    .where(eq(marketplaceAppCredentials.id, existing.id))
+    .returning()
+
+  const label =
+    PLATFORM_LABELS[existing.platform as MarketplaceAppPlatform] ?? existing.platform
+  await appendAuditEvent(db, organizationId, {
+    actorUserId: input.actorUserId,
+    actorLabel: input.actorLabel,
+    action:
+      input.status === 'active'
+        ? 'marketplace_app_credential.enable'
+        : 'marketplace_app_credential.disable',
+    entityType: 'marketplace_app_credential',
+    entityId: row.id,
+    result: 'success',
+    detail: `${input.status === 'active' ? '启用' : '禁用'} ${label} ${existing.region || '通用'} 应用配置`,
+    before: auditSummary({
+      platform: existing.platform,
+      region: existing.region,
+      appKey: existing.appKey,
+      callbackKey: existing.callbackKey,
+      status: existing.status,
+    }),
+    after: auditSummary({
+      platform: row.platform,
+      region: row.region,
+      appKey: row.appKey,
+      callbackKey: row.callbackKey,
+      status: row.status,
+    }),
+  })
+  return mapRow(row)
+}
+
 export async function removeMarketplaceAppCredential(
   db: AppDatabase,
   organizationId: string,
