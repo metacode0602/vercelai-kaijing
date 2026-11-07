@@ -33,7 +33,8 @@ apps/docs/content/docs/     # fumadocs 站点源（会发布）
 | 数据库设计 | [design/crossborder-database-design.md](design/crossborder-database-design.md) |
 | OpenAPI / MCP | [design/crossborder-api-mcp-design.md](design/crossborder-api-mcp-design.md) |
 | Marketplace connectors | [design/marketplace-connectors.md](design/marketplace-connectors.md) |
-| 平台 OAuth 管理员配置（Daraz / Lazada / TikTok） | [apps/shop/content/guide/marketplace-oauth-admin-setup.md](../apps/shop/content/guide/marketplace-oauth-admin-setup.md) |
+| Marketplace 多租户应用凭据 | [design/marketplace-multitenant-app-credentials.md](design/marketplace-multitenant-app-credentials.md) |
+| 平台 OAuth 租户配置手册（Daraz / Lazada / TikTok） | [apps/shop/content/guide/marketplace-oauth-admin-setup.md](../apps/shop/content/guide/marketplace-oauth-admin-setup.md) |
 | 租户端 UED | [apps/shop/content/design/crossborder-shop-ued-product-design.md](../apps/shop/content/design/crossborder-shop-ued-product-design.md) |
 | 到仓成本计算 | [apps/shop/content/design/cost-calculator-sl-landed-ued.md](../apps/shop/content/design/cost-calculator-sl-landed-ued.md) |
 | 模块运行说明 | 各应用 `README.md` |

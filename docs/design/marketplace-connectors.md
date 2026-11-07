@@ -26,23 +26,24 @@ packages/marketplace/src/
   crypto/credentials.ts
 ```
 
-## Env
+## App credentials
+
+Platform App Key / App Secret are **tenant-owned**, stored in `marketplace_app_credentials` per `organization + platform + region` (`region=''` = fallback). See [marketplace-multitenant-app-credentials.md](marketplace-multitenant-app-credentials.md).
 
 | Var | Purpose |
 |-----|---------|
-| `DARAZ_APP_KEY` / `DARAZ_APP_SECRET` / `DARAZ_CALLBACK_URL` | Daraz app |
-| `LAZADA_APP_KEY` / `LAZADA_APP_SECRET` / `LAZADA_CALLBACK_URL` | Lazada app |
-| `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` / `TIKTOK_CALLBACK_URL` | TikTok Shop app |
-| `MARKETPLACE_CREDENTIALS_KEY` | AES-256-GCM key (32-byte hex or any utf8 hashed); falls back to `BETTER_AUTH_SECRET` |
+| `MARKETPLACE_CREDENTIALS_KEY` | AES-256-GCM key (32-byte hex or any utf8 hashed) for app secrets and OAuth tokens; falls back to `BETTER_AUTH_SECRET` |
+| `BETTER_AUTH_URL` / `NEXT_PUBLIC_URL` | External base URL used to build callback URLs |
 
-Default callback (shop app): `{BETTER_AUTH_URL|/NEXT_PUBLIC_URL}/api/marketplace/oauth/callback`
+Default callback (shop app): `{BETTER_AUTH_URL|/NEXT_PUBLIC_URL}/api/marketplace/{platform}/oauth/callback`  
+Optional per-app callback: `…/{callbackKey}`
 
 ## OAuth flow (apps/shop)
 
 1. `GET /api/marketplace/oauth/authorize?platform=daraz&shopId=…&locale=zh`  
-   → CSRF state cookie + redirect to platform authorize URL
-2. Platform redirects to `/api/marketplace/oauth/callback?code=…&state=…`  
-   → exchange token, encrypt payload, upsert `integration_credentials`, set shop `status=active`, redirect to `/{locale}/console/settings/shops/{id}`
+   → resolve tenant app credentials, CSRF state (includes `appCredentialId`), redirect to platform authorize URL
+2. Platform redirects to `/api/marketplace/{platform}/oauth/callback?code=…&state=…`  
+   → verify state, load tenant credentials, exchange token, encrypt payload, upsert `integration_credentials`, set shop `status=active`, redirect to `/{locale}/console/settings/shops/{id}`
 
 ## DB enrichment
 

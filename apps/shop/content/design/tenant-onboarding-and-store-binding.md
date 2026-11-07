@@ -293,7 +293,7 @@ sequenceDiagram
 | 4 | `/onboarding/status` | 审核中/驳回/通过；提供“添加店铺” | 只读 |
 | 5 | `/console/settings/shops/new` | 创建店铺草稿并授权 | `shops.createDraft` |
 | 6 | `/api/marketplace/oauth/authorize` | 跳转 Daraz/Lazada | `shops.status=connecting` |
-| 7 | `/api/marketplace/oauth/callback` | 换码、拉店铺、落凭证 | `integration_credentials`、`shops.status=active` |
+| 7 | `/api/marketplace/{platform}/oauth/callback` | 换码、拉店铺、落凭证 | `integration_credentials`、`shops.status=active` |
 
 ### 7.3 表单字段
 
@@ -461,7 +461,7 @@ type OAuthStatePayload = {
 sequenceDiagram
     autonumber
     participant P as Daraz / Lazada
-    participant CB as /api/marketplace/oauth/callback
+    participant CB as "/api/marketplace/{platform}/oauth/callback"
     participant DB as PostgreSQL
     participant M as @workspace/marketplace
     participant S as 店铺详情页
@@ -566,7 +566,7 @@ sequenceDiagram
 | `/[locale]/console/settings/shops/new` | 新增 | 新建店铺表单（也保留弹窗入口） |
 | `/[locale]/console/settings/shops/[id]` | 现有改造 | 详情、授权状态、重新授权、暂停同步 |
 | `/api/marketplace/oauth/authorize` | 现有加固 | 增加入驻/成员/归属校验 |
-| `/api/marketplace/oauth/callback` | 现有加固 | 增加 session/membership/重复绑定处理 |
+| `/api/marketplace/{platform}/oauth/callback` | 现有加固 | 增加 session/membership/重复绑定处理 |
 | `/templates/enterprise-authorization-letter.pdf` | 新增静态资源 | 企业授权书模板 PDF 下载 |
 | `/templates/enterprise-authorization-letter.docx` | 新增静态资源 | 企业授权书模板 DOCX 下载 |
 | `apps/web` `/[locale]/(protected)/crossborder/onboarding` | 新增（P1） | 平台运营审核队列 |
@@ -925,7 +925,7 @@ type ShopDto = {
 | 路由 | 方法 | Query | 说明 |
 | --- | --- | --- | --- |
 | `/api/marketplace/oauth/authorize` | GET | `platform, shopId, locale, region?, mode?` | 302 到平台；未登录 401/302 |
-| `/api/marketplace/oauth/callback` | GET | `code, state, error?` | 302 回店铺详情；错误带 `oauth`/`reason` |
+| `/api/marketplace/{platform}/oauth/callback` | GET | `code, state, error?` | 302 回店铺详情；错误带 `oauth`/`reason` |
 
 ### 12.5 错误码约定
 

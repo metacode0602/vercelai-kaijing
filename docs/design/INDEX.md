@@ -10,6 +10,7 @@
 | [crossborder-database-design.md](crossborder-database-design.md) | **现状基线（目标演进见 haoshiyun-erp-database-schema.md）** | 跨境运营域 Drizzle / PostgreSQL schema 现状记录；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage；库存/成本/映射写路径已由权威 schema 重定义 |
 | [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
+| [marketplace-multitenant-app-credentials.md](marketplace-multitenant-app-credentials.md) | **已确认，待实现** | 租户级 Marketplace 应用凭据：`marketplace_app_credentials`、`/api/marketplace/{platform}/oauth/callback`、控制台配置页、`apps/api` 同步/webhook 按租户解析 |
 | [marketplace-inapp-cron-and-push.md](marketplace-inapp-cron-and-push.md) | **生效（2026-11-06）** | `apps/api` 应用内 cron（订单/物流/评论）+ LAZOP Push 验签接收；含签名规则、落库幂等键与 Daraz Push 待实测说明 |
 | [platform-apis/](platform-apis/README.md) | **证据基线（Daraz 2026-10-31；Lazada 分域 2026-11-05）** | 各平台官方 Open API：授权后可读/可写范围；Daraz/Lazada 分域字段、状态映射与统一设计；Shopee/TikTok；Q38 客服 / Q43 字段 / Q44 券 |
 | [erp-requirements-q01-q35-dev-replies.md](erp-requirements-q01-q35-dev-replies.md) | **开发答复 · 第二轮（2026-10-31，`a51b142`）** | Q01–Q35 客户可读开发答复；本轮已定 Q04/Q09/Q10/Q12/Q15/Q17/Q30/Q33；仍待确认见文末清单；含 #36 费用模板 |
@@ -45,7 +46,7 @@
 
 | 文档 | 状态 | 定位 |
 | --- | --- | --- |
-| [marketplace-oauth-admin-setup.md](../../apps/shop/content/guide/marketplace-oauth-admin-setup.md) | **生效** | 平台 OAuth 管理员配置：`Missing app credentials for platform daraz` 根因、`DARAZ_*` / `MARKETPLACE_CREDENTIALS_KEY` 变量、本地与生产配置、授权验证与排错 |
+| [marketplace-oauth-admin-setup.md](../../apps/shop/content/guide/marketplace-oauth-admin-setup.md) | **生效** | 租户级平台应用配置：控制台录入 App Key/Secret、回调地址登记、OAuth 验证与排错；部署侧仅保留加密密钥与对外域名 |
 
 ### `apps/web` — 平台运营后台
 

@@ -1,199 +1,151 @@
-# 平台 OAuth 管理员配置手册（Daraz / Lazada / TikTok Shop）
+# 平台 OAuth 租户配置手册（Daraz / Lazada / TikTok Shop）
 
-> 适用：在 `/console/settings/shops/new` 新增/授权店铺时出现
-> `Missing app credentials for platform daraz`（tRPC 412 `PRECONDITION_FAILED`）。
-> 本文面向部署与运维管理员，说明采购方平台应用凭据如何配置到 `apps/shop` 运行时。
+> 适用：租户在 `/console/settings/shops/new` 新增或重连店铺时，需要配置自己的开放平台应用。
+> 应用凭据由 **租户在控制台自助维护**，不再写入部署环境变量。
+>
+> 相关设计：[Marketplace 多租户应用凭据](../../../../docs/design/marketplace-multitenant-app-credentials.md)
 
-## 1. 报错原因
+## 1. 配置位置
 
-`shops.beginAuthorization` 在发起 OAuth 前会检查 `apps/shop` 进程内的平台应用凭据：
+1. 使用 `tenant_owner` 登录租户控制台。
+2. 打开 **设置 → 平台应用配置**：
+
+   ```text
+   /console/settings/marketplace-apps
+   ```
+
+3. 选择平台与站点，填写平台开放后台的 **App Key** / **App Secret**。
+4. 将页面展示的回调地址登记到平台开放后台，保存配置。
+5. 回到 **设置 → 店铺连接** 新增店铺或重新授权。
+
+权限：
+
+- `tenant_owner`：查看、新增、编辑、删除。
+- `tenant_engineer`：只能查看和使用配置，不能修改。
+- App Secret 保存后不可回显；编辑时留空表示不修改。
+
+## 2. 回调地址
+
+默认回调：
 
 ```text
-apps/shop/src/lib/marketplace/env.ts:51  assertMarketplaceAppConfigured()
-apps/shop/src/lib/server/routers/shops.ts:106
+https://<对外域名>/api/marketplace/{platform}/oauth/callback
 ```
 
-缺少 `DARAZ_APP_KEY` 或 `DARAZ_APP_SECRET` 时直接抛出该错误，**不会跳转 Daraz 授权页**。
+`platform` 取值：
 
-常见误区：
+| 平台 | 路径 |
+| --- | --- |
+| Daraz | `/api/marketplace/daraz/oauth/callback` |
+| Lazada | `/api/marketplace/lazada/oauth/callback` |
+| TikTok Shop | `/api/marketplace/tiktok_shop/oauth/callback` |
 
-- 只把变量写进了仓库根目录 `.env`。Next.js 只读取应用目录 `apps/shop/.env*` 或进程环境，**不会自动读取 monorepo 根 `.env`**。
-- 修改 `.env` 后没有重启 `apps/shop` 进程。
-- 只配置了 App Key，漏了 App Secret。
+如果平台要求每个应用使用独立回调路径，可在配置中填写 `callbackKey`，使用：
 
-## 2. 需要配置的变量
+```text
+https://<对外域名>/api/marketplace/{platform}/oauth/callback/{callbackKey}
+```
 
-### 2.1 Daraz（当前 MVP 主站）
+将控制台展示的完整地址**原样**登记到平台开放后台。协议、域名、端口、路径、末尾斜杠必须完全一致。
+
+## 3. 平台侧准备
+
+1. 登录对应开放平台（Daraz Open Platform / Lazada Open Platform / TikTok Partner Center）。
+2. 创建或查看应用，记录 App Key 与 App Secret。
+3. 在应用的 Redirect / Callback URL 中登记 §2 的地址。
+4. 确认应用已开通目标站点权限（例如 Daraz `LK` / `PK` / `BD` / `NP` / `MM`）。
+5. 平台要求 HTTPS 时使用公网域名或内网穿透地址，不要登记 `localhost`。
+
+## 4. 站点与回退规则
+
+配置按 `组织 + 平台 + 站点` 生效：
+
+1. 优先使用与店铺站点完全匹配的配置（例如 `daraz + LK`）。
+2. 没有精确匹配时，使用该平台的「全部站点」配置（`region=''`）。
+3. 两者都没有时，授权会提示“平台应用未配置”，不会读取环境变量兜底。
+
+建议 MVP 先为 Daraz 斯里兰卡（`LK`）创建精确配置；需要复用时再加通用配置。
+
+## 5. 部署侧仍需配置的变量
+
+应用凭据已迁移到数据库，部署环境只保留基础设施变量：
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
-| `DARAZ_APP_KEY` | 是 | Daraz 开放平台应用的 App Key |
-| `DARAZ_APP_SECRET` | 是 | 对应 App Secret，只放服务端环境变量 |
-| `DARAZ_CALLBACK_URL` | 建议显式设置 | 必须与 Daraz 开放平台登记的 Redirect/Callback URL **完全一致**；默认 `{BETTER_AUTH_URL\|NEXT_PUBLIC_URL}/api/marketplace/oauth/callback` |
-| `DARAZ_DEFAULT_REGION` | 否 | 默认站点，MVP 用 `lk`；仅在店铺未记录站点时兜底 |
-| `MARKETPLACE_CREDENTIALS_KEY` | 回调阶段必填 | AES-256-GCM 加密 OAuth token，写入 `integration_credentials.payload_encrypted` |
-| `BETTER_AUTH_URL` | 建议显式设置 | 对外访问源，决定默认回调地址与登录跳转；生产必须是公网 HTTPS |
+| `MARKETPLACE_CREDENTIALS_KEY` | 是 | AES-256-GCM 密钥，加密租户 App Secret 与 OAuth token；`apps/shop` 与 `apps/api` 必须一致 |
+| `BETTER_AUTH_URL` | 建议 | 对外访问源，用于生成回调地址与登录跳转；生产必须是公网 HTTPS |
 | `NEXT_PUBLIC_URL` | 可选 | `BETTER_AUTH_URL` 未设置时作为兜底源 |
 | `REDIS_*` / `UPSTASH_REDIS_*` | 多实例必填 | OAuth state nonce 共享；单实例可退化为内存 |
 
-其他平台变量命名同理：
-
-| 平台 | Key / Secret | Callback | 默认站点 |
-| --- | --- | --- | --- |
-| Daraz | `DARAZ_APP_KEY` / `DARAZ_APP_SECRET` | `DARAZ_CALLBACK_URL` | `DARAZ_DEFAULT_REGION=lk` |
-| Lazada | `LAZADA_APP_KEY` / `LAZADA_APP_SECRET` | `LAZADA_CALLBACK_URL` | `LAZADA_DEFAULT_REGION=sg` |
-| TikTok Shop | `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | `TIKTOK_CALLBACK_URL` | `TIKTOK_DEFAULT_REGION=global` |
-
-> `MARKETPLACE_CREDENTIALS_KEY`、`BETTER_AUTH_SECRET` 等加密相关密钥必须让
-> `apps/shop` 与 `apps/api` 使用同一份值；否则 token 无法互相解密/刷新。
-
-## 3. 操作步骤
-
-### 3.1 在平台开放平台准备应用
-
-以 Daraz 为例：
-
-1. 登录 `open.daraz.com`（或对应站点开放平台），创建/查看应用。
-2. 记录 **App Key** 与 **App Secret**。
-3. 将回调地址登记为：
-
-   ```text
-   https://<对外域名>/api/marketplace/oauth/callback
-   ```
-
-4. 确认该应用已开通目标站点（`lk` / `pk` / `bd` / `np` / `mm`）的卖家授权权限。
-5. 平台若要求 HTTPS，请使用公网域名或内网穿透地址，不要直接填 `localhost`。
-
-### 3.2 本地开发配置
-
-配置文件放在 **`apps/shop/.env`**（该文件已被 `.gitignore` 忽略）：
-
-```bash
-# apps/shop/.env
-BETTER_AUTH_URL=http://localhost:30036
-NEXT_PUBLIC_URL=http://localhost:30036
-
-DARAZ_APP_KEY=your_daraz_app_key
-DARAZ_APP_SECRET=your_daraz_app_secret
-DARAZ_CALLBACK_URL=http://localhost:30036/api/marketplace/oauth/callback
-DARAZ_DEFAULT_REGION=lk
-
-# 生成方式：openssl rand -hex 32
-MARKETPLACE_CREDENTIALS_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-```
-
 说明：
 
-- 若使用 `pnpm --filter shop dev`，工作目录就是 `apps/shop`，会加载该 `.env`。
-- 若从仓库根目录执行 `pnpm dev`，Turbo 启动的 `shop` 任务工作目录仍是 `apps/shop`，同样不会读取根 `.env`。
-- 如果坚持把变量放在根 `.env`，需要在启动 shell 中显式 `export`，或使用 `dotenv-cli` 之类的工具加载后再启动；否则 `apps/shop` 读不到。
+- 不再需要 `DARAZ_APP_KEY`、`DARAZ_APP_SECRET`、`DARAZ_CALLBACK_URL` 等全局应用变量。
+- 若 `apps/api` 负责同步和 token 刷新，它读取的是同一张 `marketplace_app_credentials` 表，因此也必须使用同一个数据库与 `MARKETPLACE_CREDENTIALS_KEY`。
+- 修改 `BETTER_AUTH_URL` 后，已登记在平台的回调地址也要同步修改。
 
-修改后重启开发进程：
+## 6. 验证流程
 
-```bash
-pnpm --filter shop dev
-```
+1. 在 **平台应用配置** 保存 `Daraz + LK` 配置。
+2. 在 **店铺连接** 新增店铺，平台选 Daraz、站点选斯里兰卡。
+3. 提交后会跳转 Daraz 授权页；不再出现 `Missing app credentials for platform daraz`。
+4. 完成授权后回调到：
 
-### 3.3 生产 / 容器 / 云平台配置
-
-将同一组变量注入 `apps/shop` 运行环境，而不是仅写入构建环境：
-
-| 场景 | 配置位置 |
-| --- | --- |
-| Docker Compose | 服务 `environment` 或 `env_file` |
-| Kubernetes | Deployment 的 `env` / `envFrom`（Secret） |
-| Vercel 等托管平台 | Project Settings → Environment Variables，至少覆盖 Production |
-| 传统服务器 | systemd `EnvironmentFile` / PM2 `env` / shell `export` |
-
-生产环境建议：
-
-```bash
-NODE_ENV=production
-BETTER_AUTH_URL=https://shop.example.com
-NEXT_PUBLIC_URL=https://shop.example.com
-DARAZ_APP_KEY=...
-DARAZ_APP_SECRET=...
-DARAZ_CALLBACK_URL=https://shop.example.com/api/marketplace/oauth/callback
-DARAZ_DEFAULT_REGION=lk
-MARKETPLACE_CREDENTIALS_KEY=<openssl rand -hex 32>
-```
-
-注意：
-
-- `BETTER_AUTH_URL`、`DARAZ_CALLBACK_URL` 与浏览器实际访问域名必须一致，否则登录态或 OAuth state cookie 校验会失败。
-- 生产环境 `MARKETPLACE_CREDENTIALS_KEY` 不要使用默认值或示例值；生成后妥善保存，轮换会导致旧 token 无法解密。
-- 若 `apps/api` 与本应用共用数据库做同步/刷新，需同步配置同一个 `MARKETPLACE_CREDENTIALS_KEY`。
-- `DARAZ_*` / `MARKETPLACE_CREDENTIALS_KEY` 是服务端运行时变量，改完重启即可；`NEXT_PUBLIC_*` 可能在构建时内联，修改后需要重新构建镜像/应用。
-
-### 3.4 本地联调公网回调
-
-Daraz 通常要求 HTTPS 公网回调地址。使用内网穿透时：
-
-1. 将 `DARAZ_CALLBACK_URL`、`BETTER_AUTH_URL`、`NEXT_PUBLIC_URL` 都设为穿透域名，例如 `https://shop-dev.example.com`。
-2. 在 Daraz 开放平台登记同一个回调地址。
-3. **使用穿透域名打开控制台**，不要混用 `localhost` 访问控制台、穿透域名接收回调，否则 state cookie 不在同一域名下，回调会报 `invalid oauth callback`。
-
-## 4. 配置完成后的验证
-
-1. 重启 `apps/shop` 进程，确认启动环境已加载新变量：
-
-   ```bash
-   cd apps/shop
-   node --env-file=.env -e "console.log(Boolean(process.env.DARAZ_APP_KEY), Boolean(process.env.DARAZ_APP_SECRET))"
+   ```text
+   /api/marketplace/daraz/oauth/callback
    ```
 
-   预期输出 `true true`。若为 `false false`，说明变量仍未进入该进程环境。
+5. 成功后回到店铺详情并带 `?oauth=success`：
+   - `shops.status = active`
+   - `integration_credentials` 新增/更新 `kind='oauth'` 记录
+   - `marketplace_app_credentials.last_verified_at` 更新
 
-2. 打开 `/console/settings/shops/new`，填写店铺信息并提交。
-3. 预期行为：不再出现 `Missing app credentials for platform daraz`，浏览器跳转到
-   `https://api.daraz.<站点>/oauth/authorize?...`。
-4. 登录并确认授权后，平台回调 `/api/marketplace/oauth/callback`。
-5. 授权成功后：
+SQL 抽查：
 
-   - 页面回到店铺详情并带 `?oauth=success`；
-   - `shops.status` 变为 `active`；
-   - `integration_credentials` 新增/更新 `kind='oauth'` 记录，`payload_encrypted` 非空。
+```sql
+SELECT id, platform, region, app_key, status, last_verified_at, last_error
+FROM marketplace_app_credentials
+WHERE organization_id = '<组织ID>';
 
-   可用 SQL 抽查：
+SELECT id, platform, status, external_shop_id, region, auth_expires_at
+FROM shops
+WHERE id = '<店铺ID>';
 
-   ```sql
-   SELECT id, platform, status, external_shop_id, region, auth_expires_at
-   FROM shops
-   WHERE id = '<店铺ID>';
+SELECT shop_id, kind, expires_at, left(payload_encrypted, 12) AS cipher_prefix
+FROM integration_credentials
+WHERE shop_id = '<店铺ID>';
+```
 
-   SELECT shop_id, kind, expires_at, left(payload_encrypted, 12) AS cipher_prefix
-   FROM integration_credentials
-   WHERE shop_id = '<店铺ID>';
-   ```
-
-## 5. 常见错误对照
+## 7. 常见错误对照
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
-| `Missing app credentials for platform daraz`（tRPC 412） | `apps/shop` 进程没有 `DARAZ_APP_KEY` / `DARAZ_APP_SECRET` | 按 §3.2/§3.3 配到应用运行时并重启 |
-| 回调页 `{"error":"invalid oauth callback"}` | state 与 cookie 不一致：域名/端口变化、超过 15 分钟、浏览器拦截 Cookie、回调未带 code/state | 用同一域名完成发起与回调；检查 Cookie；重新发起授权 |
-| 回调页 `{"error":"oauth state expired"}` | nonce 已消费或过期；多实例未共享 Redis | 重新授权；多实例配置共享 Redis |
-| 回调后页面 `?oauth=error&reason=token_exchange_failed` | App Secret 错误、回调地址与平台登记不一致、code 过期或重复使用 | 核对 Secret / 回调地址；重新发起授权 |
-| 日志出现 `Missing MARKETPLACE_CREDENTIALS_KEY` | 授权成功但落库时缺少加密密钥 | 配置 `MARKETPLACE_CREDENTIALS_KEY`（或 `BETTER_AUTH_SECRET`） |
-| 平台提示 `redirect_uri` 不匹配 | `*_CALLBACK_URL` 与开放平台登记值不一致（含协议、域名、端口、末尾斜杠） | 两处改成完全相同的值 |
-| 跳转到错误的 Daraz 站点 | 店铺 `region` 优先于 `DARAZ_DEFAULT_REGION` | 新建店铺时选择正确站点；或修正店铺 region |
-| 授权成功后同步仍失败 | `apps/api` 缺少同一套 App Key/Secret 或加密密钥 | 给 `apps/api` 配置同名变量 |
+| `平台应用未配置，请先在「设置 → 平台应用配置」完成配置` | 当前组织没有该平台/站点配置 | 按 §1 创建配置；确认站点匹配 |
+| 回调页 `invalid oauth callback` | state 与 cookie 不一致：域名/端口变化、超过 15 分钟、Cookie 被拦截、回调缺少 code/state | 用同一域名完成发起与回调；检查 Cookie；重新授权 |
+| 回调页 `oauth state expired` | nonce 已消费或过期；多实例未共享 Redis | 重新授权；多实例配置共享 Redis |
+| `platform mismatch` | 回调路径平台与 state 平台不一致 | 检查平台开放后台登记的回调地址 |
+| `callback_key_mismatch` | 配置了 `callbackKey`，但平台回调到了默认路径或错误 key | 把平台回调地址改成控制台展示的完整独立路径 |
+| `token_exchange_failed` | App Secret 错误、回调地址与平台登记不一致、code 过期或重复使用 | 核对 Secret 与回调地址；重新授权 |
+| `credential_decrypt_failed` | 部署环境缺少或更换了 `MARKETPLACE_CREDENTIALS_KEY` | 恢复原密钥；或在控制台重新填写 App Secret |
+| 同步仍失败 | `apps/api` 数据库或加密密钥与 `apps/shop` 不一致 | 统一数据库与 `MARKETPLACE_CREDENTIALS_KEY` |
+| 平台提示 `redirect_uri` 不匹配 | 控制台展示地址与开放后台登记值不一致 | 两处改成完全相同的值 |
 
-## 6. 安全与运维要求
+## 8. 安全要求
 
-- 不要把真实 `*_APP_SECRET`、`MARKETPLACE_CREDENTIALS_KEY`、token 提交到 Git；只提交 `.env.example` 占位。
-- 生产密钥使用 Secret 管理（KMS / Vault / 云平台环境变量），按最小权限分发给 `apps/shop`、`apps/api`。
-- `MARKETPLACE_CREDENTIALS_KEY` 变更前先评估已存 token：旧密文将无法解密，需要重新授权或先做迁移。
-- App Secret 泄露时立即在开放平台重置，并同步更新所有运行实例。
-- 授权失败排查优先查看 `integration_logs` 与 `integration_states`，不要把平台原始错误或 token 返回给前端。
+- App Secret 只保存在服务端，数据库存储 AES-256-GCM 密文；接口只返回脱敏状态。
+- 不要把真实 App Secret、`MARKETPLACE_CREDENTIALS_KEY`、token 提交到 Git。
+- App Secret 泄露时立即在开放平台重置，并在控制台更新配置；如怀疑 token 泄露，重新授权店铺。
+- 删除或修改配置会导致对应店铺无法授权/刷新 token；操作前确认影响范围。
+- 排查问题优先查看「接口日志」「变更审计」与 `marketplace_app_credentials.last_error`，不要把平台原始错误或 token 返回给前端。
 
-## 7. 相关代码与文档
+## 9. 相关代码与文档
 
 | 内容 | 位置 |
 | --- | --- |
-| 应用凭据读取与校验 | `apps/shop/src/lib/marketplace/env.ts` |
-| 发起授权 tRPC | `apps/shop/src/lib/server/routers/shops.ts` |
-| Authorize / Callback 路由 | `apps/shop/src/app/api/marketplace/oauth/{authorize,callback}/route.ts` |
-| Token 加密 | `packages/marketplace/src/crypto/credentials.ts` |
-| 变量模板 | `.env.example`、`packages/marketplace/ENV_CHECKLIST.md` |
+| 设计文档 | `docs/design/marketplace-multitenant-app-credentials.md` |
+| 配置页 | `apps/shop/src/app/[locale]/console/settings/marketplace-apps/page.tsx` |
+| 配置 tRPC | `apps/shop/src/lib/server/routers/marketplace-apps.ts` |
+| 授权 tRPC | `apps/shop/src/lib/server/routers/shops.ts` |
+| Authorize / Callback 路由 | `apps/shop/src/app/api/marketplace/{authorize,[platform]/oauth/callback}/route.ts` |
+| 租户凭据解析 | `packages/marketplace/src/db/app-credential-store.ts` |
+| Token / Secret 加密 | `packages/marketplace/src/crypto/credentials.ts` |
 | 连接器设计 | `docs/design/marketplace-connectors.md` |
