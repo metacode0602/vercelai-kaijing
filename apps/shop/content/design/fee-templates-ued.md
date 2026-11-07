@@ -112,7 +112,7 @@ draft → in_review → published → disabled
 
 - Store：`apps/shop/src/lib/crossborder/fee-template-store.ts`
 - 测算：`apps/shop/src/lib/crossborder/cost-calculator.ts`
-- 柜次版本：`apps/shop/src/lib/crossborder/sku-cost-version-store.ts`
+- 柜次成本版本：`trpc.ocean.saveCost` → `sku_costs`（`apps/shop/src/lib/server/dataaccess/ocean.ts`）
 - Schema 草稿：`packages/db/src/commerce-schema.ts`（`fee_templates` / `fee_template_versions`）
 
 ---

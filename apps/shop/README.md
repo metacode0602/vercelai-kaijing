@@ -136,7 +136,7 @@ pnpm --filter shop dev
 | 控制台页 | `ocean-containers` |
 | 种子 | `pnpm --filter @workspace/db db:seed:commerce-ocean` |
 
-**已接库**：柜次列表/详情/stats、装箱箱明细、状态推进写在途/清关/到仓库存桶与幂等流水、柜次成本 saveCost。`ocean-container-store` localStorage 主路径已停用。
+**已接库**：柜次列表/详情/stats、装箱箱明细、状态推进写在途/清关/到仓库存桶与幂等流水、柜次成本 saveCost（`trpc.ocean.*` / `dataaccess/ocean.ts`）。旧 `ocean-container-store` 已删除。
 
 详见 [docs/design/shop-module1-spu-sku-trpc.md](../../docs/design/shop-module1-spu-sku-trpc.md)、[docs/design/shop-module2-purchase-to-inbound-trpc.md](../../docs/design/shop-module2-purchase-to-inbound-trpc.md)、[docs/design/shop-module3-order-to-outbound-trpc.md](../../docs/design/shop-module3-order-to-outbound-trpc.md)、[docs/design/shop-module4-lgs-fulfillment-trpc.md](../../docs/design/shop-module4-lgs-fulfillment-trpc.md)、[docs/design/shop-module5-fee-templates-trpc.md](../../docs/design/shop-module5-fee-templates-trpc.md)、[docs/design/shop-module6-aftersale-trpc.md](../../docs/design/shop-module6-aftersale-trpc.md)、[docs/design/shop-module7-ocean-trpc.md](../../docs/design/shop-module7-ocean-trpc.md)、[docs/design/shop-module8-wms-trpc.md](../../docs/design/shop-module8-wms-trpc.md)、[docs/design/shop-module16-real-data-final.md](../../docs/design/shop-module16-real-data-final.md)。
 
