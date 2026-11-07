@@ -86,6 +86,23 @@ export const marketplaceAppsRouter = createTRPCRouter({
       ),
     ),
 
+  setStatus: tenantOwnerProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        status: z.enum(['active', 'disabled']),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        marketplaceAppsDa.setMarketplaceAppCredentialStatus(ctx.db, ctx.organizationId, {
+          id: input.id,
+          status: input.status,
+          ...actor(ctx),
+        }),
+      ),
+    ),
+
   remove: tenantOwnerProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) =>
