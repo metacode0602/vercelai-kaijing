@@ -131,7 +131,7 @@ export type CostCalculatorInput = {
   unitsPerCarton: number
   /** Gross kg per carton (optional; used for LCL ton quote) */
   kgPerCarton: number
-  /** Carrier quote's volumetric divisor; demo value only, not a default rule. */
+  /** 承运商报价泡重除数；未配置运价卡时不作为正式规则默认值。 */
   airVolumetricDivisor: number
   /** Estimated gross package volume in cm³ for AIR DDP chargeable weight. */
   airQuoteIncludesTax: boolean

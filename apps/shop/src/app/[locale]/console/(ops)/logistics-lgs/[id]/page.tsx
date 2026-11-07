@@ -22,7 +22,13 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
   const id = decodeRouteParam(React.use(params).id)
   const utils = trpc.useUtils()
   const query = trpc.logistics.getBatch.useQuery({ id })
+  const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const carrierOptions = (carriersQuery.data?.items ?? []).map((c) => ({
+    value: c.id,
+    title: `${c.code} · ${c.name}`,
+  }))
   const [notice, setNotice] = React.useState('')
+  const [carrierDraft, setCarrierDraft] = React.useState('')
   const [eventOpen, setEventOpen] = React.useState(false)
   const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
@@ -52,6 +58,17 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
     },
     onError: (e) => setNotice(e.message),
   })
+  const carrierMutation = trpc.logistics.updateBatchCarrier.useMutation({
+    onSuccess: async (row) => {
+      await utils.logistics.getBatch.invalidate({ id })
+      await utils.logistics.listBatches.invalidate()
+      setNotice(`批次 ${row.batchNo} 承运商已更新`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  React.useEffect(() => {
+    if (query.data?.carrierId != null) setCarrierDraft(query.data.carrierId || '')
+  }, [query.data?.id, query.data?.carrierId])
 
   if (query.isLoading) {
     return <DetailPageHeader backHref="/console/logistics-lgs" title="加载 LGS 批次…" description="PostgreSQL" />
@@ -76,7 +93,14 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
             { key: 'event', label: '履约事件', options: eventOptions, required: true },
             { key: 'eventAt', label: '事件时间', type: 'datetime-local', required: true },
             { key: 'tracking', label: '运单号', placeholder: '可填写单个运单或批次号' },
-            { key: 'carrier', label: '承运商', options: ['LGS', 'Daraz Express', '平台官方尾程'], required: true },
+            {
+              key: 'carrierId',
+              label: '承运商',
+              options: carrierOptions.length
+                ? carrierOptions
+                : [{ value: '', title: '暂无启用承运商' }],
+              required: true,
+            },
             { key: 'operator', label: '操作人', required: true },
             { key: 'exception', label: '异常说明', type: 'textarea', fullWidth: true },
           ]}
@@ -95,7 +119,7 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
               event: values.event,
               eventAt: values.eventAt,
               tracking: values.tracking,
-              carrier: values.carrier,
+              carrierId: values.carrierId || null,
               operator: values.operator,
               exception: values.exception,
               status,
@@ -106,7 +130,7 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
       <DetailPageHeader
         backHref="/console/logistics-lgs"
         title={row.batchNo}
-        description={`${row.site || '—'} · ${row.carrier} · ${row.statusLabel}`}
+        description={`${row.site || '—'} · ${(carriersQuery.data?.items ?? []).find((c) => c.id === row.carrierId)?.code || row.carrier || '—'} · ${row.statusLabel}`}
         badges={<Badge variant="secondary">{row.statusLabel}</Badge>}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -147,11 +171,49 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
         <DetailFieldGrid
           fields={[
             { label: '渠道', value: row.channel },
-            { label: '承运商', value: row.carrier },
+            {
+              label: '承运商',
+              value:
+                (carriersQuery.data?.items ?? []).find((c) => c.id === row.carrierId)?.name ||
+                row.carrier ||
+                '—',
+            },
             { label: '发货仓', value: row.warehouseCode },
             { label: '运单摘要', value: row.trackingSummary || '—' },
           ]}
         />
+      </DetailSection>
+
+      <DetailSection title="承运商">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">关联主档</span>
+            <select
+              className="h-9 min-w-[220px] rounded-md border bg-background px-2"
+              value={carrierDraft}
+              onChange={(e) => setCarrierDraft(e.target.value)}
+            >
+              <option value="">不指定</option>
+              {(carriersQuery.data?.items ?? [])
+                .filter((c) => c.status === '启用' || c.id === row.carrierId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} · {c.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={carrierMutation.isPending || carrierDraft === (row.carrierId || '')}
+            onClick={() =>
+              carrierMutation.mutate({ batchId: row.id, carrierId: carrierDraft || null })
+            }
+          >
+            保存承运商
+          </Button>
+        </div>
       </DetailSection>
       <DetailSection title="包裹清单">
         {row.packages.length === 0 ? (

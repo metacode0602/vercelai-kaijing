@@ -21,6 +21,10 @@ export default function OceanContainerDetailPage() {
   const [leadRef, setLeadRef] = React.useState('')
   const [lineSku, setLineSku] = React.useState('')
   const [lineQty, setLineQty] = React.useState('100')
+  const [boxCartonSpec, setBoxCartonSpec] = React.useState('')
+  const [boxCbm, setBoxCbm] = React.useState('')
+  const [boxWeight, setBoxWeight] = React.useState('')
+  const [carrierDraft, setCarrierDraft] = React.useState('')
 
   const detailQuery = trpc.ocean.get.useQuery({ id }, { retry: false })
   const lot = detailQuery.data
@@ -28,6 +32,8 @@ export default function OceanContainerDetailPage() {
     { warehouse: lot?.warehouse || undefined },
     { enabled: Boolean(lot?.warehouse) },
   )
+  const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const cartonSpecsQuery = trpc.cartonSpecs.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
   const { openWith: openAdjustWith, dialog: adjustDialog, notice: adjustNotice } =
     useStockAdjustmentDialog()
 
@@ -40,6 +46,13 @@ export default function OceanContainerDetailPage() {
     ])
   }
 
+  const updateMutation = trpc.ocean.update.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setNotice('柜次头信息已保存')
+    },
+    onError: (e) => setNotice(e.message),
+  })
   const advanceMutation = trpc.ocean.advance.useMutation({
     onSuccess: async (row) => {
       await invalidate()
@@ -68,6 +81,9 @@ export default function OceanContainerDetailPage() {
       setNotice('装箱明细已保存')
       setBoxNo('')
       setLeadRef('')
+      setBoxCartonSpec('')
+      setBoxCbm('')
+      setBoxWeight('')
     },
     onError: (e) => setNotice(e.message),
   })
@@ -78,6 +94,10 @@ export default function OceanContainerDetailPage() {
     },
     onError: (e) => setNotice(e.message),
   })
+
+  React.useEffect(() => {
+    if (detailQuery.data?.carrierId != null) setCarrierDraft(detailQuery.data.carrierId || '')
+  }, [detailQuery.data?.id, detailQuery.data?.carrierId])
 
   if (detailQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">加载柜次…</p>
@@ -104,8 +124,10 @@ export default function OceanContainerDetailPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{lot.lotCode}</h1>
           <p className="text-sm text-muted-foreground">
-            {lot.containerType} · {lot.containerNo || '无柜号'} · {lot.freightMode || '—'} · {lot.originPort} →{' '}
-            {lot.destPort} → {lot.warehouse}
+            {lot.containerType} · {lot.containerNo || '无柜号'} · {lot.freightMode || '—'} ·{' '}
+            {(carriersQuery.data?.items ?? []).find((c) => c.id === lot.carrierId)?.name ||
+              (lot.carrierId ? '承运商已关联' : '未指定承运商')}{' '}
+            · {lot.originPort} → {lot.destPort} → {lot.warehouse}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -158,6 +180,39 @@ export default function OceanContainerDetailPage() {
           { label: '成本版本', value: String(lot.costs?.length ?? 0) },
         ]}
       />
+
+      {!terminal ? (
+        <div className="rounded-lg border p-4 space-y-3">
+          <h3 className="text-sm font-medium">承运商</h3>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="space-y-1 text-sm">
+              <span className="text-muted-foreground">选择承运商</span>
+              <select
+                className="flex h-9 w-64 rounded-md border border-input bg-transparent px-3 text-sm"
+                value={carrierDraft}
+                onChange={(e) => setCarrierDraft(e.target.value)}
+              >
+                <option value="">不指定</option>
+                {(carriersQuery.data?.items ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} · {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={updateMutation.isPending || carrierDraft === (lot.carrierId || '')}
+              onClick={() =>
+                updateMutation.mutate({ id: lot.id, carrierId: carrierDraft || null })
+              }
+            >
+              保存承运商
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <UedPrototypeNotice>
         状态机 draft→booked→departed→arrived→customs→received。开船/清关/到仓写 inventory_movements（ledger:ocean_*），余额走
         in_transit / customs_clearing / on_hand，不把在途直接记入 on_hand。柜次成本写入 sku_costs.container_lot_id。
@@ -231,13 +286,49 @@ export default function OceanContainerDetailPage() {
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="text-sm font-medium">装箱明细（LCL leads / 箱）</h3>
         {!terminal ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-end">
             <Input className="w-36" placeholder="箱号" value={boxNo} onChange={(e) => setBoxNo(e.target.value)} />
             <Input
               className="w-36"
               placeholder="Lead 引用"
               value={leadRef}
               onChange={(e) => setLeadRef(e.target.value)}
+            />
+            <label className="space-y-1 text-sm">
+              <span className="text-muted-foreground">箱规</span>
+              <select
+                className="flex h-9 w-48 rounded-md border border-input bg-transparent px-3 text-sm"
+                value={boxCartonSpec}
+                onChange={(e) => {
+                  const code = e.target.value
+                  setBoxCartonSpec(code)
+                  const spec = (cartonSpecsQuery.data?.items ?? []).find((s) => s.code === code)
+                  if (spec) {
+                    const cbm = (spec.lengthCm * spec.widthCm * spec.heightCm) / 1_000_000
+                    setBoxCbm(cbm > 0 ? String(Number(cbm.toFixed(4))) : '')
+                    setBoxWeight(spec.grossWeightKg > 0 ? String(spec.grossWeightKg) : '')
+                  }
+                }}
+              >
+                <option value="">不引用箱规</option>
+                {(cartonSpecsQuery.data?.items ?? []).map((s) => (
+                  <option key={s.id} value={s.code}>
+                    {s.code} · {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Input
+              className="w-28"
+              placeholder="CBM"
+              value={boxCbm}
+              onChange={(e) => setBoxCbm(e.target.value)}
+            />
+            <Input
+              className="w-28"
+              placeholder="重量 kg"
+              value={boxWeight}
+              onChange={(e) => setBoxWeight(e.target.value)}
             />
             <Button
               size="sm"
@@ -246,8 +337,10 @@ export default function OceanContainerDetailPage() {
                 upsertBoxMutation.mutate({
                   shipmentId: lot.id,
                   boxNo: boxNo.trim(),
+                  cartonSpecCode: boxCartonSpec.trim() || undefined,
                   leadRef: leadRef.trim() || undefined,
-                  cbm: lot.freightMode === 'LCL' ? 1.2 : null,
+                  cbm: boxCbm.trim() ? Number(boxCbm) : lot.freightMode === 'LCL' ? 1.2 : null,
+                  weightKg: boxWeight.trim() ? Number(boxWeight) : null,
                 })
               }
             >
@@ -260,6 +353,7 @@ export default function OceanContainerDetailPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>箱号</TableHead>
+                <TableHead>箱规</TableHead>
                 <TableHead>Lead</TableHead>
                 <TableHead>CBM</TableHead>
                 <TableHead>重量 kg</TableHead>
@@ -269,14 +363,15 @@ export default function OceanContainerDetailPage() {
             <TableBody>
               {(lot.boxes || []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground">
-                    无箱明细（FCL 可省略；LCL 建议维护 leads）。
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    无箱明细（FCL 可省略；LCL 建议维护 leads / 箱规）。
                   </TableCell>
                 </TableRow>
               ) : (
                 (lot.boxes || []).map((box) => (
                   <TableRow key={box.id}>
                     <TableCell>{box.boxNo}</TableCell>
+                    <TableCell className="font-mono text-xs">{box.cartonSpecCode || '—'}</TableCell>
                     <TableCell>{box.leadRef || '—'}</TableCell>
                     <TableCell className="tabular-nums">{box.cbm ?? '—'}</TableCell>
                     <TableCell className="tabular-nums">{box.weightKg ?? '—'}</TableCell>

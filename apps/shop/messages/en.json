@@ -211,7 +211,8 @@
       "stockRisk": "Slow / stockout",
       "attribution": "Review attribution",
       "complianceHsSlsi": "HS & SLSI",
-      "csInbox": "CS inbox (RO)"
+      "csInbox": "CS inbox (RO)",
+      "freightRateCards": "Freight rate cards"
     },
     "usage": {
       "title": "Usage",
@@ -352,7 +353,12 @@
       "stockRisk": "Slow / stockout",
       "attribution": "Review attribution",
       "complianceHsSlsi": "HS & SLSI",
-      "csInbox": "CS inbox (RO)"
+      "csInbox": "CS inbox (RO)",
+      "freightRateCards": "Freight rate cards",
+      "freight": "Freight estimation",
+      "settlements": "Settlements",
+      "profits": "Order & SKU profits",
+      "costFinance": "Cost & finance"
     },
     "comingSoon": {
       "billing": {

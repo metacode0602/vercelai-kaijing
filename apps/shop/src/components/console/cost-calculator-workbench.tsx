@@ -50,42 +50,37 @@ import {
   subscribeCostCalcActions,
   type CostCalcBridgeAction,
 } from '@/lib/crossborder/cost-calculator-bridge'
-import {
-  getCostCalcPreset,
-  MOCK_COST_CALC_PRESETS,
-  type MockCostCalcPreset,
-} from '@/lib/crossborder/mock-data'
 import { useConsoleCopilot } from '@/components/console/console-copilot-provider'
 
-function presetToInput(preset: MockCostCalcPreset, overrides?: Partial<CostCalculatorInput>): CostCalculatorInput {
+function blankInput(overrides?: Partial<CostCalculatorInput>): CostCalculatorInput {
   return {
-    sku: preset.sku,
-    title: preset.title,
-    fobUnit: preset.fobUnit,
-    units: preset.units,
-    firstMileTotal: preset.firstMileTotal,
+    sku: '',
+    title: '',
+    fobUnit: 0,
+    units: 100,
+    firstMileTotal: 0,
     firstMileInCif: false,
     insuranceTotal: 0,
-    cartonLcm: preset.cartonLcm,
-    cartonWcm: preset.cartonWcm,
-    cartonHcm: preset.cartonHcm,
-    unitsPerCarton: preset.unitsPerCarton,
-    kgPerCarton: preset.kgPerCarton,
+    cartonLcm: 40,
+    cartonWcm: 30,
+    cartonHcm: 25,
+    unitsPerCarton: 20,
+    kgPerCarton: 8,
     airVolumetricDivisor: 6000,
     airQuoteIncludesTax: true,
     freightMode: 'LCL',
-    tariffProfileId: preset.tariffProfileId,
+    tariffProfileId: 'apparel',
     platform: 'daraz',
     country: 'LK',
     fulfillmentPool: 'daraz_lk_sea_lot',
     fulfillmentLogistics: '',
     asOf: new Date().toISOString().slice(0, 10),
-    clearanceMiscTotal: preset.clearanceMiscTotal,
-    targetNetMarginPct: preset.defaultMarginPct,
-    platformCommissionPct: preset.platformCommissionPct,
-    paymentFeePct: preset.paymentFeePct,
+    clearanceMiscTotal: 0,
+    targetNetMarginPct: 20,
+    platformCommissionPct: 0,
+    paymentFeePct: 0,
     adsPct: 0,
-    lastMileUnit: preset.lastMileUnit,
+    lastMileUnit: 0,
     manualFreightTotal: null,
     cartonSpecCode: '',
     cartonSpecSource: 'manual',
@@ -107,12 +102,12 @@ function applyBridgeAction(
   switch (action.type) {
     case 'open':
     case 'open_dialog':
-      if (action.sku) next = presetToInput(getCostCalcPreset(action.sku))
+      if (action.sku) next = blankInput({ sku: action.sku })
       hint = source === 'copilot' ? `已打开测算 · ${next.sku}` : hint
       break
     case 'apply_sku':
-      next = presetToInput(getCostCalcPreset(action.sku))
-      hint = `已套用 SKU ${action.sku} 的箱规与 FOB 预设`
+      next = blankInput({ sku: action.sku })
+      hint = `已切换到 SKU ${action.sku}；FOB/箱规请按主数据或柜次成本填写`
       break
     case 'set_freight':
       next = { ...prev, freightMode: action.mode }
@@ -160,13 +155,13 @@ export function CostCalculatorWorkbench({
   const open = isDialog ? openProp : true
   const { setOpen: setCopilotOpen } = useConsoleCopilot()
   const [input, setInput] = React.useState<CostCalculatorInput>(() =>
-    presetToInput(getCostCalcPreset(initialSku ?? 'TEE-001')),
+    blankInput(initialSku ? { sku: initialSku } : undefined),
   )
-  const [result, setResult] = React.useState<CostCalculatorResult | null>(() =>
-    isDialog ? null : computeLandedCost(presetToInput(getCostCalcPreset(initialSku ?? 'TEE-001'))),
-  )
+  const [result, setResult] = React.useState<CostCalculatorResult | null>(null)
   const [formulasOpen, setFormulasOpen] = React.useState(true)
   const [copilotHint, setCopilotHint] = React.useState<string | null>(null)
+  const skuListQuery = trpc.products.listSkus.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const skuOptions = skuListQuery.data?.items ?? []
   const oceanLotsQuery = trpc.ocean.list.useQuery({ page: 1, pageSize: 50 })
   const oceanLots = oceanLotsQuery.data?.items ?? []
   const cartonSpecsQuery = trpc.cartonSpecs.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
@@ -286,8 +281,7 @@ export function CostCalculatorWorkbench({
   }, [runtime])
 
   const applySku = React.useCallback((sku: string, extras?: Partial<CostCalculatorInput>) => {
-    const preset = getCostCalcPreset(sku)
-    setInput(presetToInput(preset, extras))
+    setInput((prev) => blankInput({ ...prev, sku, title: extras?.title ?? prev.title, ...extras }))
   }, [])
 
   const runCompute = React.useCallback(
@@ -308,9 +302,9 @@ export function CostCalculatorWorkbench({
     if (!open || !initialSku) return
     if (lastSkuRef.current === initialSku) return
     lastSkuRef.current = initialSku
-    const next = presetToInput(getCostCalcPreset(initialSku))
+    const next = blankInput({ sku: initialSku })
     setInput(next)
-    if (!isDialog) setResult(computeLandedCost(next, feeOverridesRef.current, runtimeRef.current))
+    setResult(null)
   }, [open, initialSku, isDialog])
 
   React.useEffect(() => {
@@ -322,7 +316,7 @@ export function CostCalculatorWorkbench({
     if (isDialog) return
     const draft = readCostCalcDraft()
     if (draft && (!initialSku || draft.sku === initialSku)) {
-      const base = presetToInput(getCostCalcPreset(draft.sku), draft)
+      const base = blankInput({ ...draft, sku: draft.sku })
       setInput(base)
       if (draft.autoCompute !== false) {
         setResult(computeLandedCost(base, feeOverridesRef.current, runtimeRef.current))
@@ -423,6 +417,8 @@ export function CostCalculatorWorkbench({
       input={input}
       setInput={setInput}
       applySku={applySku}
+      skuOptions={skuOptions}
+      skuLoading={skuListQuery.isLoading}
       tariff={tariff}
       cartonSpecs={cartonSpecs}
       fxHint={
@@ -491,6 +487,8 @@ function CostCalculatorFormPanel({
   input,
   setInput,
   applySku,
+  skuOptions,
+  skuLoading,
   tariff,
   cartonSpecs,
   fxHint,
@@ -503,7 +501,9 @@ function CostCalculatorFormPanel({
 }: {
   input: CostCalculatorInput
   setInput: React.Dispatch<React.SetStateAction<CostCalculatorInput>>
-  applySku: (sku: string) => void
+  applySku: (sku: string, extras?: Partial<CostCalculatorInput>) => void
+  skuOptions: Array<{ code: string; name: string }>
+  skuLoading: boolean
   tariff: (typeof TARIFF_PROFILES)[TariffProfileId]
   cartonSpecs: Array<{
     id: string
@@ -526,9 +526,9 @@ function CostCalculatorFormPanel({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm">输入（少打字 · 预设优先）</CardTitle>
+        <CardTitle className="text-sm">输入（主数据 SKU · 正式运价）</CardTitle>
           <CardDescription className="text-xs">
-            选择 SKU 预填 FOB / 箱规 / 公式档案；正式保存需费用模板 + 汇率 + 运价卡/手工运费
+            从主数据选择 SKU；FOB/箱规可由柜次成本种子或手工填写。正式保存需费用模板 + 汇率 + 运价卡/手工运费
           </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -540,18 +540,26 @@ function CostCalculatorFormPanel({
           <Select
             value={input.sku}
             onValueChange={(sku) => {
-              if (sku) applySku(sku)
+              if (!sku || sku === '__empty__') return
+              const hit = skuOptions.find((s) => s.code === sku)
+              applySku(sku, { title: hit?.name || '' })
             }}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="选择 SKU" />
             </SelectTrigger>
             <SelectContent>
-              {MOCK_COST_CALC_PRESETS.map((p) => (
-                <SelectItem key={p.sku} value={p.sku}>
-                  {p.sku} · {p.title}
+              {skuOptions.length === 0 ? (
+                <SelectItem value="__empty__" disabled>
+                  {skuLoading ? '加载 SKU…' : '暂无启用 SKU，请先在主数据维护'}
                 </SelectItem>
-              ))}
+              ) : (
+                skuOptions.map((p) => (
+                  <SelectItem key={p.code} value={p.code}>
+                    {p.code} · {p.name}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>

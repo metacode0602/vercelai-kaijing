@@ -12,6 +12,16 @@ import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@workspace/ui/components/alert-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -26,12 +36,14 @@ import {
 export default function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
   const [notice, setNotice] = React.useState('')
+  const [pendingNext, setPendingNext] = React.useState<string | null>(null)
   const utils = trpc.useUtils()
   const detailQuery = trpc.finance.getSettlement.useQuery({ id })
   const updateMutation = trpc.finance.updateSettlementStatus.useMutation({
     onSuccess: async (row) => {
       await utils.finance.getSettlement.invalidate({ id })
-      setNotice(`状态已更新为 ${row.status}`)
+      setPendingNext(null)
+      setNotice(`状态已更新为 ${row.status}（本地 ERP，非平台回写）`)
     },
     onError: (error) => setNotice(error.message),
   })
@@ -63,21 +75,28 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
         description={`${row.platform} · ${row.shop} · ${row.period}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              disabled={updateMutation.isPending}
-              onClick={() => updateMutation.mutate({ id: row.id, status: '已确认' })}
-            >
-              确认账单
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={updateMutation.isPending}
-              onClick={() => updateMutation.mutate({ id: row.id, status: '已打款' })}
-            >
-              标记已打款
-            </Button>
+            {(row.status === '待匹配' || row.status === '差异待处理') && (
+              <Button
+                size="sm"
+                disabled={updateMutation.isPending}
+                onClick={() => setPendingNext('已确认')}
+              >
+                确认账单
+              </Button>
+            )}
+            {row.status === '已确认' && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={updateMutation.isPending}
+                onClick={() => setPendingNext('已打款')}
+              >
+                标记已打款
+              </Button>
+            )}
+            {row.status === '已打款' && (
+              <Badge variant="secondary">已打款</Badge>
+            )}
           </div>
         }
       />
@@ -141,6 +160,28 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
         )}
       </DetailSection>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+
+      <AlertDialog open={pendingNext != null} onOpenChange={(o) => !o && setPendingNext(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认推进结算状态？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将把 {row.externalSettlementId} 状态改为「{pendingNext}」。此为本地 ERP 软状态，不会回写平台。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingNext) return
+                updateMutation.mutate({ id: row.id, status: pendingNext })
+              }}
+            >
+              确认改为「{pendingNext}」
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

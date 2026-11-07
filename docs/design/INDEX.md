@@ -28,6 +28,7 @@
 | [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
 | [comment-scraping-and-report-design.md](comment-scraping-and-report-design.md) | **设计稿** | 评论抓取与入口设计：API 优先（Lazop Review）、AI 辅助兜底，统一 DomainReview，生成 HTML 报告（涵盖 KPI/评分分布/关键发现/负向中性/全部评价；规划输出目录 `docs/comments/`，样例在 `docs/design/comments/`） |
 | [console-sync-confirm-dialog.md](console-sync-confirm-dialog.md) | **设计稿，待实现** | 控制台同步 / 提交交运 / 重试入口确认对话框：17 处入口分级（A 真实调平台 / B 本地写 / C 纯本地），按操作差异化文案，明确作用店铺与不可逆影响 |
+| [cost-finance-production-closure.md](cost-finance-production-closure.md) | **生效（2026-11-07，#64–#68）** | 成本财务生产闭环：页面关联（costs/fee-templates/settlements/profits/freight/freight-rate-cards）、导航方案 B（承运商/箱规迁仓储）、迁移 0012/0013、费用→测算→sku_costs→利润与结算导入/Lazop 同步、去 mock 规则 |
 
 ## 2. 模块内设计
 

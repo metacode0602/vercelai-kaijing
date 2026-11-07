@@ -81,6 +81,7 @@ export type OceanLotDto = {
   containerNo: string
   containerType: string
   freightMode: string
+  carrierId: string
   platform: string
   originPort: string
   destPort: string
@@ -298,6 +299,7 @@ function mapHeader(
     containerNo: row.containerNo || '',
     containerType: row.containerType || '',
     freightMode: row.freightMode || '',
+    carrierId: row.carrierId || '',
     platform: row.platform || 'daraz',
     originPort: row.originPort || '',
     destPort: row.destPort || '',
@@ -480,6 +482,7 @@ export async function createOceanShipment(
     containerNo?: string
     containerType?: string
     freightMode?: string
+    carrierId?: string | null
     platform?: string
     originPort?: string
     destPort?: string
@@ -516,6 +519,7 @@ export async function createOceanShipment(
       containerNo: input.containerNo?.trim() || null,
       containerType: input.containerType?.trim() || '40HQ',
       freightMode: input.freightMode?.trim() || 'FCL40',
+      carrierId: input.carrierId?.trim() || null,
       platform: (input.platform?.trim() || 'daraz').toLowerCase(),
       originPort: input.originPort?.trim() || 'CNXMN',
       destPort: input.destPort?.trim() || 'LKCMB',
@@ -554,6 +558,7 @@ export async function updateOceanShipment(
     containerNo?: string
     containerType?: string
     freightMode?: string
+    carrierId?: string | null
     platform?: string
     originPort?: string
     destPort?: string
@@ -583,6 +588,7 @@ export async function updateOceanShipment(
   if (patch.containerNo !== undefined) setValues.containerNo = patch.containerNo.trim() || null
   if (patch.containerType !== undefined) setValues.containerType = patch.containerType.trim() || null
   if (patch.freightMode !== undefined) setValues.freightMode = patch.freightMode.trim() || null
+  if (patch.carrierId !== undefined) setValues.carrierId = patch.carrierId?.trim() || null
   if (patch.platform !== undefined) setValues.platform = patch.platform.trim().toLowerCase()
   if (patch.originPort !== undefined) setValues.originPort = patch.originPort.trim() || null
   if (patch.destPort !== undefined) setValues.destPort = patch.destPort.trim() || null

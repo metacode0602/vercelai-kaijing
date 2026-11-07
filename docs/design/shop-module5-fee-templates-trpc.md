@@ -1,16 +1,17 @@
 # 模块5：费用模板（进口税 / 平台费）
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-fee-templates`。
+> 后续闭环：[#64–#68 成本财务生产闭环](cost-finance-production-closure.md) 扩展类型 `ocean_freight`；费用表本身在早期 commerce schema（`0000`），**不是** `0012_cost_finance_closure`。
 
 ## 范围
 
 | 已接 PostgreSQL | 仍 mock / stub |
 | --- | --- |
-| `fee_templates` / `fee_template_versions`（migration 0012） | 真实平台 OpenAPI |
+| `fee_templates` / `fee_template_versions`（早期 schema + 0012 类型扩展） | 真实平台 OpenAPI |
 | tRPC `feeTemplates` CRUD + 审核流 + resolve | 售后回库 |
 | Console `/console/fee-templates` 列表/详情 | 海运柜次业务化 |
 | 成本测算主路径 `resolve` → DB 模板 | 采购/库位/流水改动 |
-| 中文 UI ↔ DB 状态映射；seed LK + Lazada 占位 | 左侧菜单结构调整 |
+| 中文 UI ↔ DB 状态映射；seed LK + Lazada 占位；类型含 `ocean_freight` | — |
 
 ## 架构
 
@@ -25,9 +26,11 @@ console/fee-templates | cost-calculator-workbench
 
 `fee-template-store` 主路径已停用（类型/常量/`adaptResolvedFromDto`/`componentsToTariffRates` 保留）；`resolveFeeTemplateVersion` 同步调用恒返回 null。
 
-## 表与迁移（0012）
+## 表与迁移
 
-迁移文件：`packages/db/drizzle/0012_commerce_fee_templates.sql`
+基表：早期 commerce schema（`packages/db/drizzle/0000_*.sql` 中的 `fee_templates` / `fee_template_versions`）。
+类型扩展：`packages/db/drizzle/0012_cost_finance_closure.sql` 允许 `ocean_freight`（与 import_tax / platform_fee 并列）。
+历史文档若写「migration 0012 = 费用模板建表」已过时，以闭环文档为准。
 
 | 表 | 关键列 |
 | --- | --- |
@@ -57,7 +60,7 @@ draft → in_review → published → disabled
 | --- | --- |
 | C1-C | 有效期可重叠；解析取同维度 **priority 最高**且有效、已发布 |
 | C2-C | 履约两级 = 业务履约池 + 物流形态（空=不限） |
-| C3-C | `import_tax` 与 `platform_fee` 两套 |
+| C3-C | 原 `import_tax` / `platform_fee`；#64 起另支持 `ocean_freight`（运费页/模板过滤） |
 | C5-A | Lazada 种子占位（标待复核） |
 | C6-A | 表即 `fee_templates` + `fee_template_versions` |
 | C7-A | LK 初值自 `TARIFF_PROFILES`，`review_needed=true` |
@@ -83,7 +86,7 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/fee-templates.ts` | tRPC API |
 | `apps/shop/src/lib/server/dataaccess/fee-templates.ts` | DB 读写 / resolve |
 | `apps/shop/src/lib/server/mappers/fee-templates.ts` | 中文状态映射 |
-| `packages/db/drizzle/0012_commerce_fee_templates.sql` | 迁移 |
+| `packages/db/drizzle/0000_*.sql` + `0012_cost_finance_closure.sql` | 基表 + `ocean_freight` 类型扩展 |
 | `packages/db/src/scripts/seed-commerce-fee-templates.ts` | 演示数据 |
 | `apps/shop/src/lib/crossborder/fee-template-store.ts` | 主路径停用；类型与适配器 |
 | `apps/shop/src/lib/crossborder/cost-calculator.ts` | `FeeResolutionOverrides` + `resolvedFrom` |
@@ -94,4 +97,4 @@ pnpm --filter shop dev
 
 ## 成本测算
 
-工作台对 `import_tax` / `platform_fee` 各调一次 `feeTemplates.resolve`，经 `adaptResolvedFromDto` 注入 `computeLandedCost(input, overrides)`。`resolve` 先按 `formulaProfile` 严格命中，未中再放宽。未命中 → `TARIFF_PROFILES`，`resolvedFrom='tariff_profile_fallback'`。
+工作台对 `import_tax` / `platform_fee` 各调一次 `feeTemplates.resolve`，经 `adaptResolvedFromDto` 注入 `computeLandedCost(input, overrides)`。`resolve` 先按 `formulaProfile` 严格命中，未中再放宽。未命中 → 正式落成本路径应阻断（#64 起）；工作台不得把未命中模板当生产成本。历史 UED 中的 `TARIFF_PROFILES` 回退仅作非生产标记，见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
