@@ -57,6 +57,7 @@ export type VariantAttrs = {
   color?: string
   size?: string
   pack?: string
+  remark?: string
   coverImage?: string
   images?: string[]
   [key: string]: unknown

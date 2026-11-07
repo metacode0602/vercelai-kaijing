@@ -2,11 +2,14 @@
 
 import * as React from 'react'
 import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import {
+  buildCreateInternalSkuFields,
+  parseCreateInternalSkuValues,
+} from '@/components/console/create-internal-sku-fields'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
-import type { UiProductStatus } from '@/lib/server/mappers/products'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 const PAGE_SIZE = 20
@@ -84,39 +87,15 @@ export default function MasterSkusPage() {
     <UedDialog
       title="生成内部 SKU"
       description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成并写入 product_variants。"
-      fields={[
-        {
-          key: 'spu',
-          label: '所属 SPU',
+      fields={buildCreateInternalSkuFields({
+        colorOptions,
+        sizeOptions,
+        packOptions,
+        spu: {
+          mode: 'select',
           options: products.map((product) => `${product.spu} · ${product.name}`),
-          required: true,
         },
-        {
-          key: 'color',
-          label: '颜色',
-          options: colorOptions.length ? colorOptions : ['黑色', '白色', '深灰色', '蓝色', '红色'],
-          required: true,
-        },
-        {
-          key: 'size',
-          label: '尺码',
-          options: sizeOptions.length ? sizeOptions : ['M', 'L', 'XL', '2XL', '3XL', '标准'],
-          required: true,
-        },
-        {
-          key: 'pack',
-          label: '包装规格',
-          options: packOptions.length ? packOptions : ['单件'],
-          required: true,
-        },
-        { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，后续可补录' },
-        { key: 'weight', label: '重量（g）', type: 'number', required: true },
-        { key: 'lengthMm', label: '长（mm）', type: 'number', helper: '外箱/件尺寸，对齐 length_mm' },
-        { key: 'widthMm', label: '宽（mm）', type: 'number' },
-        { key: 'heightMm', label: '高（mm）', type: 'number' },
-        { key: 'status', label: '状态', options: ['待确认', '启用', '停用'], required: true },
-        { key: 'remark', label: '规格备注', type: 'textarea', fullWidth: true },
-      ]}
+      })}
       onClose={() => setOpen(false)}
       onSave={(values) => {
         const product =
@@ -126,17 +105,13 @@ export default function MasterSkusPage() {
           setNotice('请先创建 SPU 再生成 SKU。')
           return
         }
+        const parsed = parseCreateInternalSkuValues(values, {
+          defaultPack:
+            (typeof packOptions[0] === 'string' ? packOptions[0] : packOptions[0]?.value) || '单件',
+        })
         createMutation.mutate({
           spu: product.spu,
-          color: values.color || '黑色',
-          size: values.size || 'L',
-          pack: values.pack || packOptions[0]?.value || '单件',
-          barcode: values.barcode,
-          weight: Number(values.weight) || 220,
-          lengthMm: Number(values.lengthMm) || 0,
-          widthMm: Number(values.widthMm) || 0,
-          heightMm: Number(values.heightMm) || 0,
-          status: (values.status as UiProductStatus) || '待确认',
+          ...parsed,
         })
       }}
       saveLabel={createMutation.isPending ? '生成中…' : '生成 SKU'}
