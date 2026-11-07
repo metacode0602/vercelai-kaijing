@@ -10,6 +10,7 @@ import { LocaleLink } from '@/lib/i18n/navigation'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 import {
   Table,
   TableBody,
@@ -43,6 +44,14 @@ export default function FreightPage() {
       <UedPrototypeNotice>
         正式运价维护在运价卡；海运柜次金额来自 packing_details。成本测算读取同一套运价卡。
       </UedPrototypeNotice>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm">
+          <LocaleLink href="/console/freight-rate-cards">维护运价卡</LocaleLink>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <LocaleLink href="/console/carriers">承运商</LocaleLink>
+        </Button>
+      </div>
       <ConsoleFilterBar
         keyword={keyword}
         onKeywordChange={(v) => {

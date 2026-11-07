@@ -51,6 +51,7 @@ export type ConsoleNavTitleKey =
   | 'nav.settlements'
   | 'nav.profits'
   | 'nav.freight'
+  | 'nav.freightRateCards'
   | 'nav.carriers'
   | 'nav.cartonSpecs'
   | 'nav.reports'
@@ -177,6 +178,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/fee-templates', titleKey: 'nav.feeTemplates' },
       { url: '/console/settlements', titleKey: 'nav.settlements' },
       { url: '/console/profits', titleKey: 'nav.profits' },
+      { url: '/console/freight-rate-cards', titleKey: 'nav.freightRateCards' },
       { url: '/console/freight', titleKey: 'nav.freight' },
     ],
   },

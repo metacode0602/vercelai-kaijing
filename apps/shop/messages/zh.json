@@ -229,7 +229,8 @@
       "stockRisk": "滞销断货预警",
       "attribution": "差评退货归因",
       "complianceHsSlsi": "HS与SLSI认证",
-      "csInbox": "客服收件箱"
+      "csInbox": "客服收件箱",
+      "freightRateCards": "运价卡"
     },
     "usage": {
       "title": "用量",
@@ -370,7 +371,12 @@
       "stockRisk": "滞销断货预警",
       "attribution": "差评退货归因",
       "complianceHsSlsi": "HS与SLSI认证",
-      "csInbox": "客服收件箱"
+      "csInbox": "客服收件箱",
+      "freightRateCards": "运价卡",
+      "freight": "运费测算",
+      "settlements": "平台结算对账",
+      "profits": "订单与SKU利润",
+      "costFinance": "成本财务"
     },
     "comingSoon": {
       "billing": {

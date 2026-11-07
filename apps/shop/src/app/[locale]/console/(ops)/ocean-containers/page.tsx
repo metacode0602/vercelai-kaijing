@@ -13,6 +13,11 @@ export default function OceanContainersPage() {
 
   const listQuery = trpc.ocean.list.useQuery({ page: 1, pageSize: 100 })
   const statsQuery = trpc.ocean.stats.useQuery()
+  const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const carrierOptions = (carriersQuery.data?.items ?? []).map((c) => ({
+    value: c.id,
+    title: `${c.code} · ${c.name}`,
+  }))
 
   const createMutation = trpc.ocean.create.useMutation({
     onSuccess: async (row) => {
@@ -35,6 +40,13 @@ export default function OceanContainersPage() {
         { key: 'containerNo', label: '柜号', placeholder: '如 MSKU7834219' },
         { key: 'containerType', label: '柜型', options: ['40HQ', '40GP', '20GP'], required: true },
         { key: 'freightMode', label: '装载形态', options: ['FCL40', 'FCL20', 'FCL', 'LCL'], required: true },
+        {
+          key: 'carrierId',
+          label: '承运商',
+          options: carrierOptions.length
+            ? [{ value: '', title: '不指定' }, ...carrierOptions]
+            : [{ value: '', title: '暂无启用承运商' }],
+        },
         { key: 'platform', label: '平台', options: ['daraz', 'lazada'], required: true },
         { key: 'originPort', label: '起运港', required: true },
         { key: 'destPort', label: '目的港', required: true },
@@ -54,6 +66,7 @@ export default function OceanContainersPage() {
           containerNo: values.containerNo || undefined,
           containerType: values.containerType || '40HQ',
           freightMode: values.freightMode || 'FCL40',
+          carrierId: values.carrierId || null,
           platform: values.platform || 'daraz',
           originPort: values.originPort || 'CNXMN',
           destPort: values.destPort || 'LKCMB',
@@ -91,6 +104,14 @@ export default function OceanContainersPage() {
         { key: 'containerNo', label: '柜号' },
         { key: 'containerType', label: '柜型' },
         { key: 'freightMode', label: '装载' },
+        {
+          key: 'carrierId',
+          label: '承运商',
+          render: (row) => {
+            const c = (carriersQuery.data?.items ?? []).find((x) => x.id === row.carrierId)
+            return c ? c.code : row.carrierId ? row.carrierId.slice(0, 8) : '—'
+          },
+        },
         { key: 'originPort', label: '起运港' },
         { key: 'destPort', label: '目的港' },
         { key: 'etaPort', label: 'ETA 港' },
