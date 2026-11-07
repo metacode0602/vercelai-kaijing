@@ -1,6 +1,7 @@
 import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { listings, productVariants, products, shops } from '@workspace/db/schema'
+import { resolveBrandForProduct } from '@/lib/server/dataaccess/brands'
 import type { AppDatabase } from '@workspace/db'
 import {
   imagesToUrls,
@@ -21,6 +22,7 @@ export type ProductListItem = {
   id: string
   spu: string
   name: string
+  brandId: string
   brand: string
   category: string
   owner: string
@@ -65,7 +67,8 @@ export type SkuListItem = VariantDto & {
 
 export type CreateProductInput = {
   name: string
-  brand: string
+  brandId?: string
+  brand?: string
   category: string
   owner: string
   material: string
@@ -80,7 +83,9 @@ export type UpdateProductInput = Partial<
     CreateProductInput,
     'name' | 'brand' | 'category' | 'owner' | 'material' | 'style' | 'status' | 'coverImage' | 'images'
   >
->
+> & {
+  brandId?: string | null
+}
 
 export type CreateVariantInput = {
   spu: string
@@ -215,6 +220,7 @@ export async function listProducts(
       spuCode: products.spuCode,
       title: products.title,
       brand: products.brand,
+      brandId: products.brandId,
       categoryHint: products.categoryHint,
       material: products.material,
       style: products.style,
@@ -240,6 +246,7 @@ export async function listProducts(
       id: row.id,
       spu: row.spuCode ?? '',
       name: row.title,
+      brandId: row.brandId ?? '',
       brand: row.brand ?? '',
       category: row.categoryHint ?? '',
       owner: payload.ownerName ?? '',
@@ -291,6 +298,7 @@ export async function getProductBySpu(
     id: row.id,
     spu: row.spuCode ?? '',
     name: row.title,
+    brandId: row.brandId ?? '',
     brand: row.brand ?? '',
     category: row.categoryHint ?? '',
     owner: payload.ownerName ?? '',
@@ -316,6 +324,14 @@ export async function createProduct(
     const imageRefs = normalizeImages(input.images ?? (input.coverImage ? [input.coverImage] : []))
     const id = createId()
 
+    const resolved = await resolveBrandForProduct(tx, organizationId, {
+      brandId: input.brandId,
+      brand: input.brand,
+    })
+    if (!resolved.brandId) {
+      throw new Error('请选择品牌（请先在「品牌」主档维护并启用）')
+    }
+
     await tx.insert(products).values({
       id,
       organizationId,
@@ -323,7 +339,8 @@ export async function createProduct(
       title: input.name.trim(),
       status: toDbStatus(input.status, 'draft'),
       source: 'manual',
-      brand: input.brand.trim(),
+      brand: resolved.brandName,
+      brandId: resolved.brandId,
       categoryHint: input.category.trim(),
       material: input.material.trim(),
       style: input.style.trim(),
@@ -369,11 +386,28 @@ export async function updateProduct(
           )
         : undefined
 
+    let nextBrand = existing.brand
+    let nextBrandId = existing.brandId
+    if (patch.brandId !== undefined || patch.brand !== undefined) {
+      const resolved = await resolveBrandForProduct(tx, organizationId, {
+        brandId: patch.brandId === undefined ? existing.brandId : patch.brandId,
+        brand: patch.brand,
+      })
+      if (patch.brandId !== undefined || patch.brand) {
+        if (!resolved.brandId) {
+          throw new Error('请选择品牌（请先在「品牌」主档维护并启用）')
+        }
+        nextBrand = resolved.brandName
+        nextBrandId = resolved.brandId
+      }
+    }
+
     await tx
       .update(products)
       .set({
         title: patch.name?.trim() ?? existing.title,
-        brand: patch.brand?.trim() ?? existing.brand,
+        brand: nextBrand,
+        brandId: nextBrandId,
         categoryHint: patch.category?.trim() ?? existing.categoryHint,
         material: patch.material?.trim() ?? existing.material,
         style: patch.style?.trim() ?? existing.style,

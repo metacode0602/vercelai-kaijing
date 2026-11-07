@@ -19,6 +19,7 @@ import { notificationsRouter } from './notifications'
 import { reviewsRouter } from './reviews'
 import { carriersRouter } from './carriers'
 import { categoriesRouter } from './categories'
+import { brandsRouter } from './brands'
 import { dictionariesRouter } from './dictionaries'
 import { importTemplatesRouter } from './import-templates'
 import { auditRouter } from './audit'
@@ -55,6 +56,7 @@ export const appRouter = router({
   reviews: reviewsRouter,
   carriers: carriersRouter,
   categories: categoriesRouter,
+  brands: brandsRouter,
   dictionaries: dictionariesRouter,
   importTemplates: importTemplatesRouter,
   audit: auditRouter,

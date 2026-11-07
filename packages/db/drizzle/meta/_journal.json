@@ -8,6 +8,13 @@
       "when": 1794012666907,
       "tag": "0000_flashy_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1762479000000,
+      "tag": "0025_commerce_brands",
+      "breakpoints": true
     }
   ]
 }

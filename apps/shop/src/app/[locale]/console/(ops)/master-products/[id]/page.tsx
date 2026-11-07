@@ -57,6 +57,10 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const [notice, setNotice] = React.useState('')
 
   const utils = trpc.useUtils()
+  const brandsMetaQuery = trpc.brands.meta.useQuery()
+  const brandRows = brandsMetaQuery.data?.brands ?? []
+  const brandOptions = brandRows.map((b) => b.name)
+  const brandIdByName = Object.fromEntries(brandRows.map((b) => [b.name, b.id]))
   const productQuery = trpc.products.bySpu.useQuery({ spu: id })
   const updateMutation = trpc.products.update.useMutation({
     onSuccess: async () => {
@@ -253,7 +257,16 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           fields={[
             { key: 'spu', label: 'SPU', defaultValue: current.spu, readOnly: true },
             { key: 'name', label: '商品名称', defaultValue: current.name, required: true },
-            { key: 'brand', label: '品牌', defaultValue: current.brand, required: true },
+            {
+              key: 'brand',
+              label: '品牌',
+              options: brandOptions.length > 0
+                ? Array.from(new Set([current.brand, ...brandOptions].filter(Boolean)))
+                : [current.brand || '（请先维护品牌）'],
+              defaultValue: current.brand,
+              required: true,
+              helper: brandOptions.length === 0 ? '暂无启用品牌，请先到「品牌」菜单维护' : undefined,
+            },
             { key: 'category', label: '品类', defaultValue: current.category, required: true },
             { key: 'material', label: '材质', defaultValue: current.material, required: true },
             { key: 'style', label: '款式 / 版型', defaultValue: current.style, required: true },
@@ -268,10 +281,17 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           ]}
           onClose={() => setHeaderOpen(false)}
           onSave={(values) => {
+            const brandName = values.brand || current.brand
+            const brandId = brandIdByName[brandName] || (current as { brandId?: string }).brandId
+            if (!brandId) {
+              setNotice('请选择已启用的品牌（或先到「品牌」主档新增）')
+              return
+            }
             updateMutation.mutate({
               spu: current.spu,
               name: values.name || current.name,
-              brand: values.brand || current.brand,
+              brandId,
+              brand: brandName,
               category: values.category || current.category,
               material: values.material || current.material,
               style: values.style || current.style,

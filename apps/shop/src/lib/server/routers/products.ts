@@ -15,7 +15,8 @@ const paginationInput = z.object({
 
 const createProductInput = z.object({
   name: z.string().min(1),
-  brand: z.string().min(1),
+  brandId: z.string().min(1).optional(),
+  brand: z.string().min(1).optional(),
   category: z.string().min(1),
   owner: z.string().min(1),
   material: z.string().min(1),
@@ -23,11 +24,12 @@ const createProductInput = z.object({
   status: statusSchema.optional(),
   coverImage: z.string().optional(),
   images: z.array(z.string()).optional(),
-})
+}).refine((v) => Boolean(v.brandId || v.brand), { message: '请选择品牌', path: ['brandId'] })
 
 const updateProductInput = z.object({
   spu: z.string().min(1),
   name: z.string().min(1).optional(),
+  brandId: z.string().min(1).nullable().optional(),
   brand: z.string().min(1).optional(),
   category: z.string().min(1).optional(),
   owner: z.string().min(1).optional(),
@@ -101,16 +103,27 @@ export const productsRouter = createTRPCRouter({
     }),
 
   create: tenantProcedure.input(createProductInput).mutation(async ({ ctx, input }) => {
-    return productsDa.createProduct(ctx.db, ctx.organizationId, input, ctx.user?.id)
+    try {
+      return await productsDa.createProduct(ctx.db, ctx.organizationId, input, ctx.user?.id)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '创建失败'
+      throw new TRPCError({ code: /不存在|停用|请选择/.test(message) ? 'BAD_REQUEST' : 'BAD_REQUEST', message })
+    }
   }),
 
   update: tenantProcedure.input(updateProductInput).mutation(async ({ ctx, input }) => {
-    const { spu, ...patch } = input
-    const row = await productsDa.updateProduct(ctx.db, ctx.organizationId, spu, patch)
-    if (!row) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SPU ${spu}` })
+    try {
+      const { spu, ...patch } = input
+      const row = await productsDa.updateProduct(ctx.db, ctx.organizationId, spu, patch)
+      if (!row) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SPU ${spu}` })
+      }
+      return row
+    } catch (error: unknown) {
+      if (error instanceof TRPCError) throw error
+      const message = error instanceof Error ? error.message : '更新失败'
+      throw new TRPCError({ code: 'BAD_REQUEST', message })
     }
-    return row
   }),
 
   listSkus: tenantProcedure

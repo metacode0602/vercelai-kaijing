@@ -13,11 +13,12 @@ const PAGE_SIZE = 20
 
 export default function MasterProductsPage() {
   const router = useLocaleRouter()
-  const dictionariesQuery = trpc.dictionaries.list.useQuery()
+  const brandsMetaQuery = trpc.brands.meta.useQuery()
   const categoriesQuery = trpc.categories.list.useQuery({})
   const membersQuery = trpc.members.list.useQuery({})
-  const brandDict = dictionariesQuery.data?.find((d) => d.key === 'product_brand')
-  const brandOptions = (brandDict?.values ?? []).filter((v) => !(brandDict?.inactiveValues ?? []).includes(v))
+  const brandRows = brandsMetaQuery.data?.brands ?? []
+  const brandOptions = brandRows.map((b) => b.name)
+  const brandIdByName = Object.fromEntries(brandRows.map((b) => [b.name, b.id]))
   const categoryRows = categoriesQuery.data ?? []
   const categoryOptions = categoryRows
     .filter((c) => c.status === '启用')
@@ -73,8 +74,9 @@ export default function MasterProductsPage() {
         {
           key: 'brand',
           label: '品牌',
-          options: brandOptions.length > 0 ? brandOptions : ['HELLO COSMOS', 'LinkForge', '其他'],
+          options: brandOptions.length > 0 ? brandOptions : ['（请先在品牌主档新增）'],
           required: true,
+          helper: brandOptions.length === 0 ? '暂无启用品牌，请先到「品牌」菜单维护' : undefined,
         },
         {
           key: 'category',
@@ -101,9 +103,16 @@ export default function MasterProductsPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
+        const brandName = values.brand || brandOptions[0] || ''
+        const brandId = brandIdByName[brandName]
+        if (!brandId) {
+          setNotice('请先在「品牌」主档新增并启用品牌后再创建商品')
+          return
+        }
         createMutation.mutate({
           name: values.name || '新商品',
-          brand: values.brand || brandOptions[0] || 'HELLO COSMOS',
+          brandId,
+          brand: brandName,
           category: values.category || categoryOptions[0] || '待分类',
           owner: values.owner || ownerOptions[0] || '当前用户',
           material: values.material || '待补充',

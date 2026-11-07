@@ -426,6 +426,35 @@ export const marketplaceWebhookEvents = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// commerce_brands — 商户品牌主档（商品 SPU 关联；勿与 platform_brands 平台缓存混用）
+// ---------------------------------------------------------------------------
+
+export const brandStatuses = ["active", "disabled"] as const
+export type BrandStatus = (typeof brandStatuses)[number]
+
+export const commerceBrands = pgTable(
+  "commerce_brands",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_brands_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_brands_org_status_idx").on(t.organizationId, t.status),
+    index("commerce_brands_org_name_idx").on(t.organizationId, t.name),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // products / product_variants — KEEP + MERGE（spuCode / skuCode / 尺寸 / status）
 // ---------------------------------------------------------------------------
 
@@ -444,6 +473,8 @@ export const products = pgTable(
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     source: varchar("source", { length: 32 }).notNull().default("manual"),
     brand: text("brand"),
+    /** 关联 commerce_brands；brand 文本保留兼容展示/搜索 */
+    brandId: text("brand_id").references(() => commerceBrands.id),
     categoryHint: text("category_hint"),
     material: text("material"),
     style: text("style"),
@@ -461,6 +492,7 @@ export const products = pgTable(
   (t) => [
     index("products_org_idx").on(t.organizationId),
     uniqueIndex("products_org_spu_uidx").on(t.organizationId, t.spuCode),
+    index("products_org_brand_idx").on(t.organizationId, t.brandId),
   ],
 )
 
@@ -3065,6 +3097,7 @@ export type CommerceBinRow = typeof commerceBins.$inferSelect
 export type StockAdjustmentRow = typeof stockAdjustments.$inferSelect
 export type StockAdjustmentLineRow = typeof stockAdjustmentLines.$inferSelect
 export type CommerceCartonSpecRow = typeof commerceCartonSpecs.$inferSelect
+export type CommerceBrandRow = typeof commerceBrands.$inferSelect
 export type CommerceSupplierRow = typeof commerceSuppliers.$inferSelect
 export type SupplierSkuRow = typeof supplierSkus.$inferSelect
 export type OrderExceptionCaseRow = typeof orderExceptionCases.$inferSelect
