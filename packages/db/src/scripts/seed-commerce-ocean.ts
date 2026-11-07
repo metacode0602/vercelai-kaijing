@@ -14,6 +14,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { and, eq, or } from 'drizzle-orm'
 import { createPgClient } from '../client'
 import {
+  commerceWarehouses,
   inventoryBalances,
   oceanShipmentBoxes,
   oceanShipmentLines,
@@ -51,6 +52,33 @@ async function main() {
         .limit(1)
       if (!row) throw new Error(`缺少 SKU ${code}，请先跑 db:seed:commerce-products`)
       variants.push({ id: row.id, skuCode: row.skuCode || row.sku })
+    }
+
+    const [warehouse] = await db
+      .select({ id: commerceWarehouses.id })
+      .from(commerceWarehouses)
+      .where(
+        and(eq(commerceWarehouses.organizationId, ORG_ID), eq(commerceWarehouses.code, WH)),
+      )
+      .limit(1)
+    let destinationWarehouseId: string
+    if (warehouse) {
+      destinationWarehouseId = warehouse.id
+    } else {
+      destinationWarehouseId = createId()
+      await db.insert(commerceWarehouses).values({
+        id: destinationWarehouseId,
+        organizationId: ORG_ID,
+        code: WH,
+        name: '科伦坡本地仓',
+        type: 'self_operated',
+        country: 'LK',
+        timezone: 'Asia/Colombo',
+        operatingCurrency: 'LKR',
+        status: 'active',
+        note: 'Daraz LK 海运目的仓',
+      })
+      console.log(`created warehouse ${WH}`)
     }
 
     const seeds = [
@@ -132,6 +160,7 @@ async function main() {
         platform: 'daraz',
         originPort: 'CNXMN',
         destPort: 'LKCMB',
+        destinationWarehouseId,
         destinationWarehouseCode: WH,
         status: seed.status,
         etd: seed.etd,

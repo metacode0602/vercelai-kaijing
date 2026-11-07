@@ -173,6 +173,8 @@ erDiagram
 
 **绑定约束（R07，2026-11-03 C2 已定）**：一个库位同一时点最多绑定一个有效内部 SKU —— **双保险**：① `commerce_bin_bindings` 上 partial unique index `(organization_id, bin_id) WHERE state = 'active'` 兜底；② 服务层事务校验给出友好报错。绑定有效态与履历见 `commerce_bin_bindings` + `bin_binding_history`（追加式只读，禁止物理删除，C1）——完整表结构与不变量见 `docs/design/erp-rectification-2026-11-03.md` §2.2。
 
+**落地（0009）**：`commerce_warehouse_zones` 已成为独立表，库区不再写 `commerce_warehouses.raw.zones`；迁移不回填旧 JSON。`commerce_bins.bound_sku` 仅作冗余缓存。
+
 ### 1.7 `inventory_pools` — 库存池（可选抽象，org）
 
 | 列 | 类型 | 说明 |
@@ -186,6 +188,8 @@ erDiagram
 | **UNIQUE** | | `(organization_id, code)` |
 
 **履约分池决议（2026-10-31）**：Lazada 五站可继续共用 `WH-CN-XMN-001` 对应的默认池（厦门现货）；**Daraz LK 不加入该池**。Daraz LK 走海运柜次 → Colombo 本地仓（见 §5.x `ocean_shipments` / `customs_clearing`）。余额仍以 warehouse+bin+sku 为物理事实，pool 仅逻辑分组与推送策略（Q09）。详见 [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md)。
+
+**落地（0009）**：`inventory_pools` 已建表，`shops.inventory_pool_id` 关联；种子创建 `POOL-LAZADA-5C`（厦门）与 `POOL-DARAZ-LK`（Colombo）。
 
 ### 1.8 `shops` — 店铺主档（扩展现有表）
 
@@ -592,6 +596,8 @@ erDiagram
 | **UNIQUE** | | `(organization_id, warehouse_id, bin_id, variant_id)` |
 
 迁移：现有 `(shop_id, variant_id)` 行按下述规则折叠为默认仓余额（§9）。**店铺不再持有库存余额。**
+
+> 0009 实际表暂以 `warehouse_code` / `bin_code` 承载维度，历史 NULL `bin_code` 回填 `'UNASSIGNED'`，唯一索引改为 `(organization_id, warehouse_code, coalesce(bin_code,'UNASSIGNED'), variant_id)`。后续如切到 `warehouse_id` / `bin_id` 需单独迁移。
 
 ### 5.2 `inventory_ledger` — 库存流水（追加式，借鉴 OM movements）
 

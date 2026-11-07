@@ -12,6 +12,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { sql } from "drizzle-orm"
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -292,6 +293,8 @@ export const shops = pgTable(
     shopGroup: varchar("shop_group", { length: 64 }),
     /** 履约模式：fbm / fbp / hybrid。 */
     fulfillmentMode: varchar("fulfillment_mode", { length: 16 }).notNull().default("fbm"),
+    /** 共享库存池；空=未加入池，按店铺/仓库默认规则取数。 */
+    inventoryPoolId: text("inventory_pool_id").references(() => inventoryPools.id),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     region: varchar("region", { length: 16 }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
@@ -1177,7 +1180,8 @@ export const inventoryBalances = pgTable(
     /** 共享库存池后店铺维可空；迁移期保留可空 shop_id。 */
     shopId: text("shop_id").references(() => shops.id),
     warehouseCode: varchar("warehouse_code", { length: 64 }).notNull().default("DEFAULT"),
-    binCode: varchar("bin_code", { length: 64 }),
+    /** 空库位统一写 UNASSIGNED 哨兵；唯一键按 coalesce(bin_code,'UNASSIGNED') 约束。 */
+    binCode: varchar("bin_code", { length: 64 }).default("UNASSIGNED"),
     variantId: text("variant_id")
       .notNull()
       .references(() => productVariants.id),
@@ -1202,7 +1206,7 @@ export const inventoryBalances = pgTable(
     uniqueIndex("inventory_balances_wh_bin_variant_uidx").on(
       t.organizationId,
       t.warehouseCode,
-      t.binCode,
+      sql`coalesce(${t.binCode}, 'UNASSIGNED')`,
       t.variantId,
     ),
   ],
@@ -1334,7 +1338,9 @@ export const skuCosts = pgTable(
     /** 柜次成本版本号（F32）；同 SKU+柜次递增 */
     versionNo: integer("version_no").notNull().default(1),
     /** → ocean_shipments.id；Daraz 按柜次版本化 */
-    containerLotId: text("container_lot_id"),
+    containerLotId: text("container_lot_id").references(() => oceanShipments.id, {
+      onDelete: "set null",
+    }),
     taxTemplateCode: varchar("tax_template_code", { length: 64 }),
     /** → fee_template_versions.id；测算命中的费用模板版本 */
     feeTemplateVersionId: text("fee_template_version_id"),
@@ -1932,7 +1938,7 @@ export const fxRates = pgTable(
 /**
  * 海运柜次状态机（模块7 / F22）：
  * draft → booked → departed → arrived → customs → received
- * 兼容旧原型：in_transit≈departed、customs_clearing≈customs、received_local≈received
+ * 旧原型值只在读路径做别名（in_transit≈departed、customs_clearing≈customs、received_local≈received）。
  */
 export const oceanShipmentStatuses = [
   "draft",
@@ -1942,10 +1948,6 @@ export const oceanShipmentStatuses = [
   "customs",
   "received",
   "cancelled",
-  /** @deprecated 兼容旧数据 / 原型 */
-  "in_transit",
-  "customs_clearing",
-  "received_local",
 ] as const
 export type OceanShipmentStatus = (typeof oceanShipmentStatuses)[number]
 
@@ -1966,6 +1968,11 @@ export const oceanShipments = pgTable(
     platform: varchar("platform", { length: 32 }).notNull().default("daraz"),
     originPort: varchar("origin_port", { length: 16 }),
     destPort: varchar("dest_port", { length: 16 }),
+    /** 目的仓主键；code 保留为快照/冗余展示。 */
+    destinationWarehouseId: text("destination_warehouse_id").references(
+      () => commerceWarehouses.id,
+      { onDelete: "set null" },
+    ),
     destinationWarehouseCode: varchar("destination_warehouse_code", { length: 64 }),
     status: varchar("status", { length: 32 }).notNull().default("draft"),
     etd: varchar("etd", { length: 10 }),
@@ -1987,6 +1994,11 @@ export const oceanShipments = pgTable(
     uniqueIndex("ocean_shipments_org_lot_uidx").on(t.organizationId, t.lotCode),
     index("ocean_shipments_status_idx").on(t.status),
     index("ocean_shipments_org_idx").on(t.organizationId),
+    index("ocean_shipments_destination_warehouse_idx").on(t.destinationWarehouseId),
+    check(
+      "ocean_shipments_status_check",
+      sql`${t.status} in ('draft', 'booked', 'departed', 'arrived', 'customs', 'received', 'cancelled')`,
+    ),
   ],
 )
 
@@ -2009,7 +2021,7 @@ export const oceanShipmentLines = pgTable(
     qtyShipped: integer("qty_shipped").notNull().default(0),
     qtyReceived: integer("qty_received").notNull().default(0),
     qtyDamaged: integer("qty_damaged").notNull().default(0),
-    skuCostId: text("sku_cost_id"),
+    skuCostId: text("sku_cost_id").references(() => skuCosts.id, { onDelete: "set null" }),
   },
   (t) => [
     uniqueIndex("ocean_shipment_lines_ship_variant_uidx").on(t.shipmentId, t.variantId),
@@ -2766,6 +2778,181 @@ export const commerceBins = pgTable(
     uniqueIndex("commerce_bins_wh_code_uidx").on(t.organizationId, t.warehouseId, t.code),
     index("commerce_bins_org_wh_idx").on(t.organizationId, t.warehouseCode),
     index("commerce_bins_bound_sku_idx").on(t.organizationId, t.boundSku),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// commerce_warehouse_zones — 库区主档（模块9；替代 warehouse.raw.zones）
+// ---------------------------------------------------------------------------
+
+export const warehouseZoneStatuses = ["active", "disabled"] as const
+export type WarehouseZoneStatus = (typeof warehouseZoneStatuses)[number]
+
+export const commerceWarehouseZones = pgTable(
+  "commerce_warehouse_zones",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    warehouseId: text("warehouse_id")
+      .notNull()
+      .references(() => commerceWarehouses.id),
+    /** 库区编码创建后不可变。 */
+    code: varchar("code", { length: 32 }).notNull(),
+    name: text("name").notNull(),
+    purpose: text("purpose"),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_warehouse_zones_wh_code_uidx").on(
+      t.organizationId,
+      t.warehouseId,
+      t.code,
+    ),
+    index("commerce_warehouse_zones_org_wh_status_idx").on(
+      t.organizationId,
+      t.warehouseId,
+      t.status,
+    ),
+    check("commerce_warehouse_zones_status_check", sql`${t.status} in ('active', 'disabled')`),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// inventory_pools — 共享库存池（Lazada 五国共用厦门仓等）
+// ---------------------------------------------------------------------------
+
+export const inventoryPoolStatuses = ["active", "disabled"] as const
+export type InventoryPoolStatus = (typeof inventoryPoolStatuses)[number]
+
+export const inventoryPools = pgTable(
+  "inventory_pools",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    /** 库存池编码创建后不可变。 */
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    warehouseId: text("warehouse_id")
+      .notNull()
+      .references(() => commerceWarehouses.id),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("inventory_pools_org_code_uidx").on(t.organizationId, t.code),
+    index("inventory_pools_org_wh_status_idx").on(t.organizationId, t.warehouseId, t.status),
+    check("inventory_pools_status_check", sql`${t.status} in ('active', 'disabled')`),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// commerce_bin_bindings / bin_binding_history — 库位-SKU 绑定当前态与审计
+// ---------------------------------------------------------------------------
+
+export const binBindingStates = ["active", "released", "disabled"] as const
+export type BinBindingState = (typeof binBindingStates)[number]
+
+export const commerceBinBindings = pgTable(
+  "commerce_bin_bindings",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    warehouseId: text("warehouse_id")
+      .notNull()
+      .references(() => commerceWarehouses.id),
+    binId: text("bin_id")
+      .notNull()
+      .references(() => commerceBins.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    state: varchar("state", { length: 16 }).notNull().default("active"),
+    boundAt: timestamp("bound_at", { withTimezone: true }).defaultNow().notNull(),
+    boundBy: text("bound_by"),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    releasedBy: text("released_by"),
+    releaseReason: text("release_reason"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_bin_bindings_active_bin_uidx")
+      .on(t.organizationId, t.binId)
+      .where(sql`${t.state} = 'active'`),
+    index("commerce_bin_bindings_org_variant_idx").on(
+      t.organizationId,
+      t.variantId,
+      t.state,
+    ),
+    index("commerce_bin_bindings_org_wh_idx").on(t.organizationId, t.warehouseId),
+    check(
+      "commerce_bin_bindings_state_check",
+      sql`${t.state} in ('active', 'released', 'disabled')`,
+    ),
+  ],
+)
+
+export const binBindingActions = ["bind", "unbind", "disable", "correct"] as const
+export type BinBindingAction = (typeof binBindingActions)[number]
+
+export const binBindingHistory = pgTable(
+  "bin_binding_history",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    warehouseId: text("warehouse_id")
+      .notNull()
+      .references(() => commerceWarehouses.id),
+    binId: text("bin_id")
+      .notNull()
+      .references(() => commerceBins.id),
+    variantId: text("variant_id").references(() => productVariants.id),
+    /** 历史遗留 bound_sku 未迁移时允许空 binding_id。 */
+    bindingId: text("binding_id").references(() => commerceBinBindings.id, {
+      onDelete: "set null",
+    }),
+    action: varchar("action", { length: 16 }).notNull(),
+    reason: text("reason"),
+    operatorId: text("operator_id"),
+    operatorType: varchar("operator_type", { length: 16 }).notNull().default("user"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+    correctionOf: text("correction_of"),
+    requestId: text("request_id"),
+  },
+  (t) => [
+    index("bin_binding_history_org_bin_time_idx").on(
+      t.organizationId,
+      t.binId,
+      t.occurredAt,
+    ),
+    index("bin_binding_history_org_wh_time_idx").on(
+      t.organizationId,
+      t.warehouseId,
+      t.occurredAt,
+    ),
+    index("bin_binding_history_org_binding_idx").on(t.organizationId, t.bindingId),
+    check(
+      "bin_binding_history_action_check",
+      sql`${t.action} in ('bind', 'unbind', 'disable', 'correct')`,
+    ),
   ],
 )
 

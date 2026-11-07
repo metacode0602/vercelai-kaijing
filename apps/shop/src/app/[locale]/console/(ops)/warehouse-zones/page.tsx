@@ -15,7 +15,7 @@ export default function WarehouseZonesPage() {
   const zonesQuery = trpc.wms.listZones.useQuery({ page: 1, pageSize: 200 })
   const statsQuery = trpc.wms.zoneStats.useQuery()
   const warehousesQuery = trpc.wms.listWarehouses.useQuery({ page: 1, pageSize: 100, status: '启用' })
-  const binsQuery = trpc.wms.listBins.useQuery({ page: 1, pageSize: 200 })
+
 
   const createZone = trpc.wms.createZone.useMutation({
     onSuccess: async (row) => {
@@ -30,7 +30,6 @@ export default function WarehouseZonesPage() {
   })
 
   const rows = zonesQuery.data?.items ?? []
-  const bins = binsQuery.data?.items ?? []
   const warehouses = warehousesQuery.data?.items ?? []
   const warehouseOptions = warehouses.map((item) => `${item.name} (${item.code})`)
 
@@ -44,7 +43,7 @@ export default function WarehouseZonesPage() {
   const editor = open ? (
     <UedDialog
       title="新增库区"
-      description="库区元数据写入 commerce_warehouses.raw.zones；库位通过 zone_code 归属。同仓编码唯一。"
+      description="库区写入 commerce_warehouse_zones；库位通过 warehouse_id + zone_code 归属。同仓编码唯一且创建后不可改。"
       fields={[
         {
           key: 'warehouse',
@@ -91,7 +90,7 @@ export default function WarehouseZonesPage() {
       <Alert>
         <AlertTitle>库区已接 PostgreSQL</AlertTitle>
         <AlertDescription>
-          tRPC `wms.listZones` → dataaccess → `commerce_warehouses.raw.zones` + `commerce_bins.zone_code`（无独立库区表）。
+          tRPC `wms.listZones` → dataaccess → `commerce_warehouse_zones` + `commerce_bins.zone_code`（真实库区表）。
           {notice ? ` ${notice}` : ''}
         </AlertDescription>
       </Alert>
@@ -115,13 +114,7 @@ export default function WarehouseZonesPage() {
           {
             key: 'binCount',
             label: '库位数',
-            render: (row) =>
-              String(
-                row.binCount ||
-                  bins.filter(
-                    (bin) => bin.warehouseCode === row.warehouseCode && bin.zoneCode === row.code,
-                  ).length,
-              ),
+            render: (row) => String(row.binCount),
           },
           {
             key: 'status',

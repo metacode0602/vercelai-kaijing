@@ -181,6 +181,14 @@ export const BIN_COLUMNS = [
   { key: 'status', label: '状态' },
 ]
 
+export const BIN_BINDING_COLUMNS = [
+  { key: 'occurredAt', label: '时间' },
+  { key: 'actionLabel', label: '动作' },
+  { key: 'sku', label: '内部 SKU', mono: true },
+  { key: 'operatorId', label: '操作人', mono: true },
+  { key: 'reason', label: '原因' },
+]
+
 export const PO_COLUMNS = [
   { key: 'poNo', label: '采购单号', mono: true, hrefKey: 'href' },
   { key: 'supplier', label: '供应商' },

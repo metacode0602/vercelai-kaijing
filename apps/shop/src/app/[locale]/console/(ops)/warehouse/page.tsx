@@ -116,7 +116,7 @@ export default function WarehousePage() {
       <Alert>
         <AlertTitle>仓库 / 库位已接 PostgreSQL</AlertTitle>
         <AlertDescription>
-          tRPC `wms.*` → dataaccess → commerce_warehouses / commerce_bins；库区见 warehouse-zones（raw.zones）。{notice ? ` ${notice}` : ''}
+          tRPC `wms.*` → dataaccess → commerce_warehouses / commerce_bins；库区见 warehouse-zones（commerce_warehouse_zones）。{notice ? ` ${notice}` : ''}
         </AlertDescription>
       </Alert>
       <DetailKpiRow items={kpiItems} />

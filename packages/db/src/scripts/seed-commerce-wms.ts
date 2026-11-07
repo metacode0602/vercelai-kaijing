@@ -13,12 +13,17 @@ import { createId } from '@paralleldrive/cuid2'
 import { and, eq, or } from 'drizzle-orm'
 import { createPgClient } from '../client'
 import {
+  binBindingHistory,
+  commerceBinBindings,
   commerceBins,
+  commerceWarehouseZones,
   commerceWarehouses,
   inventoryBalances,
   inventoryMovements,
+  inventoryPools,
   organization,
   productVariants,
+  shops,
   stockAdjustmentLines,
   stockAdjustments,
   stockOutboundLines,
@@ -61,25 +66,15 @@ async function main() {
       .from(commerceWarehouses)
       .where(and(eq(commerceWarehouses.organizationId, ORG_ID), eq(commerceWarehouses.code, WH)))
       .limit(1)
-    const zoneMetas = [
-      { code: 'A', name: 'A 区', purpose: '服装与配饰拣货区', status: '启用', note: '' },
-      { code: 'B', name: 'B 区', purpose: '数码配件与家居存储区', status: '启用', note: '' },
-      { code: 'C', name: 'C 区', purpose: '退货质检与残次暂存区', status: '启用', note: '' },
+    const zoneSeeds = [
+      { code: 'A', name: 'A 区', purpose: '服装与配饰拣货区', status: 'active', note: null },
+      { code: 'B', name: 'B 区', purpose: '数码配件与家居存储区', status: 'active', note: null },
+      { code: 'C', name: 'C 区', purpose: '退货质检与残次暂存区', status: 'active', note: null },
     ]
 
     if (existingWh) {
       warehouseId = existingWh.id
-      const raw = (existingWh.raw || {}) as Record<string, unknown>
-      const existingZones = Array.isArray(raw.zones) ? raw.zones : []
-      if (existingZones.length === 0) {
-        await db
-          .update(commerceWarehouses)
-          .set({ raw: { ...raw, zones: zoneMetas }, updatedAt: new Date() })
-          .where(eq(commerceWarehouses.id, warehouseId))
-        console.log(`patched warehouse ${WH} raw.zones`)
-      } else {
-        console.log(`skip warehouse ${WH}`)
-      }
+      console.log(`skip warehouse ${WH}`)
     } else {
       warehouseId = createId()
       await db.insert(commerceWarehouses).values({
@@ -94,21 +89,53 @@ async function main() {
         address: '福建省厦门市',
         status: 'active',
         note: 'Lazada 五站 + Daraz 共用现货仓（演示）',
-        raw: { zones: zoneMetas },
       })
       console.log(`created warehouse ${WH}`)
+    }
+
+    for (const zone of zoneSeeds) {
+      const [existingZone] = await db
+        .select({ id: commerceWarehouseZones.id })
+        .from(commerceWarehouseZones)
+        .where(
+          and(
+            eq(commerceWarehouseZones.organizationId, ORG_ID),
+            eq(commerceWarehouseZones.warehouseId, warehouseId),
+            eq(commerceWarehouseZones.code, zone.code),
+          ),
+        )
+        .limit(1)
+      if (existingZone) {
+        console.log(`skip zone ${zone.code}`)
+        continue
+      }
+      await db.insert(commerceWarehouseZones).values({
+        id: createId(),
+        organizationId: ORG_ID,
+        warehouseId,
+        code: zone.code,
+        name: zone.name,
+        purpose: zone.purpose,
+        status: zone.status,
+        note: zone.note,
+      })
+      console.log(`created zone ${zone.code}`)
     }
 
     // Colombo local (ocean destination) — master only
     const WH_LK = 'WH-LK-CMB-001'
     const [lk] = await db
-      .select()
+      .select({ id: commerceWarehouses.id })
       .from(commerceWarehouses)
       .where(and(eq(commerceWarehouses.organizationId, ORG_ID), eq(commerceWarehouses.code, WH_LK)))
       .limit(1)
-    if (!lk) {
+    let colomboWarehouseId: string
+    if (lk) {
+      colomboWarehouseId = lk.id
+    } else {
+      colomboWarehouseId = createId()
       await db.insert(commerceWarehouses).values({
-        id: createId(),
+        id: colomboWarehouseId,
         organizationId: ORG_ID,
         code: WH_LK,
         name: '科伦坡本地仓',
@@ -120,6 +147,56 @@ async function main() {
         note: 'Daraz LK 海运目的仓',
       })
       console.log(`created warehouse ${WH_LK}`)
+    }
+
+    const poolSeeds = [
+      {
+        code: 'POOL-LAZADA-5C',
+        name: 'Lazada 五国共享池',
+        warehouseId,
+        note: 'Lazada 五站共用厦门现货',
+        platforms: ['lazada'],
+      },
+      {
+        code: 'POOL-DARAZ-LK',
+        name: 'Daraz LK 本地池',
+        warehouseId: colomboWarehouseId,
+        note: 'Daraz 斯里兰卡本地库存池',
+        platforms: ['daraz'],
+      },
+    ]
+    const poolIds = new Map<string, string>()
+    for (const pool of poolSeeds) {
+      const [existingPool] = await db
+        .select({ id: inventoryPools.id })
+        .from(inventoryPools)
+        .where(and(eq(inventoryPools.organizationId, ORG_ID), eq(inventoryPools.code, pool.code)))
+        .limit(1)
+      const poolId = existingPool?.id ?? createId()
+      if (existingPool) {
+        console.log(`skip inventory pool ${pool.code}`)
+      } else {
+        await db.insert(inventoryPools).values({
+          id: poolId,
+          organizationId: ORG_ID,
+          code: pool.code,
+          name: pool.name,
+          warehouseId: pool.warehouseId,
+          status: 'active',
+          note: pool.note,
+        })
+        console.log(`created inventory pool ${pool.code}`)
+      }
+      poolIds.set(pool.platforms[0]!, poolId)
+    }
+
+    for (const [platform, poolId] of poolIds) {
+      const updated = await db
+        .update(shops)
+        .set({ inventoryPoolId: poolId, updatedAt: new Date() })
+        .where(and(eq(shops.organizationId, ORG_ID), eq(shops.platform, platform)))
+        .returning({ id: shops.id })
+      console.log(`assigned pool ${platform} → ${poolId} (${updated.length})`)
     }
 
     const binSeeds = [
@@ -140,22 +217,64 @@ async function main() {
           ),
         )
         .limit(1)
+      const binId = ex?.id ?? createId()
       if (ex) {
         console.log(`skip bin ${b.code}`)
+      } else {
+        await db.insert(commerceBins).values({
+          id: binId,
+          organizationId: ORG_ID,
+          warehouseId,
+          warehouseCode: WH,
+          zoneCode: b.zone,
+          code: b.code,
+          name: b.code,
+          boundSku: b.sku,
+          status: b.status,
+        })
+        console.log(`created bin ${b.code}`)
+      }
+
+      if (!b.sku) continue
+      const variant = variants.find((item) => item.skuCode === b.sku)
+      if (!variant) continue
+      const [activeBinding] = await db
+        .select({ id: commerceBinBindings.id })
+        .from(commerceBinBindings)
+        .where(
+          and(
+            eq(commerceBinBindings.organizationId, ORG_ID),
+            eq(commerceBinBindings.binId, binId),
+            eq(commerceBinBindings.state, 'active'),
+          ),
+        )
+        .limit(1)
+      if (activeBinding) {
+        console.log(`skip binding ${b.code} → ${b.sku}`)
         continue
       }
-      await db.insert(commerceBins).values({
+      const bindingId = createId()
+      await db.insert(commerceBinBindings).values({
+        id: bindingId,
+        organizationId: ORG_ID,
+        warehouseId,
+        binId,
+        variantId: variant.id,
+        state: 'active',
+        boundBy: 'seed',
+      })
+      await db.insert(binBindingHistory).values({
         id: createId(),
         organizationId: ORG_ID,
         warehouseId,
-        warehouseCode: WH,
-        zoneCode: b.zone,
-        code: b.code,
-        name: b.code,
-        boundSku: b.sku,
-        status: b.status,
+        binId,
+        variantId: variant.id,
+        bindingId,
+        action: 'bind',
+        reason: 'WMS 种子初始化',
+        operatorId: 'seed',
       })
-      console.log(`created bin ${b.code}`)
+      console.log(`created binding ${b.code} → ${b.sku}`)
     }
 
     const balSeeds = [

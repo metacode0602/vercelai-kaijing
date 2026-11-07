@@ -13,6 +13,7 @@ import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog } from '@/components/console/erp-ued-workspace'
 import {
   BALANCE_COLUMNS,
+  BIN_BINDING_COLUMNS,
   BIN_COLUMNS,
   MOVEMENT_COLUMNS,
   buildUedRelatedInfo,
@@ -59,6 +60,10 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
     { page: 1, pageSize: 50, warehouse: resolvedWarehouseCode, sku: bin?.boundSku || undefined },
     { enabled: !!resolvedWarehouseCode },
   )
+  const bindingsQuery = trpc.wms.listBinBindings.useQuery(
+    { binId: bin?.id || '', page: 1, pageSize: 50 },
+    { enabled: !!bin?.id },
+  )
 
   const updateWarehouse = trpc.wms.updateWarehouse.useMutation({
     onSuccess: async () => {
@@ -73,7 +78,11 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
   })
   const updateBin = trpc.wms.updateBin.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.wms.listBins.invalidate(), utils.wms.listWarehouses.invalidate()])
+      await Promise.all([
+        utils.wms.listBins.invalidate(),
+        utils.wms.listWarehouses.invalidate(),
+        utils.wms.listBinBindings.invalidate(),
+      ])
       setEditOpen(false)
       setNotice('库位已更新')
     },
@@ -336,6 +345,17 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
               ]
         }
       />
+      <DetailRelatedTables
+        sections={[
+          {
+            title: '绑定履历',
+            description: 'bin_binding_history · 只读追加记录',
+            columns: BIN_BINDING_COLUMNS,
+            rows: bindingsQuery.data?.items ?? [],
+            emptyText: bindingsQuery.isLoading ? '加载中…' : '暂无绑定履历',
+          },
+        ]}
+      />
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       {editOpen ? (
         <UedDialog
@@ -352,6 +372,13 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
               defaultValue: bin.status,
               required: true,
             },
+            {
+              key: 'reason',
+              label: '变更原因',
+              type: 'textarea',
+              fullWidth: true,
+              placeholder: '解绑 / 换绑 / 停用必填；绑定可空',
+            },
             { key: 'note', label: '备注', type: 'textarea', fullWidth: true, defaultValue: bin.note },
           ]}
           onClose={() => setEditOpen(false)}
@@ -362,6 +389,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
               zoneCode: values.zoneCode || '',
               boundSku: values.boundSku || '',
               status: values.status || bin.status,
+              reason: values.reason || '',
               note: values.note || '',
             })
           }}

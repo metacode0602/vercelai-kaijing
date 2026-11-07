@@ -6,6 +6,7 @@
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
+  commerceWarehouses,
   inventoryBalances,
   inventoryMovements,
   oceanShipmentBoxes,
@@ -82,6 +83,7 @@ export type OceanLotDto = {
   platform: string
   originPort: string
   destPort: string
+  warehouseId: string
   warehouse: string
   status: UiOceanStatus
   statusCode: string
@@ -165,6 +167,26 @@ async function resolveVariant(
     skuCode: row.skuCode || row.sku || key,
     name: row.title || row.skuCode || row.sku || key,
   }
+}
+
+async function resolveDestinationWarehouse(
+  db: DbLike,
+  organizationId: string,
+  codeOrId: string,
+): Promise<{ id: string; code: string }> {
+  const key = codeOrId.trim() || OCEAN_DEFAULT_WAREHOUSE
+  const [row] = await db
+    .select({ id: commerceWarehouses.id, code: commerceWarehouses.code })
+    .from(commerceWarehouses)
+    .where(
+      and(
+        eq(commerceWarehouses.organizationId, organizationId),
+        or(eq(commerceWarehouses.id, key), eq(commerceWarehouses.code, key)),
+      ),
+    )
+    .limit(1)
+  if (!row) throw new Error(`目的仓 ${key} 不存在`)
+  return row
 }
 
 async function loadLines(db: DbLike, organizationId: string, shipmentId: string): Promise<OceanLineDto[]> {
@@ -277,6 +299,7 @@ function mapHeader(
     platform: row.platform || 'daraz',
     originPort: row.originPort || '',
     destPort: row.destPort || '',
+    warehouseId: row.destinationWarehouseId || '',
     warehouse: row.destinationWarehouseCode || OCEAN_DEFAULT_WAREHOUSE,
     status: toUiOceanStatus(row.status),
     statusCode,
@@ -476,6 +499,11 @@ export async function createOceanShipment(
     .where(and(eq(oceanShipments.organizationId, organizationId), eq(oceanShipments.lotCode, lotCode)))
     .limit(1)
   if (dup) throw new Error(`柜次号已存在：${lotCode}`)
+  const warehouse = await resolveDestinationWarehouse(
+    db,
+    organizationId,
+    input.warehouse?.trim() || OCEAN_DEFAULT_WAREHOUSE,
+  )
 
   const id = createId()
   await db.transaction(async (tx) => {
@@ -489,7 +517,8 @@ export async function createOceanShipment(
       platform: (input.platform?.trim() || 'daraz').toLowerCase(),
       originPort: input.originPort?.trim() || 'CNXMN',
       destPort: input.destPort?.trim() || 'LKCMB',
-      destinationWarehouseCode: input.warehouse?.trim() || OCEAN_DEFAULT_WAREHOUSE,
+      destinationWarehouseId: warehouse.id,
+      destinationWarehouseCode: warehouse.code,
       status: 'draft',
       etd: input.etd?.trim() || null,
       etaPort: input.etaPort?.trim() || null,
@@ -540,6 +569,14 @@ export async function updateOceanShipment(
   if (status === 'received' || status === 'cancelled') {
     throw new Error('已入本地仓或已取消的柜次不可编辑头信息')
   }
+  const warehouse =
+    patch.warehouse !== undefined
+      ? await resolveDestinationWarehouse(
+          db,
+          organizationId,
+          patch.warehouse.trim() || OCEAN_DEFAULT_WAREHOUSE,
+        )
+      : null
   const setValues: Record<string, unknown> = { updatedAt: new Date() }
   if (patch.containerNo !== undefined) setValues.containerNo = patch.containerNo.trim() || null
   if (patch.containerType !== undefined) setValues.containerType = patch.containerType.trim() || null
@@ -547,8 +584,9 @@ export async function updateOceanShipment(
   if (patch.platform !== undefined) setValues.platform = patch.platform.trim().toLowerCase()
   if (patch.originPort !== undefined) setValues.originPort = patch.originPort.trim() || null
   if (patch.destPort !== undefined) setValues.destPort = patch.destPort.trim() || null
-  if (patch.warehouse !== undefined) {
-    setValues.destinationWarehouseCode = patch.warehouse.trim() || OCEAN_DEFAULT_WAREHOUSE
+  if (warehouse) {
+    setValues.destinationWarehouseId = warehouse.id
+    setValues.destinationWarehouseCode = warehouse.code
   }
   if (patch.etd !== undefined) setValues.etd = patch.etd.trim() || null
   if (patch.etaPort !== undefined) setValues.etaPort = patch.etaPort.trim() || null
@@ -743,9 +781,10 @@ async function getBalance(
   db: DbLike,
   organizationId: string,
   warehouseCode: string,
-  binCode: string,
+  binCodeInput: string,
   variantId: string,
 ) {
+  const binCode = binCodeInput.trim() || 'UNASSIGNED'
   const [row] = await db
     .select()
     .from(inventoryBalances)
@@ -774,11 +813,12 @@ async function upsertOceanBalance(
     damagedDelta?: number
   },
 ) {
+  const binCode = input.binCode.trim() || 'UNASSIGNED'
   const existing = await getBalance(
     db,
     input.organizationId,
     input.warehouseCode,
-    input.binCode,
+    binCode,
     input.variantId,
   )
   if (!existing) {
@@ -786,7 +826,7 @@ async function upsertOceanBalance(
       id: createId(),
       organizationId: input.organizationId,
       warehouseCode: input.warehouseCode,
-      binCode: input.binCode,
+      binCode,
       variantId: input.variantId,
       onHand: Math.max(0, input.onHandDelta || 0),
       damaged: Math.max(0, input.damagedDelta || 0),

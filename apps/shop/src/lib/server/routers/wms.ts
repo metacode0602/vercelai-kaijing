@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
 import * as wmsDa from '@/lib/server/dataaccess/wms'
+import * as inventoryPoolsDa from '@/lib/server/dataaccess/inventory-pools'
 
 const paginationInput = z.object({
   page: z.number().int().min(1).optional(),
@@ -93,7 +94,9 @@ export const wmsRouter = createTRPCRouter({
         note: z.string().optional(),
       }),
     )
-    .mutation(async ({ ctx, input }) => wrap(() => wmsDa.createBin(ctx.db, ctx.organizationId, input))),
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => wmsDa.createBin(ctx.db, ctx.organizationId, input, ctx.user?.id)),
+    ),
 
   updateBin: tenantProcedure
     .input(
@@ -104,15 +107,25 @@ export const wmsRouter = createTRPCRouter({
         boundSku: z.string().optional(),
         status: z.string().optional(),
         note: z.string().optional(),
+        reason: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...patch } = input
-      return wrap(() => wmsDa.updateBin(ctx.db, ctx.organizationId, id, patch))
+      return wrap(() => wmsDa.updateBin(ctx.db, ctx.organizationId, id, patch, ctx.user?.id))
     }),
 
+  listBinBindings: tenantProcedure
+    .input(
+      paginationInput.extend({
+        binId: z.string().min(1),
+      }),
+    )
+    .query(async ({ ctx, input }) =>
+      wmsDa.listBinBindings(ctx.db, ctx.organizationId, input),
+    ),
 
-  // ---- zones (warehouse.raw.zones + bins.zone_code) ----
+  // ---- zones (commerce_warehouse_zones) ----
   listZones: tenantProcedure
     .input(
       paginationInput.extend({
@@ -159,6 +172,72 @@ export const wmsRouter = createTRPCRouter({
       const { id, ...patch } = input
       return wrap(() => wmsDa.updateZone(ctx.db, ctx.organizationId, id, patch))
     }),
+
+  // ---- inventory pools ----
+  listInventoryPools: tenantProcedure
+    .input(paginationInput.extend({ status: z.string().optional() }))
+    .query(async ({ ctx, input }) =>
+      inventoryPoolsDa.listInventoryPools(ctx.db, ctx.organizationId, input),
+    ),
+
+  getInventoryPool: tenantProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const row = await inventoryPoolsDa.getInventoryPool(ctx.db, ctx.organizationId, input.id)
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `未找到库存池 ${input.id}` })
+      return row
+    }),
+
+  createInventoryPool: tenantProcedure
+    .input(
+      z.object({
+        code: z.string().min(1),
+        name: z.string().min(1),
+        warehouseId: z.string().min(1),
+        status: z.string().optional(),
+        note: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        inventoryPoolsDa.createInventoryPool(ctx.db, ctx.organizationId, input),
+      ),
+    ),
+
+  updateInventoryPool: tenantProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().optional(),
+        warehouseId: z.string().optional(),
+        status: z.string().optional(),
+        note: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...patch } = input
+      return wrap(() =>
+        inventoryPoolsDa.updateInventoryPool(ctx.db, ctx.organizationId, id, patch),
+      )
+    }),
+
+  assignShopInventoryPool: tenantProcedure
+    .input(
+      z.object({
+        shopId: z.string().min(1),
+        poolId: z.string().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        inventoryPoolsDa.assignShopInventoryPool(
+          ctx.db,
+          ctx.organizationId,
+          input.shopId,
+          input.poolId,
+        ),
+      ),
+    ),
 
   // ---- balances / ledger ----
   listBalances: tenantProcedure

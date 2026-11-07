@@ -1,7 +1,7 @@
 # 模块9：库区页接库 + marketplace typecheck 稳定
 
-> 状态：落地于 `feat/shop-wms-zones-typecheck`（叠在 module8 WMS / PR#45 之上，**不合并** #43/#44/#45）。
-> Org：`org_shop_dev_demo`。无新 migration。
+> 状态：初版落地于 `feat/shop-wms-zones-typecheck`；**2026-11-07 已升级为真实库区表**（migration `0009_careless_tyrannus`）。
+> Org：`org_shop_dev_demo`。
 
 ## 1. marketplace `drizzle-orm` 解析
 
@@ -16,17 +16,17 @@ pnpm --filter shop typecheck
 
 均通过。若本机 marketplace/node_modules 缺链路，再跑一次 `pnpm install`（lockfile 已含该依赖）。
 
-## 2. 库区无独立表
+## 2. 库区改真实表（0009）
 
-无 `commerce_warehouse_zones` 表。约定：
+`0009_careless_tyrannus.sql` 新建 `commerce_warehouse_zones`，后续读写全部走真实表；**迁移不回填** `raw.zones`。
 
 | 数据 | 存放 |
 | --- | --- |
-| 库区元数据（名称/用途/状态/备注） | `commerce_warehouses.raw.zones[]` |
-| 库位归属 | `commerce_bins.zone_code` |
-| 稳定 ID | `{warehouseCode}:{zoneCode}` |
+| 库区元数据（名称/用途/状态/备注） | `commerce_warehouse_zones` |
+| 库位归属 | `commerce_bins.warehouse_id` + `commerce_bins.zone_code` |
+| 稳定 ID | `commerce_warehouse_zones.id` |
 
-`wms.listZones` 合并 raw.zones 与 bins 上出现过的 zone_code；新建库区只写 raw；编辑不改编码。
+唯一键 `(organization_id, warehouse_id, code)`；编码创建后不可改。`wms.getZone` 仍兼容旧合成 id `{warehouseCode}:{zoneCode}` 便于旧链接跳转。
 
 ## 3. tRPC
 
@@ -40,8 +40,9 @@ pnpm --filter shop typecheck
 ## 4. 种子 / 验证
 
 ```bash
+pnpm --filter @workspace/db db:migrate                    # 0009_careless_tyrannus
 pnpm --filter @workspace/db db:seed:commerce-products
-pnpm --filter @workspace/db db:seed:commerce-wms   # 含 WH-CN-XMN-001.raw.zones A/B/C
+pnpm --filter @workspace/db db:seed:commerce-wms   # 含新库区表 A/B/C + 绑定履历 + inventory_pools
 pnpm --filter @workspace/db typecheck
 pnpm --filter shop typecheck
 ```
@@ -51,6 +52,4 @@ pnpm --filter shop typecheck
 | 项 | 说明 |
 | --- | --- |
 | related-info 子表 | 仍可读 ERP demo 行；详情主路径已是 wms |
-| 独立 zone 表 / 迁移 | 刻意不做 |
-| #43/#44/#45 合并 | 按产品要求保持未合并 |
 | 左侧菜单 | 不改 |

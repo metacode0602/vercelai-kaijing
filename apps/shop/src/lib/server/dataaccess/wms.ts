@@ -6,7 +6,10 @@
 import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
+  binBindingHistory,
+  commerceBinBindings,
   commerceBins,
+  commerceWarehouseZones,
   commerceWarehouses,
   inventoryBalances,
   inventoryMovements,
@@ -87,7 +90,34 @@ export type BinDto = {
   updatedAt: string
 }
 
-/** 库区：无独立表；元数据在 commerce_warehouses.raw.zones，库位用 zone_code 分组。 */
+export type BinBindingDto = {
+  id: string
+  binId: string
+  variantId: string
+  sku: string
+  name: string
+  state: 'active' | 'released' | 'disabled'
+  boundAt: string
+  boundBy: string
+  releasedAt: string
+  releasedBy: string
+  releaseReason: string
+}
+
+export type BinBindingHistoryDto = {
+  id: string
+  action: 'bind' | 'unbind' | 'disable' | 'correct'
+  actionLabel: string
+  variantId: string
+  sku: string
+  name: string
+  reason: string
+  operatorId: string
+  occurredAt: string
+  bindingId: string
+}
+
+/** 库区：commerce_warehouse_zones 真实表；id 兼容旧 warehouse:code 合成值。 */
 export type ZoneDto = {
   id: string
   warehouseId: string
@@ -100,15 +130,6 @@ export type ZoneDto = {
   binCount: number
   updatedAt: string
 }
-
-type ZoneRawMeta = {
-  code: string
-  name?: string
-  purpose?: string
-  status?: string
-  note?: string
-}
-
 
 export type BalanceDto = {
   id: string
@@ -279,6 +300,7 @@ async function getOrCreateBalance(
     variantId: string
   },
 ) {
+  const binCode = input.binCode.trim() || 'UNASSIGNED'
   const [existing] = await db
     .select()
     .from(inventoryBalances)
@@ -286,7 +308,7 @@ async function getOrCreateBalance(
       and(
         eq(inventoryBalances.organizationId, input.organizationId),
         eq(inventoryBalances.warehouseCode, input.warehouseCode),
-        eq(inventoryBalances.binCode, input.binCode),
+        eq(inventoryBalances.binCode, binCode),
         eq(inventoryBalances.variantId, input.variantId),
       ),
     )
@@ -297,7 +319,7 @@ async function getOrCreateBalance(
     id,
     organizationId: input.organizationId,
     warehouseCode: input.warehouseCode,
-    binCode: input.binCode,
+    binCode,
     variantId: input.variantId,
     onHand: 0,
     reserved: 0,
@@ -310,6 +332,197 @@ async function getOrCreateBalance(
   })
   const [created] = await db.select().from(inventoryBalances).where(eq(inventoryBalances.id, id)).limit(1)
   return created!
+}
+
+type BinBindingActionCode = 'bind' | 'unbind' | 'disable' | 'correct'
+
+const binBindingActionLabels: Record<BinBindingActionCode, string> = {
+  bind: '绑定',
+  unbind: '解绑',
+  disable: '停用',
+  correct: '更正',
+}
+
+async function getActiveBinBinding(
+  db: DbLike,
+  organizationId: string,
+  binId: string,
+): Promise<typeof commerceBinBindings.$inferSelect | null> {
+  const [row] = await db
+    .select()
+    .from(commerceBinBindings)
+    .where(
+      and(
+        eq(commerceBinBindings.organizationId, organizationId),
+        eq(commerceBinBindings.binId, binId),
+        eq(commerceBinBindings.state, 'active'),
+      ),
+    )
+    .limit(1)
+  return row ?? null
+}
+
+async function writeBinBindingHistory(
+  db: DbLike,
+  input: {
+    organizationId: string
+    warehouseId: string
+    binId: string
+    variantId?: string | null
+    bindingId?: string | null
+    action: BinBindingActionCode
+    reason?: string | null
+    operatorId?: string | null
+  },
+) {
+  await db.insert(binBindingHistory).values({
+    id: createId(),
+    organizationId: input.organizationId,
+    warehouseId: input.warehouseId,
+    binId: input.binId,
+    variantId: input.variantId || null,
+    bindingId: input.bindingId || null,
+    action: input.action,
+    reason: input.reason?.trim() || null,
+    operatorId: input.operatorId || null,
+    operatorType: 'user',
+    occurredAt: new Date(),
+  })
+}
+
+async function assertBinInventoryZero(
+  db: DbLike,
+  organizationId: string,
+  warehouseCode: string,
+  binCode: string,
+  actionLabel: string,
+) {
+  const [row] = await db
+    .select({
+      onHand: sql<number>`coalesce(sum(${inventoryBalances.onHand}), 0)`,
+      reserved: sql<number>`coalesce(sum(${inventoryBalances.reserved}), 0)`,
+      qcHold: sql<number>`coalesce(sum(${inventoryBalances.qcHold}), 0)`,
+      damaged: sql<number>`coalesce(sum(${inventoryBalances.damaged}), 0)`,
+      inTransit: sql<number>`coalesce(sum(${inventoryBalances.inTransit}), 0)`,
+      pendingInbound: sql<number>`coalesce(sum(${inventoryBalances.pendingInbound}), 0)`,
+      customsClearing: sql<number>`coalesce(sum(${inventoryBalances.customsClearing}), 0)`,
+    })
+    .from(inventoryBalances)
+    .where(
+      and(
+        eq(inventoryBalances.organizationId, organizationId),
+        eq(inventoryBalances.warehouseCode, warehouseCode),
+        eq(inventoryBalances.binCode, binCode),
+      ),
+    )
+  const total =
+    Number(row?.onHand ?? 0) +
+    Number(row?.reserved ?? 0) +
+    Number(row?.qcHold ?? 0) +
+    Number(row?.damaged ?? 0) +
+    Number(row?.inTransit ?? 0) +
+    Number(row?.pendingInbound ?? 0) +
+    Number(row?.customsClearing ?? 0)
+  if (total !== 0) {
+    throw new Error(`${actionLabel}前需库存为 0（当前 ${total}），请先走库存转移单`)
+  }
+}
+
+async function closeBinBinding(
+  db: DbLike,
+  input: {
+    binding: typeof commerceBinBindings.$inferSelect
+    state: 'released' | 'disabled'
+    action: 'unbind' | 'disable'
+    reason: string
+    operatorId?: string | null
+  },
+) {
+  const at = new Date()
+  await db
+    .update(commerceBinBindings)
+    .set({
+      state: input.state,
+      releasedAt: at,
+      releasedBy: input.operatorId || null,
+      releaseReason: input.reason,
+      updatedAt: at,
+    })
+    .where(eq(commerceBinBindings.id, input.binding.id))
+  await writeBinBindingHistory(db, {
+    organizationId: input.binding.organizationId,
+    warehouseId: input.binding.warehouseId,
+    binId: input.binding.binId,
+    variantId: input.binding.variantId,
+    bindingId: input.binding.id,
+    action: input.action,
+    reason: input.reason,
+    operatorId: input.operatorId,
+  })
+}
+
+async function bindSkuToBin(
+  db: DbLike,
+  input: {
+    organizationId: string
+    warehouseId: string
+    binId: string
+    variant: { id: string; skuCode: string }
+    operatorId?: string | null
+    reason?: string | null
+  },
+) {
+  const [active] = await db
+    .select({ id: commerceBinBindings.id })
+    .from(commerceBinBindings)
+    .where(
+      and(
+        eq(commerceBinBindings.organizationId, input.organizationId),
+        eq(commerceBinBindings.binId, input.binId),
+        eq(commerceBinBindings.state, 'active'),
+      ),
+    )
+    .limit(1)
+  if (active) throw new Error('库位已有有效绑定，请先解绑')
+  const [busy] = await db
+    .select({ code: commerceBins.code })
+    .from(commerceBinBindings)
+    .innerJoin(commerceBins, eq(commerceBins.id, commerceBinBindings.binId))
+    .where(
+      and(
+        eq(commerceBinBindings.organizationId, input.organizationId),
+        eq(commerceBinBindings.warehouseId, input.warehouseId),
+        eq(commerceBinBindings.variantId, input.variant.id),
+        eq(commerceBinBindings.state, 'active'),
+        ne(commerceBinBindings.binId, input.binId),
+      ),
+    )
+    .limit(1)
+  if (busy) throw new Error(`SKU ${input.variant.skuCode} 已绑定库位 ${busy.code}`)
+
+  const id = createId()
+  const at = new Date()
+  await db.insert(commerceBinBindings).values({
+    id,
+    organizationId: input.organizationId,
+    warehouseId: input.warehouseId,
+    binId: input.binId,
+    variantId: input.variant.id,
+    state: 'active',
+    boundAt: at,
+    boundBy: input.operatorId || null,
+  })
+  await writeBinBindingHistory(db, {
+    organizationId: input.organizationId,
+    warehouseId: input.warehouseId,
+    binId: input.binId,
+    variantId: input.variant.id,
+    bindingId: id,
+    action: 'bind',
+    reason: input.reason || null,
+    operatorId: input.operatorId,
+  })
+  return id
 }
 
 function movementDirection(qtyDelta: number, movementType: string): MovementDto['direction'] {
@@ -606,6 +819,7 @@ export async function createBin(
     boundSku?: string
     note?: string
   },
+  operatorId?: string | null,
 ): Promise<BinDto> {
   const warehouseCode = input.warehouseCode.trim()
   const code = input.code.trim()
@@ -635,22 +849,10 @@ export async function createBin(
       )
       .limit(1)
     if (dup) throw new Error(`库位 ${code} 已存在`)
-    const boundSku = input.boundSku?.trim() || null
-    if (boundSku) {
-      const [busy] = await tx
-        .select({ id: commerceBins.id, code: commerceBins.code })
-        .from(commerceBins)
-        .where(
-          and(
-            eq(commerceBins.organizationId, organizationId),
-            eq(commerceBins.warehouseId, wh.id),
-            eq(commerceBins.boundSku, boundSku),
-            ne(commerceBins.status, 'disabled'),
-          ),
-        )
-        .limit(1)
-      if (busy) throw new Error(`SKU ${boundSku} 已绑定库位 ${busy.code}（一库位一启用 SKU）`)
-    }
+    const variant = input.boundSku?.trim()
+      ? await resolveVariantBySku(tx, organizationId, input.boundSku)
+      : null
+    const boundSku = variant?.skuCode || null
     const id = createId()
     await tx.insert(commerceBins).values({
       id,
@@ -664,6 +866,15 @@ export async function createBin(
       status: boundSku ? 'occupied' : 'empty',
       note: input.note?.trim() || null,
     })
+    if (variant) {
+      await bindSkuToBin(tx, {
+        organizationId,
+        warehouseId: wh.id,
+        binId: id,
+        variant,
+        operatorId,
+      })
+    }
     const [row] = await tx.select().from(commerceBins).where(eq(commerceBins.id, id)).limit(1)
     return {
       id: row!.id,
@@ -684,7 +895,15 @@ export async function updateBin(
   db: AppDatabase,
   organizationId: string,
   id: string,
-  patch: Partial<{ zoneCode: string; name: string; boundSku: string; status: string; note: string }>,
+  patch: Partial<{
+    zoneCode: string
+    name: string
+    boundSku: string
+    status: string
+    note: string
+    reason: string
+  }>,
+  operatorId?: string | null,
 ): Promise<BinDto> {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -693,37 +912,118 @@ export async function updateBin(
       .where(and(eq(commerceBins.organizationId, organizationId), eq(commerceBins.id, id)))
       .limit(1)
     if (!row) throw new Error('库位不存在')
-    const nextBound = patch.boundSku !== undefined ? patch.boundSku.trim() || null : row.boundSku
-    if (nextBound && nextBound !== row.boundSku) {
-      const [busy] = await tx
-        .select({ id: commerceBins.id, code: commerceBins.code })
-        .from(commerceBins)
-        .where(
-          and(
-            eq(commerceBins.organizationId, organizationId),
-            eq(commerceBins.warehouseId, row.warehouseId),
-            eq(commerceBins.boundSku, nextBound),
-            ne(commerceBins.id, row.id),
-            ne(commerceBins.status, 'disabled'),
-          ),
-        )
-        .limit(1)
-      if (busy) throw new Error(`SKU ${nextBound} 已绑定库位 ${busy.code}`)
+    const requestedVariant =
+      patch.boundSku !== undefined && patch.boundSku.trim()
+        ? await resolveVariantBySku(tx, organizationId, patch.boundSku)
+        : null
+    const requestedBound =
+      patch.boundSku !== undefined ? requestedVariant?.skuCode || null : row.boundSku
+    const bindingChange = requestedBound !== row.boundSku
+    const nextStatus = patch.status ? toDbBinStatus(patch.status) : null
+    const willDisable = nextStatus === 'disabled' && row.status !== 'disabled'
+    const reason = patch.reason?.trim() || ''
+    if (bindingChange && row.status === 'disabled') {
+      throw new Error('停用库位不可换绑或解绑，请先启用')
     }
-    const nextStatus = patch.status
-      ? toDbBinStatus(patch.status)
-      : nextBound
-        ? 'occupied'
-        : row.status === 'occupied' && !nextBound
-          ? 'empty'
-          : row.status
+    const legacyVariant =
+      (bindingChange || willDisable) &&
+      row.boundSku &&
+      requestedVariant?.skuCode !== row.boundSku
+        ? await resolveVariantBySku(tx, organizationId, row.boundSku).catch(() => null)
+        : null
+
+    if (willDisable && bindingChange) {
+      throw new Error('停用库位时不可同时换绑或解绑')
+    }
+
+    if (bindingChange) {
+      if (!reason) throw new Error('解绑/换绑必须填写原因')
+      const active = await getActiveBinBinding(tx, organizationId, row.id)
+      await assertBinInventoryZero(
+        tx,
+        organizationId,
+        row.warehouseCode,
+        row.code,
+        requestedBound ? '换绑' : '解绑',
+      )
+      if (active) {
+        if (!requestedVariant || active.variantId !== requestedVariant.id) {
+          await closeBinBinding(tx, {
+            binding: active,
+            state: 'released',
+            action: 'unbind',
+            reason,
+            operatorId,
+          })
+        }
+      } else if (row.boundSku) {
+        // 旧 bound_sku 未迁移：首次操作时补一条无 binding_id 的履历，不批量回填。
+        await writeBinBindingHistory(tx, {
+          organizationId,
+          warehouseId: row.warehouseId,
+          binId: row.id,
+          variantId: legacyVariant?.id ?? null,
+          action: 'unbind',
+          reason,
+          operatorId,
+        })
+      }
+      if (
+        requestedVariant &&
+        (!active || active.variantId !== requestedVariant.id)
+      ) {
+        await bindSkuToBin(tx, {
+          organizationId,
+          warehouseId: row.warehouseId,
+          binId: row.id,
+          variant: requestedVariant,
+          operatorId,
+          reason,
+        })
+      }
+    }
+
+    if (willDisable) {
+      if (!reason) throw new Error('停用库位必须填写原因')
+      const active = await getActiveBinBinding(tx, organizationId, row.id)
+      if (active) {
+        await closeBinBinding(tx, {
+          binding: active,
+          state: 'disabled',
+          action: 'disable',
+          reason,
+          operatorId,
+        })
+      } else {
+        await writeBinBindingHistory(tx, {
+          organizationId,
+          warehouseId: row.warehouseId,
+          binId: row.id,
+          variantId: legacyVariant?.id ?? null,
+          action: 'disable',
+          reason,
+          operatorId,
+        })
+      }
+    }
+
+    const nextBound = willDisable ? null : bindingChange ? requestedBound : row.boundSku
+    const nextStatusFinal =
+      nextStatus ??
+      (bindingChange
+        ? requestedBound
+          ? 'occupied'
+          : row.status === 'occupied'
+            ? 'empty'
+            : row.status
+        : row.status)
     await tx
       .update(commerceBins)
       .set({
         zoneCode: patch.zoneCode !== undefined ? patch.zoneCode.trim() || null : row.zoneCode,
         name: patch.name !== undefined ? patch.name.trim() || row.code : row.name,
         boundSku: nextBound,
-        status: nextStatus,
+        status: nextStatusFinal,
         note: patch.note !== undefined ? patch.note.trim() || null : row.note,
         updatedAt: new Date(),
       })
@@ -742,6 +1042,104 @@ export async function updateBin(
       updatedAt: formatStamp(updated!.updatedAt),
     }
   })
+}
+
+export async function getBin(db: AppDatabase | DbLike, organizationId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(commerceBins)
+    .where(and(eq(commerceBins.organizationId, organizationId), eq(commerceBins.id, id)))
+    .limit(1)
+  return row ?? null
+}
+
+export async function listBinBindings(
+  db: AppDatabase,
+  organizationId: string,
+  input: { binId: string; page?: number; pageSize?: number },
+): Promise<PaginatedResult<BinBindingHistoryDto> & { active: BinBindingDto | null }> {
+  const page = normalizePage(input.page)
+  const pageSize = normalizePageSize(input.pageSize)
+  const [bin] = await db
+    .select({ id: commerceBins.id })
+    .from(commerceBins)
+    .where(
+      and(
+        eq(commerceBins.organizationId, organizationId),
+        eq(commerceBins.id, input.binId),
+      ),
+    )
+    .limit(1)
+  if (!bin) throw new Error('库位不存在')
+
+  const activeRow = await getActiveBinBinding(db, organizationId, input.binId)
+  let active: BinBindingDto | null = null
+  if (activeRow) {
+    const [variant] = await db
+      .select({
+        skuCode: productVariants.skuCode,
+        sku: productVariants.sku,
+        name: products.title,
+      })
+      .from(productVariants)
+      .leftJoin(products, eq(products.id, productVariants.productId))
+      .where(eq(productVariants.id, activeRow.variantId))
+      .limit(1)
+    active = {
+      id: activeRow.id,
+      binId: activeRow.binId,
+      variantId: activeRow.variantId,
+      sku: variant?.skuCode || variant?.sku || '',
+      name: variant?.name || variant?.skuCode || variant?.sku || '',
+      state: activeRow.state as BinBindingDto['state'],
+      boundAt: formatStamp(activeRow.boundAt),
+      boundBy: activeRow.boundBy || '',
+      releasedAt: activeRow.releasedAt ? formatStamp(activeRow.releasedAt) : '',
+      releasedBy: activeRow.releasedBy || '',
+      releaseReason: activeRow.releaseReason || '',
+    }
+  }
+
+  const where = and(
+    eq(binBindingHistory.organizationId, organizationId),
+    eq(binBindingHistory.binId, input.binId),
+  )
+  const [totalRow] = await db.select({ c: count() }).from(binBindingHistory).where(where)
+  const rows = await db
+    .select({
+      history: binBindingHistory,
+      skuCode: productVariants.skuCode,
+      sku: productVariants.sku,
+      name: products.title,
+    })
+    .from(binBindingHistory)
+    .leftJoin(productVariants, eq(productVariants.id, binBindingHistory.variantId))
+    .leftJoin(products, eq(products.id, productVariants.productId))
+    .where(where)
+    .orderBy(desc(binBindingHistory.occurredAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+  return {
+    active,
+    items: rows.map(({ history, skuCode, sku, name }) => {
+      const action = history.action as BinBindingHistoryDto['action']
+      return {
+        id: history.id,
+        action,
+        actionLabel: binBindingActionLabels[action] || history.action,
+        variantId: history.variantId || '',
+        sku: skuCode || sku || '',
+        name: name || skuCode || sku || '',
+        reason: history.reason || '',
+        operatorId: history.operatorId || '',
+        occurredAt: formatStamp(history.occurredAt),
+        bindingId: history.bindingId || '',
+      }
+    }),
+    total: Number(totalRow?.c ?? 0),
+    page,
+    pageSize,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1757,32 +2155,13 @@ export async function postAdjustment(
 }
 
 // ---------------------------------------------------------------------------
-// zones — derived from bins.zone_code + warehouse.raw.zones（无 zone 表）
+// zones — commerce_warehouse_zones（真实表；兼容旧 warehouse:code 合成 ID）
 // ---------------------------------------------------------------------------
-
-function zoneId(warehouseCode: string, code: string) {
-  return `${warehouseCode}:${code}`
-}
 
 function parseZoneId(id: string): { warehouseCode: string; code: string } | null {
   const idx = id.indexOf(':')
   if (idx <= 0) return null
   return { warehouseCode: id.slice(0, idx), code: id.slice(idx + 1) }
-}
-
-function readZoneMetas(raw: Record<string, unknown> | null | undefined): ZoneRawMeta[] {
-  const zones = raw?.zones
-  if (!Array.isArray(zones)) return []
-  return zones
-    .filter((z): z is Record<string, unknown> => !!z && typeof z === 'object')
-    .map((z) => ({
-      code: String(z.code || '').trim().toUpperCase(),
-      name: typeof z.name === 'string' ? z.name : undefined,
-      purpose: typeof z.purpose === 'string' ? z.purpose : undefined,
-      status: typeof z.status === 'string' ? z.status : undefined,
-      note: typeof z.note === 'string' ? z.note : undefined,
-    }))
-    .filter((z) => z.code)
 }
 
 function toUiZoneStatus(status: string | undefined): '启用' | '停用' {
@@ -1791,11 +2170,56 @@ function toUiZoneStatus(status: string | undefined): '启用' | '停用' {
   return '启用'
 }
 
-function writeZoneMetas(
-  raw: Record<string, unknown> | null | undefined,
-  zones: ZoneRawMeta[],
-): Record<string, unknown> {
-  return { ...(raw || {}), zones }
+function toDbZoneStatus(status: string | undefined): 'active' | 'disabled' {
+  if (!status) return 'active'
+  if (status === '停用' || status === 'disabled' || status === 'inactive') return 'disabled'
+  return 'active'
+}
+
+function mapZoneRow(
+  row: { zone: typeof commerceWarehouseZones.$inferSelect; warehouseCode: string },
+  binCount: number,
+): ZoneDto {
+  return {
+    id: row.zone.id,
+    warehouseId: row.zone.warehouseId,
+    warehouseCode: row.warehouseCode,
+    code: row.zone.code,
+    name: row.zone.name,
+    purpose: row.zone.purpose || '',
+    status: toUiZoneStatus(row.zone.status),
+    note: row.zone.note || '',
+    binCount,
+    updatedAt: formatStamp(row.zone.updatedAt),
+  }
+}
+
+async function binCountsByZone(
+  db: DbLike,
+  organizationId: string,
+  rows: Array<{ zone: typeof commerceWarehouseZones.$inferSelect }>,
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>()
+  if (rows.length === 0) return result
+  const counts = await db
+    .select({
+      warehouseId: commerceBins.warehouseId,
+      zoneCode: commerceBins.zoneCode,
+      c: count(),
+    })
+    .from(commerceBins)
+    .where(
+      and(
+        eq(commerceBins.organizationId, organizationId),
+        inArray(commerceBins.warehouseId, rows.map((r) => r.zone.warehouseId)),
+        inArray(commerceBins.zoneCode, rows.map((r) => r.zone.code)),
+      ),
+    )
+    .groupBy(commerceBins.warehouseId, commerceBins.zoneCode)
+  for (const c of counts) {
+    result.set(`${c.warehouseId}:${c.zoneCode}`, Number(c.c))
+  }
+  return result
 }
 
 export async function listZones(
@@ -1805,109 +2229,129 @@ export async function listZones(
 ): Promise<PaginatedResult<ZoneDto>> {
   const page = normalizePage(input.page)
   const pageSize = normalizePageSize(input.pageSize)
-
-  const whFilters: SQL[] = [eq(commerceWarehouses.organizationId, organizationId)]
+  const filters: SQL[] = [eq(commerceWarehouseZones.organizationId, organizationId)]
   if (input.warehouse?.trim()) {
-    whFilters.push(
+    const term = input.warehouse.trim()
+    filters.push(
       or(
-        eq(commerceWarehouses.code, input.warehouse.trim()),
-        eq(commerceWarehouses.id, input.warehouse.trim()),
+        eq(commerceWarehouses.code, term),
+        eq(commerceWarehouses.id, term),
       )!,
     )
   }
-  const warehouses = await db.select().from(commerceWarehouses).where(and(...whFilters))
-
-  const bins = await db
-    .select({
-      warehouseId: commerceBins.warehouseId,
-      warehouseCode: commerceBins.warehouseCode,
-      zoneCode: commerceBins.zoneCode,
-    })
-    .from(commerceBins)
-    .where(eq(commerceBins.organizationId, organizationId))
-
-  const binCountMap = new Map<string, number>()
-  const binZoneKeys = new Set<string>()
-  for (const b of bins) {
-    const code = (b.zoneCode || '').trim().toUpperCase()
-    if (!code) continue
-    const key = zoneId(b.warehouseCode, code)
-    binZoneKeys.add(key)
-    binCountMap.set(key, (binCountMap.get(key) || 0) + 1)
-  }
-
-  const items: ZoneDto[] = []
-  const seen = new Set<string>()
-
-  for (const wh of warehouses) {
-    const metas = readZoneMetas(wh.raw as Record<string, unknown> | null)
-    const metaByCode = new Map(metas.map((m) => [m.code, m]))
-    const codes = new Set<string>(metas.map((m) => m.code))
-    for (const b of bins) {
-      if (b.warehouseId !== wh.id) continue
-      const code = (b.zoneCode || '').trim().toUpperCase()
-      if (code) codes.add(code)
-    }
-    for (const code of codes) {
-      const id = zoneId(wh.code, code)
-      if (seen.has(id)) continue
-      seen.add(id)
-      const meta = metaByCode.get(code)
-      items.push({
-        id,
-        warehouseId: wh.id,
-        warehouseCode: wh.code,
-        code,
-        name: meta?.name?.trim() || `${code} 区`,
-        purpose: meta?.purpose?.trim() || '',
-        status: toUiZoneStatus(meta?.status),
-        note: meta?.note?.trim() || '',
-        binCount: binCountMap.get(id) || 0,
-        updatedAt: formatStamp(wh.updatedAt),
-      })
-    }
-  }
-
-  let filtered = items
-  if (input.status === '启用' || input.status === '停用') {
-    filtered = filtered.filter((z) => z.status === input.status)
+  if (input.status) {
+    filters.push(eq(commerceWarehouseZones.status, toDbZoneStatus(input.status)))
   }
   if (input.q?.trim()) {
-    const q = input.q.trim().toLowerCase()
-    filtered = filtered.filter(
-      (z) =>
-        z.code.toLowerCase().includes(q) ||
-        z.name.toLowerCase().includes(q) ||
-        z.warehouseCode.toLowerCase().includes(q) ||
-        z.purpose.toLowerCase().includes(q) ||
-        z.note.toLowerCase().includes(q),
+    const q = `%${input.q.trim()}%`
+    filters.push(
+      or(
+        ilike(commerceWarehouseZones.code, q),
+        ilike(commerceWarehouseZones.name, q),
+        ilike(commerceWarehouseZones.purpose, q),
+        ilike(commerceWarehouseZones.note, q),
+        ilike(commerceWarehouses.code, q),
+      )!,
     )
   }
-  filtered.sort((a, b) => a.warehouseCode.localeCompare(b.warehouseCode) || a.code.localeCompare(b.code))
-  const total = filtered.length
-  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize)
-  return { items: pageItems, total, page, pageSize }
+  const where = and(...filters)
+  const [totalRow] = await db
+    .select({ c: count() })
+    .from(commerceWarehouseZones)
+    .innerJoin(commerceWarehouses, eq(commerceWarehouses.id, commerceWarehouseZones.warehouseId))
+    .where(where)
+  const rows = await db
+    .select({ zone: commerceWarehouseZones, warehouseCode: commerceWarehouses.code })
+    .from(commerceWarehouseZones)
+    .innerJoin(commerceWarehouses, eq(commerceWarehouses.id, commerceWarehouseZones.warehouseId))
+    .where(where)
+    .orderBy(asc(commerceWarehouses.code), asc(commerceWarehouseZones.code))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+  const binCounts = await binCountsByZone(db, organizationId, rows)
+  return {
+    items: rows.map((row) =>
+      mapZoneRow(row, binCounts.get(`${row.zone.warehouseId}:${row.zone.code}`) || 0),
+    ),
+    total: Number(totalRow?.c ?? 0),
+    page,
+    pageSize,
+  }
 }
 
 export async function zoneStats(db: AppDatabase, organizationId: string) {
-  const { items } = await listZones(db, organizationId, { page: 1, pageSize: 500 })
+  const [total] = await db
+    .select({ c: count() })
+    .from(commerceWarehouseZones)
+    .where(eq(commerceWarehouseZones.organizationId, organizationId))
+  const [active] = await db
+    .select({ c: count() })
+    .from(commerceWarehouseZones)
+    .where(
+      and(
+        eq(commerceWarehouseZones.organizationId, organizationId),
+        eq(commerceWarehouseZones.status, 'active'),
+      ),
+    )
+  const [disabled] = await db
+    .select({ c: count() })
+    .from(commerceWarehouseZones)
+    .where(
+      and(
+        eq(commerceWarehouseZones.organizationId, organizationId),
+        eq(commerceWarehouseZones.status, 'disabled'),
+      ),
+    )
+  const [withBins] = await db
+    .select({ c: sql<number>`count(distinct ${commerceWarehouseZones.id})` })
+    .from(commerceWarehouseZones)
+    .innerJoin(
+      commerceBins,
+      and(
+        eq(commerceBins.organizationId, commerceWarehouseZones.organizationId),
+        eq(commerceBins.warehouseId, commerceWarehouseZones.warehouseId),
+        eq(commerceBins.zoneCode, commerceWarehouseZones.code),
+      ),
+    )
+    .where(eq(commerceWarehouseZones.organizationId, organizationId))
   return {
-    zones: items.length,
-    activeZones: items.filter((z) => z.status === '启用').length,
-    disabledZones: items.filter((z) => z.status === '停用').length,
-    withBins: items.filter((z) => z.binCount > 0).length,
+    zones: Number(total?.c ?? 0),
+    activeZones: Number(active?.c ?? 0),
+    disabledZones: Number(disabled?.c ?? 0),
+    withBins: Number(withBins?.c ?? 0),
   }
 }
 
+async function findZone(
+  db: DbLike,
+  organizationId: string,
+  idOrCode: string,
+): Promise<{ zone: typeof commerceWarehouseZones.$inferSelect; warehouseCode: string } | null> {
+  const parsed = parseZoneId(idOrCode)
+  const condition = parsed
+    ? and(
+        eq(commerceWarehouseZones.organizationId, organizationId),
+        eq(commerceWarehouses.code, parsed.warehouseCode),
+        eq(commerceWarehouseZones.code, parsed.code.toUpperCase()),
+      )
+    : and(
+        eq(commerceWarehouseZones.organizationId, organizationId),
+        eq(commerceWarehouseZones.id, idOrCode),
+      )
+  const [row] = await db
+    .select({ zone: commerceWarehouseZones, warehouseCode: commerceWarehouses.code })
+    .from(commerceWarehouseZones)
+    .innerJoin(commerceWarehouses, eq(commerceWarehouses.id, commerceWarehouseZones.warehouseId))
+    .where(condition)
+    .limit(1)
+  return row ?? null
+}
+
 export async function getZone(db: AppDatabase | DbLike, organizationId: string, id: string) {
-  const parsed = parseZoneId(id)
-  if (!parsed) return null
-  const { items } = await listZones(db as AppDatabase, organizationId, {
-    page: 1,
-    pageSize: 500,
-    warehouse: parsed.warehouseCode,
-  })
-  return items.find((z) => z.id === id || (z.warehouseCode === parsed.warehouseCode && z.code === parsed.code)) || null
+  const row = await findZone(db, organizationId, id)
+  if (!row) return null
+  const counts = await binCountsByZone(db, organizationId, [row])
+  return mapZoneRow(row, counts.get(`${row.zone.warehouseId}:${row.zone.code}`) || 0)
 }
 
 export async function createZone(
@@ -1937,28 +2381,30 @@ export async function createZone(
       )
       .limit(1)
     if (!wh) throw new Error(`仓库 ${warehouseCode} 不存在`)
-    const metas = readZoneMetas(wh.raw as Record<string, unknown> | null)
-    if (metas.some((m) => m.code === code)) {
-      throw new Error(`仓库 ${warehouseCode} 下已有库区 ${code}`)
-    }
-    const next: ZoneRawMeta[] = [
-      ...metas,
-      {
-        code,
-        name: input.name?.trim() || `${code} 区`,
-        purpose: input.purpose?.trim() || '',
-        status: toUiZoneStatus(input.status),
-        note: input.note?.trim() || '',
-      },
-    ]
-    await tx
-      .update(commerceWarehouses)
-      .set({
-        raw: writeZoneMetas(wh.raw as Record<string, unknown> | null, next),
-        updatedAt: new Date(),
-      })
-      .where(eq(commerceWarehouses.id, wh.id))
-    const row = await getZone(tx, organizationId, zoneId(wh.code, code))
+    const [dup] = await tx
+      .select({ id: commerceWarehouseZones.id })
+      .from(commerceWarehouseZones)
+      .where(
+        and(
+          eq(commerceWarehouseZones.organizationId, organizationId),
+          eq(commerceWarehouseZones.warehouseId, wh.id),
+          eq(commerceWarehouseZones.code, code),
+        ),
+      )
+      .limit(1)
+    if (dup) throw new Error(`仓库 ${warehouseCode} 下已有库区 ${code}`)
+    const id = createId()
+    await tx.insert(commerceWarehouseZones).values({
+      id,
+      organizationId,
+      warehouseId: wh.id,
+      code,
+      name: input.name?.trim() || `${code} 区`,
+      purpose: input.purpose?.trim() || null,
+      status: toDbZoneStatus(input.status),
+      note: input.note?.trim() || null,
+    })
+    const row = await getZone(tx, organizationId, id)
     if (!row) throw new Error('库区创建失败')
     return row
   })
@@ -1970,54 +2416,27 @@ export async function updateZone(
   id: string,
   patch: Partial<{ name: string; purpose: string; status: string; note: string }>,
 ): Promise<ZoneDto> {
-  const parsed = parseZoneId(id)
-  if (!parsed) throw new Error('库区 ID 无效')
   return db.transaction(async (tx) => {
-    const [wh] = await tx
-      .select()
-      .from(commerceWarehouses)
-      .where(
-        and(
-          eq(commerceWarehouses.organizationId, organizationId),
-          eq(commerceWarehouses.code, parsed.warehouseCode),
-        ),
-      )
-      .limit(1)
-    if (!wh) throw new Error(`仓库 ${parsed.warehouseCode} 不存在`)
-    const code = parsed.code.toUpperCase()
-    const metas = readZoneMetas(wh.raw as Record<string, unknown> | null)
-    const existing = metas.find((m) => m.code === code)
-    // ensure zone exists either as meta or via bins
-    const [binHit] = await tx
-      .select({ id: commerceBins.id })
-      .from(commerceBins)
-      .where(
-        and(
-          eq(commerceBins.organizationId, organizationId),
-          eq(commerceBins.warehouseId, wh.id),
-          eq(commerceBins.zoneCode, code),
-        ),
-      )
-      .limit(1)
-    if (!existing && !binHit) throw new Error('库区不存在')
-    const nextMeta: ZoneRawMeta = {
-      code,
-      name: patch.name !== undefined ? patch.name.trim() || `${code} 区` : existing?.name || `${code} 区`,
-      purpose: patch.purpose !== undefined ? patch.purpose.trim() : existing?.purpose || '',
-      status: patch.status !== undefined ? toUiZoneStatus(patch.status) : toUiZoneStatus(existing?.status),
-      note: patch.note !== undefined ? patch.note.trim() : existing?.note || '',
-    }
-    const next = existing
-      ? metas.map((m) => (m.code === code ? nextMeta : m))
-      : [...metas, nextMeta]
+    const current = await findZone(tx, organizationId, id)
+    if (!current) throw new Error('库区不存在')
+    // 编码创建后不可变：patch 不接收 code。
     await tx
-      .update(commerceWarehouses)
+      .update(commerceWarehouseZones)
       .set({
-        raw: writeZoneMetas(wh.raw as Record<string, unknown> | null, next),
+        name:
+          patch.name !== undefined
+            ? patch.name.trim() || `${current.zone.code} 区`
+            : current.zone.name,
+        purpose: patch.purpose !== undefined ? patch.purpose.trim() || null : current.zone.purpose,
+        status:
+          patch.status !== undefined
+            ? toDbZoneStatus(patch.status)
+            : toDbZoneStatus(current.zone.status),
+        note: patch.note !== undefined ? patch.note.trim() || null : current.zone.note,
         updatedAt: new Date(),
       })
-      .where(eq(commerceWarehouses.id, wh.id))
-    const row = await getZone(tx, organizationId, zoneId(wh.code, code))
+      .where(eq(commerceWarehouseZones.id, current.zone.id))
+    const row = await getZone(tx, organizationId, current.zone.id)
     if (!row) throw new Error('库区更新失败')
     return row
   })

@@ -49,6 +49,8 @@ draft → booked → departed → arrived → customs → received
 
 目的仓默认 `WH-LK-CMB-001`，staging 库位 `STAGING`（不共享 `WH-CN-XMN`）。
 
+0009 起写入 `destination_warehouse_id`（FK → `commerce_warehouses.id`），保留 `destination_warehouse_code` 冗余；创建/更新时按 code 解析，找不到直接报错。`sku_costs.container_lot_id` 与 `ocean_shipment_lines.sku_cost_id` 也补了 `onDelete set null` FK。
+
 ## 幂等键（`ledger:ocean_*`）
 
 | 阶段 | movement_type | idempotency_key |

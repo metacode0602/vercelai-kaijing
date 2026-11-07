@@ -178,7 +178,7 @@ export default function WarehouseZoneDetailPage({ params }: { params: Promise<{ 
       />
       <DetailFieldGrid
         title="库区主信息"
-        description="commerce_warehouses.raw.zones + commerce_bins.zone_code"
+        description="commerce_warehouse_zones + commerce_bins.zone_code"
         fields={[
           { label: '库区 ID', value: row.id, mono: true },
           ...parentFields,
