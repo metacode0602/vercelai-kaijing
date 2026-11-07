@@ -405,7 +405,6 @@
       "integrationLog": "接口日志",
       "audit": "变更审计",
       "erpAccess": "角色与数据范围",
-      "credentials": "平台凭证",
       "notifications": "通知 / 钉钉",
       "members": "组织成员",
       "preferences": "偏好",

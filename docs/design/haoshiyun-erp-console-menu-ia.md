@@ -131,7 +131,7 @@
 │ 设置                 │  ├────────────────────────────────────┤
 │                      │  │                                    │
 │  · 店铺连接        ◀ │  │  主区域（三种既有交互模式）：        │
-│  · 平台凭证          │  │  ① 列表+分步向导   （店铺连接）      │
+│  · 平台应用配置      │  │  ① 列表+分步向导   （店铺连接）      │
 │  · 平台基础资料      │  │  ② 页内水平Tab+弹窗（平台基础资料）  │
 │  · 基础数据字典      │  │  ③ 左右 master-detail（字典）        │
 │  · 数据导入   [新]   │  │                                    │
@@ -145,7 +145,7 @@
 
 - 现有 8 Tab 保留；**新增**「数据导入」「接口日志」2 个 Tab（D2：主侧栏 `administration` 组的 `/console/imports`、`/console/system-log` 内容迁入，D6 旧路由删除）。
 - 「角色权限」Tab 沿用现有 `settings/erp-access`（re-export 角色矩阵）；「组织成员」负责账号启停，与角色权限合并覆盖 Excel「人员角色权限」。
-- 「平台店铺与授权」= 现有「店铺连接」+「平台凭证」两 Tab（店铺主档向导 / OAuth 凭据），不合并以保持现状交互。
+- 「平台店铺与授权」收口到「店铺连接」：店铺主档、OAuth 授权、到期与健康同页；组织级 App Key/Secret 放在「平台应用配置」。独立「平台凭证」页已删除。
 - 「基础数据字典」Tab 保留（D5）：与商品中心「商品评论」外的属性字典入口同页。
 
 ---
@@ -240,7 +240,7 @@
 | 设置 Tab | 主要功能（子功能） | 核心数据表 | 来源 |
 |---|---|---|---|
 | 店铺连接 | 列表 + 分步向导（平台→站点→资料→多选仓库→唯一默认仓）、详情、停用 | shops、shop_warehouses、integration_states（同步健康） | 现有 |
-| 平台凭证 | 凭据卡片、OAuth 重新授权、到期提醒、测试连接 | integration_credentials | 现有 |
+| 平台应用配置 | 组织级 App Key/App Secret、默认/独立回调、最近验证与错误 | marketplace_app_credentials | 现有 |
 | 平台基础资料 | 页内 4 Tab：平台/国家站点/仓库/币种 CRUD、启停 | commerce_platforms、commerce_countries、platform_marketplaces、commerce_currencies、commerce_warehouses | 现有 |
 | 基础数据字典 | 左右两栏字典维护（同商品中心入口） | commerce_dictionaries 系 | 现有 |
 | 数据导入 | 模板下载、上传校验、错误行报告、批次回滚（双通道 file/platform_api） | import_batches、import_rows | **新增 Tab**（迁自 /console/imports） |
@@ -345,7 +345,7 @@
 | audit_events | 设置·接口日志（操作审计 Tab/关联跳转） |
 | import_batches / import_rows | 设置·数据导入（批次列表+行错误报告） |
 | report_metrics | 报表中心·经营报表（指标口径说明） |
-| integration_credentials | 设置·平台凭证 |
+| integration_credentials | 设置·店铺连接（授权状态/到期/健康） |
 | integration_states | 设置·店铺连接（详情同步健康）+ 发布与同步任务（游标摘要） |
 | integration_logs | 设置·接口日志 + 刊登中心·发布与同步任务（action 过滤视图） |
 
@@ -417,7 +417,7 @@
 | administration/access-control | → 设置·角色权限（settings/erp-access 同页 re-export） | **删除**（同页二入口合一） |
 | settings/dictionaries | → 商品中心·`/console/dictionaries`（同页换壳） | **删除**旧路由；设置 Tab 变导航链接 |
 | `groupKey` 联合类型 | `workbench`\|`products`\|`listings`\|`procurement`\|`warehouse`\|`fulfillment`\|`aftersales`\|`finance`\|`reports` | — |
-| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 imports、integration-log 两项（10 Tab） | — |
+| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 marketplace-apps、imports、integration-log；删除 credentials | — |
 | 图标映射 NAV_ICONS | 按新组补 lucide 图标（如 Boxes/Factory/Truck/BadgePercent/ChartNoAxesCombined） | — |
 
 ### 5.3 旧路由处置清单

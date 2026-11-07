@@ -1,6 +1,6 @@
 # Marketplace 多租户应用凭据设计
 
-**状态：** 已实现，待执行迁移与浏览器验收（2026-11-07）
+**状态：** 已实现（含页面去重），待执行迁移与浏览器验收（2026-11-07）
 **范围：** `apps/shop`、`apps/api`、`packages/marketplace`、`packages/db`  
 **关联文档：** [marketplace-connectors.md](marketplace-connectors.md)、[tenant-onboarding-and-store-binding.md](../../apps/shop/content/design/tenant-onboarding-and-store-binding.md)
 
@@ -50,6 +50,33 @@ flowchart LR
   Resolver --> DB
 ```
 
+### 2.1 组织、店铺与授权的边界
+
+平台应用凭据与店铺授权不是同一层数据，不能合并成一张表，也不能用两个页面重复表达：
+
+| 层级 | 数据 | 职责 | 生命周期 |
+| --- | --- | --- | --- |
+| 组织 | `marketplace_app_credentials` | 租户自己的 App Key / App Secret、默认回调、可选独立回调路径 | 组织级配置，可跨店铺复用 |
+| 店铺 | `shops` + `integration_credentials` | 授权主体、站点、平台店铺/卖家 ID、加密 token、到期时间、授权健康 | 每个店铺独立授权 |
+| 授权握手 | OAuth `state` | 绑定 `organizationId + shopId + appCredentialId`，防止跨租户/跨应用串用 | 单次授权有效 |
+
+因此：
+
+- `/console/settings/marketplace-apps` 只管理组织级应用配置。
+- `/console/settings/shops` 同时呈现店铺级授权状态，不再保留独立的“平台凭证”页面。
+- `integration_credentials` 记录本次授权实际使用的 `app_credential_id`，同一店铺同一 `kind` 只保留一份有效凭证。
+- 页面不重复展示 App Secret；组织配置页只显示“已配置”，店铺页只显示授权结果与到期信息。
+
+### 2.2 平台策略与 `region` 选择
+
+`region` 不是必填维度，默认 `region=''` 表示该平台通用配置；只有平台/账号确实按站点签发独立应用时才新增站点覆盖。
+
+- Daraz：每个站点是独立卖家账号，授权与 token 也按站点独立；LK 的 token 不能用于其他站点。斯里兰卡 MVP 可以只配置 `daraz + LK`，也可以先用通用配置，等出现“站点必须独立 App”时再补 `LK/PK/...` 覆盖。
+- Lazada：五国共用同一个 AppKey，但卖家授权按站点进行；跨境一次授权可能返回多个 `seller_id`，站点 host 与 token 不能混用。当前仍按“每店铺一条 token”落库；只有跨境共享 refresh token 进入 P0 时，才抽象 `marketplace_authorization_grants`，现在不提前引入。
+- TikTok Shop：按平台文档使用 `GLOBAL` 或具体国家站点；没有独立应用要求时保持通用配置。
+
+页面表单默认选中“全部站点（通用）”，不再默认写死 `LK`。
+
 凭据解析顺序（同一组织、同一平台）：
 
 1. 精确匹配 `region = 归一化后的站点`。
@@ -83,6 +110,20 @@ flowchart LR
 - 普通索引 `(organization_id, platform)`、`(platform, app_key)`。
 - `region` 写入前 `trim().toUpperCase()`，空串保留。
 - `app_key` 不做全局唯一（同组织不同站点可复用同一应用）；保存时校验“同平台 + 同 App Key”不得出现在其他组织，避免 webhook 无法区分租户。
+
+扩展现有 `integration_credentials`（店铺授权）：
+
+| 列 | 类型 | 说明 |
+| --- | --- | --- |
+| `app_credential_id` | `text` NULL | 本次授权使用的组织应用配置；旧数据可为空 |
+| `kind` | 已有 | OAuth 授权固定为 `oauth` |
+| `shop_id` | 已有 | 店铺 ID |
+
+- 新增唯一索引 `(shop_id, kind)`：一个店铺同一凭证类型只保留一份记录，避免并发回调插入重复行。
+- 新增普通索引 `(app_credential_id)`，便于按应用配置排查授权店铺。
+- 回调成功时把 `state.appCredentialId` 写入该列；读取店铺授权状态时据此显示实际使用的平台应用。
+- 删除应用配置时外键 `ON DELETE SET NULL`：店铺已存 token 不自动删除，但失去应用关联，需重新配置并授权才能刷新/同步。
+- 历史行没有 `app_credential_id` 时仍保留授权结果，但不伪造应用关联；重新授权后自动补齐。
 
 加密：
 
@@ -165,7 +206,7 @@ interface OAuthStatePayload {
 5. 按 `appCredentialId + organizationId + platform` 加载且必须 `status='active'`。
 6. 若路径带 `callbackKey`，必须等于配置的 `callback_key`。
 7. 用配置的 `appKey` / `appSecret` 换 token。
-8. 落库 token、更新店铺状态、记录审计与日志。
+8. 落库 token（同时写入 `app_credential_id`）、更新店铺状态、记录审计与日志。
 9. 成功后更新配置 `last_verified_at`、清空 `last_error`；失败写 `last_error`（脱敏）。
 10. 302 回店铺详情，保留现有 `oauth=success|error&reason=…` 约定。
 
@@ -214,9 +255,11 @@ interface OAuthStatePayload {
 
 ### 7.1 路由与导航
 
-- 新页面：`apps/shop/src/app/[locale]/console/settings/marketplace-apps/page.tsx`
-- `SETTINGS_NAV` 在“店铺连接”之后增加“平台应用配置”（`settings.marketplaceApps`）。
-- 中英文 message 同步增加 key。
+- 组织应用配置页：`apps/shop/src/app/[locale]/console/settings/marketplace-apps/page.tsx`
+- `SETTINGS_NAV` 在“店铺连接”之后仅保留“平台应用配置”（`settings.marketplaceApps`）。
+- 删除独立“平台凭证”页 `/console/settings/credentials` 及导航、图标、message、`queueReauth` 等只服务该页的代码；不保留重定向，历史 URL 直接 404。
+- 店铺授权状态并入 `/console/settings/shops` 列表与详情页。
+- 中英文 message 同步删除 `settings.credentials`，增加 `settings.marketplaceApps`。
 
 ### 7.2 页面结构
 
@@ -230,12 +273,19 @@ interface OAuthStatePayload {
    - 列：平台、站点、App Key、回调地址、状态、最近验证、最近错误、操作。
    - App Secret 只显示“已配置”，不显示任何明文/尾号。
 4. 新增/编辑表单：
-   - 平台、站点（含“全部站点”）、App Key、App Secret、可选 callbackKey。
+   - 平台、站点（默认“全部站点（通用）”）、App Key、App Secret、可选 callbackKey。
    - 编辑时 App Secret 留空表示保持不变。
    - 保存前校验：同组织同平台同站点唯一；同平台 App Key 不得属于其他组织。
 5. 删除：二次确认；删除后相关店铺需重新配置才能授权/同步。
 
-### 7.3 未配置提示
+### 7.3 店铺列表与详情
+
+- 店铺列表保留授权状态、健康、同步状态、凭证摘要，并新增“平台应用”列（显示实际使用的应用配置；未关联时显示“未关联”）。
+- 店铺详情展示平台应用、授权到期、最近同步、错误信息，并提供“平台应用配置”链接。
+- 授权、重新授权、暂停/恢复同步、解绑、停用都在店铺页完成，不再跳转到独立凭证页。
+- 独立凭证页原有的“排队重授权”不是真实授权入口，随页面一起删除；统一使用“去平台授权 / 重新授权”。
+
+### 7.4 未配置提示
 
 - 点击“去平台授权”时若缺少配置：直接跳转“平台应用配置”，并展示“请先配置 App Key / App Secret”的提示与返回店铺链接。
 - `settings/shops/new`：按当前平台/站点查询配置；缺失时显示 Alert 并链接到“平台应用配置”，保留“仍然提交”由后端返回明确错误（不伪造成功）。
@@ -278,6 +328,7 @@ interface OAuthStatePayload {
 ## 10. 迁移与兼容
 
 - 由 `pnpm --filter @workspace/db db:generate` 生成新迁移，不手改 `packages/db/drizzle/`。
+- 执行 `(shop_id, kind)` 唯一索引前先检查历史重复：`select shop_id, kind, count(*) from integration_credentials group by 1,2 having count(*) > 1;`，有重复先保留最新一条再迁移。
 - 现有环境若仍配置全局 App Key：不自动导入数据库，不做兼容回退；上线后由租户在控制台录入并重新授权。
 - 已存 token 仍可解密（同一 `MARKETPLACE_CREDENTIALS_KEY`）；token 刷新需要对应租户配置存在且 App Key/Secret 正确。
 - 删除旧 env 前先在目标环境完成至少一个租户配置与真实 OAuth 验证。
@@ -292,10 +343,13 @@ interface OAuthStatePayload {
 
 ## 12. 验收清单
 
-- [ ] 租户所有者可在新页面创建 `daraz + LK` 配置，App Secret 保存后不可回显。
+- [ ] 租户所有者可在新页面创建 `daraz + LK` 或通用配置，App Secret 保存后不可回显。
 - [ ] `tenant_engineer` 可查看但无法调用写接口。
 - [ ] 同组织同平台同站点重复创建被拒绝；同 App Key 跨组织被拒绝。
 - [ ] 精确站点配置优先于通用配置；缺失通用配置时返回未配置。
+- [ ] `/console/settings/credentials` 已删除且无导航/菜单入口，历史 URL 404。
+- [ ] 店铺列表/详情展示授权状态、到期与实际使用的平台应用；OAuth 回调写入 `app_credential_id`。
+- [ ] 同一店铺同一 `kind` 只有一条 `integration_credentials`。
 - [ ] `shops.beginAuthorization` 使用租户配置，未配置时提示配置页。
 - [ ] 默认回调与新平台路径可完成真实 Daraz OAuth，state 含 `appCredentialId`。
 - [ ] 带 `callbackKey` 的路径校验通过；错误路径被拒绝。

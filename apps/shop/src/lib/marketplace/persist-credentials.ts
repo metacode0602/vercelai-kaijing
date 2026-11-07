@@ -22,6 +22,7 @@ export async function persistOAuthCredentials(input: {
   organizationId: string
   shopId: string
   platform: MarketplacePlatform
+  appCredentialId?: string
   tokens: CredentialPayload
   externalShopId?: string
   region?: string
@@ -126,12 +127,18 @@ export async function persistOAuthCredentials(input: {
     if (existingCredential) {
       await tx
         .update(integrationCredentials)
-        .set({ payloadEncrypted, expiresAt, updatedAt: new Date() })
+        .set({
+          appCredentialId: input.appCredentialId,
+          payloadEncrypted,
+          expiresAt,
+          updatedAt: new Date(),
+        })
         .where(eq(integrationCredentials.id, existingCredential.id))
     } else {
       await tx.insert(integrationCredentials).values({
         organizationId: input.organizationId,
         shopId: targetShop.id,
+        appCredentialId: input.appCredentialId,
         kind: 'oauth',
         payloadEncrypted,
         expiresAt,

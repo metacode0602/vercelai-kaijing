@@ -156,9 +156,6 @@ export const shopsRouter = createTRPCRouter({
   setSyncPaused: tenantAdminProcedure
     .input(z.object({ id: z.string().min(1), paused: z.boolean() }))
     .mutation(async ({ ctx, input }) => wrap(() => shopsDa.setShopSyncPaused(ctx.db, ctx.organizationId, input))),
-  queueReauth: tenantAdminProcedure
-    .input(z.object({ id: z.string().min(1) }))
-    .mutation(async ({ ctx, input }) => wrap(() => shopsDa.queueShopReauth(ctx.db, ctx.organizationId, input))),
   disable: tenantAdminProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => wrap(() => shopsDa.disableShop(ctx.db, ctx.organizationId, input))),

@@ -241,6 +241,7 @@ export async function GET(
       organizationId: state.organizationId,
       shopId: state.shopId,
       platform,
+      appCredentialId: appCredential.id,
       tokens: credential,
       externalShopId,
       region,

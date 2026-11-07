@@ -374,6 +374,10 @@ export const integrationCredentials = pgTable(
     shopId: text("shop_id")
       .notNull()
       .references(() => shops.id),
+    appCredentialId: text("app_credential_id").references(
+      () => marketplaceAppCredentials.id,
+      { onDelete: 'set null' },
+    ),
     kind: varchar("kind", { length: 32 }).notNull(),
     payloadEncrypted: text("payload_encrypted").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
@@ -382,6 +386,8 @@ export const integrationCredentials = pgTable(
   (t) => [
     index("integration_credentials_org_idx").on(t.organizationId),
     index("integration_credentials_shop_idx").on(t.shopId),
+    index("integration_credentials_app_credential_idx").on(t.appCredentialId),
+    uniqueIndex("integration_credentials_shop_kind_uidx").on(t.shopId, t.kind),
   ],
 )
 

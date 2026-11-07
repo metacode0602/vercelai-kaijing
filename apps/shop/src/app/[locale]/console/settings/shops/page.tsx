@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useLocale } from 'next-intl'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { useLocaleRouter } from '@/lib/i18n/navigation'
+import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -59,7 +59,7 @@ export default function ShopsSettingsPage() {
       description="shops + integration_*。授权走真实平台 OAuth，状态来自数据库。"
       rows={rows}
       detailHref={(row) => `/console/settings/shops/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'lastError', 'owner']}
+      searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'appCredentialLabel', 'lastError', 'owner']}
       searchPlaceholder="搜索店铺、卖家 ID、分组或平台店铺 ID"
       search={q}
       onSearchChange={setQ}
@@ -89,6 +89,22 @@ export default function ShopsSettingsPage() {
           label: '授权',
           render: (row) => <Badge variant={authVariant(row.authStatus)}>{row.authStatus}</Badge>,
         },
+        {
+          key: 'appCredentialLabel',
+          label: '平台应用',
+          render: (row) =>
+            row.appCredentialId ? (
+              <LocaleLink
+                href="/console/settings/marketplace-apps"
+                className="underline-offset-2 hover:underline"
+              >
+                {row.appCredentialLabel}
+              </LocaleLink>
+            ) : (
+              <span className="text-muted-foreground">未关联</span>
+            ),
+        },
+        { key: 'authExpiresAt', label: '授权到期' },
         { key: 'healthLabel', label: '健康' },
         {
           key: 'syncPaused',

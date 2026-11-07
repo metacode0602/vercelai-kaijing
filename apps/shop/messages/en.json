@@ -387,7 +387,6 @@
       "integrationLog": "API logs",
       "audit": "Audit log",
       "erpAccess": "Roles & data scope",
-      "credentials": "Credentials",
       "notifications": "Notifications",
       "members": "Members",
       "preferences": "Preferences",

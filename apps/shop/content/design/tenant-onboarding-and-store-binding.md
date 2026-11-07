@@ -176,7 +176,7 @@ stateDiagram-v2
 | `member` | 用户与租户关系；角色 `tenant_owner` | `(organization_id, user_id)` |
 | `session` | `active_organization_id` 指向当前组织 | better-auth organization 插件维护 |
 | `shops` | 店铺主档 | `UNIQUE (organization_id, platform, external_shop_id)` |
-| `integration_credentials` | OAuth 凭证密文 | `kind='oauth'`，按 `shop_id` 唯一语义 |
+| `integration_credentials` | OAuth 凭证密文 | `kind='oauth'`，`(shop_id, kind)` 唯一；`app_credential_id` 指向组织级应用配置 |
 | `integration_states` | 同步游标与健康状态 | `shop_id` 唯一 |
 | `integration_logs` | 授权/同步审计 | 记录 `action=oauth_authorize / oauth_callback` |
 

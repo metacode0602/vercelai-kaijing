@@ -68,7 +68,7 @@ const REGIONS_BY_PLATFORM: Record<Platform, Array<{ value: string; label: string
 
 const EMPTY_FORM = {
   platform: 'daraz' as Platform,
-  region: 'LK',
+  region: '',
   appKey: '',
   appSecret: '',
   callbackKey: '',
@@ -272,7 +272,7 @@ export default function MarketplaceAppsSettingsPage() {
         <CardHeader>
           <CardTitle>{editingId ? '编辑配置' : '新增配置'}</CardTitle>
           <CardDescription>
-            同一平台同一站点只能有一份配置；站点选择「全部站点」时作为该平台通用回退。
+            同一平台同一站点只能有一份配置。默认使用「全部站点（通用）」；只有平台要求按站点独立应用时才选择具体站点覆盖。
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -158,8 +158,8 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 
 | Tab | 路由建议 | 内容 |
 |-----|----------|------|
-| 店铺连接 | `/console/settings/shops` | 店铺列表、平台、区域、连接状态、最近同步、错误信息 |
-| 平台凭证 | `/console/settings/credentials` | OAuth / API Key 状态（不明文展示密钥）；续期 / 重连 |
+| 店铺连接 | `/console/settings/shops` | 店铺列表、平台、区域、授权状态/到期、最近同步、错误信息；授权与重连同页 |
+| 平台应用配置 | `/console/settings/marketplace-apps` | 组织级 App Key / App Secret、回调地址（不明文展示密钥） |
 | 通知 / 钉钉 | `/console/settings/notifications` | Webhook、钉钉机器人、告警开关 |
 | 组织成员 | `/console/settings/members` | Better Auth org 成员与角色（只读+邀请，深度权限可后置） |
 | 偏好 | `/console/settings/preferences` | 默认店铺、默认时区/币种展示、表格密度等 |
@@ -225,7 +225,7 @@ apps/shop/app/.../（示意 · App Router）
     │   ├── page.tsx                 # → redirect 默认 Tab（如 shops）
     │   ├── shops/page.tsx
     │   │   └── [id]/page.tsx       # 店铺连接 + 凭证概览（脱敏）
-    │   ├── credentials/page.tsx
+    │   ├── marketplace-apps/page.tsx  # 组织级 App Key/Secret、回调与验证
     │   ├── notifications/page.tsx
     │   ├── members/page.tsx
     │   └── preferences/page.tsx
@@ -308,7 +308,7 @@ apps/shop/app/.../（示意 · App Router）
 ┌──────────────┬─────────────────────────────────────────────────────────┐
 │ ← 工作台     │  设置 · 店铺连接                                         │
 │ 店铺连接  ●  │  （右侧 = settings/.../page.tsx）                        │
-│ 平台凭证     │                                                         │
+│ 平台应用配置 │                                                         │
 │ 通知/钉钉    │                                                         │
 │ 组织成员     │                                                         │
 │ 偏好         │                                                         │

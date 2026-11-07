@@ -8,6 +8,7 @@ import {
   integrationCredentials,
   integrationLogs,
   integrationStates,
+  marketplaceAppCredentials,
   shops,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -54,6 +55,8 @@ export type ShopConnectionDto = {
   lastError: string
   credentialMask: string
   authExpiresAt: string
+  appCredentialId: string
+  appCredentialLabel: string
   owner: string
   hasCredential: boolean
 }
@@ -77,10 +80,19 @@ function metaFlag(meta: unknown, key: string): boolean {
   return Boolean((meta as Record<string, unknown>)[key])
 }
 
+function appCredentialLabel(
+  app: typeof marketplaceAppCredentials.$inferSelect | undefined,
+) {
+  if (!app) return '未关联'
+  const platform = PLATFORM_LABEL[app.platform] || app.platform
+  return `${platform} · ${app.region || '全部站点（通用）'}`
+}
+
 function mapShop(
   shop: typeof shops.$inferSelect,
   state: typeof integrationStates.$inferSelect | undefined,
   cred: typeof integrationCredentials.$inferSelect | undefined,
+  app: typeof marketplaceAppCredentials.$inferSelect | undefined,
 ): ShopConnectionDto {
   const syncPaused =
     metaFlag(shop.meta, 'syncPaused') ||
@@ -107,6 +119,8 @@ function mapShop(
     lastError: state?.lastError || (typeof shop.meta === 'object' && shop.meta && 'lastError' in shop.meta ? String((shop.meta as { lastError?: string }).lastError || '') : '') || '',
     credentialMask: maskCredential(Boolean(cred), cred?.expiresAt ?? shop.authExpiresAt),
     authExpiresAt: formatStamp(shop.authExpiresAt),
+    appCredentialId: cred?.appCredentialId ?? '',
+    appCredentialLabel: appCredentialLabel(app),
     owner: shop.sellerName || '',
     hasCredential: Boolean(cred),
   }
@@ -199,11 +213,30 @@ export async function listShopConnections(
               inArray(integrationCredentials.shopId, ids),
             ),
           )
+  const appCredentialIds = [
+    ...new Set(creds.map((c) => c.appCredentialId).filter((id): id is string => Boolean(id))),
+  ]
+  const apps =
+    appCredentialIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(marketplaceAppCredentials)
+          .where(
+            and(
+              eq(marketplaceAppCredentials.organizationId, organizationId),
+              inArray(marketplaceAppCredentials.id, appCredentialIds),
+            ),
+          )
   const stateMap = new Map(states.map((s) => [s.shopId, s]))
   const credMap = new Map<string, typeof integrationCredentials.$inferSelect>()
   for (const c of creds) if (!credMap.has(c.shopId)) credMap.set(c.shopId, c)
+  const appMap = new Map(apps.map((app) => [app.id, app]))
 
-  const items = all.map((s) => mapShop(s, stateMap.get(s.id), credMap.get(s.id)))
+  const items = all.map((s) => {
+    const cred = credMap.get(s.id)
+    return mapShop(s, stateMap.get(s.id), cred, cred?.appCredentialId ? appMap.get(cred.appCredentialId) : undefined)
+  })
 
   const [summaryRow] = await db
     .select({
@@ -260,7 +293,21 @@ export async function getShopConnection(db: AppDatabase, organizationId: string,
       ),
     )
     .limit(1)
-  return mapShop(shop, state, cred)
+  const app = cred?.appCredentialId
+    ? (
+        await db
+          .select()
+          .from(marketplaceAppCredentials)
+          .where(
+            and(
+              eq(marketplaceAppCredentials.id, cred.appCredentialId),
+              eq(marketplaceAppCredentials.organizationId, organizationId),
+            ),
+          )
+          .limit(1)
+      )[0]
+    : undefined
+  return mapShop(shop, state, cred, app)
 }
 
 export async function createShopDraft(
@@ -478,59 +525,6 @@ export async function disableShop(
     .set({ status: 'disabled', meta, updatedAt: new Date() })
     .where(eq(shops.id, shop.id))
   return getShopConnection(db as AppDatabase, organizationId, shop.id)
-}
-
-/**
- * 排队重授权：只把状态标为 connecting / 待授权，并写 lastError 说明。
- * 不跳转 OAuth，不写假凭证，不声称已授权成功。
- */
-export async function queueShopReauth(
-  db: DbLike,
-  organizationId: string,
-  input: { id: string },
-) {
-  const [shop] = await db
-    .select()
-    .from(shops)
-    .where(and(eq(shops.organizationId, organizationId), eq(shops.id, input.id), isNull(shops.deletedAt)))
-    .limit(1)
-  if (!shop) throw new Error('店铺不存在')
-  const note = '待平台授权：请点击“重新授权”完成 OAuth 授权。'
-  const meta = {
-    ...(typeof shop.meta === 'object' && shop.meta ? shop.meta : {}),
-    syncPaused: true,
-    lastError: note,
-    reauthQueuedAt: new Date().toISOString(),
-  }
-  await db
-    .update(shops)
-    .set({
-      status: shop.status === 'active' ? 'connecting' : shop.status === 'draft' ? 'draft' : 'connecting',
-      meta,
-      updatedAt: new Date(),
-    })
-    .where(eq(shops.id, shop.id))
-
-  const [state] = await db.select().from(integrationStates).where(eq(integrationStates.shopId, shop.id)).limit(1)
-  if (state) {
-    await db
-      .update(integrationStates)
-      .set({ health: 'idle', lastError: note })
-      .where(eq(integrationStates.shopId, shop.id))
-  } else {
-    await db.insert(integrationStates).values({
-      id: createId(),
-      shopId: shop.id,
-      health: 'idle',
-      lastError: note,
-    })
-  }
-
-  return {
-    ok: true as const,
-    note,
-    row: await getShopConnection(db as AppDatabase, organizationId, shop.id),
-  }
 }
 
 export function countShopKpi(rows: ShopConnectionDto[]) {

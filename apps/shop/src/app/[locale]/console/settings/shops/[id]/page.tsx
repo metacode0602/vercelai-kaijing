@@ -211,6 +211,19 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
         fields={[
           { label: '店铺 ID', value: row.id, mono: true },
           { label: '平台', value: row.platformLabel },
+          {
+            label: '平台应用',
+            value: row.appCredentialId ? (
+              <LocaleLink
+                href="/console/settings/marketplace-apps"
+                className="underline underline-offset-2"
+              >
+                {row.appCredentialLabel}
+              </LocaleLink>
+            ) : (
+              '未关联'
+            ),
+          },
           { label: '站点', value: row.region || '—' },
           { label: '币种', value: row.currency },
           { label: '平台店铺 ID', value: row.externalShopId || '—', mono: true },
