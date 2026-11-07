@@ -1348,7 +1348,9 @@ export const skuCosts = pgTable(
     taxBreakdown: jsonb("tax_breakdown").$type<Record<string, unknown>>(),
     calculatorSnapshot: jsonb("calculator_snapshot").$type<Record<string, unknown>>(),
     landedUnitCost: numeric("landed_unit_cost", { precision: 18, scale: 4 }),
-    fxRateId: text("fx_rate_id"),
+    fxRateId: text("fx_rate_id").references(() => fxRates.id, {
+      onDelete: "set null",
+    }),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }),
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -2027,6 +2029,10 @@ export const oceanShipments = pgTable(
     containerType: varchar("container_type", { length: 16 }),
     /** FCL / LCL / FCL20 / FCL40 … */
     freightMode: varchar("freight_mode", { length: 16 }),
+    /** 可选承运商主档 */
+    carrierId: text("carrier_id").references(() => commerceCarriers.id, {
+      onDelete: "set null",
+    }),
     platform: varchar("platform", { length: 32 }).notNull().default("daraz"),
     originPort: varchar("origin_port", { length: 16 }),
     destPort: varchar("dest_port", { length: 16 }),
@@ -2057,6 +2063,7 @@ export const oceanShipments = pgTable(
     index("ocean_shipments_status_idx").on(t.status),
     index("ocean_shipments_org_idx").on(t.organizationId),
     index("ocean_shipments_destination_warehouse_idx").on(t.destinationWarehouseId),
+    index("ocean_shipments_carrier_idx").on(t.carrierId),
     check(
       "ocean_shipments_status_check",
       sql`${t.status} in ('draft', 'booked', 'departed', 'arrived', 'customs', 'received', 'cancelled')`,
@@ -2105,6 +2112,8 @@ export const oceanShipmentBoxes = pgTable(
       .notNull()
       .references(() => oceanShipments.id),
     boxNo: varchar("box_no", { length: 64 }).notNull(),
+    /** 可选引用 commerce_carton_specs.code（同组织） */
+    cartonSpecCode: varchar("carton_spec_code", { length: 64 }),
     leadRef: varchar("lead_ref", { length: 64 }),
     cbm: numeric("cbm", { precision: 12, scale: 4 }),
     weightKg: numeric("weight_kg", { precision: 12, scale: 3 }),
@@ -2312,7 +2321,61 @@ export const commerceCartonSpecs = pgTable(
 // @see docs/design/shop-module5-fee-templates-trpc.md
 // ---------------------------------------------------------------------------
 
-export const feeTemplateTypes = ["import_tax", "platform_fee"] as const
+
+// ---------------------------------------------------------------------------
+// commerce_freight_rate_cards — 运价卡（成本测算 / 运费页正式主数据）
+// migration 0012_cost_finance_closure
+// ---------------------------------------------------------------------------
+
+export const commerceFreightRateCardStatuses = ["active", "disabled"] as const
+export type CommerceFreightRateCardStatus = (typeof commerceFreightRateCardStatuses)[number]
+
+export const commerceFreightModes = ["AIR_DDP", "LCL", "FCL20", "FCL40"] as const
+export type CommerceFreightMode = (typeof commerceFreightModes)[number]
+
+export const commerceFreightRateCards = pgTable(
+  "commerce_freight_rate_cards",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    freightMode: varchar("freight_mode", { length: 16 }).notNull(),
+    carrierId: text("carrier_id").references(() => commerceCarriers.id, {
+      onDelete: "set null",
+    }),
+    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    /** AIR: USD/kg；LCL: USD/CBM；FCL: USD/柜 */
+    unitRate: numeric("unit_rate", { precision: 18, scale: 4 }).notNull().default("0"),
+    minCharge: numeric("min_charge", { precision: 18, scale: 4 }).notNull().default("0"),
+    surcharge: numeric("surcharge", { precision: 18, scale: 4 }).notNull().default("0"),
+    thc: numeric("thc", { precision: 18, scale: 4 }).notNull().default("0"),
+    /** AIR volumetric divisor；LCL 可空 */
+    volumetricDivisor: integer("volumetric_divisor"),
+    /** FCL 可用 CBM */
+    usableCbm: numeric("usable_cbm", { precision: 12, scale: 4 }),
+    /** LCL 吨报价（可选） */
+    unitRatePerTon: numeric("unit_rate_per_ton", { precision: 18, scale: 4 }),
+    originPort: varchar("origin_port", { length: 16 }),
+    destPort: varchar("dest_port", { length: 16 }),
+    effectiveFrom: varchar("effective_from", { length: 10 }).notNull(),
+    effectiveTo: varchar("effective_to", { length: 10 }),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("commerce_freight_rate_cards_org_code_uidx").on(t.organizationId, t.code),
+    index("commerce_freight_rate_cards_org_mode_idx").on(t.organizationId, t.freightMode, t.status),
+    index("commerce_freight_rate_cards_carrier_idx").on(t.carrierId),
+  ],
+)
+
+export const feeTemplateTypes = ["import_tax", "platform_fee", "ocean_freight"] as const
 export type FeeTemplateTypeDb = (typeof feeTemplateTypes)[number]
 
 /** 模板头状态：draft / active / disabled */
@@ -3465,6 +3528,7 @@ export type CommerceBinRow = typeof commerceBins.$inferSelect
 export type StockAdjustmentRow = typeof stockAdjustments.$inferSelect
 export type StockAdjustmentLineRow = typeof stockAdjustmentLines.$inferSelect
 export type CommerceCartonSpecRow = typeof commerceCartonSpecs.$inferSelect
+export type CommerceFreightRateCardRow = typeof commerceFreightRateCards.$inferSelect
 export type CommerceBrandRow = typeof commerceBrands.$inferSelect
 export type CommerceSupplierRow = typeof commerceSuppliers.$inferSelect
 export type SupplierSkuRow = typeof supplierSkus.$inferSelect

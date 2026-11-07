@@ -56,6 +56,60 @@ export const financeRouter = createTRPCRouter({
     return financeDa.listSkuCosts(ctx.db, ctx.organizationId, input)
   }),
 
+
+  importSettlements: tenantProcedure
+    .input(
+      z.object({
+        rows: z
+          .array(
+            z.object({
+              shopId: z.string().min(1),
+              externalSettlementId: z.string().min(1),
+              currency: z.string().optional(),
+              periodStart: z.string().optional(),
+              periodEnd: z.string().optional(),
+              billAmount: z.number().optional(),
+              itemRevenue: z.number().optional(),
+              feesTotal: z.number().optional(),
+              payoutAmount: z.number().optional(),
+              status: z.string().optional(),
+              note: z.string().optional(),
+              lines: z
+                .array(
+                  z.object({
+                    externalOrderNo: z.string().optional(),
+                    feeKind: z.string().optional(),
+                    feeType: z.string().optional(),
+                    feeName: z.string().optional(),
+                    amount: z.number().optional(),
+                    currency: z.string().optional(),
+                    note: z.string().optional(),
+                    sellerSku: z.string().optional(),
+                  }),
+                )
+                .optional(),
+            }),
+          )
+          .min(1)
+          .max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => financeDa.importSettlements(ctx.db, ctx.organizationId, input)),
+    ),
+
+  getProfit: tenantProcedure
+    .input(z.object({ id: z.string().min(1), view: z.enum(['order', 'sku']).optional() }))
+    .query(async ({ ctx, input }) => {
+      const row = await financeDa.getProfit(ctx.db, ctx.organizationId, input)
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `未找到利润行 ${input.id}` })
+      return row
+    }),
+
+  profitKpis: tenantProcedure
+    .input(z.object({ view: z.enum(['order', 'sku']).optional() }).optional())
+    .query(async ({ ctx, input }) => financeDa.profitKpis(ctx.db, ctx.organizationId, input?.view ?? 'order')),
+
   listProfits: tenantProcedure.input(paginationInput).query(async ({ ctx, input }) => {
     return financeDa.listProfits(ctx.db, ctx.organizationId, {
       page: input.page,

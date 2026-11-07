@@ -25,7 +25,7 @@ export const carriersRouter = createTRPCRouter({
   meta: tenantProcedure.query(async () => ({
     types: [...UI_CARRIER_TYPES],
     statuses: [...UI_ACTIVE_STATUSES],
-    note: '承运商主档；运费测算读 fee_templates/ocean，不提供假承运商报价 API',
+    note: '承运商主档；运价卡可关联承运商；不提供假实时报价 API',
   })),
   get: tenantProcedure.input(z.object({ id: z.string().min(1) })).query(async ({ ctx, input }) => {
     const row = await carriersDa.getCarrier(ctx.db, ctx.organizationId, input.id)

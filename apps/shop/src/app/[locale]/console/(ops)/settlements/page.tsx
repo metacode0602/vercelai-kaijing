@@ -6,6 +6,16 @@ import { DetailKpiRow } from '@/components/console/detail'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Textarea } from '@workspace/ui/components/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@workspace/ui/components/dialog'
+import { Label } from '@workspace/ui/components/label'
 
 const PAGE_SIZE = 20
 
@@ -14,6 +24,8 @@ export default function SettlementsPage() {
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState('全部')
   const [notice, setNotice] = React.useState('')
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [importText, setImportText] = React.useState('')
   const utils = trpc.useUtils()
 
   const metaQuery = trpc.finance.meta.useQuery()
@@ -23,6 +35,20 @@ export default function SettlementsPage() {
     pageSize: PAGE_SIZE,
     q: q || undefined,
     status: status === '全部' ? undefined : status,
+  })
+  const importMutation = trpc.finance.importSettlements.useMutation({
+    onSuccess: async (res) => {
+      await utils.finance.listSettlements.invalidate()
+      await utils.finance.settlementStats.invalidate()
+      setImportOpen(false)
+      setImportText('')
+      setNotice(
+        res.failed
+          ? `成功 ${res.success}，失败 ${res.failed}${res.errors[0] ? `：${res.errors[0].message}` : ''}`
+          : `已导入 ${res.success} 条结算批次`,
+      )
+    },
+    onError: (error) => setNotice(error.message),
   })
   const updateMutation = trpc.finance.updateSettlementStatus.useMutation({
     onSuccess: async (row) => {
@@ -40,6 +66,7 @@ export default function SettlementsPage() {
   const statuses = metaQuery.data?.settlementStatuses ?? ['待匹配', '差异待处理', '已确认', '已打款']
 
   return (
+    <>
     <UedWorkspace
       title="平台结算对账"
       description="settlements / settlement_lines：账单批次、费用拆分（按明细汇总）、本地确认。非平台 OpenAPI 拉取。"
@@ -60,7 +87,7 @@ export default function SettlementsPage() {
       emptyText={
         listQuery.isLoading
           ? '加载结算…'
-          : '暂无结算批次。跑 db:seed:commerce-finance 或导入本地账单占位。'
+          : '暂无结算批次。可点击「导入账单」粘贴 CSV / JSON。'
       }
       columns={[
         { key: 'externalSettlementId', label: '外部结算号' },
@@ -102,9 +129,12 @@ export default function SettlementsPage() {
         ]}
       />
       <UedPrototypeNotice>
-        费用拆分来自 settlement_lines.fee_kind 汇总；空则为 0。确认/打款只改本地 status。
+        费用拆分来自 settlement_lines.fee_kind。状态机：待匹配 → 差异待处理 → 已确认 → 已打款。确认后的费用进入利润。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => setImportOpen(true)}>
+          导入账单
+        </Button>
         {rows
           .filter((r) => r.status === '待匹配' || r.status === '差异待处理')
           .slice(0, 4)
@@ -122,5 +152,77 @@ export default function SettlementsPage() {
       </div>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </UedWorkspace>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>导入结算账单</DialogTitle>
+            <DialogDescription>
+              每行一条 JSON，或 CSV 头：shopId,externalSettlementId,currency,billAmount,feesTotal,payoutAmount,status。写入 settlements / settlement_lines。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="settlement-import">粘贴内容</Label>
+            <Textarea
+              id="settlement-import"
+              rows={10}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={'{"shopId":"...","externalSettlementId":"SET-001","currency":"USD","billAmount":100,"status":"待匹配"}'}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>
+              取消
+            </Button>
+            <Button
+              disabled={importMutation.isPending || !importText.trim()}
+              onClick={() => {
+                const raw = importText.trim()
+                let rows: Array<Record<string, unknown>> = []
+                try {
+                  if (raw.startsWith('[')) rows = JSON.parse(raw)
+                  else if (raw.startsWith('{')) rows = raw.split(/\n+/).filter(Boolean).map((line) => JSON.parse(line))
+                  else {
+                    const lines = raw.split(/\n+/).filter(Boolean)
+                    const header = lines[0]!.split(',').map((h) => h.trim())
+                    rows = lines.slice(1).map((line) => {
+                      const cols = line.split(',')
+                      const obj: Record<string, unknown> = {}
+                      header.forEach((h, i) => {
+                        const v = (cols[i] ?? '').trim()
+                        if (['billAmount', 'itemRevenue', 'feesTotal', 'payoutAmount'].includes(h)) obj[h] = Number(v)
+                        else obj[h] = v
+                      })
+                      return obj
+                    })
+                  }
+                } catch (e) {
+                  setNotice(e instanceof Error ? e.message : '解析失败')
+                  return
+                }
+                importMutation.mutate({
+                  rows: rows.map((r) => ({
+                    shopId: String(r.shopId || ''),
+                    externalSettlementId: String(r.externalSettlementId || ''),
+                    currency: r.currency ? String(r.currency) : undefined,
+                    periodStart: r.periodStart ? String(r.periodStart) : undefined,
+                    periodEnd: r.periodEnd ? String(r.periodEnd) : undefined,
+                    billAmount: r.billAmount != null ? Number(r.billAmount) : undefined,
+                    itemRevenue: r.itemRevenue != null ? Number(r.itemRevenue) : undefined,
+                    feesTotal: r.feesTotal != null ? Number(r.feesTotal) : undefined,
+                    payoutAmount: r.payoutAmount != null ? Number(r.payoutAmount) : undefined,
+                    status: r.status ? String(r.status) : '待匹配',
+                    note: r.note ? String(r.note) : undefined,
+                  })),
+                })
+              }}
+            >
+              导入
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

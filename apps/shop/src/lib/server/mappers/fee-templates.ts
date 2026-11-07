@@ -15,12 +15,13 @@ export const UI_FEE_TEMPLATE_VERSION_STATUSES = [
 ] as const
 export type UiFeeTemplateVersionStatus = (typeof UI_FEE_TEMPLATE_VERSION_STATUSES)[number]
 
-export const UI_FEE_TEMPLATE_TYPES = ['进口税', '平台费'] as const
+export const UI_FEE_TEMPLATE_TYPES = ['进口税', '平台费', '海运运费'] as const
 export type UiFeeTemplateType = (typeof UI_FEE_TEMPLATE_TYPES)[number]
 
 export const FEE_TEMPLATE_TYPE_OPTIONS = [
   { label: '进口税', value: 'import_tax' },
   { label: '平台费', value: 'platform_fee' },
+  { label: '海运运费', value: 'ocean_freight' },
 ] as const
 
 export const FULFILLMENT_POOL_OPTIONS = [
@@ -65,10 +66,12 @@ const VERSION_DB_TO_UI: Record<string, UiFeeTemplateVersionStatus> = {
 const TYPE_UI_TO_DB: Record<UiFeeTemplateType, string> = {
   进口税: 'import_tax',
   平台费: 'platform_fee',
+  海运运费: 'ocean_freight',
 }
 const TYPE_DB_TO_UI: Record<string, UiFeeTemplateType> = {
   import_tax: '进口税',
   platform_fee: '平台费',
+  ocean_freight: '海运运费',
 }
 
 export function toDbHeaderStatus(ui: string): string {
@@ -93,9 +96,10 @@ export function toUiVersionStatus(db: string | null | undefined): UiFeeTemplateV
   return VERSION_DB_TO_UI[db ?? ''] ?? '草稿'
 }
 
-export function toDbFeeType(uiOrDb: string): 'import_tax' | 'platform_fee' {
-  if (uiOrDb in TYPE_UI_TO_DB) return TYPE_UI_TO_DB[uiOrDb as UiFeeTemplateType] as 'import_tax' | 'platform_fee'
+export function toDbFeeType(uiOrDb: string): 'import_tax' | 'platform_fee' | 'ocean_freight' {
+  if (uiOrDb in TYPE_UI_TO_DB) return TYPE_UI_TO_DB[uiOrDb as UiFeeTemplateType] as 'import_tax' | 'platform_fee' | 'ocean_freight'
   if (uiOrDb === 'platform_fee') return 'platform_fee'
+  if (uiOrDb === 'ocean_freight') return 'ocean_freight'
   return 'import_tax'
 }
 

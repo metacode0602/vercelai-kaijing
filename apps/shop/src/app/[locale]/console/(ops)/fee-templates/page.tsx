@@ -58,9 +58,9 @@ export default function FeeTemplatesPage() {
         {
           key: 'type',
           label: '类型',
-          options: ['import_tax', 'platform_fee'],
+          options: ['import_tax', 'platform_fee', 'ocean_freight'],
           required: true,
-          helper: 'import_tax=进口税叠；platform_fee=佣金/支付费等',
+          helper: 'import_tax=进口税；platform_fee=平台费；ocean_freight=海运运费',
         },
         { key: 'status', label: '状态', options: ['草稿', '启用', '停用'], required: true },
         { key: 'note', label: '备注', type: 'textarea', fullWidth: true },
@@ -74,7 +74,7 @@ export default function FeeTemplatesPage() {
           country: values.country || 'LK',
           fulfillmentPool: values.fulfillmentPool || 'daraz_lk_sea_lot',
           fulfillmentLogistics: values.fulfillmentLogistics || '',
-          type: values.type === 'platform_fee' ? 'platform_fee' : 'import_tax',
+          type: values.type === 'platform_fee' ? 'platform_fee' : values.type === 'ocean_freight' ? 'ocean_freight' : 'import_tax',
           status: values.status || '草稿',
           note: values.note || '',
           withDraftVersion: true,
@@ -100,7 +100,7 @@ export default function FeeTemplatesPage() {
           { label: '平台', options: ['daraz', 'lazada'], key: 'platform' },
           { label: '国家', options: ['LK', 'MY', 'ID', 'TH'], key: 'country' },
           { label: '履约池', options: [...FULFILLMENT_POOL_OPTIONS], key: 'fulfillmentPool' },
-          { label: '类型', options: ['import_tax', 'platform_fee'], key: 'type' },
+          { label: '类型', options: ['import_tax', 'platform_fee', 'ocean_freight'], key: 'type' },
           { label: '状态', options: ['启用', '停用', '草稿'], key: 'status' },
         ]}
         columns={[
@@ -132,7 +132,7 @@ export default function FeeTemplatesPage() {
         <UedPrototypeNotice>
           已接 DB：fee_templates + fee_template_versions（migration 0012）。审核流
           draft→in_review→published→disabled；解析取同维度 priority 最高且有效期内已发布版本。成本测算主路径读
-          tRPC resolve，未命中回退 TARIFF_PROFILES。
+          tRPC resolve；未命中不可发布正式成本。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         {listQuery.isError ? (

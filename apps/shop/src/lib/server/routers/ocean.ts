@@ -45,6 +45,7 @@ export const oceanRouter = createTRPCRouter({
         containerNo: z.string().optional(),
         containerType: z.string().optional(),
         freightMode: z.string().optional(),
+        carrierId: z.string().nullable().optional(),
         platform: z.string().optional(),
         originPort: z.string().optional(),
         destPort: z.string().optional(),
@@ -70,6 +71,7 @@ export const oceanRouter = createTRPCRouter({
         containerNo: z.string().optional(),
         containerType: z.string().optional(),
         freightMode: z.string().optional(),
+        carrierId: z.string().nullable().optional(),
         platform: z.string().optional(),
         originPort: z.string().optional(),
         destPort: z.string().optional(),
@@ -113,6 +115,7 @@ export const oceanRouter = createTRPCRouter({
         shipmentId: z.string().min(1),
         id: z.string().optional(),
         boxNo: z.string().min(1),
+        cartonSpecCode: z.string().optional(),
         leadRef: z.string().optional(),
         cbm: z.number().nullable().optional(),
         weightKg: z.number().nullable().optional(),
@@ -179,6 +182,7 @@ export const oceanRouter = createTRPCRouter({
         taxBreakdown: z.record(z.string(), z.unknown()).optional(),
         calculatorSnapshot: z.record(z.string(), z.unknown()).optional(),
         note: z.string().optional(),
+        fxRateId: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>

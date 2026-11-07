@@ -51,6 +51,7 @@ export type OceanLineDto = {
 export type OceanBoxDto = {
   id: string
   boxNo: string
+  cartonSpecCode: string
   leadRef: string
   cbm: number | null
   weightKg: number | null
@@ -238,6 +239,7 @@ async function loadBoxes(db: DbLike, organizationId: string, shipmentId: string)
   return rows.map((r) => ({
     id: r.id,
     boxNo: r.boxNo,
+    cartonSpecCode: r.cartonSpecCode || '',
     leadRef: r.leadRef || '',
     cbm: r.cbm != null ? Number(r.cbm) : null,
     weightKg: r.weightKg != null ? Number(r.weightKg) : null,
@@ -687,6 +689,7 @@ export async function upsertOceanBox(
   input: {
     id?: string
     boxNo: string
+    cartonSpecCode?: string
     leadRef?: string
     cbm?: number | null
     weightKg?: number | null
@@ -706,6 +709,7 @@ export async function upsertOceanBox(
       .update(oceanShipmentBoxes)
       .set({
         boxNo,
+        cartonSpecCode: input.cartonSpecCode?.trim() || null,
         leadRef: input.leadRef?.trim() || null,
         cbm: input.cbm != null ? String(input.cbm) : null,
         weightKg: input.weightKg != null ? String(input.weightKg) : null,
@@ -726,6 +730,7 @@ export async function upsertOceanBox(
       organizationId,
       shipmentId: current.id,
       boxNo,
+      cartonSpecCode: input.cartonSpecCode?.trim() || null,
       leadRef: input.leadRef?.trim() || null,
       cbm: input.cbm != null ? String(input.cbm) : null,
       weightKg: input.weightKg != null ? String(input.weightKg) : null,
@@ -1220,6 +1225,7 @@ export async function saveOceanLotCost(
     taxBreakdown?: Record<string, unknown>
     calculatorSnapshot?: Record<string, unknown>
     note?: string
+    fxRateId?: string | null
   },
 ): Promise<OceanLotCostDto> {
   const lot = await getOceanShipment(db, organizationId, input.shipmentId)
@@ -1253,6 +1259,7 @@ export async function saveOceanLotCost(
     taxBreakdown: input.taxBreakdown || null,
     calculatorSnapshot: input.calculatorSnapshot || null,
     landedUnitCost: input.landedUnitCost != null ? String(input.landedUnitCost) : String(amount),
+    fxRateId: input.fxRateId || null,
     effectiveFrom: new Date(),
   })
   // 回写最新成本到柜次行

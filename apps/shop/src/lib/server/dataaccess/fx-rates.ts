@@ -1,7 +1,7 @@
 /**
  * fx_rates（F33）— 组织隔离汇率；历史不覆盖删除，软停用。
  */
-import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { fxRates } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -281,4 +281,37 @@ export async function importFxRateRows(
         ? `已导入 ${success} 条汇率（source=import）。`
         : `成功 ${success} 条，失败 ${errors.length} 条（失败行未写入）。`,
   }
+}
+
+/** 按币对 + asOf 解析最新有效汇率（effectiveDate <= asOf）。 */
+export async function resolveFxRate(
+  db: AppDatabase,
+  organizationId: string,
+  input: {
+    baseCurrency: string
+    quoteCurrency: string
+    asOf?: string
+    platform?: string
+  },
+): Promise<FxRateDto | null> {
+  const base = input.baseCurrency.trim().toUpperCase()
+  const quote = input.quoteCurrency.trim().toUpperCase()
+  const asOf = (input.asOf || new Date().toISOString().slice(0, 10)).slice(0, 10)
+  const filters: SQL[] = [
+    eq(fxRates.organizationId, organizationId),
+    eq(fxRates.status, 'active'),
+    eq(fxRates.baseCurrency, base),
+    eq(fxRates.quoteCurrency, quote),
+    sql`${fxRates.effectiveDate} <= ${asOf}`,
+  ]
+  if (input.platform?.trim()) {
+    filters.push(eq(fxRates.platform, input.platform.trim()))
+  }
+  const [row] = await db
+    .select()
+    .from(fxRates)
+    .where(and(...filters)!)
+    .orderBy(desc(fxRates.effectiveDate), desc(fxRates.createdAt))
+    .limit(1)
+  return row ? mapRow(row) : null
 }

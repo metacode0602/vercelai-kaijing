@@ -138,6 +138,8 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     items: [
       { url: '/console/inventory-balances', titleKey: 'nav.inventoryBalances' },
       { url: '/console/ocean-containers', titleKey: 'nav.oceanContainers' },
+      { url: '/console/carriers', titleKey: 'nav.carriers' },
+      { url: '/console/carton-specs', titleKey: 'nav.cartonSpecs' },
       { url: '/console/warehouse', titleKey: 'nav.warehouse' },
       { url: '/console/warehouse-zones', titleKey: 'nav.warehouseZones' },
       { url: '/console/stock-inbounds', titleKey: 'nav.stockInbounds' },
@@ -175,8 +177,6 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/fee-templates', titleKey: 'nav.feeTemplates' },
       { url: '/console/settlements', titleKey: 'nav.settlements' },
       { url: '/console/profits', titleKey: 'nav.profits' },
-      { url: '/console/carriers', titleKey: 'nav.carriers' },
-      { url: '/console/carton-specs', titleKey: 'nav.cartonSpecs' },
       { url: '/console/freight', titleKey: 'nav.freight' },
     ],
   },
@@ -201,7 +201,7 @@ export const COEXIST_NAV: ConsoleNavItemConfig[] = [
   { url: '/console/purchases', titleKey: 'nav.purchases' },
   { url: '/console/shipments', titleKey: 'nav.shipments' },
   { url: '/console/aftersales', titleKey: 'nav.aftersales' },
-  { url: '/console/finance', titleKey: 'nav.finance' },
+  // /console/finance 已重定向至 settlements，不再并存入口
 ]
 
 export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
