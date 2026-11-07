@@ -10,7 +10,6 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { BIN_OPTIONS } from '@/lib/crossborder/purchase-receipt-store'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -35,6 +34,24 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
     { id: detailQuery.data?.purchaseOrderId || '' },
     { enabled: Boolean(detailQuery.data?.purchaseOrderId) },
   )
+  const binsQuery = trpc.wms.listBins.useQuery(
+    {
+      page: 1,
+      pageSize: 100,
+      warehouse: detailQuery.data?.warehouse || undefined,
+    },
+    { enabled: Boolean(detailQuery.data?.warehouse) },
+  )
+  const binOptions = React.useMemo(() => {
+    const codes = (binsQuery.data?.items ?? [])
+      .filter((bin) => bin.status !== '停用')
+      .map((bin) => bin.code)
+    const set = Array.from(new Set(codes))
+    if (detailQuery.data?.bin && !set.includes(detailQuery.data.bin)) {
+      set.unshift(detailQuery.data.bin)
+    }
+    return set
+  }, [binsQuery.data?.items, detailQuery.data?.bin])
 
   const invalidate = async () => {
     await utils.purchase.getInbound.invalidate({ id })
@@ -293,7 +310,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
             {
               key: 'bin',
               label: '目标库位',
-              options: [...BIN_OPTIONS],
+              options: binOptions.length > 0 ? binOptions : [current.bin || ''].filter(Boolean),
               defaultValue: current.bin,
               required: true,
             },

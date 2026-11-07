@@ -92,6 +92,13 @@
       "when": 1794100000000,
       "tag": "0024_tenant_onboarding_handler_check",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1762479000000,
+      "tag": "0025_commerce_brands",
+      "breakpoints": true
     }
   ]
 }

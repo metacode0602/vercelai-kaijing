@@ -12,6 +12,7 @@ export type ConsoleNavTitleKey =
   | 'nav.productCenter'
   | 'nav.masterProducts'
   | 'nav.categories'
+  | 'nav.brands'
   | 'nav.masterSkus'
   | 'nav.supplierSkus'
   | 'nav.dictionaries'
@@ -103,6 +104,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     items: [
       { url: '/console/master-products', titleKey: 'nav.masterProducts' },
       { url: '/console/categories', titleKey: 'nav.categories' },
+      { url: '/console/brands', titleKey: 'nav.brands' },
       { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
       { url: '/console/dictionaries', titleKey: 'nav.dictionaries' },

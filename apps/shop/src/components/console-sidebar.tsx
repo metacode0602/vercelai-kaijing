@@ -3,6 +3,7 @@
 import * as React from 'react'
 import {
   ArrowDownToLine,
+  BadgeCheck,
   ArrowUpFromLine,
   Boxes,
   Calculator,
@@ -58,6 +59,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/candidates': <Sparkles className="size-4" />,
   '/console/master-products': <Package className="size-4" />,
   '/console/categories': <FolderTree className="size-4" />,
+  '/console/brands': <BadgeCheck className="size-4" />,
   '/console/master-skus': <Tags className="size-4" />,
   '/console/supplier-skus': <PackageSearch className="size-4" />,
   '/console/dictionaries': <Tags className="size-4" />,

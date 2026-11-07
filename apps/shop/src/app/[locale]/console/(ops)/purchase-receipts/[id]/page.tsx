@@ -10,7 +10,6 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { BIN_OPTIONS } from '@/lib/crossborder/purchase-receipt-store'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -52,6 +51,21 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
 
   const detailQuery = trpc.purchase.getReceipt.useQuery({ id })
   const inboundsQuery = trpc.purchase.listInbounds.useQuery({ page: 1, pageSize: 100 })
+  const binsQuery = trpc.wms.listBins.useQuery(
+    {
+      page: 1,
+      pageSize: 100,
+      warehouse: detailQuery.data?.warehouse || undefined,
+      status: undefined,
+    },
+    { enabled: Boolean(detailQuery.data?.warehouse) },
+  )
+  const binOptions = React.useMemo(() => {
+    const codes = (binsQuery.data?.items ?? [])
+      .filter((bin) => bin.status !== '停用')
+      .map((bin) => bin.code)
+    return Array.from(new Set(codes))
+  }, [binsQuery.data?.items])
 
   const invalidate = async () => {
     await utils.purchase.getReceipt.invalidate({ id })
@@ -88,12 +102,12 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
       draft[line.id] = {
         passed: String(line.qtyPassed || line.qtyArrived),
         failed: String(line.qtyFailed || 0),
-        bin: line.suggestedBin || BIN_OPTIONS[0]!,
+        bin: line.suggestedBin || binOptions[0] || '',
         note: line.note || '',
       }
     }
     setQcDraft(draft)
-  }, [detailQuery.data?.id, detailQuery.data?.status, detailQuery.data?.lines.length])
+  }, [detailQuery.data?.id, detailQuery.data?.status, detailQuery.data?.lines.length, binOptions.join("|")])
 
   if (detailQuery.isLoading) {
     return (
@@ -349,7 +363,7 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
                 const draft = qcDraft[line.id] || {
                   passed: String(line.qtyArrived),
                   failed: '0',
-                  bin: line.suggestedBin || BIN_OPTIONS[0]!,
+                  bin: line.suggestedBin || binOptions[0] || '',
                   note: '',
                 }
                 return (
@@ -405,11 +419,17 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {BIN_OPTIONS.map((bin) => (
-                              <SelectItem key={bin} value={bin}>
-                                {bin}
+                            {binOptions.length === 0 ? (
+                              <SelectItem value="__empty__" disabled>
+                                暂无可用库位（请先在仓库中心维护）
                               </SelectItem>
-                            ))}
+                            ) : (
+                              binOptions.map((bin) => (
+                                <SelectItem key={bin} value={bin}>
+                                  {bin}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

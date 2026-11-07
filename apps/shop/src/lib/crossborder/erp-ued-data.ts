@@ -73,21 +73,6 @@ export type DemoMapping = {
   mappingStatus: DemoStatus
 }
 
-export type DemoPurchase = {
-  id: string
-  applicant: string
-  sku: string
-  quantity: number
-  supplier: string
-  unitPrice: number
-  currency: string
-  warehouse: string
-  reason: string
-  status: DemoStatus
-  approver: string
-  received: number
-  passed: number
-}
 
 export type DemoInventory = {
   sku: string
@@ -153,11 +138,6 @@ export const ERP_DEMO_MAPPINGS: DemoMapping[] = [
   { shop: 'Daraz LK', platform: 'Daraz', site: 'LK', itemId: 'LK-ITEM-9011', platformSkuId: 'LK-SKU-9011-OLD', sellerSku: 'TEE-OLD-BLACK', internalSku: '—', color: 'Black', size: 'M', listingStatus: '在线', mappingStatus: '异常' },
 ]
 
-export const ERP_DEMO_PURCHASES: DemoPurchase[] = [
-  { id: 'PR-2026-0012', applicant: '李萍', sku: 'HSY000001001', quantity: 100, supplier: '厦门优品服饰有限公司', unitPrice: 28, currency: 'CNY', warehouse: 'WH-CN-XMN-001', reason: '补货', status: '待审核', approver: '杨洁 / 黄发聪', received: 0, passed: 0 },
-  { id: 'PR-2026-0011', applicant: '杨洁', sku: 'HSY000002001', quantity: 50, supplier: '泉州联创数码配件厂', unitPrice: 62, currency: 'CNY', warehouse: 'WH-CN-XMN-001', reason: '订单采购', status: '已审核', approver: '黄发聪', received: 0, passed: 0 },
-  { id: 'PR-2026-0009', applicant: '黄发聪', sku: 'HSY000001002', quantity: 80, supplier: '厦门优品服饰有限公司', unitPrice: 29, currency: 'CNY', warehouse: 'WH-CN-XMN-001', reason: '备货', status: '部分收货', approver: '杨洁', received: 40, passed: 32 },
-]
 
 export const ERP_DEMO_INVENTORY: DemoInventory[] = [
   { sku: 'HSY000001001', name: 'Oversized Cotton Tee · 黑色 L', warehouse: 'WH-CN-XMN-001', bin: 'A-01-01-01', onHand: 46, reserved: 8, damaged: 2, inbound: 60, threshold: 20 },
