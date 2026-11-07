@@ -4,6 +4,7 @@ import type {
   DomainBrand,
   DomainCancelOrderInput,
   DomainCategory,
+  DomainImCapabilityInfo,
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
@@ -33,6 +34,17 @@ export class TiktokConnector implements MarketplaceConnector {
   readonly platform = "tiktok_shop" as const
   private readonly cfg: MarketplaceConnectorConfig
   private readonly http: TiktokHttpClient
+
+  /**
+   * TikTok Shop Partner Center 文档树存在 Customer Service API / Send Message 页，
+   * 但公开正文未抓到（SPA 壳），见 docs/design/platform-apis/tiktok-shop.md。
+   * 暂标 'unknown'，待文档可读后改 known_unimplemented / ready。
+   */
+  imCapability: DomainImCapabilityInfo = {
+    capability: 'unknown',
+    docRef: 'docs/design/platform-apis/tiktok-shop.md',
+    note: 'TikTok Shop 文档树有 Customer Service / Send Message 页，正文未抓到，IM API 未确认。',
+  }
 
   constructor(cfg: MarketplaceConnectorConfig) {
     this.cfg = {

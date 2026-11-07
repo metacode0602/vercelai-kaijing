@@ -1,6 +1,7 @@
 export * from "./domain/types"
 export * from "./adapters/types"
 export * from "./adapters/factory"
+export * from "./adapters/ship-batch"
 export * from "./adapters/daraz"
 export * from "./adapters/lazada"
 export * from "./adapters/tiktok"

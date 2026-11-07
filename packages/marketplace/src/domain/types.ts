@@ -115,12 +115,108 @@ export interface DomainShipmentResult {
   raw?: Record<string, unknown>
 }
 
+/**
+ * Batch ship request — LGS / JSB 交接批次提交交运时按包裹逐单调用平台 OpenAPI。
+ * 一个批次通常单店铺；多店铺时由调用方按 shopId 分组后分别调用。
+ */
+export interface DomainBatchShipPackage {
+  externalOrderId: string
+  externalPackageId: string
+  /** 已 pack 时平台返回的 package_id；缺省时 connector 会先调 pack。 */
+  platformPackageId?: string
+  /** /order/fulfill/pack 必填；缺省时 connector 尝试从订单行解析。 */
+  orderItemIds?: string[]
+  trackingNumber?: string
+  shipmentProviderCode?: string
+}
+
+export interface DomainBatchShipInput {
+  batchId: string
+  packages: DomainBatchShipPackage[]
+}
+
+export interface DomainBatchShipFailure {
+  externalPackageId: string
+  message: string
+}
+
+export interface DomainBatchShipResult {
+  ok: boolean
+  shippedCount: number
+  failures: DomainBatchShipFailure[]
+  raw?: Record<string, unknown>
+}
+
 export interface DomainCancelOrderInput {
   externalOrderId: string
   orderItemIds?: string[]
   /** From `/order/reverse/cancel/validate`; resolved automatically when omitted. */
   reasonId?: string
   reason?: string
+}
+
+/** 售后逆向单类型 @see docs/design/platform-apis/lazada/lazada-aftersales-api.md */
+export type DomainReverseRequestType = "CANCEL" | "RETURN" | "ONLY_REFUND"
+
+export interface DomainReverseOrder {
+  externalReverseOrderId: string
+  externalTradeOrderId?: string
+  requestType: DomainReverseRequestType
+  /** 退回卖家 (RTM) 还是平台仓 (RTW)。 */
+  returnToType?: "RTM" | "RTW"
+  shippingType?: "PICK_UP" | "DROP_OFF"
+  isRtm?: boolean
+  /** 逆向行摘要；详情接口才含金额。 */
+  lines?: DomainReverseOrderLine[]
+  raw?: Record<string, unknown>
+}
+
+export interface DomainReverseOrderLine {
+  externalReverseLineId: string
+  externalOrderLineId?: string
+  reverseStatus?: string
+  fulfillmentStatus?: string
+  reasonCode?: string
+  reasonText?: string
+  /** 退款金额（major 单位，已按站点归一化）。 */
+  refundAmount?: string
+  currency?: string
+  /** 商品单价（major 单位）。 */
+  itemUnitPrice?: string
+  qcDecision?: string
+  trackingNumber?: string
+  sellerSku?: string
+  slaAt?: string | null
+  isDispute?: boolean
+  isNeedRefund?: boolean
+  raw?: Record<string, unknown>
+}
+
+export interface DomainReverseOrderDetail extends DomainReverseOrder {
+  platformCreatedAt?: string | null
+  platformUpdatedAt?: string | null
+  disputeInProgress?: boolean
+  lines: DomainReverseOrderLine[]
+}
+
+export interface ReverseListFilter {
+  cursor?: string | null
+  pageSize?: number
+  /** 增量下界（毫秒时间戳或 ISO）。 */
+  updatedAfter?: string
+  updatedBefore?: string
+  requestTypeList?: DomainReverseRequestType[]
+  reverseStatusList?: string[]
+}
+
+export interface DomainReverseDecideInput {
+  externalReverseOrderId: string
+  requestType: DomainReverseRequestType
+  /** 同意或拒绝。 */
+  agree: boolean
+  /** 拒绝原因码（来自 GetReverseOrderReasonList；拒绝时必填）。 */
+  reasonCode?: string
+  comment?: string
 }
 
 export interface DomainReview {
@@ -150,6 +246,50 @@ export interface ReviewListFilter {
   /** Opaque page cursor; Lazop uses 1-based page numbers. */
   cursor?: string | null
   pageSize?: number
+}
+
+/**
+ * 平台 IM 能力标记。参见 docs/design/platform-apis 下各平台 IM 章节。
+ * - ready：API 已知且 adapter 已实现 listMessages
+ * - known_unimplemented：平台 API 文档已确认存在 IM 接口，adapter 未实现
+ * - unknown：文档未确认是否存在 IM API
+ * - unsupported：明确不存在 IM API
+ */
+export type MarketplaceImCapability =
+  | "ready"
+  | "known_unimplemented"
+  | "unknown"
+  | "unsupported"
+
+/** 平台 IM 会话/消息领域模型（只读拉取）。 */
+export interface DomainImMessage {
+  externalMessageId: string
+  externalSessionId?: string
+  customer?: string
+  customerExternalId?: string
+  subject?: string
+  preview?: string
+  body?: string
+  sku?: string
+  status?: "unread" | "read"
+  receivedAt?: string | null
+  raw?: Record<string, unknown>
+}
+
+export interface ImMessageListFilter {
+  /** 上一页游标；Lazop IM 用 start_time + last_message_id 双游标。 */
+  cursor?: string | null
+  startTime?: string
+  endTime?: string
+  pageSize?: number
+}
+
+export interface DomainImCapabilityInfo {
+  capability: MarketplaceImCapability
+  /** 文档依据，例如 docs/design/platform-apis/lazada/lazada-promotion-im-review-api.md。 */
+  docRef?: string
+  /** 人类可读说明，展示给控制台用户。 */
+  note?: string
 }
 
 export interface DomainTrackingEvent {

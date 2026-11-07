@@ -4,12 +4,16 @@ import type {
   DomainBrand,
   DomainCancelOrderInput,
   DomainCategory,
+  DomainImCapabilityInfo,
   DomainListingInput,
   DomainListingResult,
   DomainOrder,
   DomainOrderLine,
   DomainOrderTrace,
   DomainProduct,
+  DomainReverseOrder,
+  DomainReverseOrderDetail,
+  DomainReverseOrderLine,
   DomainReview,
   DomainSettlement,
   DomainSettlementLine,
@@ -23,6 +27,7 @@ import type {
   OAuthTokenSet,
   PageCursor,
   PagedResult,
+  ReverseListFilter,
   ReviewListFilter,
   SettlementPayoutFilter,
   SettlementTransactionFilter,
@@ -94,6 +99,19 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   protected readonly family: LazopFamily
   protected readonly cfg: MarketplaceConnectorConfig
   protected readonly http: LazopHttpClient
+
+  /**
+   * Lazada/Daraz IM 能力。Lazada 已确认存在 IM API（cid=29，7 个接口，
+   * 见 docs/design/platform-apis/lazada/lazada-promotion-im-review-api.md），
+   * 但 adapter 未实现 listMessages。Daraz 复用 Lazop 体系但 daraz 目录未独立确认，
+   * 子类 DarazConnector 覆盖为 'unknown'。
+   */
+  imCapability: DomainImCapabilityInfo = {
+    capability: 'known_unimplemented',
+    docRef:
+      'docs/design/platform-apis/lazada/lazada-promotion-im-review-api.md §3 Instant Messaging',
+    note: 'Lazada IM API 已确认（/im/session/list、/im/message/list 等），adapter 未实现拉取。',
+  }
 
   constructor(family: LazopFamily, cfg: MarketplaceConnectorConfig) {
     this.family = family
@@ -692,6 +710,200 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       },
     })
     return { ok: true, reasonId, raw: asRecord(json.data ?? json) }
+  }
+
+  /**
+   * GetReverseOrdersForSeller — `/reverse/getreverseordersforseller`。
+   * 列表只给摘要；金额/SKU/数量需再调 getReverseOrderDetail。
+   * @see docs/design/platform-apis/lazada/lazada-aftersales-api.md §4
+   */
+  async listReverseOrders(
+    filter: ReverseListFilter
+  ): Promise<PagedResult<DomainReverseOrder>> {
+    const pageNo = Math.max(1, Number(filter.cursor ?? 1) || 1)
+    const pageSize = Math.min(filter.pageSize ?? 50, 100)
+    const params: Record<string, string | number | boolean | undefined> = {
+      page_no: pageNo,
+      page_size: pageSize,
+    }
+    if (filter.updatedAfter) {
+      params.ReverseOrderLineModifiedTimeRangeStart = toEpochMs(
+        filter.updatedAfter,
+        Date.now() - 7 * 24 * 60 * 60 * 1000
+      )
+    }
+    if (filter.updatedBefore) {
+      params.ReverseOrderLineModifiedTimeRangeEnd = toEpochMs(
+        filter.updatedBefore,
+        Date.now()
+      )
+    }
+    if (filter.requestTypeList?.length) {
+      params.request_type_list = JSON.stringify(filter.requestTypeList)
+    }
+    if (filter.reverseStatusList?.length) {
+      params.reverse_status_list = JSON.stringify(filter.reverseStatusList)
+    }
+
+    const json = await this.http.call<Json>({
+      path: "/reverse/getreverseordersforseller",
+      params,
+    })
+    const result = asRecord(json.result ?? json)
+    const itemsRaw = (result.items ?? result.order_list ?? []) as Json[]
+    const total = firstNumber(result.total)
+    const items: DomainReverseOrder[] = []
+    for (const row of Array.isArray(itemsRaw) ? itemsRaw : []) {
+      const rec = asRecord(row)
+      const linesRaw = (rec.reverse_order_lines ??
+        rec.reverseOrderLineDTOList ??
+        []) as Json[]
+      const lines: DomainReverseOrderLine[] = (Array.isArray(linesRaw) ? linesRaw : []).map(
+        (line) => this.mapReverseLine(asRecord(line)),
+      )
+      items.push({
+        externalReverseOrderId: String(
+          rec.reverse_order_id ?? rec.reverseOrderId ?? ""
+        ),
+        externalTradeOrderId: firstString(
+          rec.trade_order_id,
+          rec.tradeOrderId
+        ),
+        requestType: this.mapReverseRequestType(
+          firstString(rec.request_type, rec.requestType)
+        ),
+        returnToType: this.mapReturnToType(rec.is_rtm),
+        shippingType: firstString(rec.shipping_type, rec.shippingType) as
+          | "PICK_UP"
+          | "DROP_OFF"
+          | undefined,
+        isRtm: rec.is_rtm === true || rec.is_rtm === "true",
+        lines,
+        raw: rec,
+      })
+    }
+    const hasMore = Number.isFinite(total ?? NaN)
+      ? pageNo * pageSize < (total ?? 0)
+      : items.length >= pageSize
+    return {
+      items,
+      nextCursor: hasMore ? String(pageNo + 1) : null,
+      raw: result,
+    }
+  }
+
+  /**
+   * GetReverseOrderDetail — `/order/reverse/return/detail/list`。
+   * 金额单位按站点归一化：非 VN 按 cent/100；VN 原值。
+   * @see docs/design/platform-apis/lazada/lazada-aftersales-api.md §5
+   */
+  async getReverseOrderDetail(
+    reverseOrderId: string
+  ): Promise<DomainReverseOrderDetail> {
+    const json = await this.http.call<Json>({
+      path: "/order/reverse/return/detail/list",
+      params: { reverse_order_id: reverseOrderId },
+    })
+    const data = asRecord(json.data ?? json)
+    const linesRaw = (data.reverseOrderLineDTOList ??
+      data.reverse_order_line_list ??
+      []) as Json[]
+    const lines: DomainReverseOrderLine[] = (Array.isArray(linesRaw) ? linesRaw : []).map(
+      (line) => this.mapReverseLine(asRecord(line)),
+    )
+    return {
+      externalReverseOrderId: String(
+        data.reverse_order_id ?? data.reverseOrderId ?? reverseOrderId
+      ),
+      externalTradeOrderId: firstString(
+        data.trade_order_id,
+        data.tradeOrderId
+      ),
+      requestType: this.mapReverseRequestType(
+        firstString(data.request_type, data.requestType)
+      ),
+      returnToType: this.mapReturnToType(data.is_rtm),
+      shippingType: firstString(data.shipping_type, data.shippingType) as
+        | "PICK_UP"
+        | "DROP_OFF"
+        | undefined,
+      isRtm: data.is_rtm === true || data.is_rtm === "true",
+      platformCreatedAt: toIso(
+        data.return_order_line_gmt_create ??
+          data.gmt_create ??
+          data.create_time
+      ),
+      platformUpdatedAt: toIso(
+        data.return_order_line_gmt_modified ??
+          data.gmt_modified ??
+          data.update_time
+      ),
+      disputeInProgress: data.dispute_in_progress === true,
+      lines,
+      raw: data,
+    }
+  }
+
+  protected mapReverseRequestType(
+    raw: string | undefined
+  ): DomainReverseOrder["requestType"] {
+    const t = (raw || "").toUpperCase()
+    if (t === "CANCEL") return "CANCEL"
+    if (t === "ONLY_REFUND" || t === "ONLYREFUND") return "ONLY_REFUND"
+    return "RETURN"
+  }
+
+  protected mapReturnToType(
+    isRtm: unknown
+  ): "RTM" | "RTW" | undefined {
+    if (isRtm === true || isRtm === "true") return "RTM"
+    if (isRtm === false || isRtm === "false") return "RTW"
+    return undefined
+  }
+
+  /** 金额归一化：VN 站原值，其它站点 cent/100。 */
+  protected normalizeReverseAmount(
+    raw: unknown,
+    currency: string | undefined
+  ): string | undefined {
+    if (raw == null || raw === "") return undefined
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return undefined
+    const isVnd = (currency || "").toUpperCase() === "VND"
+    return isVnd ? String(n) : String(n / 100)
+  }
+
+  protected mapReverseLine(line: Json): DomainReverseOrderLine {
+    const currency = firstString(line.currency, line.Currency)
+    return {
+      externalReverseLineId: String(
+        line.reverse_order_line_id ?? line.reverseOrderLineId ?? ""
+      ),
+      externalOrderLineId: firstString(
+        line.trade_order_line_id,
+        line.tradeOrderLineId
+      ),
+      reverseStatus: firstString(line.reverse_status, line.reverseStatus),
+      fulfillmentStatus: firstString(line.ofc_status, line.fulfillmentStatus),
+      reasonCode: firstString(line.reason_code, line.reasonCode),
+      reasonText: firstString(line.reason_text, line.reasonText),
+      refundAmount: this.normalizeReverseAmount(
+        line.refund_amount ?? line.refundAmount,
+        currency
+      ),
+      currency,
+      itemUnitPrice: this.normalizeReverseAmount(
+        line.item_unit_price ?? line.itemUnitPrice,
+        currency
+      ),
+      qcDecision: firstString(line.whqc_decision, line.QC_Decision, line.qcDecision),
+      trackingNumber: firstString(line.tracking_number, line.trackingNumber),
+      sellerSku: firstString(line.seller_sku_id, line.sellerSku, line.seller_sku),
+      slaAt: toIso(line.sla),
+      isDispute: line.is_dispute === true || line.isDispute === true,
+      isNeedRefund: line.is_need_refund === true || line.isNeedRefund === true,
+      raw: line,
+    }
   }
 
   private mapPackResult(json: Json): DomainShipmentResult {
