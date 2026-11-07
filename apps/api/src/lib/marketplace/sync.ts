@@ -2,13 +2,15 @@ import { createHash } from "node:crypto"
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import {
   consoleNotifications,
+  fulfillmentBatchPackages,
+  fulfillmentBatches,
   integrationLogs,
   integrationStates,
-  organization,
   listings,
   orderLines,
   orders,
   orderStatusEvents,
+  organization,
   productReviewMedia,
   productReviews,
   shipments,
@@ -17,11 +19,14 @@ import {
   type ShipmentStatus,
 } from "@workspace/db"
 import type {
+  DomainBatchShipInput,
+  DomainBatchShipPackage,
   DomainOrder,
   DomainOrderTrace,
   DomainReview,
   DomainTracePackage,
 } from "@workspace/marketplace"
+import { shipBatchViaConnector } from "@workspace/marketplace"
 import { db } from "../db"
 import { createShopConnector } from "./connector"
 import { isLazopPlatform, isOrderListingSyncPlatform } from "./app-env"
@@ -42,6 +47,7 @@ export type MarketplaceSyncResource =
   | "reviews"
   | "listings"
   | "settlements"
+  | "ship_batch"
   | "all"
 
 export interface MarketplaceSyncOptions {
@@ -53,6 +59,8 @@ export interface MarketplaceSyncOptions {
   /** When set, update sync_tasks / sync_job_runs with real run status. */
   syncTaskId?: string
   requestId?: string
+  /** Required when resource === "ship_batch". */
+  batchId?: string
 }
 
 export interface MarketplaceSyncError {
@@ -328,6 +336,9 @@ function checkpointForResource(
       return { lastListingsSyncAt: now, lastProductsSyncAt: now }
     case "settlements":
       return { lastSettlementsSyncAt: now }
+    case "ship_batch":
+      // ship_batch 是写操作，不推进读同步 checkpoint
+      return null
     case "all":
       // "all" is orchestrated per-resource; never write a blended checkpoint here.
       return null
@@ -909,6 +920,12 @@ export async function runMarketplaceSync(
   options: MarketplaceSyncOptions
 ): Promise<MarketplaceSyncResult> {
   const now = options.now ?? new Date()
+
+  // ship_batch 是写操作，不走 shop 轮询；单独处理。
+  if (options.resource === "ship_batch") {
+    return runShipBatch(options, now)
+  }
+
   const resources: MarketplaceSyncResource[] =
     options.resource === "all"
       ? ["orders", "listings", "logistics", "reviews", "settlements"]
@@ -1235,4 +1252,297 @@ export async function syncMarketplaceOrder(input: {
   } else {
     await markState({ shopId: input.shop.id, resource: "orders", now })
   }
+}
+
+// ---------------------------------------------------------------------------
+// ship_batch — LGS / JSB 交接批次提交交运（写操作）
+// ---------------------------------------------------------------------------
+
+async function runShipBatch(
+  options: MarketplaceSyncOptions,
+  now: Date
+): Promise<MarketplaceSyncResult> {
+  const result: MarketplaceSyncResult = {
+    shops: 0,
+    orders: 0,
+    shipments: 0,
+    reviews: 0,
+    listings: 0,
+    settlements: 0,
+    settlementLines: 0,
+    reserved: 0,
+    errors: [],
+  }
+
+  if (!options.batchId) {
+    result.errors.push({
+      shopId: "",
+      resource: "ship_batch",
+      message: "batchId is required for ship_batch",
+    })
+    if (options.syncTaskId) {
+      await markSyncTaskFinished({
+        syncTaskId: options.syncTaskId,
+        organizationId: options.organizationId,
+        ok: false,
+        error: "batchId is required for ship_batch",
+        message: "缺少 batchId",
+        requestId: options.requestId,
+        httpStatus: 400,
+      }).catch(() => undefined)
+    }
+    return result
+  }
+
+  if (options.syncTaskId) {
+    await markSyncTaskRunning({
+      syncTaskId: options.syncTaskId,
+      organizationId: options.organizationId,
+      requestId: options.requestId,
+      message: `开始提交交运批次 ${options.batchId}`,
+    }).catch(() => undefined)
+  }
+
+  // 1) 加载批次 + 校验组织
+  const [batch] = await db
+    .select()
+    .from(fulfillmentBatches)
+    .where(
+      and(
+        eq(fulfillmentBatches.id, options.batchId),
+        options.organizationId
+          ? eq(fulfillmentBatches.organizationId, options.organizationId)
+          : sql`true`
+      )
+    )
+    .limit(1)
+  if (!batch) {
+    const message = `批次不存在：${options.batchId}`
+    result.errors.push({ shopId: "", resource: "ship_batch", message })
+    if (options.syncTaskId) {
+      await markSyncTaskFinished({
+        syncTaskId: options.syncTaskId,
+        organizationId: options.organizationId,
+        ok: false,
+        error: message,
+        message,
+        requestId: options.requestId,
+        httpStatus: 404,
+      }).catch(() => undefined)
+    }
+    return result
+  }
+
+  // 2) 加载批次包裹 + 关联 shipment / order / order_lines
+  const links = await db
+    .select()
+    .from(fulfillmentBatchPackages)
+    .where(eq(fulfillmentBatchPackages.batchId, batch.id))
+  if (links.length === 0) {
+    const message = `批次 ${batch.batchNo} 内没有包裹，不能提交交运`
+    result.errors.push({ shopId: "", resource: "ship_batch", message })
+    if (options.syncTaskId) {
+      await markSyncTaskFinished({
+        syncTaskId: options.syncTaskId,
+        organizationId: options.organizationId,
+        ok: false,
+        error: message,
+        message,
+        requestId: options.requestId,
+        httpStatus: 400,
+      }).catch(() => undefined)
+    }
+    return result
+  }
+
+  const shipmentIds = links.map((l) => l.shipmentId)
+  const shipRows = await db
+    .select()
+    .from(shipments)
+    .where(inArray(shipments.id, shipmentIds))
+  // 按 shop 分组
+  const byShop = new Map<string, typeof shipRows>()
+  for (const s of shipRows) {
+    const list = byShop.get(s.shopId) ?? []
+    list.push(s)
+    byShop.set(s.shopId, list)
+  }
+
+  result.shops = byShop.size
+  let totalShipped = 0
+  const allFailures: { shopId: string; message: string }[] = []
+
+  for (const [shopId, ships] of byShop) {
+    const shop = await loadOneShop(shopId)
+    if (!shop) {
+      allFailures.push({ shopId, message: "店铺不存在或未激活" })
+      continue
+    }
+    // 加载该 shop 下所有 order_lines 用于补 orderItemIds
+    const orderIds = [...new Set(ships.map((s) => s.orderId))]
+    const lines = await db
+      .select()
+      .from(orderLines)
+      .where(inArray(orderLines.orderId, orderIds))
+    const linesByOrder = new Map<string, typeof lines>()
+    for (const l of lines) {
+      const list = linesByOrder.get(l.orderId) ?? []
+      list.push(l)
+      linesByOrder.set(l.orderId, list)
+    }
+
+    const packages: DomainBatchShipPackage[] = ships.map((s) => {
+      const orderLinesForShip = linesByOrder.get(s.orderId) ?? []
+      return {
+        externalOrderId: s.externalPackageId, // 占位；下面用 order.externalOrderId 替换
+        externalPackageId: s.externalPackageId,
+        platformPackageId: undefined,
+        orderItemIds: orderLinesForShip
+          .map((l) => l.externalLineId)
+          .filter((v): v is string => Boolean(v)),
+        trackingNumber: s.trackingNumber ?? undefined,
+        shipmentProviderCode: s.providerCode ?? undefined,
+      }
+    })
+    // 用 order.externalOrderId 替换 externalOrderId（shipment 不直接存 externalOrderId）
+    const orderMap = await loadOrderMap(shopId, orderIds)
+    for (const pkg of packages) {
+      const ship = ships.find((s) => s.externalPackageId === pkg.externalPackageId)
+      if (ship) {
+        pkg.externalOrderId = orderMap.get(ship.orderId)?.externalOrderId ?? ""
+        pkg.orderItemIds = (linesByOrder.get(ship.orderId) ?? [])
+          .map((l) => l.externalLineId)
+          .filter((v): v is string => Boolean(v))
+      }
+    }
+
+    let connector
+    try {
+      connector = await connectorForShop(shop)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      allFailures.push({ shopId, message })
+      await logIntegration({
+        shopId,
+        action: "ship_batch.connector",
+        status: "error",
+        message,
+        payloadSummary: { batchId: batch.id, batchNo: batch.batchNo },
+      })
+      continue
+    }
+
+    const input: DomainBatchShipInput = { batchId: batch.id, packages }
+    let shipResult
+    try {
+      shipResult = await shipBatchViaConnector(connector, input)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      allFailures.push({ shopId, message })
+      await logIntegration({
+        shopId,
+        action: "ship_batch",
+        status: "error",
+        message,
+        payloadSummary: { batchId: batch.id, batchNo: batch.batchNo },
+      })
+      continue
+    }
+
+    totalShipped += shipResult.shippedCount
+    // 推进成功包裹的 shipment 状态
+    const succeededIds = ships
+      .filter((s) =>
+        shipResult!.failures.every((f) => f.externalPackageId !== s.externalPackageId)
+      )
+      .map((s) => s.id)
+    if (succeededIds.length > 0) {
+      await db
+        .update(shipments)
+        .set({ status: "shipped", shippedAt: now, updatedAt: now })
+        .where(inArray(shipments.id, succeededIds))
+    }
+    for (const failure of shipResult.failures) {
+      allFailures.push({ shopId, message: `${failure.externalPackageId}: ${failure.message}` })
+    }
+    await logIntegration({
+      shopId,
+      action: "ship_batch",
+      status: shipResult.ok ? "success" : "error",
+      message: `${shop.platform} batch ${batch.batchNo} shipped ${shipResult.shippedCount}/${packages.length}`,
+      payloadSummary: {
+        batchId: batch.id,
+        batchNo: batch.batchNo,
+        shipped: shipResult.shippedCount,
+        failures: shipResult.failures,
+      },
+    })
+    await markState({ shopId, resource: "logistics", now })
+  }
+
+  result.shipments = totalShipped
+  for (const f of allFailures) {
+    result.errors.push({ shopId: f.shopId, resource: "ship_batch", message: f.message })
+  }
+
+  // 推进批次状态：全部成功 → accepted；部分失败 → rejected（保留 submitted 标记）
+  if (options.organizationId || batch.organizationId) {
+    const ok = result.errors.length === 0
+    await db
+      .update(fulfillmentBatches)
+      .set({
+        status: ok ? "accepted" : "rejected",
+        handedOverAt: ok ? batch.handedOverAt ?? now : batch.handedOverAt,
+        updatedAt: now,
+      })
+      .where(eq(fulfillmentBatches.id, batch.id))
+  }
+
+  if (options.syncTaskId) {
+    const ok = result.errors.length === 0
+    await markSyncTaskFinished({
+      syncTaskId: options.syncTaskId,
+      organizationId: options.organizationId,
+      ok,
+      progressDone: totalShipped,
+      progressTotal: shipRows.length,
+      error: ok
+        ? null
+        : result.errors.map((e) => `${e.shopId}:${e.message}`).join("; "),
+      message: ok
+        ? `批次 ${batch.batchNo} 交运完成（${totalShipped}/${shipRows.length}）`
+        : `批次 ${batch.batchNo} 交运部分失败（${totalShipped}/${shipRows.length}）`,
+      detail: JSON.stringify(result).slice(0, 4000),
+      requestId: options.requestId,
+      httpStatus: ok ? 200 : 502,
+    }).catch(() => undefined)
+  }
+
+  return result
+}
+
+async function loadOneShop(shopId: string): Promise<MarketplaceSyncShop | null> {
+  const [row] = await db
+    .select({
+      id: shops.id,
+      organizationId: shops.organizationId,
+      platform: shops.platform,
+      name: shops.name,
+      region: shops.region,
+      currency: shops.currency,
+      meta: shops.meta,
+    })
+    .from(shops)
+    .where(eq(shops.id, shopId))
+    .limit(1)
+  return row ?? null
+}
+
+async function loadOrderMap(shopId: string, orderIds: string[]) {
+  if (orderIds.length === 0) return new Map<string, { externalOrderId: string }>()
+  const rows = await db
+    .select({ id: orders.id, externalOrderId: orders.externalOrderId })
+    .from(orders)
+    .where(and(eq(orders.shopId, shopId), inArray(orders.id, orderIds)))
+  return new Map(rows.map((r) => [r.id, { externalOrderId: r.externalOrderId }]))
 }

@@ -15,6 +15,7 @@ const resources: MarketplaceSyncResource[] = [
   "reviews",
   "listings",
   "settlements",
+  "ship_batch",
   "all",
 ]
 
@@ -54,6 +55,7 @@ sync.post("/marketplace", async (c) => {
     syncTaskId?: string
     requestId?: string
     wait?: boolean
+    batchId?: string
   }
   const resource = (body.resource ?? "orders") as MarketplaceSyncResource
   if (!resources.includes(resource)) {
@@ -63,6 +65,7 @@ sync.post("/marketplace", async (c) => {
   let organizationId = body.organizationId
   let shopId = body.shopId
   const syncTaskId = body.syncTaskId
+  const batchId = body.batchId
 
   if (syncTaskId) {
     const task = await findSyncTask(syncTaskId)
@@ -100,6 +103,7 @@ sync.post("/marketplace", async (c) => {
     organizationId,
     syncTaskId,
     requestId: body.requestId,
+    batchId,
   }
 
   if (body.wait === false) {

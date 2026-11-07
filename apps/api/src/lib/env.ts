@@ -43,7 +43,23 @@ export const env = createEnv({
     MARKETPLACE_SYNC_REVIEWS_CRON: z.string().default("0 */6 * * *"),
     MARKETPLACE_SYNC_LISTINGS_CRON: z.string().default("0 */4 * * *"),
     MARKETPLACE_SYNC_SETTLEMENTS_CRON: z.string().default("30 2 * * *"),
+    /** 售后逆向单同步 cron（拉取建档 + 策略释放 / 排期）。 */
+    MARKETPLACE_SYNC_REVERSE_CRON_ENABLED: z
+      .string()
+      .optional()
+      .default("true")
+      .transform((value) => value !== "false" && value !== "0"),
+    MARKETPLACE_SYNC_REVERSE_CRON: z.string().default("*/15 * * * *"),
+    /** 到期退款决定 cron。 */
+    MARKETPLACE_SYNC_REVERSE_DECIDE_CRON: z.string().default("*/10 * * * *"),
     MARKETPLACE_SYNC_CRON_TIMEZONE: z.string().default("Asia/Shanghai"),
+    /** 订单履约异常扫描 cron（apps/api 后台扫描，不依赖 shop） */
+    ORDER_EXCEPTIONS_SCAN_CRON: z.string().default("15 * * * *"),
+    ORDER_EXCEPTIONS_SCAN_CRON_ENABLED: z
+      .string()
+      .optional()
+      .default("true")
+      .transform((value) => value !== "false" && value !== "0"),
     /** 收到 LAZOP push 后异步补单；默认开启。 */
     MARKETPLACE_WEBHOOK_SYNC_ENABLED: z
       .string()

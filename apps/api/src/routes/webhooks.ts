@@ -17,6 +17,7 @@ import {
   syncMarketplaceOrder,
   type MarketplaceSyncShop,
 } from "../lib/marketplace/sync"
+import { syncReverseOrder } from "../lib/marketplace/aftersale-cron"
 
 const webhooks = new Hono()
 
@@ -82,6 +83,21 @@ function scheduleOrderSync(shop: MarketplaceSyncShop, externalOrderId: string) {
   })
 }
 
+function scheduleReverseSync(
+  shop: MarketplaceSyncShop,
+  externalReverseOrderId: string
+) {
+  setImmediate(() => {
+    syncReverseOrder({ shop, externalReverseOrderId }).catch((error) => {
+      console.error("[marketplace-webhook] reverse sync failed", {
+        shopId: shop.id,
+        externalReverseOrderId,
+        error,
+      })
+    })
+  })
+}
+
 webhooks.post("/lazop", async (c) => {
   const rawBody = await c.req.text()
   let body: Record<string, unknown>
@@ -117,6 +133,11 @@ webhooks.post("/lazop", async (c) => {
     data.trade_order_id,
     data.order_id,
     body.trade_order_id
+  )
+  const externalReverseOrderId = firstString(
+    data.reverse_order_id,
+    body.reverse_order_id,
+    data.reverseOrderId
   )
 
   let matchedApp: ResolvedMarketplaceAppCredential | undefined
@@ -175,17 +196,26 @@ webhooks.post("/lazop", async (c) => {
     ),
     orderStatus: firstString(data.order_status, data.status),
     signatureVerified,
-    status: shop && externalOrderId ? "queued" : "unmatched",
+    status:
+      shop && (externalOrderId || externalReverseOrderId)
+        ? "queued"
+        : "unmatched",
     payload: body,
   })
 
   if (
     env.MARKETPLACE_WEBHOOK_SYNC_ENABLED &&
     shop &&
-    externalOrderId &&
     (signatureVerified || env.MARKETPLACE_WEBHOOK_SKIP_VERIFY)
   ) {
-    scheduleOrderSync(shop, externalOrderId)
+    // 逆向单（取消/退款）push：触发单号补拉建档。
+    if (externalReverseOrderId) {
+      scheduleReverseSync(shop, externalReverseOrderId)
+    }
+    // 正向订单 push：触发订单 + 轨迹补拉。
+    if (externalOrderId) {
+      scheduleOrderSync(shop, externalOrderId)
+    }
   }
 
   return c.json({ ok: true })
