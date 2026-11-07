@@ -55,6 +55,19 @@ const createVariantInput = z.object({
   images: z.array(z.string()).optional(),
 })
 
+const batchCreateVariantsInput = z.object({
+  spu: z.string().min(1),
+  colors: z.array(z.string().min(1)).min(1),
+  sizes: z.array(z.string().min(1)).min(1),
+  packs: z.array(z.string().min(1)).min(1),
+  barcode: z.string().optional(),
+  weight: z.number().optional(),
+  lengthMm: z.number().optional(),
+  widthMm: z.number().optional(),
+  heightMm: z.number().optional(),
+  status: statusSchema.optional(),
+})
+
 const updateVariantInput = z.object({
   spu: z.string().min(1),
   code: z.string().min(1),
@@ -151,19 +164,54 @@ export const productsRouter = createTRPCRouter({
   }),
 
   createVariant: tenantProcedure.input(createVariantInput).mutation(async ({ ctx, input }) => {
-    const row = await productsDa.createVariant(ctx.db, ctx.organizationId, input)
-    if (!row) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SPU ${input.spu}` })
+    try {
+      const row = await productsDa.createVariant(ctx.db, ctx.organizationId, input)
+      if (!row) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SPU ${input.spu}` })
+      }
+      return row
+    } catch (error: unknown) {
+      if (error instanceof TRPCError) throw error
+      const message = error instanceof Error ? error.message : '创建 SKU 失败'
+      throw new TRPCError({
+        code: /已存在|请至少/.test(message) ? 'CONFLICT' : 'BAD_REQUEST',
+        message,
+      })
     }
-    return row
+  }),
+
+  batchCreateVariants: tenantProcedure.input(batchCreateVariantsInput).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await productsDa.batchCreateVariants(ctx.db, ctx.organizationId, input)
+      if (!result) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SPU ${input.spu}` })
+      }
+      return result
+    } catch (error: unknown) {
+      if (error instanceof TRPCError) throw error
+      const message = error instanceof Error ? error.message : '批量生成 SKU 失败'
+      throw new TRPCError({
+        code: /请至少/.test(message) ? 'BAD_REQUEST' : 'BAD_REQUEST',
+        message,
+      })
+    }
   }),
 
   updateVariant: tenantProcedure.input(updateVariantInput).mutation(async ({ ctx, input }) => {
-    const { spu, code, ...patch } = input
-    const row = await productsDa.updateVariant(ctx.db, ctx.organizationId, spu, code, patch)
-    if (!row) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SKU ${code}` })
+    try {
+      const { spu, code, ...patch } = input
+      const row = await productsDa.updateVariant(ctx.db, ctx.organizationId, spu, code, patch)
+      if (!row) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `未找到 SKU ${code}` })
+      }
+      return row
+    } catch (error: unknown) {
+      if (error instanceof TRPCError) throw error
+      const message = error instanceof Error ? error.message : '更新 SKU 失败'
+      throw new TRPCError({
+        code: /已存在/.test(message) ? 'CONFLICT' : 'BAD_REQUEST',
+        message,
+      })
     }
-    return row
   }),
 })

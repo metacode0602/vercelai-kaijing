@@ -425,6 +425,34 @@ export async function updateProduct(
   })
 }
 
+
+function variantComboKey(color: string, size: string, pack: string): string {
+  return `${color.trim()}\0${size.trim()}\0${pack.trim()}`
+}
+
+async function listVariantComboKeys(
+  db: DbLike,
+  organizationId: string,
+  productId: string,
+): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: productVariants.id, attrs: productVariants.attrs, skuCode: productVariants.skuCode, sku: productVariants.sku })
+    .from(productVariants)
+    .where(
+      and(
+        eq(productVariants.organizationId, organizationId),
+        eq(productVariants.productId, productId),
+      ),
+    )
+  const map = new Map<string, string>()
+  for (const row of rows) {
+    const attrs = readVariantAttrs(row.attrs)
+    const key = variantComboKey(String(attrs.color ?? ''), String(attrs.size ?? ''), String(attrs.pack ?? ''))
+    map.set(key, row.skuCode ?? row.sku)
+  }
+  return map
+}
+
 export async function createVariant(
   db: AppDatabase,
   organizationId: string,
@@ -443,6 +471,14 @@ export async function createVariant(
       )
       .limit(1)
     if (!product || !product.spuCode) return null
+
+    const comboKey = variantComboKey(input.color, input.size, input.pack)
+    const existingCombos = await listVariantComboKeys(tx, organizationId, product.id)
+    if (existingCombos.has(comboKey)) {
+      throw new Error(
+        `规格组合已存在：${input.color.trim()} / ${input.size.trim()} / ${input.pack.trim()}（${existingCombos.get(comboKey)}）`,
+      )
+    }
 
     const code = await nextVariantCode(tx, organizationId, product.id, product.spuCode)
     const id = createId()
@@ -475,6 +511,110 @@ export async function createVariant(
       .where(eq(productVariants.id, id))
       .limit(1)
     return row ? mapVariantRow(row) : null
+  })
+}
+
+
+export type BatchCreateVariantsInput = {
+  spu: string
+  colors: string[]
+  sizes: string[]
+  packs: string[]
+  weight?: number
+  status?: UiProductStatus
+  barcode?: string
+  lengthMm?: number
+  widthMm?: number
+  heightMm?: number
+}
+
+export type BatchCreateVariantsResult = {
+  created: VariantDto[]
+  createdCount: number
+  skippedCount: number
+  totalRequested: number
+}
+
+export async function batchCreateVariants(
+  db: AppDatabase,
+  organizationId: string,
+  input: BatchCreateVariantsInput,
+): Promise<BatchCreateVariantsResult | null> {
+  const colors = Array.from(new Set(input.colors.map((item) => item.trim()).filter(Boolean)))
+  const sizes = Array.from(new Set(input.sizes.map((item) => item.trim()).filter(Boolean)))
+  const packs = Array.from(new Set(input.packs.map((item) => item.trim()).filter(Boolean)))
+  if (colors.length === 0 || sizes.length === 0 || packs.length === 0) {
+    throw new Error('请至少选择一个颜色、尺码和包装规格')
+  }
+
+  return db.transaction(async (tx) => {
+    const [product] = await tx
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.organizationId, organizationId),
+          eq(products.spuCode, input.spu),
+          isNull(products.deletedAt),
+        ),
+      )
+      .limit(1)
+    if (!product || !product.spuCode) return null
+
+    const existingCombos = await listVariantComboKeys(tx, organizationId, product.id)
+    const created: VariantDto[] = []
+    let skippedCount = 0
+    let totalRequested = 0
+
+    for (const color of colors) {
+      for (const size of sizes) {
+        for (const pack of packs) {
+          totalRequested += 1
+          const comboKey = variantComboKey(color, size, pack)
+          if (existingCombos.has(comboKey)) {
+            skippedCount += 1
+            continue
+          }
+
+          const code = await nextVariantCode(tx, organizationId, product.id, product.spuCode)
+          const id = createId()
+          await tx.insert(productVariants).values({
+            id,
+            organizationId,
+            productId: product.id,
+            sku: code,
+            skuCode: code,
+            barcode: input.barcode?.trim() || null,
+            status: toDbStatus(input.status, 'draft'),
+            weightGrams: Math.round(Number(input.weight) || 0),
+            lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
+            widthMm: Math.round(Number(input.widthMm) || 0) || null,
+            heightMm: Math.round(Number(input.heightMm) || 0) || null,
+            attrs: {
+              color,
+              size,
+              pack,
+              images: [],
+            },
+          })
+
+          existingCombos.set(comboKey, code)
+          const [row] = await tx
+            .select()
+            .from(productVariants)
+            .where(eq(productVariants.id, id))
+            .limit(1)
+          if (row) created.push(mapVariantRow(row))
+        }
+      }
+    }
+
+    return {
+      created,
+      createdCount: created.length,
+      skippedCount,
+      totalRequested,
+    }
   })
 }
 
@@ -520,6 +660,26 @@ export async function updateVariant(
       pack: patch.pack?.trim() ?? attrs.pack,
       coverImage: patch.coverImage ?? attrs.coverImage,
       images: patch.images ?? attrs.images,
+    }
+
+    const nextCombo = variantComboKey(
+      String(nextAttrs.color ?? ''),
+      String(nextAttrs.size ?? ''),
+      String(nextAttrs.pack ?? ''),
+    )
+    const prevCombo = variantComboKey(
+      String(attrs.color ?? ''),
+      String(attrs.size ?? ''),
+      String(attrs.pack ?? ''),
+    )
+    if (nextCombo !== prevCombo) {
+      const existingCombos = await listVariantComboKeys(tx, organizationId, product.id)
+      const conflictCode = existingCombos.get(nextCombo)
+      if (conflictCode && conflictCode !== (existing.skuCode ?? existing.sku)) {
+        throw new Error(
+          `规格组合已存在：${String(nextAttrs.color ?? '')} / ${String(nextAttrs.size ?? '')} / ${String(nextAttrs.pack ?? '')}（${conflictCode}）`,
+        )
+      }
     }
 
     await tx

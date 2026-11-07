@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/select'
+import { Checkbox } from '@workspace/ui/components/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { ConsoleListSection, ConsoleTableEmpty } from '@/components/console/list'
@@ -236,6 +237,8 @@ export type UedDialogField = {
   /** 普通 select；设 searchable / type=search-select 时支持按名称模糊筛选 */
   type?: string
   searchable?: boolean
+  /** 多选：值以 JSON 字符串数组写入 onSave（如 '["黑色","白色"]'） */
+  multiple?: boolean
   required?: boolean
   helper?: string
   defaultValue?: string
@@ -243,8 +246,122 @@ export type UedDialogField = {
   fullWidth?: boolean
 }
 
+/** 解析 UedDialog 多选字段值 */
+export function parseUedMultiValue(raw: string | undefined | null): string[] {
+  if (!raw || !raw.trim()) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) {
+      return Array.from(new Set(parsed.map((item) => String(item).trim()).filter(Boolean)))
+    }
+  } catch {
+    // fall through — 兼容逗号分隔
+  }
+  return Array.from(
+    new Set(
+      raw
+        .split(/[,，]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function encodeUedMultiValue(values: string[]): string {
+  return JSON.stringify(Array.from(new Set(values.map((item) => item.trim()).filter(Boolean))))
+}
+
 function uniqueOptions(options: string[]): string[] {
   return Array.from(new Set(options))
+}
+
+function UedMultiSelect(props: {
+  id: string
+  values: string[]
+  options: string[]
+  disabled?: boolean
+  searchable?: boolean
+  placeholder?: string
+  onChange: (next: string[]) => void
+}) {
+  const [query, setQuery] = React.useState('')
+  const options = React.useMemo(() => uniqueOptions(props.options), [props.options])
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return options
+    return options.filter((option) => option.toLowerCase().includes(q))
+  }, [options, query])
+  const selected = new Set(props.values)
+
+  const toggle = (option: string) => {
+    if (props.disabled) return
+    const next = selected.has(option)
+      ? props.values.filter((item) => item !== option)
+      : [...props.values, option]
+    props.onChange(next)
+  }
+
+  return (
+    <div className="rounded-md border">
+      {props.searchable ? (
+        <div className="border-b p-2">
+          <Input
+            id={props.id}
+            value={query}
+            placeholder={props.placeholder ?? '输入关键词筛选…'}
+            disabled={props.disabled}
+            autoComplete="off"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground">
+        <span>已选 {props.values.length} / {options.length}</span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="hover:text-foreground"
+            disabled={props.disabled || filtered.length === 0}
+            onClick={() => {
+              const merged = Array.from(new Set([...props.values, ...filtered]))
+              props.onChange(merged)
+            }}
+          >
+            全选当前
+          </button>
+          <button
+            type="button"
+            className="hover:text-foreground"
+            disabled={props.disabled || props.values.length === 0}
+            onClick={() => props.onChange([])}
+          >
+            清空
+          </button>
+        </div>
+      </div>
+      <ul className="max-h-40 overflow-auto p-2" role="listbox" aria-multiselectable="true">
+        {filtered.length === 0 ? (
+          <li className="px-1 py-2 text-sm text-muted-foreground">无匹配项</li>
+        ) : (
+          filtered.map((option) => {
+            const checked = selected.has(option)
+            return (
+              <li key={option || '__empty__'}>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-muted/60">
+                  <Checkbox
+                    checked={checked}
+                    disabled={props.disabled}
+                    onCheckedChange={() => toggle(option)}
+                  />
+                  <span>{option || '（空）'}</span>
+                </label>
+              </li>
+            )
+          })
+        )}
+      </ul>
+    </div>
+  )
 }
 
 function UedSearchableSelect(props: {
@@ -334,7 +451,11 @@ export function UedDialog(props: {
     const initial: Record<string, string> = {}
     for (const field of props.fields) {
       const key = field.key ?? field.label
-      initial[key] = props.initialValues?.[key] ?? field.defaultValue ?? field.options?.[0] ?? ''
+      if (field.multiple) {
+        initial[key] = props.initialValues?.[key] ?? field.defaultValue ?? '[]'
+      } else {
+        initial[key] = props.initialValues?.[key] ?? field.defaultValue ?? field.options?.[0] ?? ''
+      }
     }
     return initial
   })
@@ -350,6 +471,15 @@ export function UedDialog(props: {
       for (const field of props.fields) {
         const key = field.key ?? field.label
         const preferred = props.initialValues?.[key] ?? field.defaultValue
+        if (field.multiple) {
+          if (!(next[key] ?? '').trim() || next[key] === '[]') {
+            if (preferred) {
+              next[key] = preferred
+              changed = true
+            }
+          }
+          continue
+        }
         if (!(next[key] ?? '').trim()) {
           if (preferred && (!field.options?.length || field.options.includes(preferred))) {
             next[key] = preferred
@@ -364,7 +494,12 @@ export function UedDialog(props: {
     })
   }, [optionsSignature, props.fields, props.initialValues])
 
-  const missing = props.fields.some((field) => field.required && !(values[field.key ?? field.label] ?? '').trim())
+  const missing = props.fields.some((field) => {
+    const raw = values[field.key ?? field.label] ?? ''
+    if (!field.required) return false
+    if (field.multiple) return parseUedMultiValue(raw).length === 0
+    return !raw.trim()
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose() }} onKeyDown={(event) => { if (event.key === 'Escape') props.onClose() }}>
@@ -378,10 +513,22 @@ export function UedDialog(props: {
               const setValue = (next: string) => setValues((current) => ({ ...current, [key]: next }))
               const searchable = Boolean(field.searchable || field.type === 'search-select')
               const options = field.options ? uniqueOptions(field.options) : undefined
+              const isMulti = Boolean(field.multiple && options)
+              const multiValues = isMulti ? parseUedMultiValue(value) : []
               return (
-                <div key={key} className={field.fullWidth ? 'flex flex-col gap-2 sm:col-span-2' : 'flex flex-col gap-2'}>
+                <div key={key} className={field.fullWidth || isMulti ? 'flex flex-col gap-2 sm:col-span-2' : 'flex flex-col gap-2'}>
                   <Label htmlFor={`ued-field-${key}`}>{field.label}{field.required ? <span className="text-destructive">*</span> : null}</Label>
-                  {options && searchable ? (
+                  {isMulti && options ? (
+                    <UedMultiSelect
+                      id={`ued-field-${key}`}
+                      values={multiValues}
+                      options={options}
+                      searchable={searchable}
+                      placeholder={field.placeholder}
+                      disabled={field.readOnly}
+                      onChange={(next) => setValue(encodeUedMultiValue(next))}
+                    />
+                  ) : options && searchable ? (
                     <UedSearchableSelect
                       id={`ued-field-${key}`}
                       value={value}

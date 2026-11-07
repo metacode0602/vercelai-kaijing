@@ -9,7 +9,7 @@ import {
 } from '@/components/console/detail'
 import { useConsoleBreadcrumbs } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedDialog } from '@/components/console/erp-ued-workspace'
+import { parseUedMultiValue, UedDialog } from '@/components/console/erp-ued-workspace'
 import { ProductImageEditor } from '@/components/console/product-images'
 import { trpc } from '@/lib/trpc/client'
 import { LocaleLink } from '@/lib/i18n/navigation'
@@ -25,12 +25,23 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
-import { Pencil, Plus } from 'lucide-react'
+import { Layers, Pencil, Plus, Power } from 'lucide-react'
 
 function statusVariant(status: string) {
   if (status === '启用') return 'secondary' as const
   if (status === '停用' || status === '异常') return 'destructive' as const
   return 'outline' as const
+}
+
+type VariantRow = {
+  id: string
+  code: string
+  color: string
+  size: string
+  pack: string
+  barcode: string
+  weight: number
+  status: UiProductStatus
 }
 
 export default function MasterProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -54,6 +65,9 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
 
   const [headerOpen, setHeaderOpen] = React.useState(false)
   const [variantOpen, setVariantOpen] = React.useState(false)
+  const [batchOpen, setBatchOpen] = React.useState(false)
+  const [editVariant, setEditVariant] = React.useState<VariantRow | null>(null)
+  const [statusTarget, setStatusTarget] = React.useState<VariantRow | null>(null)
   const [notice, setNotice] = React.useState('')
 
   const utils = trpc.useUtils()
@@ -81,11 +95,18 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const styleOptions = activeVals('product_style')
   const materialOptions = activeVals('product_material')
   const productQuery = trpc.products.bySpu.useQuery({ spu: id })
+
+  const invalidateProduct = async () => {
+    await utils.products.bySpu.invalidate({ spu: id })
+    await utils.products.list.invalidate()
+    await utils.products.listSkus.invalidate()
+    await utils.products.stats.invalidate()
+    await utils.products.listSkuCodes.invalidate()
+  }
+
   const updateMutation = trpc.products.update.useMutation({
     onSuccess: async () => {
-      await utils.products.bySpu.invalidate({ spu: id })
-      await utils.products.list.invalidate()
-      await utils.products.stats.invalidate()
+      await invalidateProduct()
       setHeaderOpen(false)
       setNotice('SPU 主信息已保存到数据库。')
     },
@@ -93,12 +114,28 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   })
   const createVariantMutation = trpc.products.createVariant.useMutation({
     onSuccess: async (created) => {
-      await utils.products.bySpu.invalidate({ spu: id })
-      await utils.products.listSkus.invalidate()
-      await utils.products.stats.invalidate()
-      await utils.products.listSkuCodes.invalidate()
+      await invalidateProduct()
       setVariantOpen(false)
       setNotice(`${created.code} 已写入 product_variants。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const batchCreateMutation = trpc.products.batchCreateVariants.useMutation({
+    onSuccess: async (result) => {
+      await invalidateProduct()
+      setBatchOpen(false)
+      setNotice(
+        `批量生成完成：新建 ${result.createdCount} 个，跳过已存在 ${result.skippedCount} 个（共请求 ${result.totalRequested} 个组合）。`,
+      )
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const updateVariantMutation = trpc.products.updateVariant.useMutation({
+    onSuccess: async (updated) => {
+      await invalidateProduct()
+      setEditVariant(null)
+      setStatusTarget(null)
+      setNotice(`${updated.code} 已更新。`)
     },
     onError: (error) => setNotice(error.message),
   })
@@ -136,6 +173,16 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const current = productQuery.data
   const enabledSkus = current.variants.filter((item) => item.status === '启用').length
   const pendingSkus = current.variants.filter((item) => item.status === '待确认').length
+  const colorChoices = colorOptions.length ? colorOptions : ['黑色', '白色', '深灰色', '蓝色', '红色']
+  const sizeChoices = sizeOptions.length ? sizeOptions : ['M', 'L', 'XL', '2XL', '3XL', '标准']
+  const packChoices = packOptions.length ? packOptions : ['单件']
+
+  const confirmStatusLabel = statusTarget?.status === '停用' ? '启用' : '禁用'
+  const nextStatus: UiProductStatus | null = statusTarget
+    ? statusTarget.status === '停用'
+      ? '启用'
+      : '停用'
+    : null
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -155,6 +202,10 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               <Pencil data-icon="inline-start" />
               编辑主信息
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setBatchOpen(true)}>
+              <Layers data-icon="inline-start" />
+              批量生成
+            </Button>
             <Button size="sm" onClick={() => setVariantOpen(true)}>
               <Plus data-icon="inline-start" />
               添加 SKU
@@ -166,7 +217,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
       <Alert>
         <AlertTitle>头行分离 · SPU 主信息 + SKU 规格行</AlertTitle>
         <AlertDescription>
-          对齐 schema products / product_variants：主信息与规格行均经 tRPC 持久化。平台 Seller SKU 在「映射」独立绑定（本模块仍可 stub）。
+          对齐 schema products / product_variants：主信息与规格行均经 tRPC 持久化。颜色+尺码+包装组合唯一；批量生成时已存在组合将自动跳过。
         </AlertDescription>
       </Alert>
 
@@ -215,15 +266,21 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         title="内部 SKU 规格行"
         description="真实交付规格；编码生成后不可修改、不可复用。无条码的 SKU 不允许刊登。"
         action={
-          <Button size="sm" variant="outline" onClick={() => setVariantOpen(true)}>
-            <Plus data-icon="inline-start" />
-            添加 SKU
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setBatchOpen(true)}>
+              <Layers data-icon="inline-start" />
+              批量生成
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setVariantOpen(true)}>
+              <Plus data-icon="inline-start" />
+              添加 SKU
+            </Button>
+          </div>
         }
       >
         {current.variants.length === 0 ? (
           <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-            尚无规格行。请添加颜色 / 尺码 / 包装组合以生成内部 SKU。
+            尚无规格行。请添加或批量生成颜色 / 尺码 / 包装组合以生成内部 SKU。
           </p>
         ) : (
           <Table>
@@ -252,11 +309,50 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                     <Badge variant={statusVariant(variant.status)}>{variant.status}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="ghost" asChild>
-                      <LocaleLink href={`/console/master-skus/${encodeURIComponent(variant.code)}`}>
-                        详情
-                      </LocaleLink>
-                    </Button>
+                    <div className="flex flex-wrap gap-1">
+                      <Button size="sm" variant="ghost" asChild>
+                        <LocaleLink href={`/console/master-skus/${encodeURIComponent(variant.code)}`}>
+                          详情
+                        </LocaleLink>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setEditVariant({
+                            id: variant.id,
+                            code: variant.code,
+                            color: variant.color,
+                            size: variant.size,
+                            pack: variant.pack,
+                            barcode: variant.barcode,
+                            weight: variant.weight,
+                            status: variant.status,
+                          })
+                        }
+                      >
+                        修改
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setStatusTarget({
+                            id: variant.id,
+                            code: variant.code,
+                            color: variant.color,
+                            size: variant.size,
+                            pack: variant.pack,
+                            barcode: variant.barcode,
+                            weight: variant.weight,
+                            status: variant.status,
+                          })
+                        }
+                      >
+                        <Power data-icon="inline-start" />
+                        {variant.status === '停用' ? '启用' : '禁用'}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -264,8 +360,6 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           </Table>
         )}
       </DetailSection>
-
-      {/* 关联刊登/采购等子表：待列表域接库后由 related-info 注入真实行；SKU 列表已在上方展示 */}
 
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
 
@@ -358,19 +452,19 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             {
               key: 'color',
               label: '颜色',
-              options: colorOptions.length ? colorOptions : ['黑色', '白色', '深灰色', '蓝色', '红色'],
+              options: colorChoices,
               required: true,
             },
             {
               key: 'size',
               label: '尺码',
-              options: sizeOptions.length ? sizeOptions : ['M', 'L', 'XL', '2XL', '3XL', '标准'],
+              options: sizeChoices,
               required: true,
             },
             {
               key: 'pack',
               label: '包装规格',
-              options: packOptions.length ? packOptions : ['单件'],
+              options: packChoices,
               required: true,
             },
             { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，刊登前必补' },
@@ -389,7 +483,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               spu: current.spu,
               color: values.color || '黑色',
               size: values.size || 'L',
-              pack: values.pack || packOptions[0] || '单件',
+              pack: values.pack || packChoices[0] || '单件',
               barcode: values.barcode,
               weight: Number(values.weight) || 0,
               status: (values.status as UiProductStatus) || '待确认',
@@ -397,6 +491,198 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           }}
           saveLabel={createVariantMutation.isPending ? '生成中…' : '生成 SKU'}
         />
+      ) : null}
+
+      {batchOpen ? (
+        <UedDialog
+          title="批量生成 SKU"
+          description={`归属 ${current.spu}；将按所选颜色 × 尺码 × 包装生成笛卡尔积。已存在的组合会自动跳过，编号仍按 SPU+三位流水。`}
+          fields={[
+            {
+              key: 'colors',
+              label: '颜色（可多选）',
+              options: colorChoices,
+              multiple: true,
+              searchable: true,
+              required: true,
+              fullWidth: true,
+              helper: colorOptions.length === 0 ? '字典 product_color 为空时使用内置备选' : undefined,
+            },
+            {
+              key: 'sizes',
+              label: '尺码（可多选）',
+              options: sizeChoices,
+              multiple: true,
+              searchable: true,
+              required: true,
+              fullWidth: true,
+              helper: sizeOptions.length === 0 ? '字典 product_size 为空时使用内置备选' : undefined,
+            },
+            {
+              key: 'packs',
+              label: '包装规格（可多选）',
+              options: packChoices,
+              multiple: true,
+              searchable: true,
+              required: true,
+              fullWidth: true,
+              helper: packOptions.length === 0 ? '字典 product_pack 为空时使用内置备选' : undefined,
+            },
+            {
+              key: 'weight',
+              label: '默认重量（g）',
+              type: 'number',
+              defaultValue: '0',
+              helper: '批量生成时统一写入；可在列表中再逐条修改',
+            },
+            {
+              key: 'status',
+              label: '初始状态',
+              options: ['待确认', '启用', '停用'],
+              defaultValue: '待确认',
+              required: true,
+            },
+          ]}
+          onClose={() => setBatchOpen(false)}
+          onSave={(values) => {
+            const colors = parseUedMultiValue(values.colors)
+            const sizes = parseUedMultiValue(values.sizes)
+            const packs = parseUedMultiValue(values.packs)
+            if (!colors.length || !sizes.length || !packs.length) {
+              setNotice('请至少选择一个颜色、尺码和包装规格')
+              return
+            }
+            batchCreateMutation.mutate({
+              spu: current.spu,
+              colors,
+              sizes,
+              packs,
+              weight: Number(values.weight) || 0,
+              status: (values.status as UiProductStatus) || '待确认',
+            })
+          }}
+          saveLabel={
+            batchCreateMutation.isPending
+              ? '生成中…'
+              : '批量生成'
+          }
+        />
+      ) : null}
+
+      {editVariant ? (
+        <UedDialog
+          title={`修改 SKU ${editVariant.code}`}
+          description="SKU 编码不可改；颜色/尺码/包装若与其它规格冲突将拒绝保存。"
+          fields={[
+            { key: 'code', label: '内部 SKU', defaultValue: editVariant.code, readOnly: true },
+            {
+              key: 'color',
+              label: '颜色',
+              options: Array.from(new Set([editVariant.color, ...colorChoices].filter(Boolean))),
+              defaultValue: editVariant.color,
+              required: true,
+            },
+            {
+              key: 'size',
+              label: '尺码',
+              options: Array.from(new Set([editVariant.size, ...sizeChoices].filter(Boolean))),
+              defaultValue: editVariant.size,
+              required: true,
+            },
+            {
+              key: 'pack',
+              label: '包装规格',
+              options: Array.from(new Set([editVariant.pack, ...packChoices].filter(Boolean))),
+              defaultValue: editVariant.pack,
+              required: true,
+            },
+            {
+              key: 'barcode',
+              label: '条码（EAN/UPC）',
+              defaultValue: editVariant.barcode,
+              placeholder: '选填，刊登前必补',
+            },
+            {
+              key: 'weight',
+              label: '重量（g）',
+              type: 'number',
+              defaultValue: String(editVariant.weight ?? 0),
+              required: true,
+            },
+            {
+              key: 'status',
+              label: '状态',
+              options: ['待确认', '启用', '停用'],
+              defaultValue: editVariant.status,
+              required: true,
+            },
+          ]}
+          onClose={() => setEditVariant(null)}
+          onSave={(values) => {
+            updateVariantMutation.mutate({
+              spu: current.spu,
+              code: editVariant.code,
+              color: values.color || editVariant.color,
+              size: values.size || editVariant.size,
+              pack: values.pack || editVariant.pack,
+              barcode: values.barcode,
+              weight: Number(values.weight) || 0,
+              status: (values.status as UiProductStatus) || editVariant.status,
+            })
+          }}
+          saveLabel={updateVariantMutation.isPending ? '保存中…' : '保存修改'}
+        />
+      ) : null}
+
+      {statusTarget && nextStatus ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setStatusTarget(null)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setStatusTarget(null)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl border bg-background p-5 shadow-lg"
+          >
+            <h2 className="font-semibold">
+              {confirmStatusLabel === '禁用'
+                ? `确认禁用该 SKU？`
+                : `确认启用该 SKU？`}
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {statusTarget.code} · {statusTarget.color} / {statusTarget.size} / {statusTarget.pack}
+              。这是软状态变更（写入 product_variants.status），不会物理删除。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setStatusTarget(null)}>
+                取消
+              </Button>
+              <Button
+                variant={confirmStatusLabel === '禁用' ? 'destructive' : 'default'}
+                disabled={updateVariantMutation.isPending}
+                onClick={() =>
+                  updateVariantMutation.mutate({
+                    spu: current.spu,
+                    code: statusTarget.code,
+                    status: nextStatus,
+                  })
+                }
+              >
+                {updateVariantMutation.isPending
+                  ? '处理中…'
+                  : confirmStatusLabel === '禁用'
+                    ? '确认禁用'
+                    : '确认启用'}
+              </Button>
+            </div>
+          </section>
+        </div>
       ) : null}
     </div>
   )
