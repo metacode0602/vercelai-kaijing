@@ -24,7 +24,10 @@ export default function CartonSpecsPage() {
     onError: (e) => setNotice(e.message),
   })
   const packDict = dictionariesQuery.data?.find((d) => d.key === 'product_pack')
-  const packOptions = (packDict?.values ?? []).filter((v) => !(packDict?.inactiveValues ?? []).includes(v))
+  const packOptions = (packDict?.values ?? [])
+    .filter((value) => !(packDict?.inactiveValues ?? []).includes(value))
+    .map((value) => ({ value, title: packDict?.valueTitles?.[value] ?? value }))
+  const packTitles = packDict?.valueTitles ?? {}
   const rows = listQuery.data?.items ?? []
   const editor = open ? (
     <UedDialog
@@ -45,7 +48,7 @@ export default function CartonSpecsPage() {
       onSave={(values) => {
         createMutation.mutate({
           name: values.name || '未命名箱规',
-          applicablePack: values.applicablePack || packOptions[0] || '单件',
+          applicablePack: values.applicablePack || packOptions[0]?.value || '单件',
           lengthCm: Number(values.lengthCm) || 0,
           widthCm: Number(values.widthCm) || 0,
           heightCm: Number(values.heightCm) || 0,
@@ -77,7 +80,7 @@ export default function CartonSpecsPage() {
         columns={[
           { key: 'code', label: '箱规编码' },
           { key: 'name', label: '箱规名称' },
-          { key: 'applicablePack', label: '适用包装规格' },
+          { key: 'applicablePack', label: '适用包装规格', render: (row) => packTitles[row.applicablePack] ?? row.applicablePack },
           { key: 'dimensions', label: '尺寸 cm', render: (row) => `${row.lengthCm}×${row.widthCm}×${row.heightCm}` },
           { key: 'grossWeightKg', label: '毛重 kg', render: (row) => String(row.grossWeightKg) },
           { key: 'unitsPerCarton', label: '每箱件数', render: (row) => String(row.unitsPerCarton) },

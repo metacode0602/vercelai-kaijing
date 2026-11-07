@@ -30,7 +30,8 @@
     "db:seed:commerce-finance": "tsx src/scripts/seed-commerce-finance.ts",
     "db:seed:commerce-candidates": "tsx src/scripts/seed-commerce-candidates.ts",
     "db:seed:commerce-console-ops": "tsx src/scripts/seed-commerce-console-ops.ts",
-    "db:seed:commerce-carton-specs": "tsx src/scripts/seed-commerce-carton-specs.ts"
+    "db:seed:commerce-carton-specs": "tsx src/scripts/seed-commerce-carton-specs.ts",
+    "db:seed:dictionaries": "tsx src/scripts/seed-dictionaries.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",

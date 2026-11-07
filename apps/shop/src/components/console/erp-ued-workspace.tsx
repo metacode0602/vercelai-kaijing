@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, ChevronRight, Download, Plus, Search } from 'lucide-react'
+import { Check, ChevronRight, Plus, Search } from 'lucide-react'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
@@ -30,7 +30,6 @@ export function UedWorkspace<T>(props: {
   filters?: Array<{ label: string; options: string[]; key?: string }>
   onAdd?: () => void
   addLabel?: string
-  onExport?: () => void
   emptyText?: string
   detailHref?: (row: T) => string
   listTitle?: string
@@ -94,23 +93,6 @@ export function UedWorkspace<T>(props: {
       props.onStatusFilterChange(value)
     }
     onPageChange(1)
-  }
-
-  function exportDemoRows() {
-    const headers = props.columns.map((column) => column.label)
-    const body = rows.map((row) => props.columns.map((column) => {
-      const record = row as Record<string, unknown>
-      const value = record[String(column.key)]
-      return String(value ?? '').replaceAll('"', '""')
-    }))
-    const csv = [headers, ...body].map((line) => line.map((value) => `"${value}"`).join(',')).join('\n')
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${props.title}-示例.csv`
-    anchor.click()
-    URL.revokeObjectURL(url)
   }
 
   const tableNode =
@@ -178,10 +160,6 @@ export function UedWorkspace<T>(props: {
           <p className="mt-1 text-sm text-muted-foreground">{props.description}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={props.onExport ?? exportDemoRows}>
-            <Download data-icon="inline-start" />
-            导出演示清单
-          </Button>
           {props.onAdd ? (
             <Button onClick={props.onAdd}>
               <Plus data-icon="inline-start" />
@@ -228,11 +206,13 @@ export function UedWorkspace<T>(props: {
   )
 }
 
+export type UedOption = string | { value: string; title: string }
+
 export type UedDialogField = {
   key?: string
   label: string
   placeholder?: string
-  options?: string[]
+  options?: UedOption[]
   /** 普通 select；设 searchable / type=search-select 时支持按名称模糊筛选 */
   type?: string
   searchable?: boolean
@@ -243,14 +223,26 @@ export type UedDialogField = {
   fullWidth?: boolean
 }
 
-function uniqueOptions(options: string[]): string[] {
-  return Array.from(new Set(options))
+function normalizeOption(option: UedOption): { value: string; title: string } {
+  return typeof option === 'string' ? { value: option, title: option } : option
+}
+
+function uniqueOptions(options: UedOption[]): Array<{ value: string; title: string }> {
+  const seen = new Set<string>()
+  const result: Array<{ value: string; title: string }> = []
+  for (const option of options) {
+    const normalized = normalizeOption(option)
+    if (seen.has(normalized.value)) continue
+    seen.add(normalized.value)
+    result.push(normalized)
+  }
+  return result
 }
 
 function UedSearchableSelect(props: {
   id: string
   value: string
-  options: string[]
+  options: UedOption[]
   placeholder?: string
   disabled?: boolean
   onChange: (next: string) => void
@@ -258,10 +250,13 @@ function UedSearchableSelect(props: {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const options = React.useMemo(() => uniqueOptions(props.options), [props.options])
+  const selectedTitle = options.find((option) => option.value === props.value)?.title ?? props.value
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return options
-    return options.filter((option) => option.toLowerCase().includes(q))
+    return options.filter((option) =>
+      `${option.value} ${option.title}`.toLowerCase().includes(q),
+    )
   }, [options, query])
 
   React.useEffect(() => {
@@ -272,13 +267,13 @@ function UedSearchableSelect(props: {
     <div className="relative">
       <Input
         id={props.id}
-        value={open ? query : props.value}
+        value={open ? query : selectedTitle}
         placeholder={props.placeholder ?? '输入关键词筛选…'}
         disabled={props.disabled}
         autoComplete="off"
         onFocus={() => {
           if (props.disabled) return
-          setQuery(props.value)
+          setQuery(selectedTitle)
           setOpen(true)
         }}
         onChange={(event) => {
@@ -299,17 +294,17 @@ function UedSearchableSelect(props: {
             <li className="px-3 py-2 text-sm text-muted-foreground">无匹配项</li>
           ) : (
             filtered.map((option) => (
-              <li key={option || '__empty__'} role="option" aria-selected={option === props.value}>
+              <li key={option.value || '__empty__'} role="option" aria-selected={option.value === props.value}>
                 <button
                   type="button"
-                  className={`flex w-full px-3 py-1.5 text-left text-sm hover:bg-muted ${option === props.value ? 'bg-muted/70' : ''}`}
+                  className={`flex w-full px-3 py-1.5 text-left text-sm hover:bg-muted ${option.value === props.value ? 'bg-muted/70' : ''}`}
                   onMouseDown={(event) => {
                     event.preventDefault()
-                    props.onChange(option)
+                    props.onChange(option.value)
                     setOpen(false)
                   }}
                 >
-                  {option || '（不限）'}
+                  {option.title || '（不限）'}
                 </button>
               </li>
             ))
@@ -334,14 +329,20 @@ export function UedDialog(props: {
     const initial: Record<string, string> = {}
     for (const field of props.fields) {
       const key = field.key ?? field.label
-      initial[key] = props.initialValues?.[key] ?? field.defaultValue ?? field.options?.[0] ?? ''
+      const firstOption = field.options?.[0] ? normalizeOption(field.options[0]).value : ''
+      initial[key] = props.initialValues?.[key] ?? field.defaultValue ?? firstOption
     }
     return initial
   })
 
   // 异步 options（如供应商列表）到达后补默认值
   const optionsSignature = props.fields
-    .map((field) => `${field.key ?? field.label}:${(field.options ?? []).join('|')}`)
+    .map(
+      (field) =>
+        `${field.key ?? field.label}:${uniqueOptions(field.options ?? [])
+          .map((option) => `${option.value}:${option.title}`)
+          .join('|')}`,
+    )
     .join('||')
   React.useEffect(() => {
     setValues((current) => {
@@ -350,12 +351,13 @@ export function UedDialog(props: {
       for (const field of props.fields) {
         const key = field.key ?? field.label
         const preferred = props.initialValues?.[key] ?? field.defaultValue
+        const fieldOptions = uniqueOptions(field.options ?? [])
         if (!(next[key] ?? '').trim()) {
-          if (preferred && (!field.options?.length || field.options.includes(preferred))) {
+          if (preferred && (!fieldOptions.length || fieldOptions.some((option) => option.value === preferred))) {
             next[key] = preferred
             changed = true
-          } else if (field.options?.[0]) {
-            next[key] = field.options[0]
+          } else if (fieldOptions[0]) {
+            next[key] = fieldOptions[0].value
             changed = true
           }
         }
@@ -396,7 +398,7 @@ export function UedDialog(props: {
                         <SelectValue placeholder="请选择" />
                       </SelectTrigger>
                       <SelectContent>
-                        {options.map((option) => <SelectItem key={option || '__empty__'} value={option || '__empty__'}>{option || '（不限）'}</SelectItem>)}
+                        {options.map((option) => <SelectItem key={option.value || '__empty__'} value={option.value || '__empty__'}>{option.title || '（不限）'}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   ) : field.type === 'textarea' ? (

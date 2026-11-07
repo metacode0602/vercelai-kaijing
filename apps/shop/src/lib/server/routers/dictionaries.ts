@@ -25,14 +25,33 @@ export const dictionariesRouter = createTRPCRouter({
         description: z.string().optional(),
         shared: z.boolean().optional(),
         values: z.array(z.string()).optional(),
+        valueTitles: z.record(z.string(), z.string()).optional(),
         inactiveValues: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => wrap(() => dictionariesDa.upsertDictionary(ctx.db, ctx.organizationId, input))),
   addValue: tenantProcedure
-    .input(z.object({ key: z.string().min(1), value: z.string().min(1) }))
+    .input(
+      z.object({
+        key: z.string().min(1),
+        value: z.string().min(1),
+        title: z.string().min(1),
+      }),
+    )
     .mutation(async ({ ctx, input }) =>
-      wrap(() => dictionariesDa.addDictionaryValue(ctx.db, ctx.organizationId, input.key, input.value)),
+      wrap(() => dictionariesDa.addDictionaryValue(ctx.db, ctx.organizationId, input.key, input)),
+    ),
+  updateValue: tenantProcedure
+    .input(
+      z.object({
+        key: z.string().min(1),
+        from: z.string().min(1),
+        to: z.string().min(1),
+        title: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => dictionariesDa.updateDictionaryValue(ctx.db, ctx.organizationId, input.key, input)),
     ),
   setValueActive: tenantProcedure
     .input(z.object({ key: z.string().min(1), value: z.string().min(1), active: z.boolean() }))

@@ -27,14 +27,18 @@ function pathOf(rows: Cat[], node: Cat): string {
   return parts.join(' / ')
 }
 
-function activeDictValues(
-  dicts: Array<{ key: string; values: string[]; inactiveValues: string[] }> | undefined,
+type DictOption = { value: string; title: string }
+
+function activeDictOptions(
+  dicts: Array<{ key: string; values: string[]; valueTitles: Record<string, string>; inactiveValues: string[] }> | undefined,
   key: string,
-): string[] {
+): DictOption[] {
   const row = dicts?.find((d) => d.key === key)
   if (!row) return []
   const inactive = new Set(row.inactiveValues)
-  return row.values.filter((v) => !inactive.has(v))
+  return row.values
+    .filter((value) => !inactive.has(value))
+    .map((value) => ({ value, title: row.valueTitles?.[value] ?? value }))
 }
 
 export default function MasterProductsPage() {
@@ -43,6 +47,7 @@ export default function MasterProductsPage() {
   const categoriesQuery = trpc.categories.list.useQuery({})
   const membersQuery = trpc.members.list.useQuery({})
   const dictionariesQuery = trpc.dictionaries.list.useQuery()
+  const dictMap = Object.fromEntries((dictionariesQuery.data ?? []).map((d) => [d.key, d]))
   const brandRows = brandsMetaQuery.data?.brands ?? []
   const brandOptions = brandRows.map((b) => b.name)
   const brandIdByName = Object.fromEntries(brandRows.map((b) => [b.name, b.id]))
@@ -50,8 +55,10 @@ export default function MasterProductsPage() {
   const categoryOptions = categoryRows
     .filter((c) => c.status === '启用')
     .map((c) => pathOf(categoryRows, c))
-  const styleOptions = activeDictValues(dictionariesQuery.data, 'product_style')
-  const materialOptions = activeDictValues(dictionariesQuery.data, 'product_material')
+  const styleOptions = activeDictOptions(dictionariesQuery.data, 'product_style')
+  const materialOptions = activeDictOptions(dictionariesQuery.data, 'product_material')
+  const styleTitles = dictMap.product_style?.valueTitles ?? {}
+  const materialTitles = dictMap.product_material?.valueTitles ?? {}
   const members = (membersQuery.data ?? []).filter((m) => m.source === 'member' && m.status === '启用')
   const ownerOptions = members.map((member) => member.name)
 
@@ -156,11 +163,11 @@ export default function MasterProductsPage() {
           setNotice('请选择有效的多级分类')
           return
         }
-        if (!styleOptions.includes(values.style || '')) {
+        if (!styleOptions.some((option) => option.value === (values.style || ''))) {
           setNotice('请选择字典中的款式/版型（product_style）')
           return
         }
-        if (!materialOptions.includes(values.material || '')) {
+        if (!materialOptions.some((option) => option.value === (values.material || ''))) {
           setNotice('请选择字典中的材质（product_material）')
           return
         }
@@ -219,8 +226,8 @@ export default function MasterProductsPage() {
           { key: 'name', label: '商品名称' },
           { key: 'brand', label: '品牌' },
           { key: 'category', label: '品类' },
-          { key: 'material', label: '材质' },
-          { key: 'style', label: '款式 / 版型' },
+          { key: 'material', label: '材质', render: (row) => materialTitles[row.material] ?? row.material },
+          { key: 'style', label: '款式 / 版型', render: (row) => styleTitles[row.style] ?? row.style },
           { key: 'owner', label: '负责人' },
           { key: 'skuCount', label: 'SKU 数' },
           {

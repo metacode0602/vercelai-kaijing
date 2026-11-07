@@ -14,15 +14,20 @@ const PAGE_SIZE = 20
 export default function MasterSkusPage() {
   const dictionariesQuery = trpc.dictionaries.list.useQuery()
   const dictMap = Object.fromEntries((dictionariesQuery.data ?? []).map((d) => [d.key, d]))
-  const activeVals = (key: string) => {
+  const activeOptions = (key: string) => {
     const d = dictMap[key]
-    if (!d) return [] as string[]
+    if (!d) return []
     const inactive = new Set(d.inactiveValues ?? [])
-    return d.values.filter((v) => !inactive.has(v))
+    return d.values
+      .filter((value) => !inactive.has(value))
+      .map((value) => ({ value, title: d.valueTitles?.[value] ?? value }))
   }
-  const packOptions = activeVals('product_pack')
-  const colorOptions = activeVals('product_color')
-  const sizeOptions = activeVals('product_size')
+  const packOptions = activeOptions('product_pack')
+  const colorOptions = activeOptions('product_color')
+  const sizeOptions = activeOptions('product_size')
+  const packTitles = dictMap.product_pack?.valueTitles ?? {}
+  const colorTitles = dictMap.product_color?.valueTitles ?? {}
+  const sizeTitles = dictMap.product_size?.valueTitles ?? {}
 
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
@@ -125,7 +130,7 @@ export default function MasterSkusPage() {
           spu: product.spu,
           color: values.color || '黑色',
           size: values.size || 'L',
-          pack: values.pack || packOptions[0] || '单件',
+          pack: values.pack || packOptions[0]?.value || '单件',
           barcode: values.barcode,
           weight: Number(values.weight) || 220,
           lengthMm: Number(values.lengthMm) || 0,
@@ -179,9 +184,9 @@ export default function MasterSkusPage() {
           { key: 'sku', label: '内部 SKU' },
           { key: 'spu', label: '所属 SPU' },
           { key: 'name', label: '商品名称' },
-          { key: 'color', label: '颜色' },
-          { key: 'size', label: '尺码' },
-          { key: 'pack', label: '包装' },
+          { key: 'color', label: '颜色', render: (row) => colorTitles[row.color] ?? row.color },
+          { key: 'size', label: '尺码', render: (row) => sizeTitles[row.size] ?? row.size },
+          { key: 'pack', label: '包装', render: (row) => packTitles[row.pack] ?? row.pack },
           { key: 'barcode', label: '条码' },
           { key: 'weight', label: '重量 g' },
           {

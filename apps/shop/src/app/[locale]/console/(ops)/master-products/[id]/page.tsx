@@ -42,15 +42,21 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
 
   const dictionariesQuery = trpc.dictionaries.list.useQuery()
   const dictMap = Object.fromEntries((dictionariesQuery.data ?? []).map((d) => [d.key, d]))
-  const activeVals = (key: string) => {
+  const activeOptions = (key: string) => {
     const d = dictMap[key]
-    if (!d) return [] as string[]
+    if (!d) return []
     const inactive = new Set(d.inactiveValues ?? [])
-    return d.values.filter((v) => !inactive.has(v))
+    return d.values
+      .filter((value) => !inactive.has(value))
+      .map((value) => ({ value, title: d.valueTitles?.[value] ?? value }))
   }
-  const packOptions = activeVals('product_pack')
-  const colorOptions = activeVals('product_color')
-  const sizeOptions = activeVals('product_size')
+  const withCurrent = (currentValue: string, options: Array<{ value: string; title: string }>) => {
+    if (!currentValue || options.some((option) => option.value === currentValue)) return options
+    return [{ value: currentValue, title: currentValue }, ...options]
+  }
+  const packOptions = activeOptions('product_pack')
+  const colorOptions = activeOptions('product_color')
+  const sizeOptions = activeOptions('product_size')
 
   const [headerOpen, setHeaderOpen] = React.useState(false)
   const [variantOpen, setVariantOpen] = React.useState(false)
@@ -78,8 +84,13 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
     return parts.join(' / ')
   }
   const categoryOptions = categoryRows.filter((c) => c.status === '启用').map((c) => categoryPathOf(c))
-  const styleOptions = activeVals('product_style')
-  const materialOptions = activeVals('product_material')
+  const styleOptions = activeOptions('product_style')
+  const materialOptions = activeOptions('product_material')
+  const styleTitles = dictMap.product_style?.valueTitles ?? {}
+  const materialTitles = dictMap.product_material?.valueTitles ?? {}
+  const packTitles = dictMap.product_pack?.valueTitles ?? {}
+  const colorTitles = dictMap.product_color?.valueTitles ?? {}
+  const sizeTitles = dictMap.product_size?.valueTitles ?? {}
   const productQuery = trpc.products.bySpu.useQuery({ spu: id })
   const updateMutation = trpc.products.update.useMutation({
     onSuccess: async () => {
@@ -175,7 +186,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           { label: 'SKU 数', value: String(current.skuCount) },
           { label: '启用规格', value: String(enabledSkus) },
           { label: '待确认', value: String(pendingSkus) },
-          { label: '材质 / 版型', value: `${current.material} / ${current.style}` },
+          { label: '材质 / 版型', value: `${materialTitles[current.material] ?? current.material} / ${styleTitles[current.style] ?? current.style}` },
         ]}
       />
 
@@ -187,8 +198,8 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           { label: '商品名称', value: current.name },
           { label: '品牌', value: current.brand },
           { label: '品类', value: current.category },
-          { label: '材质', value: current.material },
-          { label: '款式 / 版型', value: current.style },
+          { label: '材质', value: materialTitles[current.material] ?? current.material },
+          { label: '款式 / 版型', value: styleTitles[current.style] ?? current.style },
           { label: '负责人', value: current.owner },
           {
             label: '状态',
@@ -243,9 +254,9 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               {current.variants.map((variant) => (
                 <TableRow key={variant.code}>
                   <TableCell className="font-mono text-xs">{variant.code}</TableCell>
-                  <TableCell>{variant.color}</TableCell>
-                  <TableCell>{variant.size}</TableCell>
-                  <TableCell>{variant.pack}</TableCell>
+                  <TableCell>{colorTitles[variant.color] ?? variant.color}</TableCell>
+                  <TableCell>{sizeTitles[variant.size] ?? variant.size}</TableCell>
+                  <TableCell>{packTitles[variant.pack] ?? variant.pack}</TableCell>
                   <TableCell className="font-mono text-xs">{variant.barcode || '—'}</TableCell>
                   <TableCell className="tabular-nums">{variant.weight}</TableCell>
                   <TableCell>
@@ -304,7 +315,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             {
               key: 'style',
               label: '款式 / 版型',
-              options: Array.from(new Set([current.style, ...styleOptions].filter(Boolean))),
+              options: withCurrent(current.style, styleOptions),
               defaultValue: current.style,
               required: true,
               helper: styleOptions.length === 0 ? '请到「数据字典」维护 product_style' : undefined,
@@ -312,7 +323,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             {
               key: 'material',
               label: '材质',
-              options: Array.from(new Set([current.material, ...materialOptions].filter(Boolean))),
+              options: withCurrent(current.material, materialOptions),
               defaultValue: current.material,
               required: true,
               helper: materialOptions.length === 0 ? '请到「数据字典」维护 product_material' : undefined,
@@ -389,7 +400,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               spu: current.spu,
               color: values.color || '黑色',
               size: values.size || 'L',
-              pack: values.pack || packOptions[0] || '单件',
+              pack: values.pack || packOptions[0]?.value || '单件',
               barcode: values.barcode,
               weight: Number(values.weight) || 0,
               status: (values.status as UiProductStatus) || '待确认',

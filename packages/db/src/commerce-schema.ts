@@ -2159,6 +2159,8 @@ export const commerceDictionaries = pgTable(
     description: text("description").notNull().default(""),
     shared: boolean("shared").notNull().default(true),
     values: jsonb("values").$type<string[]>().notNull().default([]),
+    /** value -> 中文标题；值用于存储，标题用于界面展示 */
+    valueTitles: jsonb("value_titles").$type<Record<string, string>>().notNull().default({}),
     inactiveValues: jsonb("inactive_values").$type<string[]>().notNull().default([]),
     ...timestamps,
   },
