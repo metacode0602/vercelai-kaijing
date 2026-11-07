@@ -229,3 +229,56 @@ export async function setFxRateActive(
   })
   return getFxRate(db as AppDatabase, organizationId, input.id)
 }
+
+
+export type FxImportRowInput = {
+  platform?: string
+  marketplaceCode?: string
+  baseCurrency: string
+  quoteCurrency: string
+  rate: number | string
+  effectiveDate: string
+  note?: string
+}
+
+export async function importFxRateRows(
+  db: AppDatabase,
+  organizationId: string,
+  input: {
+    rows: FxImportRowInput[]
+    actorUserId?: string
+    actorLabel?: string
+  },
+) {
+  if (!input.rows.length) throw new Error('没有可导入的行')
+  let success = 0
+  const errors: Array<{ index: number; message: string }> = []
+  // 逐行提交：单行失败不影响其它行（避免 PG 事务因一行错误整批回滚）
+  for (let i = 0; i < input.rows.length; i += 1) {
+    const row = input.rows[i]!
+    try {
+      await createFxRate(db, organizationId, {
+        ...row,
+        source: 'import',
+        actorUserId: input.actorUserId,
+        actorLabel: input.actorLabel,
+      })
+      success += 1
+    } catch (error) {
+      errors.push({
+        index: i + 1,
+        message: error instanceof Error ? error.message : '导入失败',
+      })
+    }
+  }
+  return {
+    total: input.rows.length,
+    success,
+    failed: errors.length,
+    errors: errors.slice(0, 20),
+    note:
+      errors.length === 0
+        ? `已导入 ${success} 条汇率（source=import）。`
+        : `成功 ${success} 条，失败 ${errors.length} 条（失败行未写入）。`,
+  }
+}

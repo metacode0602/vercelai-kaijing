@@ -188,7 +188,10 @@ export const invitationColumns = (
   organizationId: text("organization_id")
     .notNull()
     .references(() => organizationRef.id, { onDelete: "cascade" }),
-  email: text("email").notNull(),
+  /** 邮箱可空：纯手机号邀请时仅写 phone */
+  email: text("email"),
+  /** 中国大陆手机号（规范化后 11 位）；手机登录时自动绑定组织 */
+  phone: text("phone"),
   role: text("role"),
   status: text("status").default("pending").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
@@ -210,9 +213,11 @@ export const verificationIndexes = (table: { identifier: AnyPgColumn }) => [
 export const invitationIndexes = (table: {
   organizationId: AnyPgColumn
   email: AnyPgColumn
+  phone: AnyPgColumn
   inviterId: AnyPgColumn
 }) => [
   index("invitation_organization_id_idx").on(table.organizationId),
   index("invitation_email_idx").on(table.email),
+  index("invitation_phone_idx").on(table.phone),
   index("invitation_inviter_id_idx").on(table.inviterId),
 ]

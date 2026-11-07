@@ -11,20 +11,49 @@ import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/al
 
 const PAGE_SIZE = 20
 
+type Cat = { id: string; name: string; parentId: string | null; status: string }
+
+function pathOf(rows: Cat[], node: Cat): string {
+  const parts = [node.name]
+  let parentId = node.parentId
+  const seen = new Set<string>()
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId)
+    const parent = rows.find((r) => r.id === parentId)
+    if (!parent) break
+    parts.unshift(parent.name)
+    parentId = parent.parentId
+  }
+  return parts.join(' / ')
+}
+
+function activeDictValues(
+  dicts: Array<{ key: string; values: string[]; inactiveValues: string[] }> | undefined,
+  key: string,
+): string[] {
+  const row = dicts?.find((d) => d.key === key)
+  if (!row) return []
+  const inactive = new Set(row.inactiveValues)
+  return row.values.filter((v) => !inactive.has(v))
+}
+
 export default function MasterProductsPage() {
   const router = useLocaleRouter()
   const brandsMetaQuery = trpc.brands.meta.useQuery()
   const categoriesQuery = trpc.categories.list.useQuery({})
   const membersQuery = trpc.members.list.useQuery({})
+  const dictionariesQuery = trpc.dictionaries.list.useQuery()
   const brandRows = brandsMetaQuery.data?.brands ?? []
   const brandOptions = brandRows.map((b) => b.name)
   const brandIdByName = Object.fromEntries(brandRows.map((b) => [b.name, b.id]))
-  const categoryRows = categoriesQuery.data ?? []
+  const categoryRows = (categoriesQuery.data ?? []) as Cat[]
   const categoryOptions = categoryRows
     .filter((c) => c.status === '启用')
-    .map((c) => c.name)
+    .map((c) => pathOf(categoryRows, c))
+  const styleOptions = activeDictValues(dictionariesQuery.data, 'product_style')
+  const materialOptions = activeDictValues(dictionariesQuery.data, 'product_material')
   const members = (membersQuery.data ?? []).filter((m) => m.source === 'member' && m.status === '启用')
-  const ownerOptions = members.filter((member) => member.status === '启用').map((member) => member.name)
+  const ownerOptions = members.map((member) => member.name)
 
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
@@ -68,7 +97,7 @@ export default function MasterProductsPage() {
   const editor = open ? (
     <UedDialog
       title="新建商品 SPU"
-      description="先维护主信息；系统按 HSY + 六位流水号生成编码并写入 products 表。保存后进入详情添加 SKU。"
+      description="先维护主信息；多级分类 / 款式 / 材质均为下拉（款式与材质来自数据字典）。系统按 HSY + 六位流水号生成编码并写入 products 表。"
       fields={[
         { key: 'name', label: '内部商品名称', required: true },
         {
@@ -80,16 +109,30 @@ export default function MasterProductsPage() {
         },
         {
           key: 'category',
-          label: '多级品类',
-          options: categoryOptions.length > 0 ? categoryOptions : ['服装 / 上衣 / T恤', '数码 / 电脑配件', '家居'],
+          label: '多级分类',
+          options: categoryOptions.length > 0 ? categoryOptions : ['（请先维护品类树）'],
+          searchable: true,
           required: true,
+          helper: categoryOptions.length === 0 ? '请先到「品类」维护多级分类' : '支持按路径关键词筛选',
         },
-        { key: 'material', label: '材质', required: true },
-        { key: 'style', label: '款式 / 版型', required: true },
+        {
+          key: 'style',
+          label: '款式 / 版型',
+          options: styleOptions.length > 0 ? styleOptions : ['（请先在字典维护 product_style）'],
+          required: true,
+          helper: styleOptions.length === 0 ? '请到「数据字典」维护 product_style' : undefined,
+        },
+        {
+          key: 'material',
+          label: '材质',
+          options: materialOptions.length > 0 ? materialOptions : ['（请先在字典维护 product_material）'],
+          required: true,
+          helper: materialOptions.length === 0 ? '请到「数据字典」维护 product_material' : undefined,
+        },
         {
           key: 'owner',
           label: '商品负责人',
-          options: ownerOptions.length > 0 ? ownerOptions : ['杨洁'],
+          options: ownerOptions.length > 0 ? ownerOptions : ['当前用户'],
           required: true,
         },
         { key: 'launchDate', label: '计划上市日期', type: 'date' },
@@ -109,14 +152,26 @@ export default function MasterProductsPage() {
           setNotice('请先在「品牌」主档新增并启用品牌后再创建商品')
           return
         }
+        if (!categoryOptions.includes(values.category || '')) {
+          setNotice('请选择有效的多级分类')
+          return
+        }
+        if (!styleOptions.includes(values.style || '')) {
+          setNotice('请选择字典中的款式/版型（product_style）')
+          return
+        }
+        if (!materialOptions.includes(values.material || '')) {
+          setNotice('请选择字典中的材质（product_material）')
+          return
+        }
         createMutation.mutate({
           name: values.name || '新商品',
           brandId,
           brand: brandName,
-          category: values.category || categoryOptions[0] || '待分类',
+          category: values.category,
           owner: values.owner || ownerOptions[0] || '当前用户',
-          material: values.material || '待补充',
-          style: values.style || '待补充',
+          material: values.material,
+          style: values.style,
           status: '待确认',
         })
       }}
@@ -179,8 +234,8 @@ export default function MasterProductsPage() {
         <Alert>
           <AlertTitle>已接库 · 模块 1</AlertTitle>
           <AlertDescription>
-            SPU / 内部 SKU 主路径走 tRPC → dataaccess → products / product_variants。Seller SKU
-            映射与其它域仍可为 stub。需配置 DATABASE_URL 并执行 migrate / seed。
+            SPU / 内部 SKU 主路径走 tRPC → dataaccess → products / product_variants。款式/材质字典键：
+            product_style / product_material（/console/dictionaries）。
           </AlertDescription>
         </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

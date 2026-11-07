@@ -22,6 +22,14 @@ export const previewMessages = {
       body: 'We received a request to reset your password.',
       resetPassword: 'Reset password',
     },
+    organizationInvitation: {
+      subject: 'Organization invitation',
+      title: 'Hello {name},',
+      body: '{invitedByName} invited you to join {organizationName}.',
+      passwordHint: 'Click the button below to accept and set your login password.',
+      accept: 'Accept invitation',
+      relogin: 'After setting your password, please sign in again.',
+    },
     contactMessage: {
       subject: 'Contact message',
       name: 'Name: {name}',

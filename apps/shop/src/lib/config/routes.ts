@@ -28,6 +28,7 @@ export enum Routes {
   AuthError = '/auth/error',
   ForgotPassword = '/auth/forgot-password',
   ResetPassword = '/auth/reset-password',
+  AcceptInvite = '/auth/accept-invite',
   Welcome = '/auth/welcome',
   Verify = '/console/verify',
   UsageList = '/console/usage-list',

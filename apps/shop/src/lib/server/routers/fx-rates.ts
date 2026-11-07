@@ -77,8 +77,45 @@ export const fxRatesRouter = createTRPCRouter({
       wrap(() => fxDa.setFxRateActive(ctx.db, ctx.organizationId, { ...input, ...actor(ctx) })),
     ),
 
+  importRows: tenantProcedure
+    .input(
+      z.object({
+        rows: z
+          .array(
+            z.object({
+              platform: z.string().optional(),
+              marketplaceCode: z.string().optional(),
+              baseCurrency: z.string().min(1),
+              quoteCurrency: z.string().min(1),
+              rate: z.union([z.number(), z.string()]),
+              effectiveDate: z.string().min(1),
+              note: z.string().optional(),
+            }),
+          )
+          .min(1)
+          .max(500),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        fxDa.importFxRateRows(ctx.db, ctx.organizationId, {
+          rows: input.rows,
+          ...actor(ctx),
+        }),
+      ),
+    ),
+
   meta: tenantProcedure.query(async () => ({
     sources: ['manual', 'import', 'api', 'platform_bill'],
-    note: '汇率落库 fx_rates；软停用保留历史；不接外部实时汇率 API；不发假成功。',
+    note: '汇率落库 fx_rates；列表/编辑/添加弹窗；支持 Excel 导入；软停用保留历史；不接外部实时汇率 API；不发假成功。',
+    excelColumns: [
+      'platform',
+      'marketplaceCode',
+      'baseCurrency',
+      'quoteCurrency',
+      'rate',
+      'effectiveDate',
+      'note',
+    ],
   })),
 })
