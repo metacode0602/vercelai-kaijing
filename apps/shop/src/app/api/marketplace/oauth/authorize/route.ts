@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   createMarketplaceConnector,
   isMarketplacePlatform,
+  resolveMarketplaceAppCredential,
 } from '@workspace/marketplace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { shops } from '@workspace/db/schema'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/server/auth-utils'
-import {
-  assertMarketplaceAppConfigured,
-  getMarketplaceAppEnv,
-} from '@/lib/marketplace/env'
+import { resolveMarketplaceCallbackUrl } from '@/lib/marketplace/env'
 import {
   decodeOAuthState,
   encodeOAuthState,
@@ -97,40 +95,47 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'platform mismatch' }, { status: 400 })
   }
 
-  const env = getMarketplaceAppEnv(platformRaw)
-  try {
-    assertMarketplaceAppConfigured(env)
-  } catch (error) {
+  const region = regionOverride || shop.region || ''
+  const appCredential = await resolveMarketplaceAppCredential(db, {
+    organizationId,
+    platform: platformRaw,
+    region,
+  })
+  if (!appCredential) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'app not configured' },
-      { status: 500 },
+      { error: '平台应用未配置，请先在「设置 → 平台应用配置」完成配置' },
+      { status: 412 },
     )
   }
 
-  const region = regionOverride || shop.region || env.defaultRegion
+  const callbackUrl = resolveMarketplaceCallbackUrl(
+    platformRaw,
+    appCredential.callbackKey,
+  )
   const state = encodeOAuthState({
     mode,
     platform: platformRaw,
     shopId,
     organizationId,
+    appCredentialId: appCredential.id,
     locale,
-    region,
+    region: appCredential.region || region,
   })
   const payload = decodeOAuthState(state)
   if (payload) await storeOAuthNonce(payload.nonce)
 
   const connector = createMarketplaceConnector({
     platform: platformRaw,
-    appKey: env.appKey,
-    appSecret: env.appSecret,
-    region,
-    callbackUrl: env.callbackUrl,
+    appKey: appCredential.appKey,
+    appSecret: appCredential.appSecret,
+    region: appCredential.region || region,
+    callbackUrl,
   })
 
   const authorizeUrl = connector.buildAuthorizeUrl({
     state,
-    redirectUri: env.callbackUrl,
-    country: region,
+    redirectUri: callbackUrl,
+    country: appCredential.region || region,
   })
 
   // Mark shop as connecting before redirect.

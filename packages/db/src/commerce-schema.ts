@@ -314,6 +314,50 @@ export const shops = pgTable(
   ],
 )
 
+/**
+ * 租户级 Marketplace 应用凭据。
+ * region='' 表示该平台通用配置；精确站点优先。
+ * App Secret 以 AES-256-GCM 密文保存，接口不得返回明文。
+ */
+export const marketplaceAppCredentials = pgTable(
+  "marketplace_app_credentials",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    region: varchar("region", { length: 16 }).notNull().default(""),
+    appKey: varchar("app_key", { length: 128 }).notNull(),
+    appSecretEncrypted: text("app_secret_encrypted").notNull(),
+    callbackKey: varchar("callback_key", { length: 64 }),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("marketplace_app_credentials_org_platform_region_uidx").on(
+      t.organizationId,
+      t.platform,
+      t.region,
+    ),
+    uniqueIndex("marketplace_app_credentials_callback_key_uidx").on(t.callbackKey),
+    index("marketplace_app_credentials_org_platform_idx").on(
+      t.organizationId,
+      t.platform,
+    ),
+    index("marketplace_app_credentials_platform_app_key_idx").on(
+      t.platform,
+      t.appKey,
+    ),
+  ],
+)
+
 // ---------------------------------------------------------------------------
 // integration_credentials / integration_states / integration_logs — KEEP
 // ---------------------------------------------------------------------------

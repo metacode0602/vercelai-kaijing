@@ -165,7 +165,7 @@ export async function syncSettlementsForShop(
   if (!isLazopPlatform(shop.platform)) {
     return { settlements: 0, lines: 0, unassignedLines: 0 }
   }
-  const connector = createShopConnector(shop)
+  const connector = await createShopConnector(shop)
   if (!connector.listSettlements || !connector.listSettlementTransactions) {
     return { settlements: 0, lines: 0, unassignedLines: 0 }
   }

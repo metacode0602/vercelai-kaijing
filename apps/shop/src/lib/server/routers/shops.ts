@@ -1,5 +1,8 @@
 import { TRPCError } from '@trpc/server'
-import { isMarketplacePlatform } from '@workspace/marketplace'
+import {
+  isMarketplacePlatform,
+  resolveMarketplaceAppCredential,
+} from '@workspace/marketplace'
 import { z } from 'zod'
 import {
   createTRPCRouter,
@@ -12,10 +15,6 @@ import {
   isShopBindingAllowed,
 } from '@/lib/server/dataaccess/onboarding'
 import { UI_SHOP_AUTH_STATUSES } from '@/lib/server/mappers/ops-master'
-import {
-  assertMarketplaceAppConfigured,
-  getMarketplaceAppEnv,
-} from '@/lib/marketplace/env'
 import { allowRateLimited } from '@/lib/server/rate-limit'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
@@ -102,13 +101,27 @@ export const shopsRouter = createTRPCRouter({
           message: '请先完成入驻并通过审核后再授权店铺',
         })
       }
-      try {
-        assertMarketplaceAppConfigured(getMarketplaceAppEnv(shop.platform))
-      } catch (error) {
+      if (!isMarketplacePlatform(shop.platform)) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
-          message: error instanceof Error ? error.message : '平台应用未配置',
+          message: `暂不支持平台 ${shop.platform}`,
         })
+      }
+      const appCredential = await resolveMarketplaceAppCredential(ctx.db, {
+        organizationId: ctx.organizationId,
+        platform: shop.platform,
+        region: shop.region ?? '',
+      })
+      if (!appCredential) {
+        const configParams = new URLSearchParams({
+          reason: 'missing-app',
+          platform: shop.platform,
+          shopId: shop.id,
+        })
+        return {
+          url: `/console/settings/marketplace-apps?${configParams.toString()}`,
+          missingConfig: true,
+        }
       }
       const params = new URLSearchParams({
         platform: shop.platform,

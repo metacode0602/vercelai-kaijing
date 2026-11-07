@@ -57,9 +57,9 @@ Authorization: HEX( HMAC-SHA256( appKey + rawBody, appSecret ) )
 - 必须使用**原始请求体**验签，不能先 `JSON.parse` 再序列化。
 - 实现：`packages/marketplace/src/signing/lazop.ts` 的 `computeLazopPushSignature` / `verifyLazopPushSignature`（常量时间比较）。
 - 路由：`POST /api/v1/webhooks/lazop`。
-  - 从 `site`（如 `lazada_vn` / `daraz_lk`）或 `app_key` 解析平台；
-  - 用对应 `LAZADA_APP_SECRET` / `DARAZ_APP_SECRET` 验签；
-  - 按 `seller_id` 匹配 `shops.seller_id` 或 `shops.external_shop_id`；
+  - 按 `app_key` 查找 active 的租户平台应用配置（同一 App Key 可能对应多个 region）；
+  - 逐个候选用对应租户 App Secret 验签，命中后确定 organization / platform；
+  - 在该组织内按 `seller_id` 匹配 `shops.seller_id` 或 `shops.external_shop_id`；无法匹配返回 `unknown_app` / 忽略；
   - 原始事件写入 `marketplace_webhook_events` 后立即返回 `200`；
   - 命中店铺且 `MARKETPLACE_WEBHOOK_SYNC_ENABLED=true` 时，`setImmediate` 异步调用单订单同步（含轨迹），满足平台 <500ms 响应要求。
 - 本地联调可设 `MARKETPLACE_WEBHOOK_SKIP_VERIFY=true`；生产禁止。

@@ -379,6 +379,7 @@
     "backToWorkbench": "Back to workbench",
     "settings": {
       "shops": "Shops",
+      "marketplaceApps": "Marketplace apps",
       "platformBasics": "Platform basics",
       "dictionaries": "Data dictionaries",
       "imports": "Data imports",

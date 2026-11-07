@@ -261,16 +261,8 @@ export async function runMarketplaceSync(
         statePatch,
       }
     }
-    const appKey =
-      input.appKey ||
-      process.env[`${platform === "tiktok_shop" ? "TIKTOK" : platform.toUpperCase()}_APP_KEY`] ||
-      ""
-    const appSecret =
-      input.appSecret ||
-      process.env[
-        `${platform === "tiktok_shop" ? "TIKTOK" : platform.toUpperCase()}_APP_SECRET`
-      ] ||
-      ""
+    const appKey = input.appKey || ""
+    const appSecret = input.appSecret || ""
     connector = createMarketplaceConnector({
       platform,
       region: input.region,

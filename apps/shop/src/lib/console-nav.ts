@@ -210,6 +210,7 @@ export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
 
 export const SETTINGS_NAV = [
   { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
+  { url: '/console/settings/marketplace-apps', titleKey: 'settings.marketplaceApps' as const },
   { url: '/console/settings/credentials', titleKey: 'settings.credentials' as const },
   { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
   { url: '/console/settings/fx-rates', titleKey: 'settings.fxRates' as const },

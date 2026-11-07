@@ -47,6 +47,7 @@ export interface OAuthStatePayload {
   platform: string
   shopId: string
   organizationId: string
+  appCredentialId: string
   locale: string
   region?: string
   exp: number

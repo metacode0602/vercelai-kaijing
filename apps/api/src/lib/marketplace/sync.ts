@@ -92,9 +92,10 @@ function shopCipherFromMeta(
   return typeof cipher === "string" && cipher.trim() ? cipher.trim() : null
 }
 
-function connectorForShop(shop: MarketplaceSyncShop) {
+async function connectorForShop(shop: MarketplaceSyncShop) {
   return createShopConnector({
     id: shop.id,
+    organizationId: shop.organizationId,
     platform: shop.platform,
     region: shop.region,
     shopCipher: shopCipherFromMeta(shop.meta),
@@ -523,7 +524,7 @@ async function syncOrdersForShop(
   if (!isOrderListingSyncPlatform(shop.platform)) {
     return { orders: 0, reserved: 0, itemErrors: [] }
   }
-  const connector = connectorForShop(shop)
+  const connector = await connectorForShop(shop)
   if (!connector.listOrders) {
     return { orders: 0, reserved: 0, itemErrors: [] }
   }
@@ -608,7 +609,7 @@ async function syncLogisticsForShop(
   now: Date
 ): Promise<{ shipments: number }> {
   if (!isLazopPlatform(shop.platform)) return { shipments: 0 }
-  const connector = connectorForShop(shop)
+  const connector = await connectorForShop(shop)
   if (!connector.getOrderTrace) return { shipments: 0 }
 
   const limit = envInt("MARKETPLACE_SYNC_LOGISTICS_LIMIT", 50)
@@ -846,7 +847,7 @@ async function syncReviewsForShop(
   now: Date
 ): Promise<{ reviews: number }> {
   if (!isLazopPlatform(shop.platform)) return { reviews: 0 }
-  const connector = connectorForShop(shop)
+  const connector = await connectorForShop(shop)
   if (!connector.listReviews) return { reviews: 0 }
 
   const state = await loadState(shop.id)
@@ -1109,7 +1110,7 @@ export async function syncMarketplaceOrder(input: {
   now?: Date
 }): Promise<void> {
   const now = input.now ?? new Date()
-  const connector = connectorForShop(input.shop)
+  const connector = await connectorForShop(input.shop)
   const order = await connector.getOrder(input.externalOrderId)
   const saved = await upsertOrder(input.shop, order, now)
   if (order.itemsFetchError) {

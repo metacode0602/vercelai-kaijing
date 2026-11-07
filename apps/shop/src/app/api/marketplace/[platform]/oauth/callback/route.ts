@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   createMarketplaceConnector,
   isMarketplacePlatform,
+  resolveMarketplaceAppCredential,
   type CredentialPayload,
 } from '@workspace/marketplace'
-import {
-  assertMarketplaceAppConfigured,
-  getMarketplaceAppEnv,
-} from '@/lib/marketplace/env'
+import { resolveMarketplaceCallbackUrl } from '@/lib/marketplace/env'
 import {
   consumeOAuthNonce,
   decodeOAuthState,
@@ -17,6 +15,10 @@ import {
 import { persistOAuthCredentials } from '@/lib/marketplace/persist-credentials'
 import { ShopBindingConflictError } from '@/lib/marketplace/errors'
 import { logMarketplaceOAuth } from '@/lib/marketplace/audit'
+import {
+  recordMarketplaceAppCredentialError,
+  touchMarketplaceAppCredentialVerification,
+} from '@/lib/server/dataaccess/marketplace-app-credentials'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resolveOrganizationContext } from '@/lib/server/context'
@@ -57,7 +59,14 @@ function consoleRedirect(
  * Platform OAuth callback. Locale-aware redirect back to console shop detail.
  * Query: code, state (and optional error from platform).
  */
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ platform: string; callbackKey?: string }> },
+) {
+  const { platform: pathPlatform, callbackKey } = await context.params
+  if (!isMarketplacePlatform(pathPlatform)) {
+    return NextResponse.json({ error: 'unsupported platform' }, { status: 404 })
+  }
   const { searchParams } = request.nextUrl
   const error = searchParams.get('error') || searchParams.get('error_description')
   const code = searchParams.get('code') || searchParams.get('auth_code')
@@ -106,6 +115,10 @@ export async function GET(request: NextRequest) {
   if (!state || !code) {
     return NextResponse.json({ error: 'invalid oauth callback' }, { status: 400 })
   }
+  if (state.platform !== pathPlatform) {
+    return NextResponse.json({ error: 'platform mismatch' }, { status: 400 })
+  }
+  const platform = pathPlatform
 
   const session = await auth.api.getSession({ headers: request.headers })
   if (!session?.user) {
@@ -135,10 +148,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'onboarding not approved' }, { status: 403 })
   }
 
-  if (!isMarketplacePlatform(state.platform)) {
-    return NextResponse.json({ error: 'unsupported platform' }, { status: 400 })
-  }
-
   const [boundShop] = await db
     .select({ id: shops.id, platform: shops.platform, meta: shops.meta })
     .from(shops)
@@ -153,34 +162,41 @@ export async function GET(request: NextRequest) {
   if (!boundShop) {
     return NextResponse.json({ error: 'shop_not_found' }, { status: 404 })
   }
-  if (boundShop.platform !== state.platform) {
+  if (boundShop.platform !== platform) {
     return NextResponse.json({ error: 'shop_platform_mismatch' }, { status: 400 })
   }
 
-  const env = getMarketplaceAppEnv(state.platform)
-  try {
-    assertMarketplaceAppConfigured(env)
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'app not configured' },
-      { status: 500 },
-    )
+  const appCredential = await resolveMarketplaceAppCredential(db, {
+    organizationId: state.organizationId,
+    platform,
+    region: state.region ?? '',
+    credentialId: state.appCredentialId,
+  })
+  if (!appCredential) {
+    return NextResponse.json({ error: 'app_credential_not_found' }, { status: 412 })
+  }
+  if (callbackKey && appCredential.callbackKey !== callbackKey) {
+    return NextResponse.json({ error: 'callback_key_mismatch' }, { status: 400 })
   }
 
-  const region = state.region || env.defaultRegion
+  const callbackUrl = resolveMarketplaceCallbackUrl(
+    platform,
+    appCredential.callbackKey,
+  )
+  const region = state.region || appCredential.region
 
   try {
     const connector = createMarketplaceConnector({
-      platform: state.platform,
-      appKey: env.appKey,
-      appSecret: env.appSecret,
+      platform,
+      appKey: appCredential.appKey,
+      appSecret: appCredential.appSecret,
       region,
-      callbackUrl: env.callbackUrl,
+      callbackUrl,
     })
 
     const tokens = await connector.exchangeCode({
       code,
-      redirectUri: env.callbackUrl,
+      redirectUri: callbackUrl,
     })
 
     let shopCipher =
@@ -191,9 +207,9 @@ export async function GET(request: NextRequest) {
           : undefined
 
     const authed = createMarketplaceConnector({
-      platform: state.platform,
-      appKey: env.appKey,
-      appSecret: env.appSecret,
+      platform,
+      appKey: appCredential.appKey,
+      appSecret: appCredential.appSecret,
       region,
       accessToken: tokens.accessToken,
       shopCipher,
@@ -205,7 +221,7 @@ export async function GET(request: NextRequest) {
       const shop = await authed.getShop()
       externalShopId = shop.externalShopId || undefined
       if (typeof shop.raw?.cipher === 'string') shopCipher = shop.raw.cipher
-      shopMeta = { ...(shop.raw ?? {}), connector: state.platform }
+      shopMeta = { ...(shop.raw ?? {}), connector: platform }
     } catch {
       shopMeta = { ...(tokens.meta ?? {}) }
     }
@@ -224,11 +240,17 @@ export async function GET(request: NextRequest) {
     const persisted = await persistOAuthCredentials({
       organizationId: state.organizationId,
       shopId: state.shopId,
-      platform: state.platform,
+      platform,
       tokens: credential,
       externalShopId,
       region,
       shopMeta,
+    })
+
+    await touchMarketplaceAppCredentialVerification(db, {
+      id: appCredential.id,
+      organizationId: state.organizationId,
+      actorUserId: session.user.id,
     })
 
     const res = NextResponse.redirect(
@@ -244,6 +266,11 @@ export async function GET(request: NextRequest) {
     const conflict = err instanceof ShopBindingConflictError
     const internalMessage = err instanceof Error ? err.message : 'oauth_failed'
     const reason = conflict ? 'shop_bound_other_org' : 'token_exchange_failed'
+    await recordMarketplaceAppCredentialError(db, {
+      id: appCredential.id,
+      organizationId: state.organizationId,
+      message: reason === 'token_exchange_failed' ? 'token_exchange_failed' : reason,
+    })
     if (!conflict) {
       await db
         .update(shops)
@@ -274,7 +301,7 @@ export async function GET(request: NextRequest) {
         action: 'oauth_callback',
         status: 'error',
         message: internalMessage,
-        detail: { reason, mode: state.mode },
+        detail: { reason, mode: state.mode, appCredentialId: appCredential.id },
       })
     }
     const res = NextResponse.redirect(

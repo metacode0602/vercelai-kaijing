@@ -11,6 +11,7 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -186,7 +187,13 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
           <AlertTitle>待平台授权</AlertTitle>
           <AlertDescription>
             当前状态「{row.authStatus}」。点击「去平台授权」跳转平台 OAuth，回调成功后才写入凭证。
-            {row.lastError ? ` ${row.lastError}` : ''}
+            {row.lastError ? ` ${row.lastError}` : ''}{' '}
+            <LocaleLink
+              href="/console/settings/marketplace-apps"
+              className="font-medium underline underline-offset-2"
+            >
+              检查平台应用配置
+            </LocaleLink>
           </AlertDescription>
         </Alert>
       ) : null}

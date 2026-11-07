@@ -1,29 +1,34 @@
 # Marketplace `.env` checklist
 
-Use with real partner-center app keys. `apps/shop` loads `apps/shop/.env*` or process env during dev — the monorepo root `.env` is **not** loaded automatically. See `apps/shop/content/guide/marketplace-oauth-admin-setup.md` for the full admin runbook.
+Platform App Key / App Secret are tenant-owned and stored in `marketplace_app_credentials`. Configure them in the console at `/console/settings/marketplace-apps`. See `apps/shop/content/guide/marketplace-oauth-admin-setup.md` for the full runbook.
 
 ## Required for OAuth Connect
 
 | Variable | Notes |
 |----------|--------|
-| `DARAZ_APP_KEY` / `DARAZ_APP_SECRET` | open.daraz.com |
-| `DARAZ_CALLBACK_URL` | Must **exactly** match Daraz app callback; default `{BETTER_AUTH_URL}/api/marketplace/oauth/callback` |
-| `DARAZ_DEFAULT_REGION` | Prefer `lk` |
-| `LAZADA_APP_KEY` / `LAZADA_APP_SECRET` | open.lazada.com |
-| `LAZADA_CALLBACK_URL` | Must match Lazada app callback |
-| `LAZADA_DEFAULT_REGION` | e.g. `sg` / `my` |
-| `TIKTOK_APP_KEY` / `TIKTOK_APP_SECRET` | TikTok Partner Center |
-| `TIKTOK_CALLBACK_URL` | Must match Partner Center redirect |
-| `TIKTOK_DEFAULT_REGION` | `global` (or market code) |
-| `MARKETPLACE_CREDENTIALS_KEY` | 64 hex chars recommended; encrypts `integration_credentials.payload_encrypted` |
+| `MARKETPLACE_CREDENTIALS_KEY` | 64 hex chars recommended; encrypts tenant app secrets and `integration_credentials.payload_encrypted`. Must match between `apps/shop` and `apps/api`. |
+| `BETTER_AUTH_URL` | External base URL; callback becomes `{BETTER_AUTH_URL}/api/marketplace/{platform}/oauth/callback` |
+| `NEXT_PUBLIC_URL` | Fallback base URL when `BETTER_AUTH_URL` is unset |
+
+No `*_APP_KEY` / `*_APP_SECRET` / `*_CALLBACK_URL` environment variables are read anymore.
+
+## Tenant app setup
+
+1. Open `/console/settings/marketplace-apps` as `tenant_owner`.
+2. Add the platform + region (e.g. `daraz` + `LK`; use “全部站点” for a `region=''` fallback).
+3. Paste the App Key / App Secret from the partner console.
+4. Register the displayed callback URL exactly in the partner console.
+5. Authorize a shop from `/console/settings/shops`.
+
+Optional per-app callback: `/api/marketplace/{platform}/oauth/callback/{callbackKey}`.
 
 ## Local OAuth smoke
 
-1. Register callback URLs in each partner console (same host/path as `*_CALLBACK_URL`).
-2. Seed shops: `packages/db/seeds/commerce-daraz-lk-shop.sql` (replace `:organization_id`).
+1. Seed shops: `packages/db/seeds/commerce-daraz-lk-shop.sql` (replace `:organization_id`).
    Canonical Daraz LK shop id: `b5ofcwj2mzauov29y08m0q99`.
+2. Add `daraz` + `LK` credentials in `/console/settings/marketplace-apps`.
 3. Visit `/console/settings/shops/b5ofcwj2mzauov29y08m0q99` → 重连 OAuth.
-4. After callback, tokens land in `integration_credentials` (AES-GCM).
+4. After callback, tokens land in `integration_credentials` (AES-GCM); app verification lands in `marketplace_app_credentials.last_verified_at`.
 
 ## Sync worker (optional)
 
@@ -32,7 +37,7 @@ pnpm --filter shop sync:marketplace -- --shopId=b5ofcwj2mzauov29y08m0q99 --platf
 pnpm --filter shop sync:marketplace -- --shopId=… --platform=daraz --live --resources=products,orders
 ```
 
-Dry-run is default (no token). Live needs `MARKETPLACE_SYNC_ACCESS_TOKEN` or platform `*_ACCESS_TOKEN` plus app key/secret.
+Dry-run is default (no token). Live resolves the tenant's `marketplace_app_credentials` by shop → organization; `MARKETPLACE_SYNC_ACCESS_TOKEN` or a platform `*_ACCESS_TOKEN` remains optional for manual CLI token debugging.
 
 
 ## Shop → API internal sync (read path)

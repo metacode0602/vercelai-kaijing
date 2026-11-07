@@ -397,6 +397,7 @@
     "backToWorkbench": "返回工作台",
     "settings": {
       "shops": "店铺连接",
+      "marketplaceApps": "平台应用配置",
       "platformBasics": "平台基础资料",
       "dictionaries": "基础数据字典",
       "imports": "数据导入",

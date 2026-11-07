@@ -7,7 +7,7 @@
  *   pnpm --filter shop sync:marketplace -- --shopId=… --platform=lazada --persist
  *
  * Dry-run (default): no live token required; prints mock connector samples + log/state patches.
- * Live: needs MARKETPLACE_SYNC_ACCESS_TOKEN (or platform token) + APP_KEY/SECRET.
+ * Live: uses the tenant's stored platform app config (Settings → Marketplace apps) and DB credentials.
  * Persist: set --persist to exercise hooks (default stubs log to stdout; wire DB later).
  *
  * Credential payload (encrypted in integration_credentials.payload_encrypted):
@@ -83,23 +83,41 @@ async function main() {
     },
   }
 
-  const keyPrefix = platformRaw === "tiktok_shop" ? "TIKTOK" : platformRaw.toUpperCase()
   let tokenProvider
   let credentialShopCipher: string | undefined
-  if (live && !hasEnvAccessToken()) {
-    const { createShopTokenProvider, loadCredentialMeta } = await import(
-      "@/lib/marketplace/token-provider"
-    )
-    tokenProvider = createShopTokenProvider({
+  let appKey = ""
+  let appSecret = ""
+  if (live) {
+    const { resolveShopAppCredential } = await import("@/lib/marketplace/app-credentials")
+    const appCredential = await resolveShopAppCredential({
       shopId,
       platform: platformRaw,
       region,
-      appKey: process.env[`${keyPrefix}_APP_KEY`] ?? arg("appKey") ?? "",
-      appSecret: process.env[`${keyPrefix}_APP_SECRET`] ?? arg("appSecret") ?? "",
     })
-    const meta = await loadCredentialMeta(shopId)
-    credentialShopCipher =
-      typeof meta?.shopCipher === "string" ? meta.shopCipher : undefined
+    appKey = appCredential?.appKey ?? ""
+    appSecret = appCredential?.appSecret ?? ""
+    if (!appKey || !appSecret) {
+      console.error(
+        `未找到 ${platformRaw} 的平台应用配置，请先在控制台「设置 → 平台应用配置」完成配置`,
+      )
+      process.exit(1)
+    }
+
+    if (!hasEnvAccessToken()) {
+      const { createShopTokenProvider, loadCredentialMeta } = await import(
+        "@/lib/marketplace/token-provider"
+      )
+      tokenProvider = createShopTokenProvider({
+        shopId,
+        platform: platformRaw,
+        region,
+        appKey,
+        appSecret,
+      })
+      const meta = await loadCredentialMeta(shopId)
+      credentialShopCipher =
+        typeof meta?.shopCipher === "string" ? meta.shopCipher : undefined
+    }
   }
 
   const result = await runMarketplaceSync({
@@ -111,6 +129,8 @@ async function main() {
     persist,
     persistHooks: hooks,
     tokenProvider,
+    appKey,
+    appSecret,
     shopCipher: credentialShopCipher,
   })
 

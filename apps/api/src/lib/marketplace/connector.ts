@@ -4,26 +4,27 @@ import {
   createTokenProvider,
   refreshLazopToken,
   refreshTiktokToken,
+  resolveMarketplaceAppCredential,
   type MarketplaceConnector,
 } from "@workspace/marketplace"
 import { db } from "../db"
 import {
-  getMarketplaceAppCredentials,
   isLazopPlatform,
   type MarketplaceSyncPlatform,
 } from "./app-env"
 
 export interface MarketplaceShopConnection {
   id: string
+  organizationId: string
   platform: string
   region: string | null
   /** TikTok shop_cipher from shops.meta when present. */
   shopCipher?: string | null
 }
 
-export function createShopConnector(
+export async function createShopConnector(
   shop: MarketplaceShopConnection
-): MarketplaceConnector {
+): Promise<MarketplaceConnector> {
   if (
     shop.platform !== "daraz" &&
     shop.platform !== "lazada" &&
@@ -32,12 +33,18 @@ export function createShopConnector(
     throw new Error(`Unsupported marketplace platform: ${shop.platform}`)
   }
   const platform = shop.platform as MarketplaceSyncPlatform
-  const app = getMarketplaceAppCredentials(platform)
-  if (!app.appKey || !app.appSecret) {
-    throw new Error(`Missing ${platform} app credentials`)
+  const app = await resolveMarketplaceAppCredential(db, {
+    organizationId: shop.organizationId,
+    platform,
+    region: shop.region ?? "",
+  })
+  if (!app) {
+    throw new Error(
+      `Missing ${platform} app credentials for organization ${shop.organizationId}`
+    )
   }
 
-  const region = shop.region ?? app.defaultRegion
+  const region = shop.region?.trim() || app.region
   const tokenProvider = createTokenProvider({
     shopId: shop.id,
     platform,

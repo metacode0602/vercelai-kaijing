@@ -174,8 +174,9 @@ export async function syncListingsForShop(
   now: Date
 ): Promise<{ listings: number }> {
   if (!isOrderListingSyncPlatform(shop.platform)) return { listings: 0 }
-  const connector = createShopConnector({
+  const connector = await createShopConnector({
     id: shop.id,
+    organizationId: shop.organizationId,
     platform: shop.platform,
     region: shop.region,
     shopCipher:

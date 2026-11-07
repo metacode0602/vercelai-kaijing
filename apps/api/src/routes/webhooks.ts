@@ -1,12 +1,15 @@
 import { and, eq, or } from "drizzle-orm"
 import { Hono } from "hono"
 import { marketplaceWebhookEvents, shops } from "@workspace/db"
-import { verifyLazopPushSignature } from "@workspace/marketplace"
+import {
+  findMarketplaceAppCredentialsByAppKey,
+  verifyLazopPushSignature,
+  type ResolvedMarketplaceAppCredential,
+} from "@workspace/marketplace"
 import { db } from "../lib/db"
 import { env } from "../lib/env"
 import {
-  getMarketplaceAppCredentials,
-  resolveLazopPlatformFromAppKey,
+  isLazopPlatform,
   resolveLazopPlatformFromSite,
   type LazopPlatform,
 } from "../lib/marketplace/app-env"
@@ -39,7 +42,11 @@ function signatureFrom(headers: Headers): string | undefined {
   )
 }
 
-async function findShop(platform: LazopPlatform, sellerId: string) {
+async function findShop(
+  platform: LazopPlatform,
+  sellerId: string,
+  organizationId: string
+) {
   const [row] = await db
     .select({
       id: shops.id,
@@ -53,6 +60,7 @@ async function findShop(platform: LazopPlatform, sellerId: string) {
     .where(
       and(
         eq(shops.platform, platform),
+        eq(shops.organizationId, organizationId),
         or(eq(shops.sellerId, sellerId), eq(shops.externalShopId, sellerId))
       )
     )
@@ -84,45 +92,71 @@ webhooks.post("/lazop", async (c) => {
   }
 
   const data = asRecord(body.data)
-  const platform =
-    resolveLazopPlatformFromSite(
-      firstString(body.site, data.site, body.region)
-    ) ?? resolveLazopPlatformFromAppKey(firstString(body.app_key, body.appKey))
-  if (!platform) {
-    return c.json({ ok: false, error: "unknown_platform" }, 400)
+  const appKey = firstString(body.app_key, body.appKey)
+  const sitePlatform = resolveLazopPlatformFromSite(
+    firstString(body.site, data.site, body.region)
+  )
+  if (!appKey) {
+    return c.json({ ok: false, error: "unknown_app" }, 400)
   }
 
-  const app = getMarketplaceAppCredentials(platform)
-  if (!app.appKey || !app.appSecret) {
-    return c.json({ ok: false, error: "platform_not_configured" }, 503)
+  const candidates = (
+    await findMarketplaceAppCredentialsByAppKey(db, appKey)
+  ).filter(
+    (candidate) =>
+      isLazopPlatform(candidate.platform) &&
+      (!sitePlatform || candidate.platform === sitePlatform)
+  )
+  if (candidates.length === 0) {
+    return c.json({ ok: false, error: "unknown_app" }, 400)
   }
 
   const signature = signatureFrom(c.req.raw.headers)
-  const signatureVerified =
-    !env.MARKETPLACE_WEBHOOK_SKIP_VERIFY &&
-    Boolean(signature) &&
-    verifyLazopPushSignature({
-      appKey: app.appKey,
-      appSecret: app.appSecret,
-      rawBody,
-      signature: signature ?? "",
-    })
-  if (!signatureVerified && !env.MARKETPLACE_WEBHOOK_SKIP_VERIFY) {
-    return c.json({ ok: false, error: "invalid_signature" }, 401)
-  }
-
   const sellerId = firstString(body.seller_id, data.seller_id)
   const externalOrderId = firstString(
     data.trade_order_id,
     data.order_id,
     body.trade_order_id
   )
-  const shop = sellerId ? await findShop(platform, sellerId) : undefined
+
+  let matchedApp: ResolvedMarketplaceAppCredential | undefined
+  let shop: MarketplaceSyncShop | undefined
+  let signatureVerified = false
+  for (const candidate of candidates) {
+    const verified =
+      !env.MARKETPLACE_WEBHOOK_SKIP_VERIFY &&
+      Boolean(signature) &&
+      verifyLazopPushSignature({
+        appKey: candidate.appKey,
+        appSecret: candidate.appSecret,
+        rawBody,
+        signature: signature ?? "",
+      })
+    if (!verified && !env.MARKETPLACE_WEBHOOK_SKIP_VERIFY) continue
+
+    const candidateShop = sellerId
+      ? await findShop(
+          candidate.platform as LazopPlatform,
+          sellerId,
+          candidate.organizationId
+        )
+      : undefined
+    matchedApp = candidate
+    shop = candidateShop
+    signatureVerified = verified
+    if (candidateShop || env.MARKETPLACE_WEBHOOK_SKIP_VERIFY) break
+  }
+
+  if (!matchedApp) {
+    return c.json({ ok: false, error: "invalid_signature" }, 401)
+  }
+
+  const platform = matchedApp.platform as LazopPlatform
   const messageTypeRaw = Number(body.message_type ?? data.message_type)
   const messageType = Number.isFinite(messageTypeRaw) ? messageTypeRaw : null
 
   await db.insert(marketplaceWebhookEvents).values({
-    organizationId: shop?.organizationId,
+    organizationId: shop?.organizationId ?? matchedApp.organizationId,
     shopId: shop?.id,
     platform,
     site: firstString(body.site, data.site),

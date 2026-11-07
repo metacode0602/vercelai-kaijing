@@ -15,6 +15,7 @@ import {
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { Spinner } from '@workspace/ui/components/spinner'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 const PLATFORMS = [
   { value: 'daraz', label: 'Daraz' },
@@ -47,6 +48,7 @@ const FULFILLMENT_MODES = ['自营仓发货', '平台仓', '混合']
 export default function NewShopPage() {
   const locale = useLocale()
   const stateQuery = trpc.onboarding.getState.useQuery()
+  const marketplaceAppsQuery = trpc.marketplaceApps.list.useQuery({ page: 1, pageSize: 100 })
   const [name, setName] = React.useState('')
   const [platform, setPlatform] = React.useState('daraz')
   const [region, setRegion] = React.useState('LK')
@@ -57,6 +59,10 @@ export default function NewShopPage() {
 
   const regions = REGIONS_BY_PLATFORM[platform] ?? []
   const currency = regions.find((item) => item.value === region)?.currency ?? 'USD'
+  const hasMarketplaceApp =
+    marketplaceAppsQuery.data?.items.some(
+      (item) => item.platform === platform && (item.region === region || item.region === ''),
+    ) ?? false
 
   const beginAuthorization = trpc.shops.beginAuthorization.useMutation({
     onSuccess: ({ url }) => {
@@ -110,6 +116,21 @@ export default function NewShopPage() {
           先创建店铺草稿，随后跳转平台 OAuth 完成真实授权。
         </p>
       </div>
+
+      {!stateQuery.isLoading && canBind && !marketplaceAppsQuery.isLoading && !hasMarketplaceApp ? (
+        <Alert>
+          <AlertTitle>当前平台与站点尚未配置应用</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              需要先在「设置 → 平台应用配置」填写 {platform.toUpperCase()} / {region} 的 App
+              Key 与 App Secret，否则无法跳转平台授权。
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <LocaleLink href="/console/settings/marketplace-apps">前往配置</LocaleLink>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {!stateQuery.isLoading && !canBind ? (
         <Card>

@@ -1,6 +1,6 @@
 # Marketplace 多租户应用凭据设计
 
-**状态：** 已确认，待实现  
+**状态：** 已实现，待执行迁移与浏览器验收（2026-11-07）
 **范围：** `apps/shop`、`apps/api`、`packages/marketplace`、`packages/db`  
 **关联文档：** [marketplace-connectors.md](marketplace-connectors.md)、[tenant-onboarding-and-store-binding.md](../../apps/shop/content/design/tenant-onboarding-and-store-binding.md)
 
@@ -126,7 +126,7 @@ https://<对外域名>/api/marketplace/{platform}/oauth/callback/{callbackKey}
 1. 校验登录、组织、入驻状态、店铺归属（保持现有逻辑）。
 2. 计算 `region = 请求指定 || shop.region || ''`。
 3. 调用 `resolveMarketplaceAppCredential(db, { organizationId, platform, region })`。
-4. 未配置时抛 `PRECONDITION_FAILED`，消息指向 `/console/settings/marketplace-apps`。
+4. 未配置时不抛 412：返回 `/console/settings/marketplace-apps?reason=missing-app&platform=…&shopId=…`，前端跳转并在配置页展示引导。
 5. 生成 `state`，新增字段 `appCredentialId`。
 6. 用凭据的 `appKey` / `appSecret` 构建授权 URL。
 7. 记录 `integration_logs`，跳转平台。
@@ -237,6 +237,7 @@ interface OAuthStatePayload {
 
 ### 7.3 未配置提示
 
+- 点击“去平台授权”时若缺少配置：直接跳转“平台应用配置”，并展示“请先配置 App Key / App Secret”的提示与返回店铺链接。
 - `settings/shops/new`：按当前平台/站点查询配置；缺失时显示 Alert 并链接到“平台应用配置”，保留“仍然提交”由后端返回明确错误（不伪造成功）。
 - 店铺列表/详情：授权失败信息包含配置页链接。
 - 不使用 mock 授权结果。
@@ -283,7 +284,7 @@ interface OAuthStatePayload {
 
 ## 11. 错误与可观测性
 
-- 未配置：`PRECONDITION_FAILED`，`平台应用未配置，请先在「设置 → 平台应用配置」完成配置`。
+- 未配置：授权入口返回配置页引导（非 412）；同步/刷新等后台任务仍返回 `PRECONDITION_FAILED`，消息指向「设置 → 平台应用配置」。
 - 凭据被禁用：`PRECONDITION_FAILED`，提示联系租户所有者启用。
 - App Secret 解密失败：记录 `marketplace_app_credentials.last_error='credential_decrypt_failed'`，日志不输出密文。
 - OAuth 失败：`integration_logs` 记录 action/status/message/detail，detail 不含 code、token、secret。
