@@ -271,10 +271,16 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
       />
 
       <ProductImageEditor
-        imageKey={`spu:${current.spu}`}
-        fallback={{ cover: current.coverImage, images: current.images ?? [] }}
+        initial={{ cover: current.coverImage, images: current.images ?? [] }}
+        onChange={async (next) => {
+          await updateMutation.mutateAsync({
+            spu: current.spu,
+            coverImage: next.cover,
+            images: next.images,
+          })
+        }}
         title="SPU 商品图片"
-        description="图片编辑器暂仍用本机会话缓存；封面 URL 可在后续版本随 update 写入 products.images。"
+        description="封面与截图保存在对象存储，并随商品更新写入 products.images。"
       />
 
       <DetailSection

@@ -218,17 +218,23 @@ flowchart TD
 | G6 | 无成本测算测试 | ✅ 已完成 | `cost-calculator.test.ts` 10 用例（G2 阻断 / G4 费率归零）；`apps/shop/package.json` script `test:crossborder`；实测 tests 10 / pass 10 / fail 0 |
 | G7 | 文档与实现不一致（本项本身） | ✅ 本会话完成 | 本文件 §4/§5/§7/§9 重写；`README.md`、`apps/web/README.md`、`apps/shop/README.md`、`console-dropdown-data-maintenance.md`、`erp-console-ued-plan.md`、各模块文档迁移号/mock 陈述、`shop-module8` §3.5 等更新；`docs/design/INDEX.md` 登记 |
 | G8 | 分页非数据库级 / 拉全量聚合 | ✅ 已完成 | `listSkuProfits` group-by 子查询 + count + limit/offset；`listFreightEstimates` UNION ALL + count + 分页；`profitTotals`/`profitKpis`/`financeOverview` SQL 聚合 |
-| G9 | 文案不符（本机快照）/ mock 残留 | 🟡 部分完成 | 已修复：测算台文案改「测算草稿仅存本机会话，不参与正式成本」；订单店铺名兜底 `${platform} 店铺`（无 Demo Shop）；售后审核/驳回「待回传平台」；Copilot 兜底「未接入模型服务」；OTP 仅写服务端日志；`apps/web` `platformOps` 真实 tRPC（dashboardStats/syncHealth/pendingActions 三页已接），`mock-data.ts`/`demo-alert.tsx` 已删。**已知遗留**（见下） |
+| G9 | 文案不符（本机快照）/ mock 残留 | 🟡 大部分完成 | 已修复：测算台文案改「测算草稿仅存本机会话，不参与正式成本」；订单店铺名兜底 `${platform} 店铺`（无 Demo Shop）；售后审核/驳回「待回传平台」；Copilot 兜底「未接入模型服务」；OTP 仅写服务端日志；`apps/web` `platformOps` 真实 tRPC（dashboardStats/syncHealth/pendingActions 三页已接），`mock-data.ts`/`demo-alert.tsx` 已删。**已知遗留**（见下） |
 
 ### 9.1 G9 已知遗留（进行中）
 
 | 遗留 | 说明 |
 | --- | --- |
-| `aftersale-store.ts` 被 3 个详情页引用 | `aftersale-returns[aftersale-cancels/aftersales]/[id]` 的 `toRelated*Shape` 仍 import 该文件；其内部 import `wms-store`/`local-store`，`approveCancel` 仍写「平台已同步（示例）」——主路径已走 dataaccess，此为兼容壳（进行中：迁 `toRelated*` 后删） |
-| `mappings/page.tsx` 兜底 `DEMO-${total+1}` | 新建映射未填 sellerSku 时的兜底生成（进行中：改校验必填或服务端生成） |
 | `compliance-hs-slsi` 演示行 | 「SLSI 强制认证（演示数据）」来自页面内导入清单模拟（进行中：接真实 HS 清单源） |
 | 营销页示例文案 | `(marketing)` 计费示例、平台能力示例等（进行中：按商业口径定稿） |
-| `lib/console/related-ops-data.ts` | 疑似零引用死文件（进行中：确认后删除） |
-| `UedPrototypeNotice` 组件 | 仍在（中性样式「原型说明」，55 处使用）；文案已如实，不宣称真实数据（进行中：按页逐步移除） |
+| `UedPrototypeNotice` 组件 | 仍在（中性样式，55 处使用）；文案已如实，不宣称真实数据（进行中：按页逐步移除） |
+
+### 9.2 已关闭的 G9 遗留（2026-11-08 追加）
+
+| 项 | 结果 |
+| --- | --- |
+| `aftersale-store.ts` 兼容壳 | `toRelated*Shape` 迁至 `aftersale-related-shapes.ts` 后，连同 `wms-store`/`erp-ued-data`/`demo-images`/`local-store` 删除 |
+| `mappings` 兜底 `DEMO-${total+1}` | 必填校验 + 无店铺/无 SKU 时禁止提交，假值兜底移除 |
+| `lib/console/related-ops-data.ts` 等 8 个零引用文件 | 已删除 |
+| 商品图片 localStorage | `product-image-store` 重写：浏览器压缩 → `POST /api/upload/image` 存对象存储（OSS/S3/local，`@workspace/storage`）→ URI 落库（products.images / 变体 attrs / brands.cover_image / 刊登 payload）；GET 代理 `/api/upload/image?key=` 读取；`local-store.ts` 删除 |
 
 > G1–G6/G8 证据均为本会话实测（grep / 测试 / `db:check`）；G7 为本文档及关联文档更新；G9 按上表逐项标注。

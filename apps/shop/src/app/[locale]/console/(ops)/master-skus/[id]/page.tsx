@@ -59,6 +59,7 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const row = skuQuery.data
+  const updateVariantMutation = trpc.products.updateVariant.useMutation()
   const relatedInfo = buildUedRelatedInfo(
     'master-skus',
     row as unknown as Record<string, unknown>,
@@ -100,10 +101,18 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
       notice="主档来自 product_variants；库存余额 / 流水来自 wms；刊登 / 映射来自 listings & mappings tRPC。供应商货号仍未接库。"
       extra={
         <ProductImageEditor
-          imageKey={`sku:${row.sku}`}
-          fallback={{ cover: row.coverImage, images: row.images ?? [] }}
+          initial={{ cover: row.coverImage, images: row.images ?? [] }}
+          onChange={async (next) => {
+            if (!row.spu) throw new Error('缺少所属 SPU，无法保存图片')
+            await updateVariantMutation.mutateAsync({
+              spu: row.spu,
+              code: row.sku,
+              coverImage: next.cover,
+              images: next.images,
+            })
+          }}
           title="SKU 图片"
-          description="图片编辑器暂仍用本机会话缓存；规格图可后续随 updateVariant 写入 attrs.images。"
+          description="封面与截图保存在对象存储，并随 updateVariant 写入变体 attrs。"
         />
       }
     />

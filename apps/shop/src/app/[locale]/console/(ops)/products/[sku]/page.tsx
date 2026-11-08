@@ -39,6 +39,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ sku: s
   }
 
   const product = skuQuery.data
+  const updateVariantMutation = trpc.products.updateVariant.useMutation()
   const listings = (listingsQuery.data?.items ?? []).filter(
     (l) => l.sku === product.sku || l.sku === product.code || l.primaryVariantId === product.id,
   )
@@ -70,7 +71,18 @@ export default function ProductDetailPage({ params }: { params: Promise<{ sku: s
         { label: '失败刊登', value: String(failedCount), hint: failedCount ? '需处理' : undefined },
         { label: '主价（首店）', value: listings[0] != null ? `${Number(listings[0].sellPrice).toFixed(2)} ${listings[0].currency}` : '—' },
       ]} />
-      <ProductImageEditor imageKey={`product:${product.sku}`} fallback={{ cover: product.coverImage, images: product.images }} />
+      <ProductImageEditor
+        initial={{ cover: product.coverImage, images: product.images ?? [] }}
+        onChange={async (next) => {
+          if (!product.spu) throw new Error('缺少所属 SPU，无法保存图片')
+          await updateVariantMutation.mutateAsync({
+            spu: product.spu,
+            code: product.sku,
+            coverImage: next.cover,
+            images: next.images,
+          })
+        }}
+      />
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" asChild><LocaleLink href="/console/suppliers">供应商来源</LocaleLink></Button>
         <Button variant="outline" asChild><LocaleLink href="/console/mappings">Seller SKU 映射</LocaleLink></Button>

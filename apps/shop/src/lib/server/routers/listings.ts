@@ -97,6 +97,8 @@ export const listingsRouter = createTRPCRouter({
         stockOnHand: z.number().int().optional(),
         externalItemId: z.string().optional(),
         lastError: z.string().optional(),
+        coverImage: z.string().nullable().optional(),
+        images: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>

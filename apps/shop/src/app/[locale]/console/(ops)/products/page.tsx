@@ -94,7 +94,7 @@ export default function ProductsPage() {
               {rows.map((row) => (
                 <TableRow key={row.sku}>
                   <TableCell>
-                    <ProductCoverCell imageKey={`product:${row.sku}`} fallback={{ cover: row.coverImage, images: row.images }} alt={row.title} />
+                    <ProductCoverCell fallback={{ cover: row.coverImage, images: row.images ?? [] }} alt={row.title} />
                   </TableCell>
                   <TableCell className="font-mono text-xs">
                     <LocaleLink href={`/console/products/${row.sku}`} className="underline-offset-2 hover:underline">{row.sku}</LocaleLink>

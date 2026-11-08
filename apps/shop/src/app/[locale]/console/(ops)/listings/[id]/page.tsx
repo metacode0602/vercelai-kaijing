@@ -309,7 +309,16 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         ]}
       />
 
-      <ListingImagesSection listingId={listing.id} cover={undefined} images={undefined} />
+      <ListingImagesSection
+        initial={{ cover: listing.coverImage ?? undefined, images: listing.images ?? [] }}
+        onChange={async (next) => {
+          await updateMutation.mutateAsync({
+            id: listing.id,
+            coverImage: next.cover ?? null,
+            images: next.images,
+          })
+        }}
+      />
 
       <DetailFieldGrid
         title="刊登主数据"

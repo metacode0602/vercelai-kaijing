@@ -72,7 +72,7 @@ OAuth 换票 / 回调本轮不实现；沿用库内加密凭证（授权由并�
 ## 明确不是 mock 主路径的本地能力
 
 - **成本测算工作台**：允许本地试算；落库以 `sku_costs` / 柜次版本为准。
-- **封面图会话编辑**：`product-image-store` 本地会话，不冒充 CDN 主档。
+- **封面图**：`product-image-store` 走 `POST /api/upload/image` 上传对象存储（OSS/S3/local），URI 落库，GET 代理读取（2026-11-08）。
 - **废弃 demo store 文件**：可留档，生产 console 主路径不得 import。
 
 ## 环境

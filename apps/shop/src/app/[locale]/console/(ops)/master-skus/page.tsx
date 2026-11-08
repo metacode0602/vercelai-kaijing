@@ -150,7 +150,6 @@ export default function MasterSkusPage() {
             label: '封面',
             render: (row) => (
               <ProductCoverCell
-                imageKey={`sku:${row.sku}`}
                 fallback={{ cover: row.coverImage, images: row.images ?? [] }}
                 alt={row.name}
               />

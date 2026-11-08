@@ -266,8 +266,7 @@ export default function ListingsPage() {
                 <TableRow key={row.id}>
                   <TableCell>
                     <ProductCoverCell
-                      imageKey={`listing:${row.id}`}
-                      fallback={{ cover: undefined, images: [] }}
+                      fallback={{ cover: row.coverImage ?? undefined, images: row.images ?? [] }}
                       alt={row.title}
                     />
                   </TableCell>

@@ -4,7 +4,7 @@ import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCover, ProductImageField } from '@/components/console/product-images'
-import type { DemoImageSet } from '@/lib/crossborder/product-image-store'
+import type { ProductImageSet } from '@/lib/crossborder/product-image-store'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -22,7 +22,7 @@ type BrandRow = {
   updatedAt: string
 }
 
-function coverFromRow(row?: BrandRow | null): DemoImageSet {
+function coverFromRow(row?: BrandRow | null): ProductImageSet {
   const cover = row?.coverImage?.trim() || undefined
   return { cover, images: cover ? [cover] : [] }
 }
@@ -34,8 +34,8 @@ export default function BrandsPage() {
   const [page, setPage] = React.useState(1)
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState('全部')
-  const [createCover, setCreateCover] = React.useState<DemoImageSet>({ images: [] })
-  const [editCover, setEditCover] = React.useState<DemoImageSet>({ images: [] })
+  const [createCover, setCreateCover] = React.useState<ProductImageSet>({ images: [] })
+  const [editCover, setEditCover] = React.useState<ProductImageSet>({ images: [] })
 
   const utils = trpc.useUtils()
   const statsQuery = trpc.brands.stats.useQuery()
@@ -101,7 +101,7 @@ export default function BrandsPage() {
     >
       <ProductImageField
         label="品牌封面"
-        description="封面图用于品牌列表展示；可上传一张图片（存为 data URL）。"
+        description="封面图用于品牌列表展示；可上传一张图片，保存在对象存储。"
         value={createCover}
         onChange={setCreateCover}
       />
@@ -138,7 +138,7 @@ export default function BrandsPage() {
     >
       <ProductImageField
         label="品牌封面"
-        description="封面图用于品牌列表展示；清空后保存将移除封面。"
+        description="封面图用于品牌列表展示，保存在对象存储；清空后保存将移除封面。"
         value={editCover}
         onChange={setEditCover}
       />

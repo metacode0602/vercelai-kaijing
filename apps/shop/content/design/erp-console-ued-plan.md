@@ -50,7 +50,7 @@
 
 ## 7. 图片上传
 
-- 复用 / 扩展 `product-images.tsx` + `product-image-store`（本地预览；接入后走 `@workspace/storage`）。
+- 复用 / 扩展 `product-images.tsx` + `product-image-store`（已接 `@workspace/storage`：压缩上传 OSS/S3/本地，URI 落库）。
 - 必挂：SPU 详情、SKU 详情、Listing 详情；列表用封面缩略图。
 
 ## 8. 关联信息规则

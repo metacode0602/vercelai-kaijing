@@ -216,7 +216,6 @@ export default function MasterProductsPage() {
             label: '封面',
             render: (row) => (
               <ProductCoverCell
-                imageKey={`spu:${row.spu}`}
                 fallback={{ cover: row.coverImage, images: row.images ?? [] }}
                 alt={row.name}
               />

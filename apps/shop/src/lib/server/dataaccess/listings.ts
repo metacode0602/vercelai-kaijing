@@ -79,6 +79,10 @@ export type ListingDto = {
   liveAt: string
   updatedAt: string
   note: string
+  /** 封面图存储 URI / URL（payload.cover） */
+  coverImage: string | null
+  /** 商品截图存储 URI / URL 列表（payload.images） */
+  images: string[]
   mappingLineCount: number
   mappingLines: ListingMappingLine[]
 }
@@ -200,6 +204,8 @@ function toListRow(detail: ListingDto): ListingListRow {
     currency: detail.currency,
     updatedAt: detail.updatedAt,
     lastError: detail.lastError,
+    coverImage: detail.coverImage,
+    images: detail.images,
     mappingLineCount: detail.mappingLineCount,
   }
 }
@@ -289,6 +295,10 @@ async function hydrateListing(
     liveAt: formatDateOnly(row.liveAt) || formatStamp(row.liveAt),
     updatedAt: formatDateOnly(row.updatedAt) || formatStamp(row.updatedAt),
     note: String(payload.note ?? ''),
+    coverImage: typeof payload.cover === 'string' && payload.cover ? payload.cover : null,
+    images: Array.isArray(payload.images)
+      ? payload.images.filter((item): item is string => typeof item === 'string' && !!item)
+      : [],
     mappingLineCount: lines.length,
     mappingLines: lines,
   }
@@ -565,6 +575,8 @@ export type UpdateListingInput = {
   stockOnHand?: number
   externalItemId?: string
   lastError?: string
+  coverImage?: string | null
+  images?: string[]
 }
 
 export async function updateListing(
@@ -596,6 +608,12 @@ export async function updateListing(
   const payload = {
     ...readPayload(row.payload),
     ...(patch.note != null ? { note: patch.note } : {}),
+    ...(patch.coverImage !== undefined
+      ? { cover: patch.coverImage ?? '' }
+      : {}),
+    ...(patch.images !== undefined
+      ? { images: patch.images.filter((item) => typeof item === 'string' && !!item) }
+      : {}),
   }
   const now = new Date()
 
