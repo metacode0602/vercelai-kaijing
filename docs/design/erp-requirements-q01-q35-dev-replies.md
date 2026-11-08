@@ -5,8 +5,9 @@
 > **上一轮答复**：`a26e081` / 仓库 `docs/design/erp-requirements-q01-q35-dev-replies.md`（PR #35）  
 > **本轮确认依据**：`/workspace/erp-q-confirmations-and-plain-explain-2026-10-31.md`；费用模板审计确认（C1–C9）已落在 #36  
 > **相关已合入 PR（摘录）**：#20–#23 详情 UED · #25–#26 主数据/采购申请 · #27 到货质检入库 · #28 仓存库位 · #29 同步/售后 · #30 财务详情 · #31 订单占库→出库 + listing 写路径 · #32 schema 清理 · #33 Daraz LK P0 · #34 平台官方 API 能力文档 · **#35 Q01–Q35 开发答复** · **#36 费用模板 UED**  
-> **证据源**：`packages/db/src/commerce-schema.ts`、`docs/design/haoshiyun-erp-database-schema.md`、`docs/design/platform-apis/`、`apps/shop/content/design/fee-templates-ued.md`、`erp-console-ued-plan.md`、`daraz-lk-erp-p0-ued.md`、`cost-calculator-sl-landed-ued.md`，以及 `apps/shop` console 各页与 `*-store`（localStorage 原型）。  
-> **说明**：本文面向客户/运营可读；仓库同步路径见文末。本文**不是** GitHub PR 本身，可直接下载阅读。
+> **证据源**：`packages/db/src/commerce-schema.ts`、`docs/design/haoshiyun-erp-database-schema.md`、`docs/design/platform-apis/`、`apps/shop/content/design/fee-templates-ued.md`、`erp-console-ued-plan.md`、`daraz-lk-erp-p0-ued.md`、`cost-calculator-sl-landed-ued.md`，以及 `apps/shop` console 各页与 `*-store`（当时为 localStorage 原型；2026-11-08 已接 tRPC，见文首更新注）。  
+> **说明**：本文面向客户/运营可读；仓库同步路径见文末。本文**不是** GitHub PR 本身，可直接下载阅读。  
+> **更新（2026-11-08）**：本文为 2026-10-31 时点答复快照；此后主路径已分模块接 tRPC（shop-module1–14），`mock-data.ts` 等死 store 已删；答复中涉及「仍 mock」的描述以各模块文档与 cost-finance-production-closure.md §9 为准。
 
 ---
 

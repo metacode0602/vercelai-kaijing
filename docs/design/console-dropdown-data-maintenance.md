@@ -6,6 +6,7 @@
 | 目的 | 找出「原型有下拉框、但没有维护入口」的数据，给出建议维护菜单位置；**确认后再生成维护页面** |
 | 状态 | 调研清单，待业务确认；本文不新增页面 |
 | 日期 | 2026-10-29 |
+| 更新 | 2026-11-08：§3 建议的维护页多已落地（承运商 `carriers` / 箱规 `carton-specs` / 库区 `wms.listZones` / 导入模板 `importTemplates` / 字典 `dictionaries` / 成员 `members` / 供应商 `suppliers` 均接 tRPC，含 `remove`）；§6 关联实现路径同步改为 tRPC router（原 `*-store` 大多已删除）。§2/§3 表格保留当时调研口径 |
 
 ## 1. 结论摘要
 
@@ -190,12 +191,12 @@
 - 页面 UED：[haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md)
 - 平台基础资料：[haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md)
 - 运费参考数据：[freight-estimation-design.md](freight-estimation-design.md)
-- 供应商实现：`apps/shop/src/app/[locale]/console/(ops)/suppliers/page.tsx`、`apps/shop/src/app/[locale]/console/(ops)/supplier-skus/page.tsx`
-- 字典实现：`apps/shop/src/lib/crossborder/dictionary-store.ts`、`apps/shop/src/app/[locale]/console/(ops)/dictionaries/page.tsx`
-- 品类树实现：`apps/shop/src/lib/crossborder/category-store.ts`、`apps/shop/src/app/[locale]/console/(ops)/categories/page.tsx`
-- 承运商实现：`apps/shop/src/lib/crossborder/carrier-store.ts`、`apps/shop/src/app/[locale]/console/(ops)/carriers/page.tsx`
-- 库区实现：`apps/shop/src/lib/crossborder/warehouse-zone-store.ts`、`apps/shop/src/app/[locale]/console/(ops)/warehouse-zones/page.tsx`
-- 导入模板实现：`apps/shop/src/lib/crossborder/import-template-store.ts`、`apps/shop/src/app/[locale]/console/settings/import-templates/page.tsx`
-- 箱规实现：`apps/shop/src/lib/crossborder/carton-spec-store.ts`、`apps/shop/src/app/[locale]/console/(ops)/carton-specs/page.tsx`
-- 组织成员实现：`apps/shop/src/lib/crossborder/member-store.ts`、`apps/shop/src/app/[locale]/console/settings/members/page.tsx`
-- 结算受控动作：`apps/shop/src/app/[locale]/console/(ops)/settlements/page.tsx`
+- 供应商实现：`apps/shop/src/app/[locale]/console/(ops)/suppliers/page.tsx`（`trpc.suppliers.*`）、`.../supplier-skus/page.tsx`
+- 字典实现：`apps/shop/src/app/[locale]/console/(ops)/dictionaries/page.tsx`（`trpc.dictionaries.*`；`dictionary-store.ts` 已删除）
+- 品类树实现：`apps/shop/src/app/[locale]/console/(ops)/categories/page.tsx`（`trpc.categories.*`；`category-store.ts` 已删除）
+- 承运商实现：`apps/shop/src/app/[locale]/console/(ops)/carriers/page.tsx`（`trpc.carriers.*`，含 `remove`；`carrier-store.ts` 已删除）
+- 库区实现：`apps/shop/src/app/[locale]/console/(ops)/warehouse-zones/page.tsx`（`trpc.wms.listZones/createZone/...`；`warehouse-zone-store.ts` 仅余 `zoneRecordId` 类型助手，主路径停用）
+- 导入模板实现：`apps/shop/src/app/[locale]/console/settings/import-templates/page.tsx`（`trpc.importTemplates.*`；`import-template-store.ts` 已删除）
+- 箱规实现：`apps/shop/src/app/[locale]/console/(ops)/carton-specs/page.tsx`（`trpc.cartonSpecs.*`，含 `remove`；`carton-spec-store.ts` 已删除）
+- 组织成员实现：`apps/shop/src/app/[locale]/console/settings/members/page.tsx`（`trpc.members.*`；`member-store.ts` 已删除）
+- 结算受控动作：`apps/shop/src/app/[locale]/console/(ops)/settlements/page.tsx`（`trpc.finance.updateSettlementStatus`）

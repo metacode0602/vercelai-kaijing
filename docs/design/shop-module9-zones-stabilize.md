@@ -1,6 +1,6 @@
 # 模块9：库区页接库 + marketplace typecheck 稳定
 
-> 状态：初版落地于 `feat/shop-wms-zones-typecheck`；**2026-11-07 已升级为真实库区表**（migration `0009_careless_tyrannus`）。
+> 状态：初版落地于 `feat/shop-wms-zones-typecheck`；**2026-11-07 已升级为真实库区表**（migration `0009_careless_tyrannus`，2026-11-08 重生成后并入 `0002_glamorous_bruce_banner.sql`）。
 > Org：`org_shop_dev_demo`。
 
 ## 1. marketplace `drizzle-orm` 解析
@@ -16,9 +16,9 @@ pnpm --filter shop typecheck
 
 均通过。若本机 marketplace/node_modules 缺链路，再跑一次 `pnpm install`（lockfile 已含该依赖）。
 
-## 2. 库区改真实表（0009）
+## 2. 库区改真实表
 
-`0009_careless_tyrannus.sql` 新建 `commerce_warehouse_zones`，后续读写全部走真实表；**迁移不回填** `raw.zones`。
+`commerce_warehouse_zones` 新建（历史 `0009_careless_tyrannus.sql`，现于 `0002_glamorous_bruce_banner.sql`），后续读写全部走真实表；**迁移不回填** `raw.zones`。
 
 | 数据 | 存放 |
 | --- | --- |
@@ -40,16 +40,16 @@ pnpm --filter shop typecheck
 ## 4. 种子 / 验证
 
 ```bash
-pnpm --filter @workspace/db db:migrate                    # 0009_careless_tyrannus
+pnpm --filter @workspace/db db:migrate                    # 0000/0001/0002（历史 0009 并入 0002）
 pnpm --filter @workspace/db db:seed:commerce-products
 pnpm --filter @workspace/db db:seed:commerce-wms   # 含新库区表 A/B/C + 绑定履历 + inventory_pools
 pnpm --filter @workspace/db typecheck
 pnpm --filter shop typecheck
 ```
 
-## 5. 仍 mock / 未做
+## 5. 仍缺口 / 未做
 
 | 项 | 说明 |
 | --- | --- |
-| related-info 子表 | 仍可读 ERP demo 行；详情主路径已是 wms |
+| related-info 子表 | 详情主路径已是 `trpc.wms.*`；ERP demo 行已随 demo 清理移除（2026-11-08） |
 | 左侧菜单 | 不改 |

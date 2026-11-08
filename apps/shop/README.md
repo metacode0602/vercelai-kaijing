@@ -66,7 +66,7 @@ pnpm --filter shop dev
 | 控制台页 | `console/master-products`、`console/master-skus` |
 | 客户端 | `src/lib/trpc/*` + `Providers` 中 QueryClient |
 
-**已接库**：SPU / 内部 SKU 列表、详情、新建、编辑（含规格变体）。`product-store` 的 localStorage 读写已停用。
+**已接库**：SPU / 内部 SKU 列表、详情、新建、编辑（含规格变体）。原 `product-store` localStorage 演示 store 已删除。
 
 ### 模块2：采购申请 → 入库上架（已接库）
 
@@ -74,7 +74,7 @@ pnpm --filter shop dev
 | --- | --- |
 | tRPC 路由 | `src/lib/server/routers/purchase.ts` |
 | dataaccess | `src/lib/server/dataaccess/purchase.ts` |
-| 表 | `purchase_*` / `stock_inbounds` / `inventory_*`（migration 0009） |
+| 表 | `purchase_*` / `stock_inbounds` / `inventory_*`（基表 `0000`；库区/库存池增量在 `0002_glamorous_bruce_banner`，历史编号 0009） |
 | 控制台页 | `purchase-requests` / `purchase-approvals` / `purchase-orders` / `purchase-receipts` / `stock-inbounds` |
 
 **已接库**：申请 CRUD/提交/撤回/取消、审批转 PO/驳回、登记到货、质检、确认上架写库存流水。对应 `purchase-*-store` localStorage 已停用。
@@ -85,7 +85,7 @@ pnpm --filter shop dev
 | --- | --- |
 | tRPC 路由 | `src/lib/server/routers/order.ts` |
 | dataaccess | `src/lib/server/dataaccess/order.ts` |
-| 表 | `orders` / `order_lines` / `inventory_*` / `stock_outbounds*`（migration 0010） |
+| 表 | `orders` / `order_lines` / `inventory_*` / `stock_outbounds*`（基表 `0000`） |
 | 控制台页 | `orders` / `picking` / `stock-outbounds` |
 
 **已接库**：人工增量同步（平台 stub）/ 导入 upsert、确认占库、创建出库单、拣货推进、出库过账写 `order_ship` 流水。订单/出库主路径 localStorage 已停用。
@@ -98,21 +98,21 @@ pnpm --filter shop dev
 | --- | --- |
 | tRPC 路由 | `src/lib/server/routers/logistics.ts` |
 | dataaccess | `src/lib/server/dataaccess/logistics.ts` |
-| 表 | `shipments` / `shipment_items` / `tracking_events`(+`source`) / `fulfillment_batches*` / `fulfillment_attempts`（migration 0011） |
+| 表 | `shipments` / `shipment_items` / `tracking_events`(+`source`) / `fulfillment_batches*` / `fulfillment_attempts`（基表 `0000`；`fulfillment_batches.carrier_id` FK 在 `0002_glamorous_bruce_banner`，历史编号 0011/0013） |
 | 控制台页 | `shipments` / `logistics-lgs` / `logistics-jsb` |
 
 **已接库**：包裹列表/详情、从订单创建、追加轨迹（强制 source）、stub 同步写 attempt、LGS/JSB 交接批次建批/加包/提交/关闭。`shipment-store` 主路径 localStorage 已停用。
 
-**仍 mock / stub**：真实平台 OAuth / OpenAPI（订单·刊登·结算拉取、评论与物流轨迹等）。费用模板 / 售后 / 海运柜次 / WMS 非订单出库等 ERP 自有路径已接 DB（见模块5–8 设计文档）。
+**仍 mock / stub**：真实平台 OpenAPI 中订单·刊登·评论与物流轨迹等拉取/回写（结算拉取仅 Lazop 已实现：`finance.syncSettlementsFromPlatform` → `apps/api` → `syncSettlementsForShop`，能力探针 `settlementSync`）。费用模板 / 售后 / 海运柜次 / WMS 非订单出库等 ERP 自有路径已接 DB（见模块5–8 设计文档）。
 
 ### 模块5 · 费用模板（进口税 / 平台费）
 
 | 项 | 说明 |
 | --- | --- |
-| 迁移 | `packages/db/drizzle/0012_commerce_fee_templates.sql` |
+| 迁移 | 基表 `packages/db/drizzle/0000_*.sql`；类型扩展 `ocean_freight` 在 `0002_glamorous_bruce_banner.sql`（历史编号 `0012_cost_finance_closure`，文件已重生成并入） |
 | tRPC | `feeTemplates.list/get/stats/create/update/createVersion/updateVersion/submit/publish/reject/disableVersion/disable/duplicate/resolve/meta` |
 | Console | `/console/fee-templates`、`/console/fee-templates/[id]` |
-| 测算 | `cost-calculator-workbench` → `feeTemplates.resolve` → `computeLandedCost(..., overrides)`；未命中回退 `TARIFF_PROFILES` |
+| 测算 | `cost-calculator-workbench` → `feeTemplates.resolve` → `computeLandedCost(..., overrides)`；未命中或缺组件由 `blockReasons` 阻断（`TARIFF_PROFILES` 税率全 0，仅草稿展示，不作回退） |
 | Seed | `pnpm --filter @workspace/db db:seed:commerce-fee-templates` |
 
 
@@ -120,7 +120,7 @@ pnpm --filter shop dev
 
 | 项 | 说明 |
 | --- | --- |
-| 表 | `reverse_*` / `refunds` / `return_shipments`（migration **0008**；无新迁移） |
+| 表 | `reverse_*` / `refunds` / `return_shipments`（基表 `0000`；决策列 `inventory_release_mode`/`refund_mode` 等与 `shop_aftersale_policies` 在 `0002_glamorous_bruce_banner`，历史编号 0008/0011） |
 | tRPC | `aftersale.list/get/stats/meta/listReturns/returnStats/getReturn/listCancels/cancelStats/getCancel/upsert/syncStub/createTicket/createCancel/registerReceive/completeQc/approveCancel/rejectCancel/updateRefundStatus` |
 | Console | `/console/aftersales`、`/console/aftersale-returns`、`/console/aftersale-cancels`（各含 `[id]`） |
 | 流水 | 取消 `order_release`；回库 `aftersale_restock`；报损 `aftersale_scrap`（幂等对齐模块3） |
@@ -132,7 +132,7 @@ pnpm --filter shop dev
 | --- | --- |
 | tRPC 路由 | `src/lib/server/routers/ocean.ts` |
 | dataaccess | `src/lib/server/dataaccess/ocean.ts` |
-| 表 | `ocean_shipments*` / `inventory_*` / `sku_costs`（migration 0014） |
+| 表 | `ocean_shipments*` / `inventory_*` / `sku_costs`（基表 `0000`；`fx_rate_id`/`carrier_id`/`carton_spec_code` FK 在 `0002_glamorous_bruce_banner`，历史编号 0014/0012） |
 | 控制台页 | `ocean-containers` |
 | 种子 | `pnpm --filter @workspace/db db:seed:commerce-ocean` |
 
@@ -149,6 +149,7 @@ pnpm --filter shop dev
 | `pnpm start` | 运行生产构建 |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | TypeScript |
+| `pnpm test:crossborder` | 成本测算阻断/费率归零测试（`src/lib/crossborder/*.test.ts`，node:test + tsx） |
 
 ## 相关文档
 

@@ -5,14 +5,16 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
 | `commerce_suppliers` 列表/详情/CRUD | 供应商门户 / 对账门户 |
 | `supplier_skus` 列表/详情/CRUD、首选、参考价 | 调价履历独立表（现就地更新+生效日） |
 | 采购申请/PO 可选 `supplier_id` / `supplier_sku_id` | 采购申请 UI 自动填价（API `preferredForSku` 已就绪） |
-| `order_exception_cases` 规则扫描+处理+审计 | `/console/sync-tasks` 整页仍 demo store |
-| seed `db:seed:commerce-suppliers`（复用既有 Daraz LK 店铺） | 候选选品 / 财务成本列表 |
-| `/console/supplier-skus` `/console/suppliers` `/console/order-exceptions` | Dashboard 其它 KPI 仍混 mock；店铺 OAuth |
+| `order_exception_cases` 规则扫描+处理+审计 | — |
+| seed `db:seed:commerce-suppliers`（复用既有 Daraz LK 店铺） | — |
+| `/console/supplier-skus` `/console/suppliers` `/console/order-exceptions` | — |
+
+> 2026-11-08：`/console/sync-tasks`（模块13）、候选选品/财务成本（模块13/14）、Dashboard KPI、店铺 OAuth（`trpc.shops`）均已接库。
 
 映射异常（`mapping_exceptions`）仍在 `trpc.mappings.*`；本页不再塞假异常列表。
 
@@ -29,7 +31,7 @@ console/order-exceptions
             stock_outbounds / fulfillment_attempts
 ```
 
-`supplier-store` / `supplier-sku-store` / `mapping-exception-store` 主路径停用（类型保留）。
+`supplier-store` / `supplier-sku-store` / `mapping-exception-store` **已删除**（2026-11-08）。
 
 ## 异常规则
 
@@ -44,7 +46,7 @@ console/order-exceptions
 
 ## 迁移与种子
 
-迁移：`packages/db/drizzle/0016_commerce_supplier_order_exceptions.sql`
+迁移：`packages/db/drizzle/0000_flashy_silver_samurai.sql`（`commerce_suppliers` / `supplier_skus` / `order_exception_cases` 基表；历史编号 `0016_commerce_supplier_order_exceptions`，2026-11-08 重生成并入）
 
 - `commerce_suppliers` / `supplier_skus` / `order_exception_cases`
 - `purchase_requests.supplier_id`、`purchase_request_lines.supplier_sku_id`
@@ -82,7 +84,7 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/dataaccess/order-exceptions.ts` | 异常扫描/处理 |
 | `apps/shop/src/lib/server/mappers/suppliers.ts` | 中文状态 |
 | `apps/shop/src/lib/server/mappers/order-exceptions.ts` | 异常中文映射 |
-| `packages/db/drizzle/0016_commerce_supplier_order_exceptions.sql` | 迁移 |
+| `packages/db/drizzle/0000_flashy_silver_samurai.sql` | 迁移（历史 0016 并入） |
 | `packages/db/src/scripts/seed-commerce-suppliers.ts` | 演示种子 |
 | `docs/design/shop-module12-supplier-order-exceptions-trpc.md` | 本文档 |
 

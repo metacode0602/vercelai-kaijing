@@ -5,7 +5,7 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
 | `/console/candidates` 列表/详情 → `product_candidates` + `pending_actions` | 真实市场爬虫 / 选品 Agent 自动化（禁止假成功） |
 | 手工录入 / 导入落库；审核通过 → SPU 草稿或关联 `products`；拒绝理由 | 平台 OpenAPI 刊登推送 |
@@ -43,7 +43,7 @@ sync.enqueue → 站内信（sourceType=sync_enqueue）
 
 ## 迁移与种子
 
-迁移：`packages/db/drizzle/0018_commerce_candidates_notifications.sql`
+迁移：`packages/db/drizzle/0000_flashy_silver_samurai.sql`（`product_candidates` / `console_notifications` 基表；历史编号 `0018_commerce_candidates_notifications`，2026-11-08 重生成并入）
 
 ```bash
 pnpm --filter @workspace/db db:migrate

@@ -17,7 +17,7 @@
 - **优先级口径冲突**：Excel 将售后列为 P1，但核心流程规定取消释放库存、退货质检后才能回库；建议至少把“取消释放”和“退货质检库存处理”提为 P0 的库存安全子集。
 - **设计不可直接定案**：库存状态节点、成本/汇率算法、平台/JSB数据可获取性、广告分摊、仪表盘口径等，必须由技术评估和杨洁/财务确认。
 
-当前代码事实：`open-shop/apps/shop` 的运营台多个页面直接 import `apps/shop/src/lib/crossborder/mock-data.ts`；`apps/web/src/lib/server/routers/index.ts` 目前只注册 `apiKeys` router，尚无 ERP 业务 router。`packages/db/src/commerce-schema.ts` 已有通用商品、变体、Listing、订单、库存余额等表，但没有采购、仓库/库位、库存流水、ERP 审批规则等核心实体。
+分析时点代码事实（2026-10 快照）：`open-shop/apps/shop` 的运营台多个页面直接 import `apps/shop/src/lib/crossborder/mock-data.ts`（该文件已于 2026-11-08 删除）；`apps/web/src/lib/server/routers/index.ts` 目前只注册 `apiKeys` router，尚无 ERP 业务 router。`packages/db/src/commerce-schema.ts` 已有通用商品、变体、Listing、订单、库存余额等表，但没有采购、仓库/库位、库存流水、ERP 审批规则等核心实体。
 
 ## 2. 覆盖状态定义
 
@@ -32,7 +32,7 @@
 
 ### 3.1 需求总览 / 现有 ERP 整改总表
 
-工作台/dashboard、商品、刊登、订单、库存、成本/财务、候选商品等现有页面在 `apps/shop/src/app/[locale]/console/(ops)/` 可见；其中 dashboard、products、listings、orders、inventory、costs、finance、pending、candidates 均导入 mock 数据。详情路由存在，但同样读取 mock。页面框架可复用，不能视作真实功能已覆盖。
+工作台/dashboard、商品、刊登、订单、库存、成本/财务、候选商品等现有页面在 `apps/shop/src/app/[locale]/console/(ops)/` 可见；其中 dashboard、products、listings、orders、inventory、costs、finance、pending、candidates 当时均导入 mock 数据（快照）。**2026-11-08 更新**：`mock-data.ts` 已删除，上述主路径页已接 tRPC，详见 shop-module1–14 各模块文档。页面框架可复用的判断仍成立。
 
 | Excel 整改主题 | 当前判断 | 证据/差距 |
 |---|---|---|
@@ -130,7 +130,7 @@ erDiagram
 
 ## 4.2 UED 实现边界（本轮）
 
-基础设置页面 `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
+基础设置页面 `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口（**快照时点口径；2026-11-08 主路径已接 tRPC，见 §1 更新注**）。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
 
 ### 4.3 其余页面 UED 规格
 
@@ -191,7 +191,7 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 
 ## 6. 页面和 API 改造边界
 
-- UI 保留 `apps/shop` 的既有页面和组件，逐步将 `mock-data.ts` 移出生产 route 的数据依赖。
+- UI 保留 `apps/shop` 的既有页面和组件，逐步将 `mock-data.ts` 移出生产 route 的数据依赖。（**已完成**：2026-11-08 `mock-data.ts` 已删除。）
 - 业务实现按 Open Shop `AGENTS.md` 分层：`apps/shop` UI → tRPC (`apps/web`) → domain/dataaccess → Drizzle。当前 tRPC router 只有 `apiKeys`，因此这是一项新的业务接入工作，不应从页面直接查 DB。
 - 列表数据库级分页；筛选条件可由 URL 表达；权限必须在服务端复验，不依赖隐藏按钮。
 - 平台外部连接器只负责平台适配；库存/审批/映射规则在 domain service，避免在平台 connector 或 UI 中重复实现。
@@ -269,8 +269,8 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 ## 10. 仓库证据索引
 
 - 领域模型：`open-shop/packages/db/src/commerce-schema.ts`
-- 初始跨境迁移：`open-shop/packages/db/drizzle/0005_crossborder_commerce.sql`
-- mock 数据：`open-shop/apps/shop/src/lib/crossborder/mock-data.ts`
+- 初始跨境迁移：`open-shop/packages/db/drizzle/0005_crossborder_commerce.sql`（历史编号；2026-11-08 重生成后为 `0000_flashy_silver_samurai.sql` 等 3 个文件）
+- ~~mock 数据：`open-shop/apps/shop/src/lib/crossborder/mock-data.ts`~~（2026-11-08 已删除）
 - 运营台页面：`open-shop/apps/shop/src/app/[locale]/console/(ops)/`
 - tRPC 入口：`open-shop/apps/web/src/lib/server/routers/index.ts`
 - 现有阶段/交付边界：`open-shop/docs/design/crossborder-mvp-overview.md`

@@ -2,18 +2,20 @@
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-ocean-intransit`。
 > 对齐：`daraz-lk-erp-p0-ued.md` F22 / F32；成本测算见 `cost-calculator-sl-landed-ued.md`。
-> 闭环：[#64–#68](cost-finance-production-closure.md) — `carrier_id` / `carton_spec_code`（0012）；`ocean-container-store` 已删除（#68）。
+> 闭环：[#64–#68](cost-finance-production-closure.md) — `carrier_id` / `carton_spec_code`（历史 0012，现于 `0002_glamorous_bruce_banner.sql`）；`ocean-container-store` 已删除（#68）。
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
 | `ocean_shipments` / `ocean_shipment_lines` / `ocean_shipment_boxes` | 真实船司/清关 OpenAPI |
 | 状态机 draft→booked→departed→arrived→customs→received | WMS 非海运出库入口 |
-| 开船/清关/到仓写 `inventory_balances` 桶 + `inventory_movements` | 售后 #43（独立 PR，未合） |
+| 开船/清关/到仓写 `inventory_balances` 桶 + `inventory_movements` | — |
 | 柜次成本 `sku_costs.container_lot_id` + `fx_rate_id`（saveCost / 测算工作台） | — |
-| Console `/console/ocean-containers` 列表/详情 + 库存桶；承运商/箱规选择 | Dashboard 其它 KPI |
+| Console `/console/ocean-containers` 列表/详情 + 库存桶；承运商/箱规选择 | — |
 | seed `db:seed:commerce-ocean` | 采购入库港重写（复用 m2，不重做） |
+
+> 2026-11-08：售后已落地（模块6）；Dashboard KPI（模块13/14）已接库。
 
 ## 架构
 
@@ -50,7 +52,7 @@ draft → booked → departed → arrived → customs → received
 
 目的仓默认 `WH-LK-CMB-001`，staging 库位 `STAGING`（不共享 `WH-CN-XMN`）。
 
-0009 起写入 `destination_warehouse_id`（FK → `commerce_warehouses.id`），保留 `destination_warehouse_code` 冗余；创建/更新时按 code 解析，找不到直接报错。`sku_costs.container_lot_id` 与 `ocean_shipment_lines.sku_cost_id` 也补了 `onDelete set null` FK。
+自 `0002_glamorous_bruce_banner.sql`（历史 0009/0012/0014）起写入 `destination_warehouse_id`（FK → `commerce_warehouses.id`），保留 `destination_warehouse_code` 冗余；创建/更新时按 code 解析，找不到直接报错。`sku_costs.container_lot_id` 与 `ocean_shipment_lines.sku_cost_id` 也补了 `onDelete set null` FK。
 
 ## 幂等键（`ledger:ocean_*`）
 
@@ -65,8 +67,8 @@ draft → booked → departed → arrived → customs → received
 
 ## 迁移与种子
 
-- 海运基线：历史 ocean 相关 drizzle（以仓库 `packages/db/drizzle/` 为准；早期文档中的 `0014_commerce_ocean_intransit` 编号可能已重排）
-- 闭环补强：`0012_cost_finance_closure.sql`（`ocean_shipments.carrier_id`、`ocean_shipment_boxes.carton_spec_code`、`sku_costs.fx_rate_id`）
+- 海运基线：`packages/db/drizzle/0000_flashy_silver_samurai.sql`（ocean 基表）+ `0002_glamorous_bruce_banner.sql`（增量；2026-11-08 重生成，早期文档中的 `0014_commerce_ocean_intransit` 等编号已并入）
+- 闭环补强：`0002_glamorous_bruce_banner.sql`（`ocean_shipments.carrier_id`、`ocean_shipment_boxes.carton_spec_code`、`sku_costs.fx_rate_id` FK；历史 0012 并入）
 - `sku_costs.container_lot_id` / `ocean_shipment_lines.sku_cost_id` FK 见更早 ocean 补丁迁移
 
 ```bash
@@ -89,7 +91,7 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/ocean.ts` | tRPC API |
 | `apps/shop/src/lib/server/dataaccess/ocean.ts` | DB 读写与事务 |
 | `apps/shop/src/lib/server/mappers/ocean.ts` | 中文状态映射 |
-| `packages/db/drizzle/0012_cost_finance_closure.sql` | carrier / carton / fx_rate FK |
+| `packages/db/drizzle/0002_glamorous_bruce_banner.sql` | carrier / carton / fx_rate FK（历史 0012 并入） |
 | `packages/db/src/scripts/seed-commerce-ocean.ts` | 演示种子 |
 | （已删）`ocean-container-store.ts` | #68 移除 |
 

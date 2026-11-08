@@ -14,7 +14,7 @@
 
 ## 1. 背景
 
-现有粗版 ERP 保留了页面骨架，但商品数据模型、缺失业务闭环与真实数据接入均未完成：控制台以 localStorage 原型展示（D1），业务 tRPC 仅有 `apiKeys`，平台 connector 默认 dry-run。运营方已产出两份 Excel（V1.1 需求清单 + 2026-11-03 整改清单），本 SOW 把二者收敛为一份按优先级排期的交付计划。
+现有粗版 ERP 保留了页面骨架，但商品数据模型、缺失业务闭环与真实数据接入均未完成：控制台以 localStorage 原型展示（D1），业务 tRPC 仅有 `apiKeys`，平台 connector 默认 dry-run。运营方已产出两份 Excel（V1.1 需求清单 + 2026-11-03 整改清单），本 SOW 把二者收敛为一份按优先级排期的交付计划。**（基线口径 2026-11-04；2026-11-08 更新：主路径已分模块接 tRPC，`mock-data.ts` 已删，见 shop-module1–14 与 cost-finance-production-closure.md §9。）**
 
 ## 2. 目标与成功口径
 

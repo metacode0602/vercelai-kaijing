@@ -17,22 +17,22 @@
 | 商品 | `master-skus` 传入余额+流水；`master-products` 去掉假刊登/采购子表（SKU 表已在页内） |
 | 库区 | `warehouse-zones` 传入真实 bins + 区余额 |
 
-**刻意不做：** 不合并 #43；不把 aftersale `reverse_*` 写进本 PR；不一次打通所有 console Demo store（listings/sync/reviews/finance/… 列表仍可 demo，但详情关联不再显示假 ERP 行）。
+**刻意不做（本 PR 边界，2026-11-08 备注）：** 不合并 #43；不把 aftersale `reverse_*` 写进本 PR。后续 listings/sync/finance 等已接库（模块11/13），详情关联不再显示假 ERP 行。
 
 ## 3. 已清掉的 demo 主路径
 
 - `related-info.ts` ← `ERP_DEMO_PRODUCTS/MAPPINGS/INVENTORY/BINS/PURCHASES/AFTERSALES`、`RELATED_DEMO_*`、`DEMO_PURCHASE_ORDERS/RECEIPTS/STOCK_INBOUNDS`、`DEMO_SUPPLIER_SKUS`、`DEMO_FREIGHT_*`、`getDemoListings*`、`getDemoSkuPricing`
-- `erp-ued-detail.tsx` ← `buildRelated` + 同上 ERP_DEMO 扫描
-- WMS 四详情 ← `wms-store` 会话样本作为详情主数据源
+- `erp-ued-detail.tsx` ← `buildRelated`（ERP_DEMO 扫描已随 demo 清理移除）
+- WMS 四详情 ← `trpc.wms.*`（`wms-store` 主路径已停用，仅余类型/常量）
 
 ## 4. 仍保留的非 ERP Demo（本 PR 不收）
 
 | 域 | 说明 |
 | --- | --- |
-| `related-ops-data.ts` / `erp-ued-data.ts` | 文件仍在，供未改的列表/原型 store；**不再**被 related-info 主链路 import |
-| listings / sync-tasks / reviews / aftersales* / shops / finance / costs / carriers / freight / settlements / profits / candidates / mappings / supplier* | 详情关联显示「待接入」或「暂无关联数据」；列表可能仍 localStorage |
+| `erp-ued-data.ts` | 文件仍在（UED 示例常量）；`related-ops-data.ts` **零引用，待删**（2026-11-08）；**不再**被 related-info 主链路 import |
+| reviews / reports等少数页 | 详情关联显示「待接入」或「暂无关联数据」；listings/sync/finance 等列表已接 tRPC |
 | 图片编辑器会话缓存 | master 商品图仍本机缓存 |
-| #43 售后 reverse | 未合入 |
+| aftersale 详情 `toRelated*` | 3 个详情页仍 import `aftersale-store` 兼容壳（进行中，见 cost-finance §9.1） |
 
 ## 5. 验证
 

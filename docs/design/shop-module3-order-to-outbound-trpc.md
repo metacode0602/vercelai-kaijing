@@ -4,14 +4,16 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / localStorage |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
 | 订单列表 / 详情 / 状态 | 真实平台 OpenAPI（当前 stub 适配器） |
-| 人工增量同步 / 导入幂等 upsert | LGS / JSB 履约事件推送 |
-| 确认占库 / 释放占库（inventory_reservations + movements） | 费用模板 |
-| 从订单创建出库单、拣货推进、出库过账 | WMS 非订单出库（调拨/盘亏手工入口） |
-| Console 订单 / 拣货 / 出库页改 tRPC | 映射异常专页、库存流水页仍可混用旧 store |
-| 中文 UI ↔ DB 状态映射 | Dashboard 其它 KPI |
+| 人工增量同步 / 导入幂等 upsert | LGS / JSB 平台履约事件推送 |
+| 确认占库 / 释放占库（inventory_reservations + movements） | — |
+| 从订单创建出库单、拣货推进、出库过账 | — |
+| Console 订单 / 拣货 / 出库页改 tRPC | — |
+| 中文 UI ↔ DB 状态映射 | — |
+
+> 2026-11-08：费用模板（模块5）、WMS 非订单出库（模块8）、映射异常/库存流水页（模块8/11，`mapping-exception-store` 已删）、Dashboard KPI（模块13/14）均已接库。
 
 ## Q07 / C12 默认（PR 写明）
 
@@ -56,7 +58,7 @@ SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 ORDER_RESERVE_MODE=auto_on_paid   # 或 manual_only
 ```
 
-迁移 `0010_commerce_order_to_outbound.sql` 新增：
+迁移新增（历史编号 `0010_commerce_order_to_outbound.sql`，重生成后见 `0000_flashy_silver_samurai.sql`（2026-11-08 迁移重生成：历史编号并入 `0000_flashy_silver_samurai.sql` / `0002_glamorous_bruce_banner.sql`））：
 
 - `stock_outbounds` / `stock_outbound_lines`
 - 应用层扩展流水类型：`order_reserve` / `order_release` / `order_ship`
@@ -68,7 +70,7 @@ ORDER_RESERVE_MODE=auto_on_paid   # 或 manual_only
 | `apps/shop/src/lib/server/routers/order.ts` | tRPC API |
 | `apps/shop/src/lib/server/dataaccess/order.ts` | DB 读写与事务 |
 | `apps/shop/src/lib/server/mappers/order.ts` | 中文状态映射 |
-| `packages/db/drizzle/0010_commerce_order_to_outbound.sql` | 迁移 |
+| `packages/db/drizzle/0000_flashy_silver_samurai.sql` | 迁移（历史 0010 并入） |
 | `packages/db/src/scripts/seed-commerce-orders.ts` | 店铺/映射/余额种子 |
 
 ## 本 PR 不做

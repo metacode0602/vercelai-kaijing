@@ -9,7 +9,7 @@
 | 使用者 | 平台运营、管理员 |
 | 作用 | 跨租户只读 / 受限操作与平台级配置 |
 | 技术栈 | Next.js 16 App Router、tRPC（superjson）、Drizzle ORM、better-auth |
-| 当前阶段 | 跨境运营页面以 mock 数据为主；tRPC 已接入基础路由 |
+| 当前阶段 | 跨境运营页面已接真实 tRPC（`platformOps.dashboardStats` / `syncHealth` / `pendingActions`）；`mock-data.ts` / `demo-alert.tsx` 已删除 |
 
 ## 主要功能
 
@@ -25,7 +25,7 @@
 tRPC：
 
 - 入口：`src/lib/server/routers/index.ts`
-- 当前路由：`apiKeys`
+- 当前路由：`apiKeys`、`platformOnboarding`（租户入驻审核）、`platformOps`（运营总览 / 同步健康 / 待审抽检）
 - 新增领域路由按 `routers/` → dataaccess → `@workspace/db` 分层实现
 
 跨租户写操作默认进入待审队列；平台端不直接绕过租户确认。

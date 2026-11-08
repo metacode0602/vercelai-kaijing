@@ -4,9 +4,9 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
-| `reverse_orders` / `reverse_order_items` / `reverse_qc_records` / `reverse_order_events` / `refunds` / `return_shipments`（migration 0008） | 真实平台售后 OpenAPI |
+| `reverse_orders` / `reverse_order_items` / `reverse_qc_records` / `reverse_order_events` / `refunds` / `return_shipments`（基表 `0000`；决策列/策略表在 `0002_glamorous_bruce_banner`，历史编号 0008/0011） | 真实平台售后 OpenAPI |
 | tRPC `aftersale` 列表/详情/stats + upsert/syncStub + 取消审核 + 退货收货/质检过账 | 已发货订单取消的出库冲销 |
 | Console `/console/aftersales`、`aftersale-returns`、`aftersale-cancels`（含 `[id]`） | 费用模板 / ocean / 左侧菜单 |
 | 库存流水 `order_release` / `aftersale_restock` / `aftersale_scrap`（应用层类型；幂等键） | Seller SKU 映射专页等 |
@@ -28,7 +28,7 @@ console/aftersales | aftersale-returns | aftersale-cancels
 
 ## 表使用（无新迁移）
 
-表已在 **0008** 存在。本迭代仅扩展应用层 `inventoryMovementTypes`：`aftersale_restock` / `aftersale_scrap`（`movement_type` 为自由 varchar，无需 0013）。
+表已在 `0000` 基线存在（历史编号 0008）。本迭代仅扩展应用层 `inventoryMovementTypes`：`aftersale_restock` / `aftersale_scrap`（`movement_type` 为自由 varchar，无需 DB 迁移）。
 
 | 表 | 用途 |
 | --- | --- |

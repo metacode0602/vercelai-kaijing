@@ -14,7 +14,7 @@
 
 1. **Excel「菜单模块蓝图」**（`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`）：10 个一级菜单、37 个二级页面，含页面目的/主要功能/核心数据对象/权限/阶段（P0/P1/P2）。原始口径：「在现有左侧菜单基础上按业务闭环重组；第一阶段先完成 P0，再建设利润与 AI 功能」。
 2. **现有导航**（`apps/shop/src/lib/console-nav.ts`）：6 个分组（workbench/masterData/procurement/fulfillment/analytics/administration）+ footer 设置；平铺渲染、无二级折叠。
-3. **现有路由**：`/console` 下 44 个 page（D1 原型/mock），设置区 8 Tab。
+3. **现有路由**：`/console` 下 44 个 page（D1 原型/mock；**2026-11-08 更新**：多数已接 tRPC，见 shop-module1–14），设置区 8 Tab。
 4. **权威 schema**：域 A–K 约 75 表——菜单必须保证每表有展示路径（§4）。
 5. **IA 既有建议**：[haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) §1 六组分法。
 
@@ -334,7 +334,7 @@
 
 ### 4.8 域 H 成本财务（8）
 
-> 生产闭环补充表：`commerce_freight_rate_cards`（0012）；承运商/箱规展示路径改为仓库中心（导航 B）。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
+> 生产闭环补充表：`commerce_freight_rate_cards`（历史 0012，现于 `0002_glamorous_bruce_banner.sql`）；承运商/箱规展示路径改为仓库中心（导航 B）。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
 
 | 表 | 展示路径 |
 |---|---|

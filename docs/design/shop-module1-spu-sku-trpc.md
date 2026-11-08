@@ -4,12 +4,14 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / localStorage |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
-| SPU 列表 / 详情 / 新建 / 编辑 | Seller SKU、刊登映射关系 |
-| 内部 SKU 列表 / 详情 / 新建 / 编辑 | 供应商 SKU 管理（映射页仅读 DB SKU 码） |
-| `products.stats` KPI | 采购 / 订单 / WMS / LGS / 费用模板 |
-| 组织隔离（session → membership → `SHOP_DEV_ORGANIZATION_ID`） | 字典 / 品类 / 成员下拉（辅助选项） |
+| SPU 列表 / 详情 / 新建 / 编辑 | 真实平台 OpenAPI |
+| 内部 SKU 列表 / 详情 / 新建 / 编辑 | — |
+| `products.stats` KPI；字典 / 品类 / 成员下拉（`trpc.dictionaries/categories/members`） | — |
+| 组织隔离（session → membership → `SHOP_DEV_ORGANIZATION_ID`） | — |
+
+> 2026-11-08：Seller SKU / 刊登映射见模块11–12；采购/订单/WMS/LGS/费用模板见模块2–8，均已接库；原右列「仍 mock」项已清。
 
 状态映射：UI `待确认/启用/停用` ↔ DB `draft/active/disabled`。
 
@@ -58,10 +60,10 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/products.ts` | CRUD API |
 | `apps/shop/src/lib/server/dataaccess/products.ts` | DB 读写 |
 | `apps/shop/src/lib/server/mappers/products.ts` | 状态/图片映射 |
-| `apps/shop/src/lib/crossborder/product-store.ts` | 仅类型；localStorage 已停用 |
+| `apps/shop/src/lib/crossborder/product-store.ts` | **已删除**（2026-11-08，17 个死 store 清理之一） |
 | `packages/db/src/scripts/seed-commerce-products.ts` | 演示种子 |
 | `packages/db/src/commerce-schema.ts` | `products` / `product_variants` |
 
 ## 后续模块（本 PR 不做）
 
-采购申请→入库、订单同步→出库、LGS、费用等按 SOW 逐步替换 localStorage，并清理对应 mock。
+（已完成）采购申请→入库、订单同步→出库、LGS、费用等均已按模块2–8 接库；`mock-data.ts` 等 17 个死 store 已于 2026-11-08 删除。

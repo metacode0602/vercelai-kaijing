@@ -47,7 +47,7 @@ Optional per-app callback: `…/{callbackKey}`
 
 ## DB enrichment
 
-Structured columns for list/filter (brand, category path, stock, logistics, fulfillment, tracking, …) + jsonb blobs for platform payloads. See `crossborder-database-design.md` and migration `0007_commerce_platform_enrichment.sql`.
+Structured columns for list/filter (brand, category path, stock, logistics, fulfillment, tracking, …) + jsonb blobs for platform payloads. See `crossborder-database-design.md`（historical migration `0007_commerce_platform_enrichment.sql`；2026-11-08 regenerated into `0000`/`0001`/`0002_glamorous_bruce_banner.sql`）。
 
 ## Sync worker
 

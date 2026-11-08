@@ -1,13 +1,13 @@
 # 模块5：费用模板（进口税 / 平台费）
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-fee-templates`。
-> 后续闭环：[#64–#68 成本财务生产闭环](cost-finance-production-closure.md) 扩展类型 `ocean_freight`；费用表本身在早期 commerce schema（`0000`），**不是** `0012_cost_finance_closure`。
+> 后续闭环：[#64–#68 成本财务生产闭环](cost-finance-production-closure.md) 扩展类型 `ocean_freight`；费用表本身在早期 commerce schema（`0000`），**不是** `0012_cost_finance_closure`（该历史迁移已重生成并入 `0002_glamorous_bruce_banner.sql`）。
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
-| `fee_templates` / `fee_template_versions`（早期 schema + 0012 类型扩展） | 真实平台 OpenAPI |
+| `fee_templates` / `fee_template_versions`（早期 schema `0000` + `ocean_freight` 类型语义扩展，历史 0012 并入 `0002_glamorous_bruce_banner`） | 真实平台 OpenAPI |
 | tRPC `feeTemplates` CRUD + 审核流 + resolve | 售后回库 |
 | Console `/console/fee-templates` 列表/详情 | 海运柜次业务化 |
 | 成本测算主路径 `resolve` → DB 模板 | 采购/库位/流水改动 |
@@ -29,8 +29,8 @@ console/fee-templates | cost-calculator-workbench
 ## 表与迁移
 
 基表：早期 commerce schema（`packages/db/drizzle/0000_*.sql` 中的 `fee_templates` / `fee_template_versions`）。
-类型扩展：`packages/db/drizzle/0012_cost_finance_closure.sql` 允许 `ocean_freight`（与 import_tax / platform_fee 并列）。
-历史文档若写「migration 0012 = 费用模板建表」已过时，以闭环文档为准。
+类型扩展：`ocean_freight`（与 import_tax / platform_fee 并列）；历史 `0012_cost_finance_closure.sql` 已重生成并入 `packages/db/drizzle/0002_glamorous_bruce_banner.sql`。
+历史文档若写「migration 0012 = 费用模板建表」已过时；2026-11-08 迁移重生成后仅 `0000`/`0001`/`0002`，以闭环文档 §4 为准。
 
 | 表 | 关键列 |
 | --- | --- |
@@ -86,7 +86,7 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/fee-templates.ts` | tRPC API |
 | `apps/shop/src/lib/server/dataaccess/fee-templates.ts` | DB 读写 / resolve |
 | `apps/shop/src/lib/server/mappers/fee-templates.ts` | 中文状态映射 |
-| `packages/db/drizzle/0000_*.sql` + `0012_cost_finance_closure.sql` | 基表 + `ocean_freight` 类型扩展 |
+| `packages/db/drizzle/0000_*.sql` + `0002_glamorous_bruce_banner.sql` | 基表 + `ocean_freight` 类型扩展（历史 0012 并入） |
 | `packages/db/src/scripts/seed-commerce-fee-templates.ts` | 演示数据 |
 | `apps/shop/src/lib/crossborder/fee-template-store.ts` | 主路径停用；类型与适配器 |
 | `apps/shop/src/lib/crossborder/cost-calculator.ts` | `FeeResolutionOverrides` + `resolvedFrom` |

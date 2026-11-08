@@ -4,14 +4,14 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / localStorage |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
 | 采购申请 CRUD / 提交 / 撤回 / 取消 | 订单出库（见模块3） |
 | 审批通过转 PO / 驳回 | WMS 非采购入库（盘盈/调拨等手工入口） |
-| 采购单详情（只读，由审批生成） | LGS / 海柜 / 费用模板 |
-| 登记到货、质检、生成待上架入库单 | 供应商主数据（当前为展示字符串） |
-| 确认上架写 `inventory_balances` + `inventory_movements`（幂等键） | 字典 / 成员下拉 |
-| 控制台采购侧栏对应列表与详情页 | Dashboard 其它 KPI 仍 mock |
+| 采购单详情（只读，由审批生成） | — |
+| 登记到货、质检、生成待上架入库单 | 供应商主数据（模块12 `trpc.suppliers`） |
+| 确认上架写 `inventory_balances` + `inventory_movements`（幂等键） | 字典 / 成员下拉（`trpc.dictionaries/members`，已接） |
+| 控制台采购侧栏对应列表与详情页 | Dashboard KPI（模块13/14 `trpc.dashboard`，已接） |
 
 状态映射：中文 UI ↔ DB varchar（见 `apps/shop/src/lib/server/mappers/purchase.ts`）。
 
@@ -48,7 +48,7 @@ pnpm --filter @workspace/db db:seed:commerce-purchase
 pnpm --filter shop dev
 ```
 
-迁移 `0009_commerce_purchase_to_inbound.sql` 新增：
+迁移新增（历史编号 `0009_commerce_purchase_to_inbound.sql`，重生成后见 `0000` 基表 + `0002_glamorous_bruce_banner` 增量（2026-11-08 迁移重生成：历史编号并入 `0000_flashy_silver_samurai.sql` / `0002_glamorous_bruce_banner.sql`））：
 
 - `purchase_requests` / `purchase_request_lines`
 - `purchase_orders` / `purchase_order_lines`
@@ -64,8 +64,8 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/purchase.ts` | tRPC API |
 | `apps/shop/src/lib/server/dataaccess/purchase.ts` | DB 读写与事务 |
 | `apps/shop/src/lib/server/mappers/purchase.ts` | 中文状态映射 |
-| `apps/shop/src/lib/crossborder/purchase-*-store.ts` | 仅类型 / BIN_OPTIONS；localStorage 已停用 |
-| `packages/db/drizzle/0009_commerce_purchase_to_inbound.sql` | 迁移 |
+| `apps/shop/src/lib/crossborder/purchase-request-store.ts` | 仅余 `countByStatus` 等助手（页面仍 import）；`purchase-order-store.ts` / `purchase-receipt-store.ts` **已删除**（2026-11-08） |
+| `packages/db/drizzle/0000_flashy_silver_samurai.sql` + `0002_glamorous_bruce_banner.sql` | 迁移（历史 0009 并入） |
 | `packages/db/src/scripts/seed-commerce-purchase.ts` | 演示种子 |
 
 ## 本 PR 不做

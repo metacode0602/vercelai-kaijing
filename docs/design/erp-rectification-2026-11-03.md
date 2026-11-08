@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |----|------|
 | 输入 | `apps/shop/content/design/好时运ERP开发人员整改清单_2026-11-03.xlsx`（26 项：P0×18、必须修改 5、需补充 15、共同确认 6） |
-| 范围 | 26 项逐条给出设计响应、文档落点与确认状态；C1/C2/C3 已随 migration `0009_careless_tyrannus` 落地实现 |
+| 范围 | 26 项逐条给出设计响应、文档落点与确认状态；C1/C2/C3 已随 migration `0009_careless_tyrannus` 落地实现（2026-11-08 重生成后并入 `0002_glamorous_bruce_banner.sql`） |
 | 关联 | [erp-requirements-q01-q35-dev-replies.md](./erp-requirements-q01-q35-dev-replies.md)（Q01–Q35 原答复）、[haoshiyun-erp-database-schema.md](./haoshiyun-erp-database-schema.md)、[haoshiyun-erp-ued-catalog.md](./haoshiyun-erp-ued-catalog.md)、[haoshiyun-erp-console-menu-ia.md](./haoshiyun-erp-console-menu-ia.md)、[haoshiyun-erp-gap-analysis-and-remediation.md](./haoshiyun-erp-gap-analysis-and-remediation.md)、[fee-templates-ued.md](../../apps/shop/content/design/fee-templates-ued.md) |
 | 状态 | **设计已定 19 项（2026-11-03 两轮拍板）；10 项待确认 + 5 项已拍板待填细节（见 §6）** |
 
@@ -13,7 +13,7 @@
 |------|------|----------|
 | v1.0 | 2026-11-03 | 初版：26 项整改逐条响应；库位绑定禁删+履历表、RBAC country scope+六动作、费用模板审核状态机+历史快照三项设计定稿 |
 | v1.1 | 2026-11-03 | 第二轮拍板写入：C3/C6/C7/C10/C11/C12/C13/C15/C17/C18/C20/C23/C25/C30 共 14 项（含库存状态机、报表口径、Lazada 授权建议采纳）；C4 选 B（改动行待补） |
-| v1.2 | 2026-11-07 | C1/C2/C3 已实现：`commerce_bin_bindings` + `bin_binding_history` + `commerce_warehouse_zones` + `inventory_pools` 随 0009 落库；WMS/海运 tRPC 与种子已接 |
+| v1.2 | 2026-11-07 | C1/C2/C3 已实现：`commerce_bin_bindings` + `bin_binding_history` + `commerce_warehouse_zones` + `inventory_pools` 随 0009 落库（现于 `0002_glamorous_bruce_banner.sql`）；WMS/海运 tRPC 与种子已接 |
 
 ---
 

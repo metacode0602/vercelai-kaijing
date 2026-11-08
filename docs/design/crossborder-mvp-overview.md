@@ -64,7 +64,7 @@ packages/ui  共享组件
 - 租户列表 / 启停  
 - 全平台同步健康、失败任务  
 - 待审动作抽检（跨租户只读或受限）  
-- Demo：仪表盘 + 租户表 + 同步健康（mock）
+- ~~Demo：仪表盘 + 租户表 + 同步健康（mock）~~（**2026-11-08 更新**：apps/web 已接 `platformOps` / `platformOnboarding` tRPC，mock 已删）
 
 ### apps/shop（租户端）
 
@@ -72,7 +72,7 @@ packages/ui  共享组件
 - 选品候选、待审队列  
 - 商品/刊登、订单、库存预警  
 - 落地成本、结算粗览  
-- Demo：侧栏工作流 + 各页 mock 表
+- ~~Demo：侧栏工作流 + 各页 mock 表~~（**2026-11-08 更新**：主路径已接 tRPC，`mock-data.ts` 已删，见 shop-module1–14）
 
 ### apps/api
 
@@ -104,7 +104,7 @@ packages/ui  共享组件
 
 | 阶段 | 内容 | tRPC |
 |------|------|------|
-| **P0（当前阶段）** | 设计 MD 入库；跨境 UED 与 mock Demo；选品/成本工作台可交互并让用户确认使用习惯（mock 不宣称持久化） | 不接 |
+| **P0（当前阶段）** | 设计 MD 入库；跨境 UED 与 mock Demo；选品/成本工作台可交互并让用户确认使用习惯（mock 不宣称持久化）。**2026-11-08 更新**：多数 console 页已分模块接 tRPC（见 shop-module1–14） | 不接（历史口径；现部分已接入） |
 | **P1（UED 确认后）** | domain/dataaccess + tRPC routers；真实来源/中间数据持久化与版本快照；api OpenAPI 资源；MCP server | 接入 |
 | **P2** | Daraz connector + worker | — |
 | **P3** | OpenWork 选品 Skill + 端到端 | — |
@@ -129,7 +129,7 @@ packages/ui  共享组件
 | 基线仓 | `openroute-ai/open-shop` |
 | 模块划分 | web=管理后台，shop=租户端，api=OpenAPI+MCP |
 | 数据 | 新跨境表；auth 复用；历史业务表不再扩展 |
-| 本阶段 | Demo + DB 设计；**暂不接 tRPC 业务** |
+| 本阶段 | Demo + DB 设计；**暂不接 tRPC 业务**（历史口径；2026-11-08 起已分模块接入，见 shop-module1–14） |
 | 选品 | OpenWork skills → 平台 MCP |
 
 若以上默认需改，请在评审 PR 时指出。

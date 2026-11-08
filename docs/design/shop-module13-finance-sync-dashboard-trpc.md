@@ -2,7 +2,8 @@
 
 > 状态：已在 `apps/shop` 落地生产路径。分支 `feat/shop-trpc-finance-sync-dashboard`。
 > 基线：`feat/shop-trpc-supplier-order-exceptions`（PR #49 栈，含 #44–#49）；**不依赖 / 不合并** 售后 #43。
-> **闭环升级（2026-11-07）**：见 [cost-finance-production-closure.md](cost-finance-production-closure.md)（PR #64–#68）：导航 B、运价卡、结算导入/Lazop 同步、去 mock；迁移 0012/0013。
+> **闭环升级（2026-11-07）**：见 [cost-finance-production-closure.md](cost-finance-production-closure.md)（PR #64–#68）：导航 B、运价卡、结算导入/Lazop 同步、去 mock。  
+> **复审（2026-11-08）**：迁移由 `drizzle-kit generate` 重生成为 `0000`/`0001`/`0002_glamorous_bruce_banner`（原 0012/0013/0017 并入，`db:check` 通过）；SKU 利润按收入占比分摊费用；正式成本 `blockReasons` 阻断 + 服务端强制校验（G1–G9 状态见 cost-finance §9）。
 
 ## 范围
 
@@ -43,7 +44,7 @@ console/dashboard
 ## 财务约定
 
 - 费用拆分按 `settlement_lines.fee_kind` 汇总；空则 0，不写死税费
-- 利润：`orders.total_amount − sku_costs(最新) − 结算/物流费用`；提供 `getProfit` / `profitKpis`
+- 利润：`orders.total_amount − sku_costs(最新) − 结算/物流费用`；提供 `getProfit` / `profitKpis`；`listProfits` 支持 `view=order|sku`，SKU 视图按订单收入占比分摊结算/物流费用（`listSkuProfits`）
 - 无结算关联 → 状态「未结算」
 - 正式成本只经 `ocean.saveCost`；禁止 localStorage / 已删 demo store
 - 结算：CSV/JSON `importSettlements`；Lazop `syncSettlementsFromPlatform`（经 apps/api）；`updateSettlementStatus` 需确认
@@ -52,9 +53,9 @@ console/dashboard
 
 ## 迁移与种子
 
-- 同步：`packages/db/drizzle/0017_commerce_sync_tasks.sql`（`sync_tasks` / `sync_job_runs`）— 历史编号，以仓库现有 drizzle 目录为准
-- 成本财务闭环：`0012_cost_finance_closure.sql`（运价卡、carrier/carton/fx FK、`ocean_freight`）、`0013_fulfillment_batch_carrier.sql`
-- 财务基表沿用早期 commerce schema（`settlements` / `sku_costs` / `fx_rates` 等）
+- 同步：`sync_tasks` / `sync_job_runs` 基表在 `packages/db/drizzle/0000_flashy_silver_samurai.sql`（历史编号 0017，已重生成并入）
+- 成本财务闭环：`0002_glamorous_bruce_banner.sql`（运价卡、carrier/carton/fx FK、`ocean_freight` 类型语义；历史编号 0012/0013/0014）
+- 财务基表沿用早期 commerce schema（`settlements` / `sku_costs` / `fx_rates` 等，在 `0000`）
 
 ```bash
 docker compose up -d
@@ -90,7 +91,7 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/routers/{sync,finance,dashboard}.ts` | tRPC |
 | `apps/shop/src/lib/server/dataaccess/{sync,finance,dashboard}.ts` | DB |
 | `apps/shop/src/lib/server/mappers/{sync,finance}.ts` | 中文映射 |
-| `packages/db/drizzle/0017_commerce_sync_tasks.sql` | 迁移 |
+| `packages/db/drizzle/0000_flashy_silver_samurai.sql` + `0002_glamorous_bruce_banner.sql` | 迁移（同步/财务基表与闭环 FK；历史 0012/0013/0017 并入） |
 | `packages/db/src/scripts/seed-commerce-finance.ts` | 演示种子 |
 | `docs/design/shop-module13-finance-sync-dashboard-trpc.md` | 本文档 |
 

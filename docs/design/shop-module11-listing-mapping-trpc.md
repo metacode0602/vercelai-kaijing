@@ -5,16 +5,18 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍 mock / stub |
+| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
 | --- | --- |
-| `shops` 下拉（mappings/listings meta） | 真实平台刊登 / 上下架 OpenAPI（`listings.requestPlatformSync` **stub**） |
+| `shops` 下拉（mappings/listings meta；`trpc.shops`） | 真实平台刊登 / 上下架 OpenAPI（`listings.requestPlatformSync` **stub**） |
 | `seller_sku_mappings` 列表/详情/绑定/解绑/确认 | （已迁模块12）供应商货号 / 履约异常 |
-| `mapping_exceptions` 列表 KPI + resolve/ignore（mappings 主路径） | `/console/sync-tasks` 仍 demo；候选选品 / 财务成本 |
-| `listings` 列表/详情/新建/编辑/本地上下架/加映射行 | 店铺 OAuth 连接器设置页（shop-connection-store） |
-| seed `db:seed:commerce-listings`（依赖 products） | 候选选品 / 财务成本列表 |
-| 内部 SKU 详情注入真实刊登+映射 related | Dashboard 其它 KPI 仍混 mock |
+| `mapping_exceptions` 列表 KPI + resolve/ignore（mappings 主路径） | — |
+| `listings` 列表/详情/新建/编辑/本地上下架/加映射行 | — |
+| seed `db:seed:commerce-listings`（依赖 products） | — |
+| 内部 SKU 详情注入真实刊登+映射 related | — |
 
-无新 migration（复用既有 `listings` / `seller_sku_mappings` / `mapping_exceptions` / `shops`；避开 0014/0015，若将来需要从 0016 起）。
+> 2026-11-08：`/console/sync-tasks`（模块13）、候选选品（模块14）、财务成本（模块13）、店铺连接（`trpc.shops`，`shop-connection-store` 已删）、Dashboard KPI 均已接库。
+
+无新 migration（复用既有 `listings` / `seller_sku_mappings` / `mapping_exceptions` / `shops`，均在 `0000` 基线；2026-11-08 迁移重生成后编号为 `0000`/`0001`/`0002`）。
 
 ## 架构
 
@@ -27,7 +29,7 @@ console/mappings | listings
   → Drizzle → shops / listings / seller_sku_mappings / mapping_exceptions
 ```
 
-`mapping-store` / `listing-store` 主路径已停用（类型/常量保留）。
+`mapping-store` **已删除**（2026-11-08）；`listing-store` 主路径已停用（仅余类型/助手，listings 页仍 import 其 helper）。
 
 ## 状态映射
 
@@ -79,7 +81,7 @@ pnpm --filter shop dev
 | `apps/shop/src/lib/server/mappers/listings.ts` | 中文状态映射 |
 | `packages/db/src/scripts/seed-commerce-listings.ts` | 演示种子 |
 | `apps/shop/src/lib/crossborder/listing-store.ts` | 主路径停用；类型保留 |
-| `apps/shop/src/lib/crossborder/mapping-store.ts` | 主路径停用；类型保留 |
+| `apps/shop/src/lib/crossborder/mapping-store.ts` | **已删除**（2026-11-08） |
 | `docs/design/shop-module11-listing-mapping-trpc.md` | 本文档 |
 
 ## 本 PR 不做

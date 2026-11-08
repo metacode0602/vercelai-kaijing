@@ -44,7 +44,7 @@ finance.listFreight → fee_templates + ocean（模块13已有）
 
 ## 迁移与种子
 
-迁移：`packages/db/drizzle/0019_commerce_console_ops.sql`
+迁移：`packages/db/drizzle/0000_flashy_silver_samurai.sql` + `0002_glamorous_bruce_banner.sql`（`cs_inbox_messages` 等；历史编号 `0019_commerce_console_ops`，2026-11-08 重生成并入）
 
 ```bash
 pnpm --filter @workspace/db db:migrate
@@ -68,11 +68,11 @@ pnpm --filter shop typecheck
 
 ## 本 PR 后仍可能残留 demo 的 page（及原因）
 
-| 页面 | 原因 |
+| 页面 | 原因（2026-11-08 更新） |
 | --- | --- |
-| `/console/products`、`/console/inventory`、`/console/pending`、成本/财务部分旧 detail | 仍直接读 `mock-data` 列表；主档已有 `products`/`wms` tRPC，列表页迁移未纳入本模块优先清单 |
-| `/console/products/[sku]` 供应商子表 | 仍可能引用 `ERP_DEMO_SUPPLIERS` 片段；供应商主路径在 module12，SKU 详情边车未清 |
-| `/console/carton-specs` | 箱规本身仍可能是 createDemoStore；本模块只把字典选项改为 tRPC |
+| ~~`/console/products`、`/console/inventory`、`/console/pending` 读 `mock-data`~~ | **已清**：`mock-data.ts` 已删除，三页分别接 `trpc.products.listCatalog` / `trpc.wms.listInventoryAlerts` / `trpc.pending.*` |
+| ~~`/console/products/[sku]` 供应商子表 `ERP_DEMO_SUPPLIERS`~~ | **已清**：`ERP_DEMO_SUPPLIERS` 仅剩定义、无引用 |
+| ~~`/console/carton-specs` createDemoStore~~ | **已清**：页已接 `trpc.cartonSpecs.*`（含 `remove`） |
 | `/console/reports/sell-through` 等专题报表子页 | 专题算法/口径未冻结，保持示意或空壳说明 |
-| 各类 `*-store.ts` 文件本身 | 客户端 store 文件仍在仓库，供未迁移页或相关组件引用；主路径页已不再 import |
+| 各类 `*-store.ts` 文件本身 | 17 个死 store 已删（2026-11-08）；仍保留的 `aftersale-store`（3 详情页 `toRelated*`）、`listing-store` / `purchase-request-store`（helper）、`wms-store` 等为兼容壳，见 cost-finance §9.1 |
 

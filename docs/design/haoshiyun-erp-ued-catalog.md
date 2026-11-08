@@ -215,4 +215,4 @@ UED 已扩展至 D1 原型层；目标 ERP 功能与 D0-D3 成熟度追踪见 [�
 | `/console/costs` 与 `/console/finance` | 显示示例金额与利润算法/汇率待确认状态 |
 | `/console/inventory` | 预警视图及库存流水、仓库/库位互链 |
 
-现有 `/console/dashboard`、`/console/orders`、`/console/inventory`、`/console/listings`、`/console/products`、`/console/costs`、`/console/finance` 等 mock 页面继续作为其余原型入口。新的页面实现统一使用“示例数据”标识，不调用业务 API。
+现有 `/console/dashboard`、`/console/orders`、`/console/inventory`、`/console/listings`、`/console/products`、`/console/costs`、`/console/finance` 等 mock 页面继续作为其余原型入口。新的页面实现统一使用“示例数据”标识，不调用业务 API。（**2026-11-08 更新**：上述页面已接 tRPC 并删除 `mock-data.ts`；「不调用业务 API」仅适用于仍为原型的专题页。）
