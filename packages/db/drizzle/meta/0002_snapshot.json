@@ -1,6 +1,6 @@
 {
-  "id": "f4e14f5c-b1b2-43b9-9553-4f992cba9201",
-  "prevId": "a15975e3-5b15-414c-ae08-7d300fa41ee0",
+  "id": "36730a0d-0d6b-4991-a720-63925a71b1ac",
+  "prevId": "e36bdff6-ecfb-4d41-b953-3cd557f50c6a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6012,6 +6012,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "carrier_id": {
+          "name": "carrier_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "tracking_summary": {
           "name": "tracking_summary",
           "type": "text",
@@ -6122,6 +6128,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "fulfillment_batches_carrier_idx": {
+          "name": "fulfillment_batches_carrier_idx",
+          "columns": [
+            {
+              "expression": "carrier_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -6136,6 +6157,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fulfillment_batches_carrier_id_commerce_carriers_id_fk": {
+          "name": "fulfillment_batches_carrier_id_commerce_carriers_id_fk",
+          "tableFrom": "fulfillment_batches",
+          "tableTo": "commerce_carriers",
+          "columnsFrom": [
+            "carrier_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

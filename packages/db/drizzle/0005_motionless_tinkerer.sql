@@ -1,4 +1,0 @@
-ALTER TABLE "integration_credentials" ADD COLUMN "app_credential_id" text;--> statement-breakpoint
-ALTER TABLE "integration_credentials" ADD CONSTRAINT "integration_credentials_app_credential_id_marketplace_app_crede" FOREIGN KEY ("app_credential_id") REFERENCES "public"."marketplace_app_credentials"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "integration_credentials_app_credential_idx" ON "integration_credentials" USING btree ("app_credential_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "integration_credentials_shop_kind_uidx" ON "integration_credentials" USING btree ("shop_id","kind");
