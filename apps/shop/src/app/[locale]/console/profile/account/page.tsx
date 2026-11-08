@@ -7,7 +7,7 @@ export default function ProfileAccountPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">账号</h2>
-        <p className="text-sm text-muted-foreground">姓名 / 邮箱 / 头像（示例）</p>
+        <p className="text-sm text-muted-foreground">姓名 / 邮箱 / 头像</p>
       </div>
       <Card>
         <CardHeader>
@@ -16,7 +16,7 @@ export default function ProfileAccountPage() {
         <CardContent className="grid max-w-lg gap-4">
           <div className="space-y-2">
             <Label htmlFor="name">姓名</Label>
-            <Input id="name" defaultValue="演示运营" disabled />
+            <Input id="name" placeholder="未设置" disabled />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">邮箱</Label>

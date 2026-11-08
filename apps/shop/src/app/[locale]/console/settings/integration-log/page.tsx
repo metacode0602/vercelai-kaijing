@@ -104,7 +104,7 @@ export default function SystemLogPage() {
         ]}
       />
       <UedPrototypeNotice>
-        {meta.data?.note || '敏感 token 已脱敏。重试仅当关联真实 sync_tasks。'}
+        {meta.data?.note || '敏感凭证已脱敏；仅关联同步任务的请求可以重试。'}
         {requestIdFilter ? ` 当前按 request id 筛选：${requestIdFilter}。` : ''}
       </UedPrototypeNotice>
       {requestIdFilter ? (

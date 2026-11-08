@@ -170,7 +170,7 @@ export default function PurchaseApprovalsPage() {
           </Alert>
         ) : null}
         <UedPrototypeNotice>
-          互审规则：普通员工由杨洁或黄发聪审核；禁止自审。批准动作会创建 purchase_orders 并复制明细；本页已接 PostgreSQL。
+          互审规则：普通员工由杨洁或黄发聪审核，禁止自审。批准后会生成采购单并复制明细。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">待审核 {counts['待审核'] ?? 0}</Badge>

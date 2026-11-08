@@ -96,7 +96,7 @@ export default function SyncTaskDetailPage({ params }: { params: Promise<{ id: s
         }
       />
       <UedPrototypeNotice>
-        数据来自 sync_tasks / sync_job_runs。重试只写请求记录，不声称 Daraz/Lazada 已联调。
+        重试只生成请求记录，不代表已与 Daraz / Lazada 联调成功。
       </UedPrototypeNotice>
       <DetailKpiRow
         items={[

@@ -93,7 +93,7 @@ export default function IntegrationLogDetailPage({ params }: { params: Promise<{
         </AlertDescription>
       </Alert>
       <UedPrototypeNotice>
-        {notice || '重试走 sync.retry（真实 apps/api + wait）；无任务依据时会返回错误，不写假成功。'}
+        {notice || '重试会发起真实请求；没有关联任务时会返回错误，不会标记为成功。'}
       </UedPrototypeNotice>
       <DetailKpiRow
         items={[

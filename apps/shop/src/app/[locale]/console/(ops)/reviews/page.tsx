@@ -77,7 +77,7 @@ export default function ReviewsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        读 product_reviews / product_review_media。平台回复真实 API 未接；详情可手工落库回复或排队 stub，不会声称已同步平台。
+        平台回复接口暂未接通；详情页可手工回复或排队等待接入，不会同步到平台。
         {meta.data?.note ? ` ${meta.data.note}` : ''}
       </UedPrototypeNotice>
       {listQuery.error ? (

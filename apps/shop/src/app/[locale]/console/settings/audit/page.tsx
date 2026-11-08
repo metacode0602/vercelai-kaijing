@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 
@@ -27,7 +27,6 @@ export default function AuditEventsPage() {
         { key: 'detail', label: '详情' },
       ]}
     >
-      <UedPrototypeNotice>已接 audit_events 表；不再使用 localStorage DEMO。本页只读列表。</UedPrototypeNotice>
     </UedWorkspace>
   )
 }

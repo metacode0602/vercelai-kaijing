@@ -56,7 +56,7 @@ export default function CostsPage() {
       </Alert>
 
       <UedPrototypeNotice>
-        F32：柜次成本版本存 sku_costs.container_lot_id / version_no。订单净利润见利润页。
+        订单净利润请前往「利润」页查看。
       </UedPrototypeNotice>
 
       <ConsoleFilterBar

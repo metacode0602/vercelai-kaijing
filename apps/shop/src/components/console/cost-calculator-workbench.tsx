@@ -366,7 +366,6 @@ export function CostCalculatorWorkbench({
   }, [input, open, isDialog, feeOverrides])
 
   const formulas = result ? getFormulaDocs(result.tax.rates) : null
-  const tariff = TARIFF_PROFILES[input.tariffProfileId]
 
   const handleSaveVersion = React.useCallback(() => {
     if (!result || !lotId) {
@@ -419,7 +418,12 @@ export function CostCalculatorWorkbench({
       applySku={applySku}
       skuOptions={skuOptions}
       skuLoading={skuListQuery.isLoading}
-      tariff={tariff}
+      tariff={result?.tax.rates ?? null}
+      feeTemplateLabel={
+        result?.tax.resolvedFrom === 'fee_template'
+          ? (result.tax.feeTemplateCode ?? '费用模板')
+          : null
+      }
       cartonSpecs={cartonSpecs}
       fxHint={
         fxResolveQ.data
@@ -490,6 +494,7 @@ function CostCalculatorFormPanel({
   skuOptions,
   skuLoading,
   tariff,
+  feeTemplateLabel,
   cartonSpecs,
   fxHint,
   freightHint,
@@ -504,7 +509,10 @@ function CostCalculatorFormPanel({
   applySku: (sku: string, extras?: Partial<CostCalculatorInput>) => void
   skuOptions: Array<{ code: string; name: string }>
   skuLoading: boolean
-  tariff: (typeof TARIFF_PROFILES)[TariffProfileId]
+  /** 已解析税率（来自费用模板）；null=尚未测算或未命中 */
+  tariff: (typeof TARIFF_PROFILES)[TariffProfileId] | null
+  /** 命中的费用模板 code；null=未命中 */
+  feeTemplateLabel: string | null
   cartonSpecs: Array<{
     id: string
     code: string
@@ -628,10 +636,16 @@ function CostCalculatorFormPanel({
             ))}
           </ToggleGroup>
           <p className="text-[11px] text-muted-foreground">
-            HS 示意 {tariff.hsHint} · 关税 {(tariff.customs * 100).toFixed(0)}% / CESS{' '}
-            {(tariff.cess * 100).toFixed(0)}% / PAL {(tariff.pal * 100).toFixed(0)}% / VAT{' '}
-            {(tariff.vat * 100).toFixed(0)}% / SSCL {(tariff.sscl * 100).toFixed(1)}%
-            （按平台+国家+履约+asOf 解析费用模板版本）
+            {tariff && feeTemplateLabel ? (
+              <>
+                HS 示意 {tariff.hsHint} · 关税 {(tariff.customs * 100).toFixed(1)}% / CESS{' '}
+                {(tariff.cess * 100).toFixed(1)}% / PAL {(tariff.pal * 100).toFixed(1)}% / VAT{' '}
+                {(tariff.vat * 100).toFixed(1)}% / SSCL {(tariff.sscl * 100).toFixed(1)}%
+                （来自已发布费用模板 {feeTemplateLabel}）
+              </>
+            ) : (
+              <>尚未命中费用模板：税率不可用于正式成本，请在「费用模板」维护已发布版本后重新测算</>
+            )}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
@@ -914,7 +928,7 @@ function CostCalculatorResultsPanel({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">保存为柜次成本版本（F32）</CardTitle>
           <CardDescription className="text-xs">
-            主路径写入 PostgreSQL sku_costs（container_lot_id）；并保留本机快照便于成本页浏览
+            主路径写入 PostgreSQL sku_costs（container_lot_id）；测算草稿仅存本机会话，不参与正式成本
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

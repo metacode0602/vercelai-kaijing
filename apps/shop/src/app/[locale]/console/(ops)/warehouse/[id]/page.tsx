@@ -712,7 +712,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
       <Alert>
         <AlertTitle>一库位一启用 SKU</AlertTitle>
         <AlertDescription>
-          库位绑定与余额投影来自 wms tRPC。关联子表不再读 ERP 演示样本。
+          库位绑定与库存余额会随关联操作同步更新。
         </AlertDescription>
       </Alert>
       <DetailKpiRow

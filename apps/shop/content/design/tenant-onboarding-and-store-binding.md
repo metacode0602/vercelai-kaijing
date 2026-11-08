@@ -1,6 +1,6 @@
 # 租户入驻、店铺创建与 Daraz/Lazada OAuth 绑定
 
-> 状态：设计稿（待评审）
+> 状态：设计稿（待评审）；**2026-11-08 更新**：§2.2 差距表 G1–G7 已按当前实现标注，G8 部分完成
 > 范围：`apps/shop` 租户入驻、组织创建、首店/多店创建、Daraz + Lazada OAuth 绑定与重新授权
 > 参考实现：`openroute-cloud/apps/merchant` 的 onboarding（主体类型 → 认证资料 → 创建 organization + member + setActiveOrganization）
 > 关联文档：[crossborder-mvp-overview.md](../../../../docs/design/crossborder-mvp-overview.md)、[marketplace-connectors.md](../../../../docs/design/marketplace-connectors.md)、[crossborder-database-design.md](../../../../docs/design/crossborder-database-design.md)
@@ -56,20 +56,20 @@
 | 凭证 AES-256-GCM 加密 | `packages/marketplace/src/crypto/credentials.ts` |
 | 控制台店铺连接页（原型） | `apps/shop/src/app/[locale]/console/settings/shops/page.tsx` |
 | 登录 / 注册 / 找回密码 | `apps/shop/src/app/[locale]/(auth)`、`components/auth/*` |
-| 平台运营租户列表（mock） | `apps/web/src/app/[locale]/(protected)/crossborder/tenants/page.tsx` |
+| 平台运营租户列表（已接 `trpc.platformOnboarding.tenants`，2026-11-08） | `apps/web/src/app/[locale]/(protected)/crossborder/tenants/page.tsx` |
 
 ### 2.2 当前差距
 
 | # | 差距 | 影响 | 处理 |
 | --- | --- | --- | --- |
-| G1 | `apps/shop` 的 better-auth **未启用 organization 插件** | `session.activeOrganizationId` 不会由插件维护，注册后没有组织 | P0：启用插件并复用 `packages/auth` 的 `ac/roles` |
-| G2 | 注册成功后 `Routes.Onboarding = '/console'`，没有真实入驻页 | 用户直接进入空控制台 | P0：新增 `/[locale]/onboarding`，注册后跳转 |
-| G3 | 没有入驻申请数据表/状态 | 无法提交、审核、驳回、重提 | P0：新增 `tenant_onboarding_applications` |
-| G4 | 店铺页是 localStorage 原型，不读写 `shops` | 与真实 OAuth 完全脱节 | P0：新增 `shops` tRPC + DB 读写，替换原型主路径 |
-| G5 | OAuth 回调只校验签名 state，未重新校验会话与组织归属 | 存在越权/错误绑定风险 | P0：回调增加 session + membership + shop 归属校验 |
-| G6 | 授权入口没有 UI 串联（店铺草稿 → OAuth → 详情） | 用户无法完成绑定 | P0：店铺列表/新建/详情接真实 API |
-| G7 | 平台运营审核为 mock | 入驻状态无人推进 | P1：`apps/web` 增加审核队列与通过/驳回 |
-| G8 | 平台账号重复绑定无策略 | 违反唯一索引或跨租户串店 | P0：定义同租户合并、跨租户冲突策略 |
+| G1 ✅（已修） | ~~`apps/shop` 的 better-auth **未启用 organization 插件**~~ | — | 已启用：`packages/auth/src/options.ts` 的 `organization({ ac, roles })` 经 `sharedAuthOptions` 接入 `apps/shop/src/lib/auth.ts` |
+| G2 ✅（已修） | ~~没有真实入驻页~~ | — | 已落地 `/[locale]/onboarding` + `/onboarding/status`，并有 `trpc.onboarding.*` |
+| G3 ✅（已修） | ~~没有入驻申请数据表/状态~~ | — | 已建 `tenant_onboarding_applications`（含 org 唯一索引） |
+| G4 ✅（已修） | ~~店铺页是 localStorage 原型~~ | — | `trpc.shops.*`（list/get/new/updateDraft/beginAuthorization/setSyncPaused/disable）主路径已接 |
+| G5 ✅（已修） | ~~OAuth 回调只校验签名 state~~ | — | 回调已 `auth.api.getSession` + `resolveOrganizationContext` 校验组织归属并比对 `state.organizationId` |
+| G6 ✅（已修） | ~~授权入口没有 UI 串联~~ | — | 列表/新建/详情页均已接 `trpc.shops.*`（含 `beginAuthorization`） |
+| G7 ✅（已修） | ~~平台运营审核为 mock~~ | — | `trpc.platformOnboarding.{tenants,approve,reject,disableTenant}`，tenants 页已接 |
+| G8 🟡（部分） | 平台账号重复绑定无策略 | 违反唯一索引或跨租户串店 | DB 已有 `shops_org_platform_ext_uidx`（org+platform+external_shop_id）；**跨租户冲突/合并的产品策略仍待定义** |
 
 ---
 

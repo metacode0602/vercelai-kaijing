@@ -273,7 +273,7 @@ export function ProductImageField({
       </div>
       <p className="text-xs text-muted-foreground">
         支持 JPG / PNG / WebP，单张不超过
-        8MB。原型阶段仅本地预览，接入后统一保存到 OSS / S3。
+        8MB。图片暂仅保存在当前浏览器本地，不会上传云端。
       </p>
       {error ? (
         <p role="alert" className="text-xs text-destructive">

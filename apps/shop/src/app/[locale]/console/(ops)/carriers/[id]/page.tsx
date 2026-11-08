@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { DetailFieldGrid, DetailPageHeader } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
@@ -21,12 +22,14 @@ import { Button } from '@workspace/ui/components/button'
 
 export default function CarrierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
+  const router = useRouter()
   const utils = trpc.useUtils()
   const query = trpc.carriers.get.useQuery({ id })
   const meta = trpc.carriers.meta.useQuery()
   const row = query.data
   const [editOpen, setEditOpen] = React.useState(false)
   const [confirmStatus, setConfirmStatus] = React.useState<'启用' | '停用' | null>(null)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const updateMutation = trpc.carriers.update.useMutation({
@@ -36,6 +39,13 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
       setEditOpen(false)
       setConfirmStatus(null)
       setNotice('承运商已保存到数据库。')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const removeMutation = trpc.carriers.remove.useMutation({
+    onSuccess: async () => {
+      await utils.carriers.list.invalidate()
+      router.push('/console/carriers')
     },
     onError: (e) => setNotice(e.message),
   })
@@ -69,6 +79,9 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
                 启用
               </Button>
             )}
+            <Button size="sm" variant="destructive" onClick={() => setConfirmDelete(true)}>
+              删除
+            </Button>
           </div>
         }
       />
@@ -146,6 +159,28 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
               }}
             >
               确认{confirmStatus}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除承运商 {row.code}？</AlertDialogTitle>
+            <AlertDialogDescription>
+              物理删除主档。若已被海运柜次 / 履约批次 / 运价卡引用将被拒绝（此时请改用「停用」）。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmDelete(false)
+                removeMutation.mutate({ id: row.id })
+              }}
+            >
+              确认删除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

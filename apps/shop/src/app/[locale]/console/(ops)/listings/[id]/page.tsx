@@ -11,7 +11,7 @@ import {
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { UedDialog } from '@/components/console/erp-ued-workspace'
 import { ListingImagesSection } from '@/components/console/listing-images-section'
 import { ProductReviewsSection } from '@/components/console/product-reviews-section'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -291,9 +291,6 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
           Daraz / Lazada / TikTok connector。
         </AlertDescription>
       </Alert>
-      <UedPrototypeNotice>
-        刊登头 + 映射行经 tRPC 读写 PostgreSQL；与 mappings router 双向关联。
-      </UedPrototypeNotice>
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">
           {notice}

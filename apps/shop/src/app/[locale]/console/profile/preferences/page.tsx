@@ -7,7 +7,7 @@ export default function ProfilePreferencesPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">偏好</h2>
-        <p className="text-sm text-muted-foreground">主题跟随 · 语言（示例）</p>
+        <p className="text-sm text-muted-foreground">主题跟随 · 语言</p>
       </div>
       <Card>
         <CardHeader>

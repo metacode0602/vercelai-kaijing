@@ -125,7 +125,7 @@ export default function MappingDetailPage({ params }: { params: Promise<{ id: st
               ) : null}
             </div>
             <UedPrototypeNotice>
-              绑定 / 解绑写 PostgreSQL。平台侧 Item/SKU 同步 OpenAPI 未接通。
+              绑定 / 解绑即时保存；平台侧 Item / SKU 同步接口暂未接通。
             </UedPrototypeNotice>
             {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
           </div>

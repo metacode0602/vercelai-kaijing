@@ -289,7 +289,7 @@ export default function StockAlertsSettingsPage() {
         />
         <UedPrototypeNotice>
           {meta.data?.note ||
-            '阈值按内部 SKU 维护；可用 = on_hand − reserved − qc_hold − damaged。阈值变更实时影响列表告警派生，历史阈值在「设置 → 变更审计」可查。'}
+            '阈值按内部 SKU 维护；可用 = 在库 − 预留 − 质检冻结 − 残次。阈值变更实时影响列表告警派生，历史阈值在「设置 → 变更审计」可查。'}
         </UedPrototypeNotice>
         {notice ? (
           <p role="status" className="text-sm text-muted-foreground">

@@ -4,7 +4,7 @@
  */
 import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { commerceCartonSpecs } from '@workspace/db/schema'
+import { commerceCartonSpecs, oceanShipmentBoxes } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import {
   formatStamp,
@@ -203,4 +203,26 @@ export async function updateCartonSpec(
   const row = await getCartonSpec(db, organizationId, existing.id)
   if (!row) throw new Error('更新箱规失败')
   return row
+}
+
+/** 删除箱规（被海运装箱行引用时拒绝，引导改停用）。 */
+export async function removeCartonSpec(db: AppDatabase, organizationId: string, idOrCode: string) {
+  const existing = await getCartonSpec(db, organizationId, idOrCode)
+  if (!existing) throw new Error('箱规不存在')
+  const [boxRef] = await db
+    .select({ v: count() })
+    .from(oceanShipmentBoxes)
+    .where(
+      and(
+        eq(oceanShipmentBoxes.organizationId, organizationId),
+        eq(oceanShipmentBoxes.cartonSpecCode, existing.code),
+      ),
+    )
+  if (Number(boxRef?.v ?? 0) > 0) {
+    throw new Error('箱规已被海运装箱行引用，不可删除；请改为「停用」')
+  }
+  await db
+    .delete(commerceCartonSpecs)
+    .where(and(eq(commerceCartonSpecs.organizationId, organizationId), eq(commerceCartonSpecs.id, existing.id)))
+  return { id: existing.id, code: existing.code }
 }

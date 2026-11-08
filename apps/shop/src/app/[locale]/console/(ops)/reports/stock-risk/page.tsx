@@ -82,7 +82,7 @@ export default function StockRiskReportPage() {
           ]}
         />
         <UedPrototypeNotice>
-          分段 ETA 折现未做；在途/清关按余额合计。不展示假图表。
+          在途与清关中的库存按余额合计展示。
         </UedPrototypeNotice>
       </UedWorkspace>
     </div>

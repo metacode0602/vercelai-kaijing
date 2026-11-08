@@ -42,7 +42,7 @@ export default function FreightPage() {
         </p>
       </div>
       <UedPrototypeNotice>
-        正式运价维护在运价卡；海运柜次金额来自 packing_details。成本测算读取同一套运价卡。
+        正式运价维护在「运价卡」；海运柜次金额来自柜次装箱明细。成本测算与运价卡共用同一套运价。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button asChild size="sm">

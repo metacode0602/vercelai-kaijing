@@ -102,7 +102,7 @@ export default function AftersalePolicySettingsPage() {
           badges={<Badge variant="outline">PostgreSQL</Badge>}
         />
         <UedPrototypeNotice>
-          {'买家在 Lazada / Daraz 发起取消或退款后，系统定时拉取建档并按本页策略执行：占库释放与退款分开。详见 docs/design/aftersale-cancel-ingest-and-policy.md。'}
+          {'买家在 Lazada / Daraz 发起取消或退款后，系统定时拉取建档并按本页策略执行：占库释放与退款分开。'}
         </UedPrototypeNotice>
 
         {merged.length === 0 ? (

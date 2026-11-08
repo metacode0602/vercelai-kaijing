@@ -61,7 +61,7 @@
       "codePlaceholder": "Enter code",
       "sendCode": "Send Code",
       "countdown": "Resend in {seconds}s",
-      "codeSent": "Verification code sent",
+      "codeSent": "No SMS channel configured; the code was written to the server log",
       "signIn": "Sign In",
       "switchToEmail": "Use email instead",
       "verifyFailed": "Verification failed, please try again",

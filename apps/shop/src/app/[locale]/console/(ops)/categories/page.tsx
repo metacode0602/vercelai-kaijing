@@ -137,7 +137,7 @@ export default function CategoriesPage() {
         </Button>
       </div>
       <UedPrototypeNotice>
-        已接库。空列表表示尚未配置；平台类目同步需 OpenAPI 授权，不会用演示树冒充。
+        空列表表示尚未配置；平台类目同步需要 OpenAPI 授权后才会同步类目。
       </UedPrototypeNotice>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
       <ConsoleListSection title="品类列表" description={listQuery.isLoading ? '加载中…' : `共 ${rows.length} 条`} pagination={pagination}>

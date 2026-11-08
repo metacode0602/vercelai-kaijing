@@ -104,7 +104,7 @@ export default function StockInboundsPage() {
       ) : null}
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        采购路径：收货质检合格 → 自动生成待上架入库单 → 确认上架写 inventory_movements（幂等键）。手工其它来源入库暂未接库，仍请走采购质检主路径。
+        采购路径：收货质检合格 → 自动生成待上架入库单 → 确认上架记账库存流水（幂等防重复）。其它来源的手工入库暂未支持，请走采购质检主路径。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         {rows

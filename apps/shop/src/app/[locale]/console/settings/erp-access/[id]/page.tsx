@@ -17,7 +17,7 @@ export default function AccessRoleDetailPage({ params }: { params: Promise<{ id:
       <Alert>
         <AlertTitle>待权限服务</AlertTitle>
         <AlertDescription>
-          已移除 DEMO 角色详情。下一步：RBAC / 店铺 scope 落库后再提供可编辑角色矩阵。
+          角色详情待权限服务接入；RBAC 与店铺权限范围落库后即可提供可编辑的角色矩阵。
         </AlertDescription>
       </Alert>
     </div>

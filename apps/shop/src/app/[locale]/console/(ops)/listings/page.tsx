@@ -8,7 +8,7 @@ import {
 } from '@/components/console/list'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
-import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
+import { UedDialog } from '@/components/console/erp-ued-workspace'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import {
@@ -157,9 +157,6 @@ export default function ListingsPage() {
         <Button onClick={() => setOpen(true)}>新建刊登</Button>
       </div>
 
-      <UedPrototypeNotice>
-        新建刊登写 listings + seller_sku_mappings。requestPlatformSync 仅更新本地 publishState，不调用 connector。
-      </UedPrototypeNotice>
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">
           {notice}

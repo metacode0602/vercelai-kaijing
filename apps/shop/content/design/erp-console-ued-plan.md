@@ -2,7 +2,8 @@
 
 > 依据：`docs/design/haoshiyun-erp-database-schema.md`  
 > 原则：侧栏 IA **尽量不动**；列表 / 详情 / 编辑可自由重做；本地 store 可先于 DB；体验按生产级运营台而非 Demo。  
-> 日期：2026-10-29（Asia/Shanghai）
+> 日期：2026-10-29（Asia/Shanghai）  
+> **状态更新（2026-11-08）**：本文为历史实施计划；文中 `order-store` / `mapping-store` / `product-store` / `shop-connection-store` / `finance-store` / `audit-store` 等 localStorage 原型 store 已删除，主路径均已接 tRPC → dataaccess → PostgreSQL（见 `docs/design/shop-module*.md`）。下文保留当时口径，仅作背景。
 
 ## 1. 信息架构（IA）
 
@@ -67,7 +68,7 @@
 | P3 | WMS：仓库/库区/库位、余额、流水、出库、盘点调整 UED；与 P2 上架写流水连续；一库位一 SKU | 已合入 develop |
 | P4 | 同步任务 / 异常队列 / 评论退货只读面；店铺连接与接口日志 | 已合入 develop |
 | **P0 商业闭环（本 PR）** | 订单→拣货→出库→流水；刊登写路径（listing-store 头+映射行）；related-info `orders`/`listings` | 进行中 |
-| P5 | 接 tRPC + DB（替换 localStorage），保留同一 UED | 待开 |
+| P5 | 接 tRPC + DB（替换 localStorage），保留同一 UED | 待开（**2026-11-08 更新**：主路径已分模块完成，见 shop-module1–14） |
 
 ## 10. 验收（P1）
 
@@ -111,7 +112,7 @@
 
 ## Gap closure — schema cleanup + UED fill (2026-10-31)
 
-> 配套：`docs/design/commerce-schema-cleanup.md`。本轮 **不** 接入 tRPC / 业务数据库；控制台仍为 localStorage 原型。
+> 配套：`docs/design/commerce-schema-cleanup.md`。本轮 **不** 接入 tRPC / 业务数据库；控制台仍为 localStorage 原型。（本 PR 边界；**2026-11-08 更新**：控制台主路径已接 tRPC，见 shop-module1–14。）
 
 ### Schema（packages/db commerce-schema）
 

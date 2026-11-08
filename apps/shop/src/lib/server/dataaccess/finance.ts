@@ -2,7 +2,7 @@
  * 财务结算 / 成本 / 利润 / 运费估算 dataaccess（模块13）。
  * 平台结算经 apps/api syncSettlementsForShop；费用/税费不写死，按行汇总或记 0。
  */
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   commerceFreightRateCards,
@@ -384,20 +384,22 @@ export async function listProfits(
 async function latestCostByVariant(
   db: AppDatabase,
   organizationId: string,
+  variantIds?: string[],
 ): Promise<Map<string, number>> {
+  const filters: SQL[] = [eq(skuCosts.organizationId, organizationId)]
+  if (variantIds && variantIds.length > 0) filters.push(inArray(skuCosts.variantId, variantIds))
+  // 数据库级去重：每个 variant 只取最新一条成本版本
   const rows = await db
-    .select({
+    .selectDistinctOn([skuCosts.variantId], {
       variantId: skuCosts.variantId,
       amount: skuCosts.amount,
       landed: skuCosts.landedUnitCost,
-      createdAt: skuCosts.createdAt,
     })
     .from(skuCosts)
-    .where(eq(skuCosts.organizationId, organizationId))
-    .orderBy(desc(skuCosts.createdAt))
+    .where(and(...filters))
+    .orderBy(skuCosts.variantId, desc(skuCosts.createdAt))
   const map = new Map<string, number>()
   for (const row of rows) {
-    if (map.has(row.variantId)) continue
     map.set(row.variantId, money(row.landed ?? row.amount))
   }
   return map
@@ -406,7 +408,13 @@ async function latestCostByVariant(
 async function feesByOrderId(
   db: AppDatabase,
   organizationId: string,
+  orderIds?: string[],
 ): Promise<Map<string, { fees: FeeBreakdown; settled: boolean }>> {
+  const scope: SQL[] = [eq(settlementLines.organizationId, organizationId)]
+  if (orderIds) {
+    if (orderIds.length === 0) return new Map()
+    scope.push(inArray(settlementLines.orderId, orderIds))
+  }
   const lines = await db
     .select({
       orderId: settlementLines.orderId,
@@ -414,7 +422,7 @@ async function feesByOrderId(
       amount: settlementLines.amount,
     })
     .from(settlementLines)
-    .where(eq(settlementLines.organizationId, organizationId))
+    .where(and(...scope))
 
   const map = new Map<string, { fees: FeeBreakdown; settled: boolean }>()
   for (const line of lines) {
@@ -426,13 +434,15 @@ async function feesByOrderId(
     map.set(line.orderId, cur)
   }
 
+  const logisticsScope: SQL[] = [eq(logisticsFeeDetails.organizationId, organizationId)]
+  if (orderIds) logisticsScope.push(inArray(logisticsFeeDetails.orderId, orderIds))
   const logistics = await db
     .select({
       orderId: logisticsFeeDetails.orderId,
       amount: logisticsFeeDetails.amount,
     })
     .from(logisticsFeeDetails)
-    .where(eq(logisticsFeeDetails.organizationId, organizationId))
+    .where(and(...logisticsScope))
   for (const row of logistics) {
     if (!row.orderId) continue
     const cur = map.get(row.orderId) ?? { fees: emptyFees(), settled: true }
@@ -463,9 +473,6 @@ async function listOrderProfits(
     .limit(input.pageSize)
     .offset((input.page - 1) * input.pageSize)
 
-  const costMap = await latestCostByVariant(db, organizationId)
-  const feeMap = await feesByOrderId(db, organizationId)
-
   const orderIds = orderRows.map((o) => o.id)
   const lines =
     orderIds.length === 0
@@ -474,6 +481,11 @@ async function listOrderProfits(
           .select()
           .from(orderLines)
           .where(and(eq(orderLines.organizationId, organizationId), inArray(orderLines.orderId, orderIds)))
+
+  // 仅加载当前页涉及的 variant 成本与订单费用（数据库级分页，不全量拉取）
+  const variantIds = [...new Set(lines.map((l) => l.variantId).filter((v): v is string => Boolean(v)))]
+  const costMap = await latestCostByVariant(db, organizationId, variantIds)
+  const feeMap = await feesByOrderId(db, organizationId, orderIds)
 
   const linesByOrder = new Map<string, typeof lines>()
   for (const line of lines) {
@@ -521,7 +533,6 @@ async function listSkuProfits(
   organizationId: string,
   input: { page: number; pageSize: number; q?: string },
 ): Promise<PaginatedResult<ProfitDto>> {
-  const costMap = await latestCostByVariant(db, organizationId)
   const filters: SQL[] = [eq(orderLines.organizationId, organizationId)]
   if (input.q?.trim()) {
     const q = `%${input.q.trim()}%`
@@ -529,23 +540,64 @@ async function listSkuProfits(
   }
   const where = and(...filters)!
 
-  const agg = await db
+  // 数据库级分页：group by 在数据库完成，只取当前页
+  const revenueExpr = sql<string>`coalesce(sum(${orderLines.paidPrice}), 0)`
+  const aggSub = db
     .select({
       sku: orderLines.sku,
       variantId: orderLines.variantId,
       title: orderLines.title,
-      qty: sql<number>`coalesce(sum(${orderLines.qty}), 0)`,
-      revenue: sql<string>`coalesce(sum(${orderLines.paidPrice}), 0)`,
+      qty: sql<number>`coalesce(sum(${orderLines.qty}), 0)`.as('qty_sum'),
+      revenue: revenueExpr.as('revenue_sum'),
     })
     .from(orderLines)
     .where(where)
     .groupBy(orderLines.sku, orderLines.variantId, orderLines.title)
-    .orderBy(desc(sql`coalesce(sum(${orderLines.paidPrice}), 0)`))
+    .as('sku_profit_agg')
 
-  const total = agg.length
-  const slice = agg.slice((input.page - 1) * input.pageSize, input.page * input.pageSize)
-  const feeMap = await feesByOrderId(db, organizationId)
-  // SKU 维度费用粗分摊：无订单归属时记 0，避免写死税率
+  const [totalRow] = await db.select({ value: count() }).from(aggSub)
+  const slice = await db
+    .select()
+    .from(aggSub)
+    .orderBy(desc(aggSub.revenue))
+    .limit(input.pageSize)
+    .offset((input.page - 1) * input.pageSize)
+
+  const variantIds = [...new Set(slice.map((r) => r.variantId).filter((v): v is string => Boolean(v)))]
+  const costMap = await latestCostByVariant(db, organizationId, variantIds)
+
+  // 当前页 SKU → 订单费用按收入占比分摊（不再恒 0）
+  const skus = [...new Set(slice.map((r) => r.sku).filter((s): s is string => Boolean(s)))]
+  const skuOrderPaid = new Map<string, Map<string, number>>()
+  const orderIds = new Set<string>()
+  if (skus.length > 0) {
+    const lineRows = await db
+      .select({ orderId: orderLines.orderId, sku: orderLines.sku, paid: orderLines.paidPrice })
+      .from(orderLines)
+      .where(and(eq(orderLines.organizationId, organizationId), inArray(orderLines.sku, skus)))
+    for (const row of lineRows) {
+      if (!row.orderId || !row.sku) continue
+      orderIds.add(row.orderId)
+      const perOrder = skuOrderPaid.get(row.sku) ?? new Map<string, number>()
+      perOrder.set(row.orderId, (perOrder.get(row.orderId) ?? 0) + money(row.paid))
+      skuOrderPaid.set(row.sku, perOrder)
+    }
+  }
+  const orderIdList = [...orderIds]
+  // 订单口径分母：该订单全部行 paidPrice 合计（保证各 SKU 分摊比例守恒）
+  const orderPaidTotal = new Map<string, number>()
+  const feeMap = await feesByOrderId(db, organizationId, orderIdList)
+  if (orderIdList.length > 0) {
+    const totals = await db
+      .select({ orderId: orderLines.orderId, total: sql<string>`coalesce(sum(${orderLines.paidPrice}), 0)` })
+      .from(orderLines)
+      .where(and(eq(orderLines.organizationId, organizationId), inArray(orderLines.orderId, orderIdList)))
+      .groupBy(orderLines.orderId)
+    for (const row of totals) {
+      if (row.orderId) orderPaidTotal.set(row.orderId, money(row.total))
+    }
+  }
+
   const items: ProfitDto[] = slice.map((row) => {
     const sku = row.sku || '—'
     const qty = Number(row.qty ?? 0)
@@ -553,11 +605,27 @@ async function listSkuProfits(
     const cost = unitCost * qty
     const revenue = money(row.revenue)
     const breakdown = emptyFees()
-    const fees = 0
+    let hasFeeOrders = false
+    let allSettled = true
+    const perOrder = row.sku ? skuOrderPaid.get(row.sku) : undefined
+    if (perOrder) {
+      for (const [orderId, skuPaid] of perOrder) {
+        const info = feeMap.get(orderId)
+        if (!info) continue
+        const denominator = orderPaidTotal.get(orderId) ?? 0
+        if (denominator <= 0 || skuPaid <= 0) continue
+        const share = Math.min(1, skuPaid / denominator)
+        hasFeeOrders = true
+        if (!info.settled) allSettled = false
+        for (const key of Object.keys(info.fees) as Array<keyof FeeBreakdown>) {
+          breakdown[key] += info.fees[key] * share
+        }
+      }
+    }
+    const fees = sumFeeBreakdown(breakdown)
+    const refund = breakdown.refunds
     const profit = revenue - cost - fees
-    const settled = false
-    // if any fee map exists globally, still mark unsettle at sku level unless we have settlement lines for sku — keep 未结算 when no settlement linkage
-    void feeMap
+    const settled = hasFeeOrders && allSettled
     return {
       id: sku,
       dimension: row.title || sku,
@@ -565,7 +633,7 @@ async function listSkuProfits(
       revenue,
       cost,
       fees,
-      refund: 0,
+      refund,
       profit,
       margin: revenue > 0 ? `${((profit / revenue) * 100).toFixed(1)}%` : '—',
       fx: '订单币种混计',
@@ -574,10 +642,11 @@ async function listSkuProfits(
       currency: 'MIX',
     }
   })
-  return { items, total, page: input.page, pageSize: input.pageSize }
+  return { items, total: Number(totalRow?.value ?? 0), page: input.page, pageSize: input.pageSize }
 }
 
-export async function financeOverview(db: AppDatabase, organizationId: string) {
+/** 利润口径 SQL 聚合：订单收入 +（行销量×最新成本）+ 结算/物流费用。供 overview / KPI 复用。 */
+async function profitTotals(db: AppDatabase, organizationId: string) {
   const [orderSum] = await db
     .select({
       revenue: sql<string>`coalesce(sum(${orders.totalAmount}), 0)`,
@@ -586,22 +655,105 @@ export async function financeOverview(db: AppDatabase, organizationId: string) {
     .from(orders)
     .where(eq(orders.organizationId, organizationId))
 
-  const profits = await listOrderProfits(db, organizationId, { page: 1, pageSize: 500 })
-  const cost = profits.items.reduce((s, p) => s + p.cost, 0)
-  const fees = profits.items.reduce((s, p) => s + p.fees, 0)
-  const revenue = money(orderSum?.revenue)
-  const profit = revenue - cost - fees
+  // 成本：按 variant 汇总销量，再乘该 variant 最新成本版本（两端都在数据库聚合）
+  const qtyByVariant = await db
+    .select({
+      variantId: orderLines.variantId,
+      qty: sql<string>`coalesce(sum(${orderLines.qty}), 0)`,
+    })
+    .from(orderLines)
+    .where(and(eq(orderLines.organizationId, organizationId), isNotNull(orderLines.variantId)))
+    .groupBy(orderLines.variantId)
+  const costMap = await latestCostByVariant(
+    db,
+    organizationId,
+    qtyByVariant.map((r) => r.variantId).filter((v): v is string => v != null),
+  )
+  let cost = 0
+  for (const row of qtyByVariant) {
+    cost += money(row.qty) * (row.variantId ? costMap.get(row.variantId) ?? 0 : 0)
+  }
+
+  const [slSum] = await db
+    .select({ v: sql<string>`coalesce(sum(${settlementLines.amount}), 0)` })
+    .from(settlementLines)
+    .where(eq(settlementLines.organizationId, organizationId))
+  const [lfSum] = await db
+    .select({ v: sql<string>`coalesce(sum(${logisticsFeeDetails.amount}), 0)` })
+    .from(logisticsFeeDetails)
+    .where(eq(logisticsFeeDetails.organizationId, organizationId))
+  const fees = money(slSum?.v) + money(lfSum?.v)
+
+  return {
+    revenue: money(orderSum?.revenue),
+    cost,
+    fees,
+    orderCount: Number(orderSum?.orderCount ?? 0),
+  }
+}
+
+async function countUnsettledOrders(db: AppDatabase, organizationId: string): Promise<number> {
+  const [row] = await db
+    .select({ v: count() })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.organizationId, organizationId),
+        sql`not exists (select 1 from ${settlementLines} sl where sl.organization_id = ${organizationId} and sl.order_id = ${orders.id})`,
+        sql`not exists (select 1 from ${logisticsFeeDetails} lf where lf.organization_id = ${organizationId} and lf.order_id = ${orders.id})`,
+      ),
+    )
+  return Number(row?.v ?? 0)
+}
+
+async function countSkuProfitRows(db: AppDatabase, organizationId: string): Promise<number> {
+  const groups = db
+    .select({ k: sql<number>`1` })
+    .from(orderLines)
+    .where(eq(orderLines.organizationId, organizationId))
+    .groupBy(orderLines.sku, orderLines.variantId, orderLines.title)
+    .as('sku_group')
+  const [row] = await db.select({ v: count() }).from(groups)
+  return Number(row?.v ?? 0)
+}
+
+/** 未结算 SKU：其关联订单全部无结算/物流费用行（与列表「已结算」口径一致）。 */
+async function countUnsettledSkus(db: AppDatabase, organizationId: string): Promise<number> {
+  const [row] = await db
+    .select({ v: count() })
+    .from(
+      db
+        .select({ sku: orderLines.sku, variantId: orderLines.variantId, title: orderLines.title })
+        .from(orderLines)
+        .where(eq(orderLines.organizationId, organizationId))
+        .groupBy(orderLines.sku, orderLines.variantId, orderLines.title)
+        .having(
+          sql`bool_and(
+            not exists (select 1 from ${settlementLines} sl where sl.organization_id = ${organizationId} and sl.order_id = ${orderLines.orderId})
+            and not exists (select 1 from ${logisticsFeeDetails} lf where lf.organization_id = ${organizationId} and lf.order_id = ${orderLines.orderId})
+          )`,
+        )
+        .as('unsettled_sku_groups'),
+    )
+  return Number(row?.v ?? 0)
+}
+
+export async function financeOverview(db: AppDatabase, organizationId: string) {
+  const totals = await profitTotals(db, organizationId)
   const settlement = await settlementStats(db, organizationId)
 
   return {
-    revenue,
-    cost,
-    fees,
-    profit,
-    margin: revenue > 0 ? `${((profit / revenue) * 100).toFixed(1)}%` : '—',
+    revenue: totals.revenue,
+    cost: totals.cost,
+    fees: totals.fees,
+    profit: totals.revenue - totals.cost - totals.fees,
+    margin:
+      totals.revenue > 0
+        ? `${(((totals.revenue - totals.cost - totals.fees) / totals.revenue) * 100).toFixed(1)}%`
+        : '—',
     settlementCount: settlement.total,
     payoutTotal: settlement.payoutTotal,
-    orderCount: Number(orderSum?.orderCount ?? 0),
+    orderCount: totals.orderCount,
   }
 }
 
@@ -613,10 +765,25 @@ export async function listFreightEstimates(
   const page = normalizePage(input.page)
   const pageSize = normalizePageSize(input.pageSize)
 
-  const templateRows = await db
-    .select({
-      template: feeTemplates,
-      version: feeTemplateVersions,
+  // 三源（费用模板最优版本 / 海运柜次 / 运价卡）在数据库 UNION 后分页
+  const ftBest = db
+    .selectDistinctOn([feeTemplates.id], {
+      id: feeTemplates.id,
+      code: feeTemplates.code,
+      name: feeTemplates.name,
+      platform: feeTemplates.platform,
+      country: feeTemplates.country,
+      type: feeTemplates.type,
+      status: feeTemplates.status,
+      pool: sql<string>`coalesce(nullif(${feeTemplates.fulfillmentPool}, ''), '—')`,
+      versionNo: feeTemplateVersions.versionNo,
+      priority: feeTemplateVersions.priority,
+      effectiveFrom: sql<string>`coalesce(to_char(${feeTemplateVersions.effectiveFrom}, 'YYYY-MM-DD'), '—')`,
+      note: sql<string>`coalesce(nullif(${feeTemplates.note}, ''), coalesce(${feeTemplateVersions.note}, ''))`,
+      source: sql<string>`'fee_template'`,
+      amount: sql<string | null>`null`,
+      currency: sql<string>`'—'`,
+      sortAt: feeTemplates.updatedAt,
     })
     .from(feeTemplates)
     .leftJoin(
@@ -637,71 +804,155 @@ export async function listFreightEstimates(
         )!,
       ),
     )
-    .orderBy(desc(feeTemplates.updatedAt))
-    .limit(200)
+    .orderBy(feeTemplates.id, sql`${feeTemplateVersions.versionNo} desc nulls last`)
+    .as('freight_ft_best')
 
-  const best = new Map<string, FreightEstimateDto>()
-  for (const { template, version } of templateRows) {
-    const existing = best.get(template.id)
-    const candidate: FreightEstimateDto = {
-      id: template.id,
-      code: template.code,
-      name: template.name,
-      platform: template.platform,
-      country: template.country,
-      type: template.type,
-      status: template.status,
-      pool: template.fulfillmentPool || '—',
-      versionNo: version?.versionNo ?? null,
-      priority: version?.priority ?? null,
-      effectiveFrom: formatDateOnly(version?.effectiveFrom),
-      note: template.note || version?.note || '',
-      source: 'fee_template',
-      amount: null,
-      currency: '—',
-    }
-    if (!existing || (candidate.versionNo ?? 0) > (existing.versionNo ?? 0)) {
-      best.set(template.id, candidate)
-    }
-  }
+  const ftPart = db
+    .select({
+      id: ftBest.id,
+      code: ftBest.code,
+      name: ftBest.name,
+      platform: ftBest.platform,
+      country: ftBest.country,
+      type: ftBest.type,
+      status: ftBest.status,
+      pool: ftBest.pool,
+      versionNo: ftBest.versionNo,
+      priority: ftBest.priority,
+      effectiveFrom: ftBest.effectiveFrom,
+      note: ftBest.note,
+      source: ftBest.source,
+      amount: ftBest.amount,
+      currency: ftBest.currency,
+      sortAt: ftBest.sortAt,
+    })
+    .from(ftBest)
 
-  const oceanRows = await db
-    .select()
+  const oceanPart = db
+    .select({
+      id: oceanShipments.id,
+      code: oceanShipments.lotCode,
+      name: sql<string>`'海运柜次 ' || ${oceanShipments.lotCode}`,
+      platform: sql<string>`coalesce(nullif(${oceanShipments.platform}, ''), 'ocean')`,
+      country: sql<string>`coalesce(nullif(${oceanShipments.destPort}, ''), '—')`,
+      type: sql<string>`coalesce(nullif(${oceanShipments.freightMode}, ''), 'ocean')`,
+      status: oceanShipments.status,
+      pool: sql<string>`coalesce(nullif(${oceanShipments.originPort}, ''), nullif(${oceanShipments.destPort}, ''), '—')`,
+      versionNo: sql<number | null>`null`,
+      priority: sql<number | null>`null`,
+      effectiveFrom: sql<string>`coalesce(${oceanShipments.etd}, '—')`,
+      note: sql<string>`coalesce(${oceanShipments.notes}, '')`,
+      source: sql<string>`'ocean'`,
+      amount: sql<string | null>`case
+        when ${oceanShipments.packingDetails}->>'freightAmount' is not null then (${oceanShipments.packingDetails}->>'freightAmount')::numeric
+        when ${oceanShipments.packingDetails}->>'totalFreight' is not null then (${oceanShipments.packingDetails}->>'totalFreight')::numeric
+        when ${oceanShipments.packingDetails}->>'amount' is not null then (${oceanShipments.packingDetails}->>'amount')::numeric
+        end`,
+      currency: sql<string>`coalesce(${oceanShipments.packingDetails}->>'currency', 'USD')`,
+      sortAt: oceanShipments.updatedAt,
+    })
     .from(oceanShipments)
     .where(eq(oceanShipments.organizationId, organizationId))
-    .orderBy(desc(oceanShipments.updatedAt))
-    .limit(50)
 
-  for (const ocean of oceanRows) {
-    const packing = (ocean.packingDetails ?? {}) as Record<string, unknown>
-    const amountRaw = packing.freightAmount ?? packing.totalFreight ?? packing.amount
-    best.set(`ocean:${ocean.id}`, {
-      id: ocean.id,
-      code: ocean.lotCode,
-      name: `海运柜次 ${ocean.lotCode}`,
-      platform: ocean.platform || 'ocean',
-      country: ocean.destPort || '—',
-      type: ocean.freightMode || 'ocean',
-      status: ocean.status,
-      pool: ocean.originPort || ocean.destPort || '—',
-      versionNo: null,
-      priority: null,
-      effectiveFrom: ocean.etd || '—',
-      note: ocean.notes || '',
-      source: 'ocean',
-      amount: amountRaw == null ? null : money(String(amountRaw)),
-      currency: typeof packing.currency === 'string' ? packing.currency : 'USD',
+  const cardPart = db
+    .select({
+      id: commerceFreightRateCards.id,
+      code: commerceFreightRateCards.code,
+      name: commerceFreightRateCards.name,
+      platform: sql<string>`'freight_rate_card'`,
+      country: sql<string>`coalesce(nullif(${commerceFreightRateCards.destPort}, ''), '—')`,
+      type: commerceFreightRateCards.freightMode,
+      status: commerceFreightRateCards.status,
+      pool: sql<string>`case
+        when ${commerceFreightRateCards.originPort} is not null and ${commerceFreightRateCards.originPort} <> ''
+          and ${commerceFreightRateCards.destPort} is not null and ${commerceFreightRateCards.destPort} <> ''
+          then ${commerceFreightRateCards.originPort} || '→' || ${commerceFreightRateCards.destPort}
+        when ${commerceFreightRateCards.originPort} is not null and ${commerceFreightRateCards.originPort} <> ''
+          then ${commerceFreightRateCards.originPort}
+        when ${commerceFreightRateCards.destPort} is not null and ${commerceFreightRateCards.destPort} <> ''
+          then ${commerceFreightRateCards.destPort}
+        else '—' end`,
+      versionNo: sql<number | null>`null`,
+      priority: sql<number | null>`null`,
+      effectiveFrom: commerceFreightRateCards.effectiveFrom,
+      note: sql<string>`coalesce(${commerceFreightRateCards.note}, '')`,
+      source: sql<string>`'freight_rate_card'`,
+      amount: sql<string | null>`${commerceFreightRateCards.unitRate}`,
+      currency: sql<string>`coalesce(${commerceFreightRateCards.currency}, 'USD')`,
+      sortAt: commerceFreightRateCards.updatedAt,
     })
-  }
-
-  const rateCards = await db
-    .select()
     .from(commerceFreightRateCards)
     .where(eq(commerceFreightRateCards.organizationId, organizationId))
-    .orderBy(desc(commerceFreightRateCards.updatedAt))
-    .limit(100)
-  for (const card of rateCards) {
-    best.set(`frc:${card.id}`, {
+
+  // 注意：以 oceanPart 为 union 起点——ftPart 部分字段来自子查询 SQL 别名（类型 never），
+  // never 可赋给 string，反向不成立，故 never 字段的模板必须放在接收端之后。
+  const merged = oceanPart.unionAll(cardPart).unionAll(ftPart).as('freight_merged')
+
+  const filters: SQL[] = []
+  if (input.q?.trim()) {
+    const q = `%${input.q.trim()}%`
+    filters.push(
+      or(
+        ilike(merged.code, q),
+        ilike(merged.name, q),
+        ilike(merged.platform, q),
+        ilike(merged.type, q),
+      )!,
+    )
+  }
+  const where = filters.length > 0 ? and(...filters) : undefined
+
+  const [totalRow] = await db.select({ value: count() }).from(merged).where(where)
+  const rows = await db
+    .select()
+    .from(merged)
+    .where(where)
+    .orderBy(desc(merged.sortAt), merged.code)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      platform: row.platform,
+      country: row.country,
+      type: row.type,
+      status: row.status,
+      pool: row.pool,
+      versionNo: row.versionNo,
+      priority: row.priority,
+      effectiveFrom: row.effectiveFrom,
+      note: row.note ?? '',
+      source: row.source as FreightEstimateDto['source'],
+      amount: row.amount == null ? null : money(row.amount),
+      currency: row.currency,
+    })),
+    total: Number(totalRow?.value ?? 0),
+    page,
+    pageSize,
+  }
+}
+
+export async function getFreightEstimate(
+  db: AppDatabase,
+  organizationId: string,
+  id: string,
+): Promise<FreightEstimateDto | null> {
+  // 按 id / code 定点查询三源，避免翻页遗漏
+  const [card] = await db
+    .select()
+    .from(commerceFreightRateCards)
+    .where(
+      and(
+        eq(commerceFreightRateCards.organizationId, organizationId),
+        or(eq(commerceFreightRateCards.id, id), eq(commerceFreightRateCards.code, id))!,
+      ),
+    )
+    .limit(1)
+  if (card) {
+    return {
       id: card.id,
       code: card.code,
       name: card.name,
@@ -717,32 +968,76 @@ export async function listFreightEstimates(
       source: 'freight_rate_card',
       amount: money(card.unitRate),
       currency: card.currency || 'USD',
-    })
+    }
   }
-
-  let items = [...best.values()]
-  if (input.q?.trim()) {
-    const q = input.q.trim().toLowerCase()
-    items = items.filter(
-      (i) =>
-        i.code.toLowerCase().includes(q) ||
-        i.name.toLowerCase().includes(q) ||
-        i.platform.toLowerCase().includes(q) ||
-        i.type.toLowerCase().includes(q),
+  const [ocean] = await db
+    .select()
+    .from(oceanShipments)
+    .where(
+      and(
+        eq(oceanShipments.organizationId, organizationId),
+        or(eq(oceanShipments.id, id), eq(oceanShipments.lotCode, id))!,
+      ),
     )
+    .limit(1)
+  if (ocean) {
+    const packing = (ocean.packingDetails ?? {}) as Record<string, unknown>
+    const amountRaw = packing.freightAmount ?? packing.totalFreight ?? packing.amount
+    return {
+      id: ocean.id,
+      code: ocean.lotCode,
+      name: `海运柜次 ${ocean.lotCode}`,
+      platform: ocean.platform || 'ocean',
+      country: ocean.destPort || '—',
+      type: ocean.freightMode || 'ocean',
+      status: ocean.status,
+      pool: ocean.originPort || ocean.destPort || '—',
+      versionNo: null,
+      priority: null,
+      effectiveFrom: ocean.etd || '—',
+      note: ocean.notes || '',
+      source: 'ocean',
+      amount: amountRaw == null ? null : money(String(amountRaw)),
+      currency: typeof packing.currency === 'string' ? packing.currency : 'USD',
+    }
   }
-  const total = items.length
-  const slice = items.slice((page - 1) * pageSize, page * pageSize)
-  return { items: slice, total, page, pageSize }
-}
-
-export async function getFreightEstimate(
-  db: AppDatabase,
-  organizationId: string,
-  id: string,
-): Promise<FreightEstimateDto | null> {
-  const list = await listFreightEstimates(db, organizationId, { page: 1, pageSize: 200, q: undefined })
-  return list.items.find((i) => i.id === id || i.code === id) ?? null
+  const [template] = await db
+    .select({ template: feeTemplates, version: feeTemplateVersions })
+    .from(feeTemplates)
+    .leftJoin(
+      feeTemplateVersions,
+      and(
+        eq(feeTemplateVersions.templateId, feeTemplates.id),
+        eq(feeTemplateVersions.organizationId, organizationId),
+      ),
+    )
+    .where(
+      and(
+        eq(feeTemplates.organizationId, organizationId),
+        or(eq(feeTemplates.id, id), eq(feeTemplates.code, id))!,
+      ),
+    )
+    .orderBy(desc(feeTemplateVersions.versionNo))
+    .limit(1)
+  if (!template) return null
+  const { template: t, version: v } = template
+  return {
+    id: t.id,
+    code: t.code,
+    name: t.name,
+    platform: t.platform,
+    country: t.country,
+    type: t.type,
+    status: t.status,
+    pool: t.fulfillmentPool || '—',
+    versionNo: v?.versionNo ?? null,
+    priority: v?.priority ?? null,
+    effectiveFrom: formatDateOnly(v?.effectiveFrom),
+    note: t.note || v?.note || '',
+    source: 'fee_template',
+    amount: null,
+    currency: '—',
+  }
 }
 
 /** 更新结算状态（本地 ERP，非平台回写） */
@@ -1114,22 +1409,34 @@ export async function getProfit(
 }
 
 export async function profitKpis(db: AppDatabase, organizationId: string, view: 'order' | 'sku' = 'order') {
-  // 全量粗聚合（上限 5000 行派生）
-  const list = await listProfits(db, organizationId, { page: 1, pageSize: 5000, view })
-  const revenue = list.items.reduce((s, i) => s + i.revenue, 0)
-  const cost = list.items.reduce((s, i) => s + i.cost, 0)
-  const fees = list.items.reduce((s, i) => s + i.fees, 0)
-  const profit = list.items.reduce((s, i) => s + i.profit, 0)
-  const unsettled = list.items.filter((i) => i.status === '未结算').length
+  // 数据库级聚合，不拉全量行派生
+  const totals = await profitTotals(db, organizationId)
+  const revenue = view === 'order' ? totals.revenue : money(await sumLineRevenue(db, organizationId))
+  const cost = totals.cost
+  const fees = totals.fees
+  const profit = revenue - cost - fees
+  const rows = view === 'order' ? totals.orderCount : await countSkuProfitRows(db, organizationId)
+  const unsettled =
+    view === 'order'
+      ? await countUnsettledOrders(db, organizationId)
+      : await countUnsettledSkus(db, organizationId)
   return {
     revenue,
     cost,
     fees,
     profit,
     margin: revenue > 0 ? `${((profit / revenue) * 100).toFixed(1)}%` : '—',
-    rows: list.total,
+    rows,
     unsettled,
   }
+}
+
+async function sumLineRevenue(db: AppDatabase, organizationId: string): Promise<number> {
+  const [row] = await db
+    .select({ v: sql<string>`coalesce(sum(${orderLines.paidPrice}), 0)` })
+    .from(orderLines)
+    .where(eq(orderLines.organizationId, organizationId))
+  return money(row?.v)
 }
 
 const LAZOP_PLATFORMS = new Set(['daraz', 'lazada'])

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Button } from '@workspace/ui/components/button'
-import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { trpc } from '@/lib/trpc/client'
@@ -41,7 +41,6 @@ export default function ReportsPage() {
           { key: 'note', label: '口径状态' },
         ]}
       >
-        <UedPrototypeNotice>禁止固定示例销售额。动销/滞销已接库，缺数据空态。</UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" asChild>
             <LocaleLink href="/console/dashboard">经营总览</LocaleLink>

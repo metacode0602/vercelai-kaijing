@@ -256,7 +256,7 @@ export default function BrandsPage() {
           ]}
         />
         <UedPrototypeNotice>
-          软停用：状态改为停用后不再出现在商品品牌下拉；不硬删除品牌行。改名会同步已关联商品的 brand 展示名。封面经 tRPC 写入 cover_image。
+          软停用：改为停用后不再出现在商品品牌下拉，品牌行不会被硬删除；改名会同步已关联商品的品牌展示名。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

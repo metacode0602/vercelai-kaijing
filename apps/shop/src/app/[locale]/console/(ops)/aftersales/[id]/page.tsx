@@ -12,7 +12,7 @@ import { ConsoleBreadcrumbRegistration } from '@/components/console/console-brea
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import { toRelatedTicketShape } from '@/lib/crossborder/aftersale-store'
+import { toRelatedTicketShape } from '@/lib/crossborder/aftersale-related-shapes'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -80,7 +80,7 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
         }
       />
       <UedPrototypeNotice>
-        已接 PostgreSQL。实物回库请在「退货收货与质检」完成；取消释放锁定见「取消与退款」。
+        实物回库请在「退货收货与质检」完成；取消释放锁定见「取消与退款」。
       </UedPrototypeNotice>
       <DetailKpiRow
         items={[

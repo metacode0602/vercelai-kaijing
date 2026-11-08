@@ -213,14 +213,14 @@ async function resolveShop(
     if (row) return row
   }
   const platform = input.platform || 'daraz'
-  const externalShopId = input.externalShopId || `demo-${platform}-shop`
+  const externalShopId = input.externalShopId || `ext-${createId()}`
   const id = createId()
   try {
     await db.insert(shops).values({
       id,
       organizationId,
       platform,
-      name: input.name || 'Demo Shop',
+      name: input.name || `${platform} 店铺`,
       externalShopId,
       status: 'active',
       region: 'LK',

@@ -1677,7 +1677,7 @@ export async function approveCancel(
       ...raw,
       cancelStatus: '已审核',
       uiStatus: '已审核',
-      platformSync: '平台已同步（示例）',
+      platformSync: '待回传平台',
       refundStatus: refundAmount > 0 ? 'refunded' : 'not_applicable',
       refundedAt: refundAmount > 0 ? formatStamp(now) : '',
       releaseLedgerId,
@@ -1723,7 +1723,7 @@ export async function rejectCancel(
       cancelStatus: '已驳回',
       uiStatus: '已驳回',
       remark: reason || str(raw.remark),
-      platformSync: '平台已驳回（示例）',
+      platformSync: '待回传平台',
     }
     await tx
       .update(reverseOrders)

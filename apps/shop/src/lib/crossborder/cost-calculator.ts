@@ -11,7 +11,7 @@
 import {
   componentsToTariffRates,
   getPlatformFeePercents,
-  resolveFeeTemplateVersion,
+  TARIFF_PROFILE_META,
   type ResolvedFeeTemplate,
 } from '@/lib/crossborder/fee-template-store'
 
@@ -22,6 +22,8 @@ export const FREIGHT_RATE_VERSION = 'freight-rate-card'
 export type FreightMode = 'AIR_DDP' | 'LCL' | 'FCL20' | 'FCL40'
 
 export type TariffProfileId = 'apparel' | 'electronics' | 'home_sports'
+
+export const TARIFF_PROFILE_IDS: TariffProfileId[] = ['apparel', 'electronics', 'home_sports']
 
 export type TariffRates = {
   id: TariffProfileId
@@ -40,39 +42,39 @@ export type TariffRates = {
   reviewNeeded: boolean
 }
 
-/** @deprecated 仅作公式档案标签（apparel/electronics/home_sports）；正式测算禁止回退到此税率 */
+/** 公式档案标签（不含税率；税率只来自已发布费用模板组件）。 */
 export const TARIFF_PROFILES: Record<TariffProfileId, TariffRates> = {
   apparel: {
     id: 'apparel',
-    labelZh: '服装（示例）',
-    hsHint: '6109.10',
-    customs: 0.15,
-    cess: 0.1,
-    pal: 0.1,
-    vat: 0.18,
-    sscl: 0.025,
+    labelZh: TARIFF_PROFILE_META.apparel!.labelZh,
+    hsHint: TARIFF_PROFILE_META.apparel!.hsHint,
+    customs: 0,
+    cess: 0,
+    pal: 0,
+    vat: 0,
+    sscl: 0,
     reviewNeeded: true,
   },
   electronics: {
     id: 'electronics',
-    labelZh: '3C 电子（示例）',
-    hsHint: '8471.80',
-    customs: 0.1,
-    cess: 0.05,
-    pal: 0.1,
-    vat: 0.18,
-    sscl: 0.025,
+    labelZh: TARIFF_PROFILE_META.electronics!.labelZh,
+    hsHint: TARIFF_PROFILE_META.electronics!.hsHint,
+    customs: 0,
+    cess: 0,
+    pal: 0,
+    vat: 0,
+    sscl: 0,
     reviewNeeded: true,
   },
   home_sports: {
     id: 'home_sports',
-    labelZh: '家居/运动（示例）',
-    hsHint: '9506.91',
-    customs: 0.12,
-    cess: 0.08,
-    pal: 0.1,
-    vat: 0.18,
-    sscl: 0.025,
+    labelZh: TARIFF_PROFILE_META.home_sports!.labelZh,
+    hsHint: TARIFF_PROFILE_META.home_sports!.hsHint,
+    customs: 0,
+    cess: 0,
+    pal: 0,
+    vat: 0,
+    sscl: 0,
     reviewNeeded: true,
   },
 }
@@ -238,6 +240,8 @@ export type CostCalculatorResult = {
     feeTemplateVersionId: string | null
     feeTemplateCode: string | null
     platformFeeTemplateVersionId: string | null
+    platformFeeTemplateCode: string | null
+    missingImportTaxComponents: string[]
     componentsSnapshot: Array<{ code: string; labelZh: string; rate: number; unit: string }>
     canPublishFormal: boolean
     blockReasons: string[]
@@ -338,13 +342,6 @@ export function computeLkTaxStack(
   }
 }
 
-function logisticsFromFreightMode(mode: FreightMode): string {
-  if (mode === 'AIR_DDP') return 'AIR_DDP'
-  if (mode === 'LCL') return 'LCL'
-  if (mode === 'FCL20' || mode === 'FCL40') return 'FCL'
-  return mode
-}
-
 /** 服务端 / tRPC resolve 结果注入；主路径读 DB，未注入时不再走 localStorage。 */
 export type FeeResolutionOverrides = {
   importTax?: ResolvedFeeTemplate | null
@@ -377,28 +374,10 @@ export function resolveImportTaxRates(
   rates: TariffRates
   resolved: ResolvedFeeTemplate | null
   resolvedFrom: 'fee_template' | 'missing'
+  missingComponents: string[]
 } {
   const resolved =
-    overrides && 'importTax' in overrides
-      ? (overrides.importTax ?? null)
-      : (() => {
-          const logistics =
-            input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode)
-          const baseArgs = {
-            platform: input.platform || 'daraz',
-            country: input.country || 'LK',
-            fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
-            fulfillmentLogistics: logistics,
-            type: 'import_tax' as const,
-            asOf: input.asOf,
-            templateCodeOrId: input.importTaxTemplateId,
-          }
-          // localStorage 主路径已停用；此处恒为 null，保留签名兼容
-          return (
-            resolveFeeTemplateVersion({ ...baseArgs, formulaProfile: input.tariffProfileId }) ??
-            resolveFeeTemplateVersion(baseArgs)
-          )
-        })()
+    overrides && 'importTax' in overrides ? (overrides.importTax ?? null) : null
   if (resolved) {
     const mapped = componentsToTariffRates(resolved.version, input.tariffProfileId)
     const rates: TariffRates = {
@@ -414,7 +393,7 @@ export function resolveImportTaxRates(
       sscl: mapped.sscl,
       reviewNeeded: mapped.reviewNeeded,
     }
-    return { rates, resolved, resolvedFrom: 'fee_template' }
+    return { rates, resolved, resolvedFrom: 'fee_template', missingComponents: mapped.missingCodes }
   }
   const profile = TARIFF_PROFILES[input.tariffProfileId]
   return {
@@ -431,6 +410,7 @@ export function resolveImportTaxRates(
     },
     resolved: null,
     resolvedFrom: 'missing',
+    missingComponents: [],
   }
 }
 
@@ -512,7 +492,10 @@ export function computeLandedCost(
     (input.freightMode === 'AIR_DDP' ? 0 : selectedFreightTotal) +
     firstMileInCif
 
-  const { rates, resolved: importResolved, resolvedFrom } = resolveImportTaxRates(input, overrides)
+  const { rates, resolved: importResolved, resolvedFrom, missingComponents } = resolveImportTaxRates(
+    input,
+    overrides,
+  )
   const resolveMeta = {
     feeTemplateVersionId: importResolved?.version.id ?? null,
     feeTemplateCode: importResolved?.template.code ?? null,
@@ -524,18 +507,7 @@ export function computeLandedCost(
     : computeLkTaxStack(cifTotal, rates, fxUsdLkr, resolveMeta)
 
   const platformFeeResolved =
-    overrides && 'platformFee' in overrides
-      ? (overrides.platformFee ?? null)
-      : resolveFeeTemplateVersion({
-          platform: input.platform || 'daraz',
-          country: input.country || 'LK',
-          fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
-          fulfillmentLogistics:
-            input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode),
-          type: 'platform_fee',
-          asOf: input.asOf,
-          templateCodeOrId: input.platformFeeTemplateId,
-        })
+    overrides && 'platformFee' in overrides ? (overrides.platformFee ?? null) : null
   const platformFeePercents = getPlatformFeePercents(platformFeeResolved)
   const platformCommissionPct = platformFeeResolved
     ? platformFeePercents.commissionPct
@@ -654,6 +626,10 @@ export function computeLandedCost(
   const blockReasons: string[] = []
   if (fxUsdLkr <= 0) blockReasons.push('缺少有效汇率（请在设置/汇率配置维护 USD→LKR）')
   if (resolvedFrom !== 'fee_template') blockReasons.push('未命中进口税费用模板，不可发布正式成本版本')
+  if (missingComponents.length > 0) {
+    blockReasons.push(`进口税费用模板缺少组件：${missingComponents.join('、')}，不可发布正式成本版本`)
+  }
+  if (!platformFeeResolved) blockReasons.push('未命中平台费费用模板，不可发布正式成本版本')
   if (freightSource === 'missing') blockReasons.push('缺少运价卡或手工运费总额')
   const canPublishFormal = blockReasons.length === 0
 
@@ -713,11 +689,13 @@ export function computeLandedCost(
       fxUsdLkr,
       fxRateId,
       disclaimerZh: canPublishFormal
-        ? `正式测算就绪。税率来自费用模板 ${importResolved?.template.code}；汇率 ${fxRateDate}（1 USD = ${fxUsdLkr} LKR）。仍需报关/法务复核。`
+        ? `正式测算就绪。进口税模板 ${importResolved?.template.code} · 平台费模板 ${platformFeeResolved?.template.code}；汇率 ${fxRateDate}（1 USD = ${fxUsdLkr} LKR）。仍需报关/法务复核。`
         : `不可发布正式成本：${blockReasons.join('；')}`,
       feeTemplateVersionId: importResolved?.version.id ?? null,
       feeTemplateCode: importResolved?.template.code ?? null,
       platformFeeTemplateVersionId: platformFeeResolved?.version.id ?? null,
+      platformFeeTemplateCode: platformFeeResolved?.template.code ?? null,
+      missingImportTaxComponents: missingComponents,
       componentsSnapshot: (importResolved?.version.components ?? []).map((c) => ({
         code: c.code,
         labelZh: c.labelZh,

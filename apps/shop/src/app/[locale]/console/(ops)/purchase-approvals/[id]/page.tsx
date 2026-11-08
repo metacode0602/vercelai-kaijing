@@ -141,7 +141,7 @@ export default function PurchaseApprovalDetailPage({ params }: { params: Promise
       </Alert>
 
       <UedPrototypeNotice>
-        审阅聚焦：申请人、商品明细、数量、报价、供应商、仓库。数据来自 PostgreSQL。
+        审阅时请重点确认：申请人、商品明细、数量、报价、供应商与仓库。
       </UedPrototypeNotice>
 
       <DetailKpiRow

@@ -1,8 +1,7 @@
 /**
- * 费用模板（进口税 / 平台费）类型与纯函数助手。
- * 主路径已切 tRPC → dataaccess/fee-templates → PostgreSQL
- * （见 routers/feeTemplates、console/fee-templates、成本测算 resolve）。
- * 本文件仅保留类型 / 常量 / components→税率映射；勿再写 localStorage。
+ * 费用模板（进口税 / 平台费 / 海运）类型与纯函数助手。
+ * 主路径：tRPC → dataaccess/fee-templates → PostgreSQL。
+ * 本文件仅保留类型 / 常量 / components→税率映射；不含任何 localStorage 或写死税率回退。
  * @see apps/shop/content/design/fee-templates-ued.md
  * @see docs/design/shop-module5-fee-templates-trpc.md
  */
@@ -51,26 +50,7 @@ export type FeeTemplateVersion = {
   reviewNeeded: boolean
   note: string
   createdAt: string
-  /** UED v1.1 审核状态（DB 主路径）；原型字段可选 */
   status?: 'draft' | 'in_review' | 'published' | 'disabled'
-}
-
-export type FeeTemplateStoreState = {
-  templates: FeeTemplate[]
-  versions: FeeTemplateVersion[]
-}
-
-export type ResolveFeeTemplateArgs = {
-  platform: string
-  country: string
-  fulfillmentPool?: string
-  fulfillmentLogistics?: string
-  type: FeeTemplateType
-  asOf?: string
-  /** 可选：匹配版本 formulaProfile（如 apparel） */
-  formulaProfile?: string
-  /** 可选：直接指定模板 code / id */
-  templateCodeOrId?: string
 }
 
 export type ResolvedFeeTemplate = {
@@ -78,14 +58,17 @@ export type ResolvedFeeTemplate = {
   version: FeeTemplateVersion
 }
 
-/** 自原 TARIFF_PROFILES 迁出的 LK 税率初值（待报关行复核）；供映射 fallback。 */
-export const LK_SEED_RATES: Record<
+/**
+ * 公式档案标签（仅用于 UI 展示 formulaProfile 档位名，不含任何税率）。
+ * 正式税率只来自已发布费用模板版本的 components。
+ */
+export const TARIFF_PROFILE_META: Record<
   string,
-  { customs: number; cess: number; pal: number; vat: number; sscl: number; hsHint: string; labelZh: string }
+  { labelZh: string; hsHint: string }
 > = {
-  apparel: { customs: 0.15, cess: 0.1, pal: 0.1, vat: 0.18, sscl: 0.025, hsHint: '6109.10', labelZh: '服装（示例）' },
-  electronics: { customs: 0.1, cess: 0.05, pal: 0.1, vat: 0.18, sscl: 0.025, hsHint: '8471.80', labelZh: '3C 电子（示例）' },
-  home_sports: { customs: 0.12, cess: 0.08, pal: 0.1, vat: 0.18, sscl: 0.025, hsHint: '9506.91', labelZh: '家居/运动（示例）' },
+  apparel: { labelZh: '服装', hsHint: '6109.10' },
+  electronics: { labelZh: '3C 电子', hsHint: '8471.80' },
+  home_sports: { labelZh: '家居/运动', hsHint: '9506.91' },
 }
 
 export type FeeResolvedTariffRates = {
@@ -98,44 +81,77 @@ export type FeeResolvedTariffRates = {
   vat: number
   sscl: number
   reviewNeeded: boolean
+  /** 模板版本中缺失的组件 code（正式保存必须阻断） */
+  missingCodes: string[]
 }
 
+/** 进口税正式测算必需的组件 code（缺一不可发布）。 */
+export const REQUIRED_IMPORT_TAX_CODES = [
+  'customs',
+  'cess',
+  'pal',
+  'vat',
+  'sscl',
+] as const
+
+/**
+ * 将费用模板版本 components 映射为税率。
+ * 缺失组件记 0 并列入 missingCodes（禁止回退任何写死税率）。
+ */
 export function componentsToTariffRates(
   version: Pick<FeeTemplateVersion, 'components' | 'formulaProfile' | 'reviewNeeded'>,
-  fallbackId: keyof typeof LK_SEED_RATES = 'apparel',
+  fallbackId = 'apparel',
 ): FeeResolvedTariffRates {
   const byCode = Object.fromEntries(version.components.map((c) => [c.code, c]))
-  const pct = (code: string, fallback: number) => {
-    const c = byCode[code]
-    if (!c) return fallback
-    return c.unit === 'pct' ? c.rate : fallback
+  const missingCodes: string[] = []
+  const pct = (codes: string[]): number => {
+    for (const code of codes) {
+      const c = byCode[code]
+      if (c && c.unit === 'pct') return c.rate
+      if (c && c.unit === 'usd') continue
+    }
+    return 0
   }
-  const base = LK_SEED_RATES[fallbackId] ?? LK_SEED_RATES.apparel
-  const profileId = version.formulaProfile in LK_SEED_RATES ? version.formulaProfile : fallbackId
-  const profileBase = LK_SEED_RATES[profileId as keyof typeof LK_SEED_RATES] ?? base
+  const hasAny = (codes: string[]): boolean => codes.some((code) => Boolean(byCode[code]))
+
+  const customsCodes = ['customs', 'import_duty']
+  const vatCodes = ['vat', 'sst']
+  if (!hasAny(customsCodes)) missingCodes.push('customs')
+  if (!hasAny(['cess'])) missingCodes.push('cess')
+  if (!hasAny(['pal'])) missingCodes.push('pal')
+  if (!hasAny(vatCodes)) missingCodes.push('vat')
+  if (!hasAny(['sscl'])) missingCodes.push('sscl')
+
+  const profileId = version.formulaProfile in TARIFF_PROFILE_META ? version.formulaProfile : fallbackId
+  const meta = TARIFF_PROFILE_META[profileId] ?? TARIFF_PROFILE_META[fallbackId] ?? TARIFF_PROFILE_META.apparel!
   return {
     id: profileId,
-    labelZh: profileBase.labelZh,
-    hsHint: profileBase.hsHint,
-    customs: pct('customs', pct('import_duty', profileBase.customs)),
-    cess: pct('cess', profileBase.cess),
-    pal: pct('pal', profileBase.pal),
-    vat: pct('vat', pct('sst', profileBase.vat)),
-    sscl: pct('sscl', profileBase.sscl),
-    reviewNeeded: version.reviewNeeded,
+    labelZh: meta.labelZh,
+    hsHint: meta.hsHint,
+    customs: pct(customsCodes),
+    cess: pct(['cess']),
+    pal: pct(['pal']),
+    vat: pct(vatCodes),
+    sscl: pct(['sscl']),
+    reviewNeeded: version.reviewNeeded || missingCodes.length > 0,
+    missingCodes,
   }
 }
 
+/**
+ * 平台费费率。未解析返回 0（由调用方决定草稿展示值；正式保存由 blockReasons 阻断）。
+ * 缺组件不回退 8%/2% 等写死值。
+ */
 export function getPlatformFeePercents(resolved: ResolvedFeeTemplate | null): {
   commissionPct: number
   paymentFeePct: number
 } {
-  if (!resolved) return { commissionPct: 8, paymentFeePct: 2 }
+  if (!resolved) return { commissionPct: 0, paymentFeePct: 0 }
   const byCode = Object.fromEntries(resolved.version.components.map((c) => [c.code, c]))
   const toPct = (c?: FeeComponent) => (c ? (c.unit === 'pct' ? c.rate * 100 : c.rate) : 0)
   return {
-    commissionPct: toPct(byCode.commission) || 8,
-    paymentFeePct: toPct(byCode.payment_fee) || 2,
+    commissionPct: toPct(byCode.commission),
+    paymentFeePct: toPct(byCode.payment_fee),
   }
 }
 
@@ -152,106 +168,6 @@ export const FULFILLMENT_POOL_OPTIONS = [
 ] as const
 
 export const FULFILLMENT_LOGISTICS_OPTIONS = ['', 'FCL', 'LCL', 'AIR_DDP', 'FCL20', 'FCL40'] as const
-
-function warnDeprecated(fn: string) {
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn(
-      `[fee-template-store] ${fn} 已停用 localStorage。请改用 trpc.feeTemplates.* / dataaccess resolve。`,
-    )
-  }
-}
-
-/** @deprecated 主路径已禁用 localStorage */
-export function useFeeTemplateStore(): FeeTemplateStoreState {
-  warnDeprecated('useFeeTemplateStore()')
-  return { templates: [], versions: [] }
-}
-
-/** @deprecated */
-export function getFeeTemplateStore(): FeeTemplateStoreState {
-  return { templates: [], versions: [] }
-}
-
-/** @deprecated */
-export function listFeeTemplates(): FeeTemplate[] {
-  warnDeprecated('listFeeTemplates()')
-  return []
-}
-
-/** @deprecated */
-export function getFeeTemplate(_id: string): FeeTemplate | undefined {
-  return undefined
-}
-
-/** @deprecated */
-export function listFeeTemplateVersions(_templateId: string): FeeTemplateVersion[] {
-  return []
-}
-
-/** @deprecated */
-export function upsertFeeTemplate(_row: FeeTemplate) {
-  warnDeprecated('upsertFeeTemplate()')
-}
-
-/** @deprecated */
-export function addFeeTemplate(
-  _input: Omit<FeeTemplate, 'id' | 'updatedAt'> & { id?: string },
-): string {
-  warnDeprecated('addFeeTemplate()')
-  return ''
-}
-
-/** @deprecated */
-export function upsertFeeTemplateVersion(_row: FeeTemplateVersion) {
-  warnDeprecated('upsertFeeTemplateVersion()')
-}
-
-/** @deprecated */
-export function createFeeTemplateVersionDraft(
-  _templateId: string,
-  _base?: FeeTemplateVersion,
-): FeeTemplateVersion {
-  warnDeprecated('createFeeTemplateVersionDraft()')
-  return {
-    id: '',
-    templateId: '',
-    versionNo: 0,
-    effectiveFrom: '',
-    effectiveTo: '',
-    priority: 10,
-    formulaProfile: 'custom',
-    components: [],
-    published: false,
-    reviewNeeded: true,
-    note: '',
-    createdAt: '',
-  }
-}
-
-/** @deprecated */
-export function publishFeeTemplateVersion(_versionId: string): FeeTemplateVersion | null {
-  warnDeprecated('publishFeeTemplateVersion()')
-  return null
-}
-
-/** @deprecated */
-export function updateFeeTemplateVersion(
-  _versionId: string,
-  _patch: Partial<Omit<FeeTemplateVersion, 'id' | 'templateId'>>,
-): FeeTemplateVersion | null {
-  warnDeprecated('updateFeeTemplateVersion()')
-  return null
-}
-
-/**
- * @deprecated 客户端 localStorage 解析已停用。
- * 主路径请用 trpc.feeTemplates.resolve 或 server dataaccess.resolveFeeTemplateVersion。
- * 同步调用恒返回 null，计算器回退 TARIFF_PROFILES 并标记 resolvedFrom。
- */
-export function resolveFeeTemplateVersion(_args: ResolveFeeTemplateArgs): ResolvedFeeTemplate | null {
-  warnDeprecated('resolveFeeTemplateVersion()')
-  return null
-}
 
 /** 将 tRPC resolve 结果适配为计算器所用 ResolvedFeeTemplate 形状 */
 export function adaptResolvedFromDto(dto: {

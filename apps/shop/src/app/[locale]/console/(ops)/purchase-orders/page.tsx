@@ -102,7 +102,7 @@ export default function PurchaseOrdersPage() {
         </Alert>
       ) : null}
       <UedPrototypeNotice>
-        采购单由审核批准生成（不再提供控制台手工新建）。列表可对「已下发 / 部分到货」登记到货批次，写入 purchase_receipts。
+        采购单由审核批准生成，不提供控制台手工新建。列表可对「已下发 / 部分到货」登记到货批次。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         {receivable.map((row) => (
@@ -122,7 +122,7 @@ export default function PurchaseOrdersPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setNotice('催货通知已生成（演示，不会联系供应商）。')}
+          onClick={() => setNotice('催货通知已生成（仅记录提醒，暂未实际发送给供应商）。')}
         >
           供应商催货
         </Button>

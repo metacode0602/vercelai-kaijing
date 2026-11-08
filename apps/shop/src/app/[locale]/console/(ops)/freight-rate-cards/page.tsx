@@ -155,7 +155,7 @@ export default function FreightRateCardsPage() {
         ]}
       >
         <UedPrototypeNotice>
-          运价卡是正式运费主数据。运费测算页聚合本表与柜次 packing；成本测算未命中运价卡时不可正式保存。
+          运价卡是正式运费主数据，运费测算与成本测算共用同一套运价；未命中运价卡时不可正式保存成本。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">

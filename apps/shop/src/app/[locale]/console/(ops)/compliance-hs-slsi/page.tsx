@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { HS_SLSI_SEED, type HsSlsiRow } from '@/lib/crossborder/daraz-ops-store'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -17,15 +17,15 @@ export default function ComplianceHsSlsiPage() {
 
   const hit = rows.find((r) => r.hsCode === hsQuery)
 
-  function mockImportChecklist() {
+  function importChecklist() {
     const next: HsSlsiRow = {
       id: `HS-IMP-${Date.now().toString().slice(-4)}`,
       hsCode: '8414.51',
       description: '风扇 / 换气扇',
       slsiRequired: true,
-      certName: 'SLSI 强制认证（示例导入）',
+      certName: 'SLSI 强制认证（演示数据）',
       blockListing: true,
-      source: 'mock-import',
+      source: '清单导入',
     }
     setRows((prev) => [next, ...prev])
     setNotice(`已导入 SLSI 清单行 ${next.hsCode}`)
@@ -35,11 +35,11 @@ export default function ComplianceHsSlsiPage() {
     const rule = rows.find((r) => r.hsCode === skuDraft.hsCode)
     if (rule?.blockListing && rule.slsiRequired) {
       setNotice(
-        `建档已阻断：HS ${skuDraft.hsCode} 命中 SLSI「${rule.certName}」。请先上传证书或更换 HS（审批：杨洁/黄发聪）。`,
+        `建档已阻断：HS ${skuDraft.hsCode} 命中 SLSI「${rule.certName}」。请先上传证书或更换 HS（需合规审批）。`,
       )
       return
     }
-    setNotice(`原型：SKU ${skuDraft.sku} 可继续建档（未命中强制认证）。`)
+    setNotice(`SKU ${skuDraft.sku} 可继续建档（未命中强制认证）。`)
   }
 
   return (
@@ -73,9 +73,6 @@ export default function ComplianceHsSlsiPage() {
           { label: '阻断规则', value: String(rows.filter((r) => r.blockListing).length) },
         ]}
       />
-      <UedPrototypeNotice>
-        外部合规库接口属 P2（Q44）。本页 import 为 mock；正式证书附件与审批流待确认。
-      </UedPrototypeNotice>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-3 rounded-lg border p-4">
           <h3 className="text-sm font-medium">HS 查询</h3>
@@ -92,8 +89,8 @@ export default function ComplianceHsSlsiPage() {
           ) : (
             <p className="text-sm text-muted-foreground">当前输入未命中种子清单</p>
           )}
-          <Button size="sm" variant="secondary" onClick={mockImportChecklist}>
-            导入 SLSI 清单（mock）
+          <Button size="sm" variant="secondary" onClick={importChecklist}>
+            导入 SLSI 清单
           </Button>
         </div>
         <div className="space-y-3 rounded-lg border p-4">

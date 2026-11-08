@@ -175,7 +175,7 @@ export default function DashboardPage() {
       value: formatCompactLkr(k?.revenue ?? 0),
       delta: revenueDelta.value,
       tone: revenueDelta.tone,
-      hint: 'vs 上期 · orders.total_amount',
+      hint: 'vs 上期',
       href: '/console/finance',
     },
     {
@@ -316,7 +316,7 @@ export default function DashboardPage() {
           variant="outline"
           onClick={() =>
             setNotice(
-              `已应用 ${dateFrom} 至 ${dateTo} · ${platform === 'all' ? '全部平台' : platform} · ${site === 'all' ? '全部站点' : site} · ${shopLabel}（仅原型筛选状态）`,
+              `已应用 ${dateFrom} 至 ${dateTo} · ${platform === 'all' ? '全部平台' : platform} · ${site === 'all' ? '全部站点' : site} · ${shopLabel}`,
             )
           }
         >
@@ -344,7 +344,7 @@ export default function DashboardPage() {
       ) : null}
 
 
-      {/* 运营待办 KPI：聚合现有原型 store */}
+      {/* 运营待办 KPI：聚合待办数据 */}
       <OpsTodoKpiRow />
 
       <Alert>

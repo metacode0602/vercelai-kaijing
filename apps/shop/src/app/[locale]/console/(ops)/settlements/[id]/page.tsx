@@ -100,7 +100,7 @@ export default function SettlementDetailPage({ params }: { params: Promise<{ id:
           </div>
         }
       />
-      <UedPrototypeNotice>本地 ERP 状态；非平台结算 API 回写。</UedPrototypeNotice>
+      <UedPrototypeNotice>结算状态为本地维护，暂未从平台结算接口回写。</UedPrototypeNotice>
       <DetailKpiRow
         items={[
           { label: '账单额', value: `${row.billAmount.toLocaleString()} ${row.currency}` },

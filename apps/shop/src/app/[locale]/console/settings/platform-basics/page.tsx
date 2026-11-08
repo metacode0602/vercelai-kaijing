@@ -14,7 +14,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 
 /**
- * 平台 / 国家 / 币种：只读参考目录（非可保存原型）。
+ * 平台 / 国家 / 币种：只读参考目录，不提供保存。
  * 仓库主数据请走 WMS，不在此页伪造保存成功。
  */
 export default function PlatformBasicsPage() {
@@ -38,8 +38,7 @@ export default function PlatformBasicsPage() {
       </Alert>
 
       <UedPrototypeNotice>
-        下列表格为静态参考（来自 platform-basics-data），刷新不丢、也不可「保存成功」。全局 marketplace scope
-        不在本轮重建。
+        下列表格为静态参考数据，不可编辑保存。
       </UedPrototypeNotice>
 
       <section className="space-y-2">

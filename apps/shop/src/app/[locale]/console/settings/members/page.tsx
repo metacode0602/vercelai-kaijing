@@ -82,8 +82,8 @@ export default function SettingsMembersPage() {
         <Button onClick={() => setOpen(true)}>邀请成员</Button>
       </div>
       <UedPrototypeNotice>
-        列表读真实组织成员。有邮箱的邀请会真实发信；纯手机邀请在 OTP 登录时自动加入组织。仅 owner 可撤销
-        pending。不移除成员、不改 owner。
+        列表展示组织成员；有邮箱的邀请会发送邮件，纯手机邀请在验证码登录时自动加入组织。仅 owner
+        可撤销待接受的邀请，本页不支持移除成员或变更 owner。
       </UedPrototypeNotice>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
       <ConsoleListSection title="成员列表" description={listQuery.isLoading ? '加载中…' : `共 ${rows.length} 条`} pagination={pagination}>

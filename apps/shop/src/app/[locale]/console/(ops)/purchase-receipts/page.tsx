@@ -243,7 +243,7 @@ export default function PurchaseReceiptsPage() {
         ) : null}
         <DetailKpiRow items={kpiItems} />
         <UedPrototypeNotice>
-          对齐 schema：purchase_receipts → 质检 → 仅 qty_passed 生成入库单；确认上架写 inventory_movements（幂等键）。本页已接 PostgreSQL。
+          流程：收货 → 质检 → 仅合格数量生成入库单；确认上架会记账库存流水，重复提交按幂等键拦截。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">可收货采购单 {receivable.length}</Badge>

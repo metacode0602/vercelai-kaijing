@@ -196,7 +196,7 @@ export default function PurchaseRequestDetailPage({ params }: { params: Promise<
             ? '已提交审核。可在「采购审核」通过或驳回。'
             : current.status === '已转采购单'
               ? `本申请已转换为采购单 ${current.convertedPoId || '—'}。`
-              : '明细行金额汇总写入主信息 total_amount。'}
+              : '明细行金额会汇总到主信息。'}
       </UedPrototypeNotice>
 
       <DetailKpiRow

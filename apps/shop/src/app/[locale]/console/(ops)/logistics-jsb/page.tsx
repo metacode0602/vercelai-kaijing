@@ -192,7 +192,7 @@ export default function LogisticsJsbPage() {
         ]}
       >
         <UedPrototypeNotice>
-          已接 DB：fulfillment_batches（channel=jsb_th，含 carrier_id）。承运商选自 commerce_carriers。Q17 JSB 无可靠 API，轨迹支持 import；平台交运不伪造成功。
+          JSB 暂无可靠的平台接口，轨迹通过导入更新；平台交运暂未接通，不会标记为交运成功。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         <div className="flex flex-wrap gap-2">

@@ -12,7 +12,7 @@ import { ConsoleBreadcrumbRegistration } from '@/components/console/console-brea
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import { toRelatedCancelShape } from '@/lib/crossborder/aftersale-store'
+import { toRelatedCancelShape } from '@/lib/crossborder/aftersale-related-shapes'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'

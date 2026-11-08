@@ -7,6 +7,9 @@ import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle
 import { createId } from '@paralleldrive/cuid2'
 import {
   commerceWarehouses,
+  feeTemplateVersions,
+  feeTemplates,
+  fxRates,
   inventoryBalances,
   inventoryMovements,
   oceanShipmentBoxes,
@@ -1237,6 +1240,46 @@ export async function saveOceanLotCost(
   const lot = await getOceanShipment(db, organizationId, input.shipmentId)
   if (!lot) throw new Error('柜次不存在')
   const variant = await resolveVariant(db, organizationId, input.sku)
+
+  // 正式成本三要素服务端强制校验（不可绕过 UI）：汇率 + 进口税费用模板版本。
+  if (!input.fxRateId?.trim()) {
+    throw new Error('缺少汇率引用（fxRateId），不可保存正式成本')
+  }
+  const [fxRow] = await db
+    .select({ id: fxRates.id })
+    .from(fxRates)
+    .where(
+      and(
+        eq(fxRates.id, input.fxRateId.trim()),
+        eq(fxRates.organizationId, organizationId),
+        eq(fxRates.status, 'active'),
+      ),
+    )
+    .limit(1)
+  if (!fxRow) throw new Error('汇率不存在、已停用或不属于本组织，不可保存正式成本')
+
+  if (!input.feeTemplateVersionId?.trim()) {
+    throw new Error('缺少费用模板版本（feeTemplateVersionId），不可保存正式成本')
+  }
+  const [versionRow] = await db
+    .select({ id: feeTemplateVersions.id, type: feeTemplates.type, status: feeTemplateVersions.status })
+    .from(feeTemplateVersions)
+    .innerJoin(feeTemplates, eq(feeTemplateVersions.templateId, feeTemplates.id))
+    .where(
+      and(
+        eq(feeTemplateVersions.id, input.feeTemplateVersionId.trim()),
+        eq(feeTemplateVersions.organizationId, organizationId),
+      ),
+    )
+    .limit(1)
+  if (!versionRow) throw new Error('费用模板版本不存在或不属于本组织，不可保存正式成本')
+  if (versionRow.type !== 'import_tax') {
+    throw new Error('正式成本必须引用进口税（import_tax）费用模板版本')
+  }
+  if (versionRow.status !== 'published') {
+    throw new Error('费用模板版本未发布，不可保存正式成本')
+  }
+
   const existing = await db
     .select({ versionNo: skuCosts.versionNo })
     .from(skuCosts)

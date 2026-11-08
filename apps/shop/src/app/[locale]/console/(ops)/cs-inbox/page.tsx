@@ -107,7 +107,7 @@ export default function CsInboxPage() {
           <p className="mt-2 text-xs text-muted-foreground">
             {anyReady
               ? '已有平台 IM adapter 就绪，可点击「同步」拉取。'
-              : '当前所有平台 IM adapter 未实现 listMessages，同步会失败，禁止写入演示消息。详见 docs/design/platform-apis。'}
+              : '平台消息接口尚未接通，同步会失败，不会写入伪造消息。'}
           </p>
         </AlertDescription>
       </Alert>
@@ -232,8 +232,7 @@ export default function CsInboxPage() {
           ]}
         />
         <UedPrototypeNotice>
-          只读壳：无 send API、无自动回复。每店 OAuth token 需独立授权；平台 IM 拉取待 adapter 落地。
-          优惠券触达属 P2（Q38）。
+          本页仅查看会话，暂不支持发送与自动回复；每店需单独授权，平台消息拉取待接入。
         </UedPrototypeNotice>
         {notice ? (
           <p role="status" className="text-sm text-muted-foreground">{notice}</p>

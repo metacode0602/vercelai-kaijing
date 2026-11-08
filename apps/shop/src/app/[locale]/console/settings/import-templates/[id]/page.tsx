@@ -118,7 +118,7 @@ export default function ImportTemplateDetailPage({ params }: { params: Promise<{
         }
       />
       <UedPrototypeNotice>
-        模板配置来自 commerce_import_templates；字段列名校验（无重复）；批处理执行仍待导入作业。
+        模板配置已保存；字段列名不允许重复；批量执行暂未开放。
       </UedPrototypeNotice>
       <DetailFieldGrid
         title="当前落库值"

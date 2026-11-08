@@ -95,7 +95,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
         }
       />
       <UedPrototypeNotice>
-        回复状态落库。手工回复仅 ERP；「排队平台回复」为 stub（stub_queued），不调用真实平台 API。
+        回复状态会保存；手工回复仅保存在本站，「排队平台回复」暂未接通平台接口，不会同步到平台。
       </UedPrototypeNotice>
       <DetailKpiRow
         items={[

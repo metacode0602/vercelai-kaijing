@@ -199,7 +199,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
         {current.status === '待上架'
           ? '核对 SKU、数量、质检结果与目标库位后点击「确认上架」。重复提交会被幂等键拦截。'
           : current.status === '已上架'
-            ? `已上架；幂等键 ${current.idempotencyKey || '—'}。采购单 qty_stocked 已投影回写。`
+            ? `已上架；幂等键 ${current.idempotencyKey || '—'}。采购单上架数量已回写。`
             : '入库单已取消，不可再上架。'}
       </UedPrototypeNotice>
 

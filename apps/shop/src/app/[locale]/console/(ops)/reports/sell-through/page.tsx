@@ -74,7 +74,7 @@ export default function SellThroughReportPage() {
           ]}
         />
         <UedPrototypeNotice>
-          无日库存快照时用期末可用近似平均库存。不展示假图表；缺数据保持空态。
+          无日库存快照时，以期末可用数量近似平均库存；缺数据时保持空态。
         </UedPrototypeNotice>
       </UedWorkspace>
     </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { Badge } from '@workspace/ui/components/badge'
 import { trpc } from '@/lib/trpc/client'
 
@@ -87,7 +87,6 @@ export default function CartonSpecsPage() {
           { key: 'status', label: '状态', render: (row) => <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge> },
         ]}
       >
-        <UedPrototypeNotice>ocean_shipment_boxes 是柜次装箱行，不是箱规主数据。</UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>

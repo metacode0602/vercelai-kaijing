@@ -196,7 +196,7 @@ export default function LogisticsLgsPage() {
         ]}
       >
         <UedPrototypeNotice>
-          已接 DB：fulfillment_batches（channel=lgs，含 carrier_id）+ fulfillment_batch_packages。承运商选自 commerce_carriers。提交交接经 apps/api → 平台真实交运；无凭证时诚实失败。
+          提交交接会走平台真实交运；没有交运凭证时会如实报错，不会标记成功。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         <div className="flex flex-wrap gap-2">

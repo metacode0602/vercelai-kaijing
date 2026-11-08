@@ -167,7 +167,7 @@ export default function OrderExceptionsPage() {
         </AlertDescription>
       </Alert>
       <UedPrototypeNotice>
-        处理「开始 / 修复 / 忽略」会写 audit_events。映射类异常请前往 mappings；本页不再使用 demo store。
+        处理「开始 / 修复 / 忽略」会记录审计日志；映射类异常请前往「映射管理」。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => scanMutation.mutate()} disabled={scanMutation.isPending}>

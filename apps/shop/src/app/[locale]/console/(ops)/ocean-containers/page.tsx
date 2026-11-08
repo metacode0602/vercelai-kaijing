@@ -145,8 +145,7 @@ export default function OceanContainersPage() {
         ]}
       />
       <UedPrototypeNotice>
-        主路径已接 PostgreSQL（tRPC ocean.*）。开船写 in_transit，清关转入 customs_clearing，到仓转 on_hand/damaged；幂等键
-        ledger:ocean_*。不共享 WH-CN-XMN。审批相关：杨洁 / 黄发聪。库存桶与状态推进请进柜次详情页。
+        开船、清关、到仓分别更新在途、清关中与在库余额；库存桶与状态推进请进入柜次详情页。
       </UedPrototypeNotice>
       {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载柜次中…</p> : null}
       {listQuery.error ? <p className="text-sm text-destructive">{listQuery.error.message}</p> : null}

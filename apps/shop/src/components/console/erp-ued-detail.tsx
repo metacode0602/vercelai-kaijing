@@ -313,7 +313,7 @@ export function UedRecordDetail({
     }
   })
 
-  const noticeText = notice ?? '关联子表不再填充 ERP 演示样本；无真实数据时显示「暂无关联数据」或「待接入」。'
+  const noticeText = notice ?? '无关联数据时显示「暂无关联数据」或「待接入」。'
   useConsoleBreadcrumbs([
     { label: moduleTitle, href: backHref },
     { label: String(title) },
@@ -370,7 +370,7 @@ export function UedRecordDetail({
         <DetailSection
           key={table.key}
           title={table.title}
-          description="记录内嵌的明细行（示例）"
+          description="记录内嵌的明细行"
         >
           <Table>
             <TableHeader>
@@ -437,7 +437,7 @@ export function UedRecordDetail({
       {editing ? (
         <UedDialog
           title={`编辑 · ${moduleTitle}`}
-          description="修改记录字段；保存仅作用于本次原型会话。"
+          description="修改记录字段；保存仅作用于当前页面会话，不会写入数据库。"
           fields={editFields}
           initialValues={Object.fromEntries(fieldKeys.map((key) => [key, typeof current[key] === 'boolean' ? (current[key] ? '是' : '否') : String(current[key] ?? '')]))}
           onClose={() => setEditing(false)}
@@ -454,7 +454,7 @@ export function UedRecordDetail({
             }
             setCurrent(next)
             setEditing(false)
-            setSaved(`${moduleTitle}记录已更新（原型会话，未写入数据库）。`)
+            setSaved(`${moduleTitle}记录已更新（未写入数据库）。`)
           }}
           saveLabel="保存修改"
         />

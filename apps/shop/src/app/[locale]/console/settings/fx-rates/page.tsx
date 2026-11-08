@@ -96,7 +96,7 @@ export default function FxRatesSettingsPage() {
       setNotice(
         `${res.note}${
           res.errors.length
-            ? ` 示例失败：第 ${res.errors[0]?.index} 行 ${res.errors[0]?.message}`
+            ? ` 第 ${res.errors[0]?.index} 行导入失败：${res.errors[0]?.message}`
             : ''
         }`,
       )
@@ -296,7 +296,7 @@ export default function FxRatesSettingsPage() {
           ]}
         />
         <UedPrototypeNotice>
-          {meta.data?.note || '已接库；Excel 列：platform / marketplaceCode / baseCurrency / quoteCurrency / rate / effectiveDate / note。'}
+          {meta.data?.note || '支持的 Excel 列：platform / marketplaceCode / baseCurrency / quoteCurrency / rate / effectiveDate / note。'}
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Button

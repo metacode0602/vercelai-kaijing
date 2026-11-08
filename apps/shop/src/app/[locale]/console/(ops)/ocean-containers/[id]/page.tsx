@@ -214,8 +214,7 @@ export default function OceanContainerDetailPage() {
         </div>
       ) : null}
       <UedPrototypeNotice>
-        状态机 draft→booked→departed→arrived→customs→received。开船/清关/到仓写 inventory_movements（ledger:ocean_*），余额走
-        in_transit / customs_clearing / on_hand，不把在途直接记入 on_hand。柜次成本写入 sku_costs.container_lot_id。
+        状态流转：草稿 → 已订舱 → 在途 → 已到港 → 清关中 → 已入本地仓。开船、清关、到仓分别更新在途、清关中与在库余额，不把在途直接计入在库。
       </UedPrototypeNotice>
 
       <div className="rounded-lg border p-4 space-y-3">

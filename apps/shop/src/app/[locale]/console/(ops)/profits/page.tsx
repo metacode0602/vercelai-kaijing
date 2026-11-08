@@ -85,7 +85,7 @@ export default function ProfitsPage() {
         },
       ]}
     >
-      <UedPrototypeNotice>利润派生自订单/sku_costs/settlement_lines/logistics_fee_details。详情页可下钻费用行。</UedPrototypeNotice>
+      <UedPrototypeNotice>利润由订单、商品成本、结算与物流费用汇总得出；详情页可下钻费用行。</UedPrototypeNotice>
       <DetailKpiRow
         items={[
           { label: '收入合计（本页）', value: revenue.toLocaleString() },

@@ -60,4 +60,7 @@ export const carriersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => wrap(() => carriersDa.updateCarrier(ctx.db, ctx.organizationId, input))),
+  remove: tenantProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ ctx, input }) =>
+    wrap(() => carriersDa.removeCarrier(ctx.db, ctx.organizationId, input.id)),
+  ),
 })

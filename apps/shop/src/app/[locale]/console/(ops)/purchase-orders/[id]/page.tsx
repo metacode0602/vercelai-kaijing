@@ -135,7 +135,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
       <UedPrototypeNotice>
         {current.lines.length === 0
           ? '当前尚无采购明细。'
-          : '明细行金额汇总写入主信息 total_amount；到货数量投影字段 qty_received / qty_qc_passed / qty_stocked 由收货与质检回写。'}
+          : '明细行金额会汇总到主信息；到货、质检与上架数量由后续收货环节回写。'}
       </UedPrototypeNotice>
 
       <DetailKpiRow

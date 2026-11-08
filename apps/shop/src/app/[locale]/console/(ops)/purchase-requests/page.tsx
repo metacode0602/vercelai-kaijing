@@ -195,7 +195,7 @@ export default function PurchaseRequestsPage() {
           </Alert>
         ) : null}
         <UedPrototypeNotice>
-          创建流程对齐表结构：列表「新建」只写主信息；明细在详情页按行追加；提交后进入「采购审核」；仅正式批准后才会生成 purchase_orders + purchase_order_lines。本页已接 PostgreSQL。
+          列表「新建」只填写主信息，明细在详情页按行追加；提交后进入「采购审核」，只有正式批准后才会生成采购单。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">草稿 {counts['草稿'] ?? 0}</Badge>

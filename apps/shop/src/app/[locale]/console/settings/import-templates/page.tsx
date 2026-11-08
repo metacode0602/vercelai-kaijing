@@ -77,7 +77,7 @@ export default function ImportTemplatesPage() {
           { key: 'updatedAt', label: '更新时间' },
         ]}
       >
-        <UedPrototypeNotice>配置已接库；执行导入流水 / 回滚作业仍待平台与作业调度。</UedPrototypeNotice>
+        <UedPrototypeNotice>模板配置已保存；导入执行与回滚暂未开放。</UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>

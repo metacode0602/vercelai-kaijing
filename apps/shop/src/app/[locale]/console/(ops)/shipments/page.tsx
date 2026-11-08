@@ -180,8 +180,7 @@ export default function ShipmentsPage() {
         ]}
       >
         <UedPrototypeNotice>
-          已接 DB：包裹/轨迹经 tRPC 写入 PostgreSQL。平台 OpenAPI 仍为 stub（同步会写
-          fulfillment_attempts）。共 {statsQuery.data?.total ?? rows.length} 个包裹 ·{' '}
+          共 {statsQuery.data?.total ?? rows.length} 个包裹 ·{' '}
           {metaQuery.data?.note}
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}

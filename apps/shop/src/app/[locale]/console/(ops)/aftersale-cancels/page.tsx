@@ -271,7 +271,7 @@ export default function AftersaleCancelsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        {'占库释放与退款分开：买家取消入库后按策略释放未发货占库（order_release 流水）；退款按等待天数处理，平台支持时自动同意。详见 docs/design/aftersale-cancel-ingest-and-policy.md。'}
+        {'占库释放与退款分开：买家取消入库后按策略释放未发货占库；退款按等待天数处理，平台支持时自动同意。'}
       </UedPrototypeNotice>
       {editor}
       {notice ? (

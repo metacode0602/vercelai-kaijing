@@ -113,7 +113,7 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 - 自营结账 / 自建商城收银台。
 - MVP 同期上线四平台（Lazada / Shopee / TikTok）齐开；导航与筛选可预留 platform 维度，数据通道仅 Daraz。
 - 通用进销存（采购单、仓库 WMS、多仓调拨全流程）。
-- 首批实现（进行中于 `feat/shop-console-ui-shell`）仅 UI 壳 + 导航 + mock；仍不接业务 tRPC / 真连接器（除非另行说明）。**禁止**引入独立 AppShell 布局组件。
+- 首批实现（进行中于 `feat/shop-console-ui-shell`）仅 UI 壳 + 导航 + mock；仍不接业务 tRPC / 真连接器（除非另行说明）。（历史口径；**2026-11-08 更新**：主路径已分模块接 tRPC，见 shop-module1–14。）**禁止**引入独立 AppShell 布局组件。
 - **历史业务导航替换（已确认）**：跨境主壳**替换**现有 `/console` 下的历史业务导航组；营销站 `(marketing)` 暂保持现状，旧 console URL **过渡期隐藏导航、URL 暂留**。默认登录后进入跨境工作台。
 
 ---
@@ -326,8 +326,8 @@ apps/shop/app/.../（示意 · App Router）
 | 角标 | 待审数、库存紧急数用 `Badge`；上限显示 `99+` |
 | Settings 进入 | 由 `settings/layout.tsx` 整侧栏切换为 Settings nav；Topbar 标题变为「设置」 |
 | Profile 进入 | 由 `profile/layout.tsx` 提供垂直 Tab；不经主业务侧栏 |
-| Copilot | Provider 挂在 `(console)/layout.tsx`；Topbar 开关展开右侧布局列；MVP mock 回复即可 |
-| Demo 标记 | P0 可用 `DemoAlert`；**上线前移除**；Mock 数据页脚可注「示例数据」 |
+| Copilot | Provider 挂在 `(console)/layout.tsx`；Topbar 开关展开右侧布局列；未接模型服务时走 `MODEL_NOT_CONNECTED_REPLY` 兜底（2026-11-08） |
+| Demo 标记 | ~~P0 可用 `DemoAlert`~~ **已移除**（2026-11-08，`demo-alert.tsx` 已删）；Mock 数据页脚可注「示例数据」 |
 | 桌面优先 | 主要交互按 ≥1280px 设计；窄屏侧栏 offcanvas |
 
 ### 4.4 组件模式
@@ -565,12 +565,12 @@ apps/shop/app/.../（示意 · App Router）
 | 能力 | 范围 | MVP |
 |------|------|-----|
 | **CopilotKit 全局助手** | 全 `/console/*`（Topbar → 右侧布局列） | **P0 UI 壳 + mock**；不接 tRPC |
-| 店铺筛选器 | 订单、库存、商品、仪表盘、财务 | **P0 UI**；选项来自 mock / 后续 shops |
+| 店铺筛选器 | 订单、库存、商品、仪表盘、财务 | **P0 UI**；选项来自 `trpc.shops.*`（2026-11-08） |
 | 时间范围 | 仪表盘、订单、财务 | 近 7 天 / 30 天 / 自定义（自定义可 P1） |
 | 平台筛选 | 预留 | MVP 默认 Daraz，控件可隐藏 |
 | 导出 | 订单/财务/选品 | **P2** |
 | 通知入口 | Topbar 铃铛 | MVP 占位；真通知接钉钉在 Settings |
-| DemoAlert | 各业务页顶 | 仅 Demo 阶段；上线前开关关闭 |
+| DemoAlert | 各业务页顶 | ~~仅 Demo 阶段；上线前开关关闭~~ **已移除**（2026-11-08，`demo-alert.tsx` 已删） |
 | 组织上下文 | 全站 | `activeOrganizationId`；无组织时引导创建/加入 |
 
 ---
@@ -589,7 +589,7 @@ apps/shop/app/.../（示意 · App Router）
 
 数据阶段建议：
 
-1. **阶段 M0**：纯 mock（现有 `mock-data.ts` 扩展）+ Copilot mock。
+1. **阶段 M0**：纯 mock（现有 `mock-data.ts` 扩展）+ Copilot mock。（已超越：`mock-data.ts` 已删，M1 已于 2026-11-08 大规模落地，见 shop-module1–14。）
 2. **阶段 M1**：只读 tRPC + DB（用户另行确认后）。
 3. **阶段 M2**：Daraz sync + pending 执行。
 
@@ -637,7 +637,7 @@ apps/shop/app/.../（示意 · App Router）
 | 2 | 视觉主题 | **仅用现有 `@workspace/ui` / shadcn theme**；HTML Demo 仅功能/IA 参考；**禁止引用 Demo 视觉** |
 | 3 | 仪表盘路径 | **`/console/dashboard` + `/console` redirect** |
 | 4 | 选品路由名 | **`/console/candidates`**（不用 `/console/selection`）；旧 `/crossborder/candidates` redirect 至此 |
-| 5 | 首批代码范围 | **仅 UI 壳 + 导航 + mock，不接 tRPC**；设计 v1.2 已定稿；**实现进行中**于分支 `feat/shop-console-ui-shell` |
+| 5 | 首批代码范围 | **仅 UI 壳 + 导航 + mock，不接 tRPC**（历史口径；2026-11-08 主路径已接 tRPC）；设计 v1.2 已定稿；**实现进行中**于分支 `feat/shop-console-ui-shell` |
 | 6 | 历史营销/旧 console | **隐藏导航，URL 暂留；营销页暂不动** |
 | 7 | AI 助手形态 | **移除独立 `/console/assistant`**；采用 **CopilotKit 全局右侧布局列**，由 **Topbar Sparkles** 展开/收起；Provider 挂在 `(console)/layout.tsx`；**非** FAB overlay |
 | 8 | Open Mercato | **分阶段**：Phase 1 先落 Demo 功能；Phase 2 可借鉴其 ERP 数据模型概念与 i18n 做 enrichment；**布局模式**（lean 侧栏 / Settings SectionPage）持续参考，但用 **Next.js 嵌套 layouts** 实现；**不把 Mercato 模块名原样贴进侧栏**；**不引入 Mercato 式 AppShell 组件** |

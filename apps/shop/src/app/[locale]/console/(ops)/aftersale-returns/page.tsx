@@ -170,8 +170,7 @@ export default function AftersaleReturnsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        收货不增加可用库存。退货包裹独立 return_shipments；质检结论写 reverse_qc_records；合格件
-        aftersale_restock，残次 aftersale_scrap。
+        退货收货不增加可用库存；质检合格件回库、残次件报废在质检完成后处理。
       </UedPrototypeNotice>
       {editor}
       {notice ? (

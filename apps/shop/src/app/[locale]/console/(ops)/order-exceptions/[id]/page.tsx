@@ -123,7 +123,7 @@ export default function OrderExceptionDetailPage({ params }: { params: Promise<{
           {row.resolution ? ` · 处理：${row.resolution}` : ''}
         </AlertDescription>
       </Alert>
-      <UedPrototypeNotice>{notice || '处理动作写入 audit_events；不静默改库存。'}</UedPrototypeNotice>
+      <UedPrototypeNotice>{notice || '处理动作会记录审计日志，不会静默修改库存。'}</UedPrototypeNotice>
       <DetailKpiRow
         items={[
           { label: '异常类型', value: row.kind },

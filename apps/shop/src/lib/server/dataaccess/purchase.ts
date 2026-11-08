@@ -646,7 +646,7 @@ export async function submitPurchaseRequest(
     .set({
       status: 'pending_approval',
       submittedAt: new Date(),
-      approverName: approver?.trim() || current.approver || '杨洁 / 黄发聪',
+      approverName: approver?.trim() || current.approver || '待指派',
       opinion: '—',
       updatedAt: new Date(),
     })

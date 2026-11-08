@@ -1,6 +1,6 @@
 # Daraz LK ERP · P0/P1 原型与架构差分
 
-> 状态：设计 + 控制台 localStorage 原型（无 tRPC / 无真实 DB）  
+> 状态：设计稿（原「控制台 localStorage 原型、无 tRPC」为当时口径；**2026-11-08 更新**：主路径已接 tRPC/真实 DB，`createDemoStore` 已删，见 shop-module1–14 与 cost-finance §9）  
 > 范围：**当前仅 Daraz Sri Lanka**；平台/站点/仓类型/税模板配置可扩展。  
 > 审批人（相关流程）：杨洁 / 黄发聪  
 > @see docs/design/haoshiyun-erp-database-schema.md  
@@ -36,7 +36,7 @@
 
 - **实体**：`fx_rates`：`platform`（或 marketplace）+ `base/quote` + `rate` + `effective_date` + `source`。
 - 消费方保留 **原币 / 汇率 / 折算金额** 三元组；历史不覆盖（新行=新版本）。
-- **页面**：设置 →「汇率」CRUD + mock 导入。
+- **页面**：设置 →「汇率」CRUD（已接 `trpc.fxRates.*`，2026-11-08）。
 
 ### F32 · 到仓成本按柜次版本
 
@@ -68,7 +68,7 @@
 ## 5. 非功能约束
 
 - 中文控制台；侧栏 IA 基本稳定，新项挂入既有分组（仓库 / 报表 / 财务 / 设置 / 客服）。
-- **无 tRPC / 无真实 DB 读写**；`createDemoStore` + localStorage 即可。
+- ~~**无 tRPC / 无真实 DB 读写**；`createDemoStore` + localStorage 即可~~（本 PR 当时边界；**2026-11-08** 已接 tRPC，`createDemoStore` 已删）。
 - `commerce-schema.ts` 仅轻量对齐列/表，不做 75 表全量迁移。
 
 ## 6. 导航落点

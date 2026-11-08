@@ -78,7 +78,7 @@ export default function CarriersPage() {
         ]}
       >
         <UedPrototypeNotice>
-          承运商主档已接库；运价卡可关联承运商。实时报价 API 未接。
+          运价卡可关联承运商；实时报价接口暂未接入。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

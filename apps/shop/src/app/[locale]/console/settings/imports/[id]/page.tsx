@@ -12,7 +12,7 @@ export default function ImportDetailPage({ params }: { params: Promise<{ id: str
       <DetailPageHeader backHref="/console/settings/imports" title={`导入批次 ${id}`} description="待导入流水表。" />
       <Alert>
         <AlertTitle>暂无数据</AlertTitle>
-        <AlertDescription>已移除演示导入详情。批次落库后可在此查看行级结果与回滚。</AlertDescription>
+        <AlertDescription>批次执行后可在此查看行级结果与回滚。</AlertDescription>
       </Alert>
     </div>
   )

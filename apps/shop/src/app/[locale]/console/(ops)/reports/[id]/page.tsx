@@ -23,7 +23,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
         <Alert>
           <AlertTitle>暂无数据</AlertTitle>
           <AlertDescription>
-            已移除演示报表行。仅当 dashboard.platformMix 有对应平台聚合时展示明细。
+            仅当看板有对应平台聚合数据时才展示明细。
           </AlertDescription>
         </Alert>
       </div>

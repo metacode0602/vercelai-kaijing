@@ -5,7 +5,7 @@
 | 文档范围 | `apps/shop` 控制台 · 费用模板列表/详情 · 成本测算解析 |
 | 版本 | **v1.1** |
 | 日期 | 2026-11-03（Asia/Shanghai） |
-| 实现 | **已接 tRPC → dataaccess → PostgreSQL**（基表早期 schema；类型扩展见 `0012_cost_finance_closure`）；路由 `/console/fee-templates`；见 [`shop-module5-fee-templates-trpc.md`](../../../../docs/design/shop-module5-fee-templates-trpc.md)、[`cost-finance-production-closure.md`](../../../../docs/design/cost-finance-production-closure.md) |
+| 实现 | **已接 tRPC → dataaccess → PostgreSQL**（基表早期 schema `0000`；类型扩展历史编号 `0012_cost_finance_closure`，2026-11-08 重生成并入 `0002_glamorous_bruce_banner.sql`）；路由 `/console/fee-templates`；见 [`shop-module5-fee-templates-trpc.md`](../../../../docs/design/shop-module5-fee-templates-trpc.md)、[`cost-finance-production-closure.md`](../../../../docs/design/cost-finance-production-closure.md) |
 | 关联 | [`cost-calculator-sl-landed-ued.md`](./cost-calculator-sl-landed-ued.md)、[`daraz-lk-erp-p0-ued.md`](./daraz-lk-erp-p0-ued.md)、[`../../../docs/design/erp-rectification-2026-11-03.md`](../../../../docs/design/erp-rectification-2026-11-03.md) §4（整改 C8/C9 规则） |
 
 ### 修订记录
@@ -28,7 +28,7 @@
 | C3-C | 模板类型：`import_tax` / `platform_fee`；#64 起另有 `ocean_freight`；测算组合引用税与平台费 |
 | C4 | 新系统；保存柜次成本写入 `feeTemplateVersionId` + `components` 快照即可，不做复杂重算覆盖产品逻辑 |
 | C5-A | Lazada 首期也做进口税叠（按国可配；种子占位税率标待复核） |
-| C6-A | 语义表 `fee_templates` + `fee_template_versions`（早期 schema）；`0012_cost_finance_closure` 扩展类型；原型 localStorage 主路径停用 |
+| C6-A | 语义表 `fee_templates` + `fee_template_versions`（早期 schema）；`ocean_freight` 类型语义扩展（历史 `0012_cost_finance_closure`，现于 `0002_glamorous_bruce_banner.sql`）；原型 localStorage 主路径停用 |
 | C7-A | 现 `TARIFF_PROFILES` LK 示例作初值，标「待报关行复核」 |
 | C8-A | 优先费用模板；采购/库位/流水不改 |
 | C9-A | 成本财务侧栏新增「费用模板」 |

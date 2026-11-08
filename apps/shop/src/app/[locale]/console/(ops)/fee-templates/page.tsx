@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Badge } from '@workspace/ui/components/badge'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import {
   FEE_TEMPLATE_TYPE_LABEL,
   FULFILLMENT_POOL_OPTIONS,
@@ -129,11 +129,6 @@ export default function FeeTemplatesPage() {
           { key: 'versionCount', label: '版本数' },
         ]}
       >
-        <UedPrototypeNotice>
-          已接 DB：fee_templates + fee_template_versions（migration 0012）。审核流
-          draft→in_review→published→disabled；解析取同维度 priority 最高且有效期内已发布版本。成本测算主路径读
-          tRPC resolve；未命中不可发布正式成本。
-        </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         {listQuery.isError ? (
           <p className="text-sm text-destructive">加载失败：{listQuery.error.message}</p>

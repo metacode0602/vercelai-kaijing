@@ -95,7 +95,7 @@ export default function SyncTasksPage() {
           ? `加载失败：${listQuery.error.message}`
           : listQuery.isLoading
             ? '正在从数据库加载同步任务…'
-            : '暂无同步任务。可入队演示任务，或跑 db:seed:commerce-finance。'
+            : '暂无同步任务。可点击「入队库存同步」创建任务，或执行 db:seed:commerce-finance 初始化数据。'
       }
       columns={[
         { key: 'taskNo', label: '任务号' },
@@ -116,7 +116,7 @@ export default function SyncTasksPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        本页是「任务视角」（sync_tasks / sync_job_runs）；设置 · 接口日志是「HTTP 流水」。重试/入队会写 requestId，但<strong>不会</strong>调用真实 Daraz/Lazada OpenAPI。
+        本页展示「任务视角」，「设置 → 接口日志」展示 HTTP 流水。重试 / 入队只生成请求记录，<strong>不会</strong>调用真实 Daraz / Lazada OpenAPI。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -127,7 +127,7 @@ export default function SyncTasksPage() {
               type: '库存同步',
               target: '控制台手动入队',
               shopId: shops[0]?.id,
-              note: '控制台手动入队演示',
+              note: '控制台手动入队',
             })
           }
         >

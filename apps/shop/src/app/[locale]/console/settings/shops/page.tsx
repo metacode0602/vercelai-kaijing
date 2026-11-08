@@ -126,7 +126,7 @@ export default function ShopsSettingsPage() {
         ]}
       />
       <UedPrototypeNotice>
-        {meta.data?.note || '授权会跳转平台 OAuth；未完成回调前不会写入假凭证。'}
+        {meta.data?.note || '授权会跳转平台 OAuth；未完成回调前不会保存凭证。'}
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         {rows.map((row) => (

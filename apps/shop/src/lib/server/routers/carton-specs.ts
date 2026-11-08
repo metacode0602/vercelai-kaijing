@@ -63,4 +63,7 @@ export const cartonSpecsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => wrap(() => cartonDa.updateCartonSpec(ctx.db, ctx.organizationId, input))),
+  remove: tenantProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ ctx, input }) =>
+    wrap(() => cartonDa.removeCartonSpec(ctx.db, ctx.organizationId, input.id)),
+  ),
 })

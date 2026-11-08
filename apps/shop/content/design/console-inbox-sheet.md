@@ -1,6 +1,6 @@
 # Console 站内信 Sheet（soft note）
 
-> 状态：DEMO / mock · 与 Copilot 布局列共存
+> 状态：已接 `trpc.notifications`（`console_notifications`）· 与 Copilot 布局列共存（**2026-11-08 更新**，原 DEMO/mock）
 
 ## 交互
 
@@ -11,5 +11,5 @@
 
 ## 非目标（本迭代）
 
-- 无 tRPC / 真实 `site_messages` 读写
+- ~~无 tRPC / 真实 `site_messages` 读写~~（**2026-11-08**：已接 `trpc.notifications` 读写 `console_notifications`；`site_messages` 外传通道仍为后续项）
 - 无 `/console/assistant`、无 AppShell 改动

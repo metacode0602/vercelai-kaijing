@@ -75,9 +75,9 @@ export default function MappingsPage() {
         {
           key: 'shop',
           label: '店铺',
-          options: shopOptions.length ? shopOptions : ['Daraz LK · Demo'],
+          options: shopOptions,
           required: true,
-          helper: '店铺 + Seller SKU 必须唯一',
+          helper: '店铺 + Seller SKU 必须唯一；无可用店铺时先到「店铺」页连接',
         },
         { key: 'itemId', label: 'Item ID', required: true, helper: '平台商品 / Item ID' },
         {
@@ -90,8 +90,9 @@ export default function MappingsPage() {
         {
           key: 'internalSku',
           label: '内部 SKU',
-          options: skuOptions.length ? skuOptions : ['HSY000001001'],
+          options: skuOptions,
           required: true,
+          helper: '无可用内部 SKU 时先导入商品',
         },
         { key: 'color', label: '平台颜色', required: true },
         { key: 'size', label: '平台尺码', required: true },
@@ -111,17 +112,18 @@ export default function MappingsPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
-        const shopName = values.shop || shopOptions[0] || 'Daraz LK · Demo'
+        const shopName = values.shop ?? ''
         const shop = shopByName.get(shopName)
+        if (!shopName.trim() || !values.sellerSku?.trim() || !values.internalSku?.trim()) return
         createMutation.mutate({
           shopId: shop?.id,
           shop: shopName,
-          itemId: values.itemId || '待同步',
-          platformSkuId: values.platformSkuId || '待同步',
-          sellerSku: values.sellerSku || `DEMO-${total + 1}`,
-          internalSku: values.internalSku || skuOptions[0] || 'HSY000001001',
-          color: values.color || 'Black',
-          size: values.size || 'L',
+          itemId: values.itemId ?? '',
+          platformSkuId: values.platformSkuId ?? '',
+          sellerSku: values.sellerSku,
+          internalSku: values.internalSku,
+          color: values.color ?? '',
+          size: values.size ?? '',
           listingStatus: values.listingStatus || '待同步',
           mappingStatus: values.mappingStatus || '待确认',
         })
@@ -197,7 +199,7 @@ export default function MappingsPage() {
           Seller SKU 映射异常请在本页 / mappings 异常 API 处理；订单履约异常已迁至 order-exceptions（规则扫描真实订单）。
         </p>
         <UedPrototypeNotice>
-          四码并列：Item ID · 平台 SKU ID · Seller SKU · 内部 SKU。主路径已接 PostgreSQL；刊登/订单读同步可回填映射草稿；平台写接口本轮不开通。
+          四码并列：Item ID · 平台 SKU ID · Seller SKU · 内部 SKU。刊登 / 订单同步可回填映射草稿；平台写接口暂未开通。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

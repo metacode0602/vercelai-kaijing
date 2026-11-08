@@ -190,8 +190,8 @@ export default function SettlementsPage() {
           ]}
         />
         <UedPrototypeNotice>
-          费用拆分来自 settlement_lines.fee_kind。状态机：待匹配 / 差异待处理 → 已确认 → 已打款（需确认）。确认后的费用进入利润。
-          平台拉取经 finance.syncSettlementsFromPlatform → apps/api syncSettlementsForShop（仅 Daraz/Lazada Lazop）。TikTok/Shopee 等无 listSettlements 适配器，请用导入；不会假成功。
+          费用拆分按费用类型展示；状态流转：待匹配 / 差异待处理 → 已确认 → 已打款，确认后的费用计入利润。Daraz
+          / Lazada 支持从平台拉取结算，其它平台请使用导入。
         </UedPrototypeNotice>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setImportOpen(true)}>
