@@ -1,16 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import { useLocale } from 'next-intl'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  SHOP_AUTH_STATUSES,
-  addShopConnection,
-  countShopKpi,
-  markShopReauthQueued,
-  setShopSyncPaused,
-  useShopConnections,
-} from '@/lib/crossborder/shop-connection-store'
+import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
@@ -21,113 +16,66 @@ function authVariant(status: string) {
 }
 
 export default function ShopsSettingsPage() {
-  const rows = useShopConnections()
-  const kpi = React.useMemo(() => countShopKpi(rows), [rows])
-  const [open, setOpen] = React.useState(false)
+  const utils = trpc.useUtils()
+  const router = useLocaleRouter()
+  const locale = useLocale()
+  const [page, setPage] = React.useState(1)
+  const [q, setQ] = React.useState('')
+  const [authStatus, setAuthStatus] = React.useState<string | undefined>()
+  const listQuery = trpc.shops.list.useQuery({
+    page,
+    pageSize: 20,
+    q: q.trim() || undefined,
+    authStatus,
+  })
+  const meta = trpc.shops.meta.useQuery()
+  const rows = listQuery.data?.items ?? []
   const [notice, setNotice] = React.useState('')
+  const kpi = listQuery.data?.summary ?? {
+    total: 0,
+    authorized: 0,
+    pending: 0,
+    expired: 0,
+    paused: 0,
+  }
 
-  const kpiItems = React.useMemo(
-    () => [
-      { label: '店铺数', value: String(kpi.total) },
-      { label: '已授权', value: String(kpi.authorized) },
-      { label: '待授权 / 连接中', value: String(kpi.pending) },
-      { label: '授权失效', value: String(kpi.expired) },
-      { label: '同步暂停', value: String(kpi.paused) },
-    ],
-    [kpi],
-  )
-
-  const editor = open ? (
-    <UedDialog
-      title="新增店铺连接"
-      description="创建草稿店铺；授权与同步为原型动作，不跳转真实 OAuth。"
-      fields={[
-        {
-          key: 'platform',
-          label: '平台',
-          options: ['lazada', 'daraz', 'tiktok_shop', 'shopee'],
-          required: true,
-        },
-        {
-          key: 'region',
-          label: '站点',
-          options: ['MY', 'PH', 'LK', 'TH', 'SG', 'VN', 'ID'],
-          required: true,
-        },
-        { key: 'name', label: '店铺名称', required: true },
-        {
-          key: 'externalShopId',
-          label: '平台店铺 ID',
-          required: true,
-          helper: 'marketplace shop / store id，与卖家 ID 不同',
-        },
-        {
-          key: 'sellerId',
-          label: '卖家 ID（sellerId）',
-          required: true,
-          helper: '卖家侧标识，可与平台店铺 ID 不同',
-        },
-        {
-          key: 'shopGroup',
-          label: '店铺分组',
-          options: ['Lazada 五国', 'Daraz', 'TikTok', '其他'],
-          required: true,
-        },
-        {
-          key: 'fulfillmentMode',
-          label: '履约模式',
-          options: ['自营仓发货', '平台仓', '混合'],
-          required: true,
-        },
-        {
-          key: 'currency',
-          label: '币种',
-          options: ['MYR', 'PHP', 'LKR', 'THB', 'SGD', 'VND', 'USD'],
-          required: true,
-        },
-        {
-          key: 'defaultWarehouse',
-          label: '默认仓库',
-          options: ['WH-CN-XMN-001'],
-        },
-        { key: 'owner', label: '负责人' },
-      ]}
-      onClose={() => setOpen(false)}
-      onSave={(values) => {
-        const result = addShopConnection({
-          name: values.name || '',
-          platform: values.platform || 'lazada',
-          region: values.region || 'MY',
-          currency: values.currency || 'MYR',
-          externalShopId: values.externalShopId || '',
-          sellerId: values.sellerId,
-          shopGroup: values.shopGroup,
-          fulfillmentMode: (values.fulfillmentMode as '自营仓发货' | '平台仓' | '混合') || '自营仓发货',
-          defaultWarehouse: values.defaultWarehouse,
-          owner: values.owner,
-        })
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setNotice(`${result.row.name} 已加入原型会话（草稿，同步已暂停）`)
-        setOpen(false)
-      }}
-    />
-  ) : null
+  const setPaused = trpc.shops.setSyncPaused.useMutation({
+    onSuccess: async (row) => {
+      setNotice(`${row?.name} 同步已${row?.syncPaused ? '暂停' : '恢复'}（DB meta）。`)
+      await utils.shops.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const beginAuthorization = trpc.shops.beginAuthorization.useMutation({
+    onSuccess: ({ url }) => {
+      window.location.assign(url)
+    },
+    onError: (error) => setNotice(error.message),
+  })
 
   return (
     <UedWorkspace
       title="店铺连接"
-      description="店铺授权、凭证脱敏、同步暂停与健康状态。运营中文面；OAuth / 刷新仅为原型。"
+      description="shops + integration_*。授权走真实平台 OAuth，状态来自数据库。"
       rows={rows}
       detailHref={(row) => `/console/settings/shops/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'lastError', 'owner']}
+      searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'appCredentialLabel', 'lastError', 'owner']}
       searchPlaceholder="搜索店铺、卖家 ID、分组或平台店铺 ID"
-      filters={[{ label: '授权状态', options: [...SHOP_AUTH_STATUSES], key: 'authStatus' }]}
-      emptyText="暂无店铺。新增草稿后可排队重授权（原型）。"
+      search={q}
+      onSearchChange={setQ}
+      pagination={{
+        page,
+        pageSize: 20,
+        total: listQuery.data?.total ?? 0,
+        onPageChange: setPage,
+      }}
+      filters={[{ label: '授权状态', options: [...(meta.data?.authStatuses ?? [])], key: 'authStatus' }]}
+      onStatusFilterChange={(value) =>
+        setAuthStatus(value === '全部' ? undefined : value)
+      }
+      emptyText={listQuery.isLoading ? '加载中…' : '暂无店铺。新增店铺后会跳转平台授权。'}
       addLabel="新增店铺"
-      onAdd={() => setOpen(true)}
+      onAdd={() => router.push('/console/settings/shops/new')}
       columns={[
         { key: 'name', label: '店铺' },
         { key: 'platformLabel', label: '平台' },
@@ -141,24 +89,44 @@ export default function ShopsSettingsPage() {
           label: '授权',
           render: (row) => <Badge variant={authVariant(row.authStatus)}>{row.authStatus}</Badge>,
         },
+        {
+          key: 'appCredentialLabel',
+          label: '平台应用',
+          render: (row) =>
+            row.appCredentialId ? (
+              <LocaleLink
+                href="/console/settings/marketplace-apps"
+                className="underline-offset-2 hover:underline"
+              >
+                {row.appCredentialLabel}
+              </LocaleLink>
+            ) : (
+              <span className="text-muted-foreground">未关联</span>
+            ),
+        },
+        { key: 'authExpiresAt', label: '授权到期' },
         { key: 'healthLabel', label: '健康' },
         {
           key: 'syncPaused',
           label: '同步',
           render: (row) =>
-            row.syncPaused ? (
-              <Badge variant="destructive">已暂停</Badge>
-            ) : (
-              <Badge variant="secondary">同步中</Badge>
-            ),
+            row.syncPaused ? <Badge variant="destructive">已暂停</Badge> : <Badge variant="secondary">可同步</Badge>,
         },
         { key: 'lastSyncAt', label: '最近同步' },
         { key: 'credentialMask', label: '凭证' },
       ]}
     >
-      <DetailKpiRow items={kpiItems} />
+      <DetailKpiRow
+        items={[
+          { label: '店铺数', value: String(kpi.total) },
+          { label: '已授权', value: String(kpi.authorized) },
+          { label: '待授权 / 连接中', value: String(kpi.pending) },
+          { label: '授权失效', value: String(kpi.expired) },
+          { label: '同步暂停', value: String(kpi.paused) },
+        ]}
+      />
       <UedPrototypeNotice>
-        卖家 ID（sellerId）≠ 平台店铺 ID（externalShopId）。不展示明文 token；授权失效应暂停自动同步；重授权不跳转真实平台。
+        {meta.data?.note || '授权会跳转平台 OAuth；未完成回调前不会保存凭证。'}
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         {rows.map((row) => (
@@ -167,37 +135,40 @@ export default function ShopsSettingsPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                const result = setShopSyncPaused(row.id, !row.syncPaused)
-                setNotice(
-                  result.ok
-                    ? `${result.row.name} 同步已${result.row.syncPaused ? '暂停' : '恢复'}（原型）`
-                    : result.reason,
-                )
-              }}
+              onClick={() => setPaused.mutate({ id: row.id, paused: !row.syncPaused })}
             >
               {row.syncPaused ? '恢复同步' : '暂停同步'}
             </Button>
-            {(row.authStatus === '授权失效' || row.authStatus === '待授权' || row.authStatus === '草稿') && (
+            {row.authStatus !== '已授权' ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  const result = markShopReauthQueued(row.id)
-                  setNotice(result.ok ? `${result.row.name}：${result.row.lastError}` : result.reason)
-                }}
+                onClick={() =>
+                  beginAuthorization.mutate({
+                    id: row.id,
+                    mode: row.authStatus === '授权失效' ? 'reauth' : 'bind',
+                    locale,
+                  })
+                }
+                disabled={beginAuthorization.isPending}
               >
-                排队重授权
+                {row.authStatus === '授权失效' ? '重新授权' : '去授权'}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  beginAuthorization.mutate({ id: row.id, mode: 'reauth', locale })
+                }
+                disabled={beginAuthorization.isPending}
+              >
+                重新授权
               </Button>
             )}
           </div>
         ))}
       </div>
-      {editor}
-      {notice ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {notice}
-        </p>
-      ) : null}
+      {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </UedWorkspace>
   )
 }

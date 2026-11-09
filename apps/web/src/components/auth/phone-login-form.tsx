@@ -1,7 +1,7 @@
 'use client'
 
 import { AuthCard } from '@/components/auth/auth-card'
-import { SmsSliderCaptcha } from '@/components/auth/sms-slider-captcha'
+import { SmsSliderCaptcha } from '@workspace/sms-captcha/client'
 import { FormError } from '@/components/shared/form-error'
 import { FormSuccess } from '@/components/shared/form-success'
 import { Button } from '@workspace/ui/components/button'
@@ -15,7 +15,6 @@ import { Input } from '@workspace/ui/components/input'
 import { authClient } from '@/lib/auth-client'
 import { getUrlWithLocaleInCallbackUrl } from '@/lib/utils/urls'
 import { cn } from '@workspace/ui/lib/utils'
-import { Routes } from '@/lib/routes'
 import { websiteConfig } from '@/lib/config/website'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -261,6 +260,18 @@ export const PhoneLoginForm = ({ className, callbackUrl: propCallbackUrl }: Phon
       <SmsSliderCaptcha
         open={captchaOpen}
         onOpenChange={setCaptchaOpen}
+        i18n={{
+          title: t('captchaTitle'),
+          hint: t('captchaHint'),
+          loading: t('captchaLoading'),
+          verifying: t('captchaVerifying'),
+          codeSent: t('codeSent'),
+          failed: t('captchaVerifyFailed'),
+          challengeFailed: t('captchaChallengeFailed'),
+          verifyFailed: t('captchaVerifyFailed'),
+          mismatch: t('captchaMismatch'),
+          tooManyAttempts: t('captchaTooManyAttempts'),
+        }}
         onVerified={(token) => {
           void sendVerificationCode(token)
         }}

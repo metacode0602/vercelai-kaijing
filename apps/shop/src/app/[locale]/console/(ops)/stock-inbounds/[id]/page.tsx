@@ -5,24 +5,14 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailRelatedTables,
   DetailSection,
-  parentsToFields,
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import {
-  BIN_OPTIONS,
-  cancelStockInbound,
-  confirmStockInboundShelve,
-  toRelatedInboundShape,
-  updateStockInboundDraft,
-  useStockInbounds,
-} from '@/lib/crossborder/purchase-receipt-store'
-import { getPurchaseOrder } from '@/lib/crossborder/purchase-order-store'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -35,44 +25,94 @@ function statusVariant(status: string) {
 
 export default function StockInboundDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const inbounds = useStockInbounds()
-  const inbound = inbounds.find((item) => item.id === id)
   const router = useLocaleRouter()
-
+  const utils = trpc.useUtils()
   const [editOpen, setEditOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
-  const [mounted, setMounted] = React.useState(false)
+  const { openWith: openAdjustWith, dialog: adjustDialog, notice: adjustNotice } =
+    useStockAdjustmentDialog()
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const detailQuery = trpc.purchase.getInbound.useQuery({ id })
+  const orderQuery = trpc.purchase.getOrder.useQuery(
+    { id: detailQuery.data?.purchaseOrderId || '' },
+    { enabled: Boolean(detailQuery.data?.purchaseOrderId) },
+  )
+  const binsQuery = trpc.wms.listBins.useQuery(
+    {
+      page: 1,
+      pageSize: 100,
+      warehouse: detailQuery.data?.warehouse || undefined,
+    },
+    { enabled: Boolean(detailQuery.data?.warehouse) },
+  )
+  const binOptions = React.useMemo(() => {
+    const codes = (binsQuery.data?.items ?? [])
+      .filter((bin) => bin.status !== '停用')
+      .map((bin) => bin.code)
+    const set = Array.from(new Set(codes))
+    if (detailQuery.data?.bin && !set.includes(detailQuery.data.bin)) {
+      set.unshift(detailQuery.data.bin)
+    }
+    return set
+  }, [binsQuery.data?.items, detailQuery.data?.bin])
 
-  if (!inbound) {
+  const invalidate = async () => {
+    await utils.purchase.getInbound.invalidate({ id })
+    await utils.purchase.listInbounds.invalidate()
+    if (detailQuery.data?.purchaseOrderId) {
+      await utils.purchase.getOrder.invalidate({ id: detailQuery.data.purchaseOrderId })
+    }
+  }
+
+  const updateMutation = trpc.purchase.updateInbound.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setEditOpen(false)
+      setNotice('已保存库位与备注。')
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const shelveMutation = trpc.purchase.confirmShelve.useMutation({
+    onSuccess: async (inbound) => {
+      await invalidate()
+      setNotice(
+        `${inbound.inboundNo} 已上架：库位 ${inbound.bin}；流水幂等键 ${inbound.idempotencyKey}`,
+      )
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const cancelMutation = trpc.purchase.cancelInbound.useMutation({
+    onSuccess: async (inbound) => {
+      await invalidate()
+      setNotice(`${inbound.inboundNo} 已取消。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
+  if (detailQuery.isLoading) {
+    return (
+      <DetailPageHeader
+        backHref="/console/stock-inbounds"
+        title="加载入库单…"
+        description="正在从数据库读取…"
+      />
+    )
+  }
+
+  if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/stock-inbounds"
-          title={mounted ? '未找到入库单' : '加载入库单…'}
-          description={
-            mounted
-              ? `入库单 ${id} 不存在，或仅存在于其他浏览器会话的示例数据中。`
-              : '正在读取本机原型会话中的入库单…'
-          }
+          title="未找到入库单"
+          description={detailQuery.error?.message || `入库单 ${id} 不存在。`}
         />
-        <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          请返回列表重新选择，或从到货质检完成后生成待上架入库单。
-        </p>
       </div>
     )
   }
 
-  const current = inbound
-  const order = current.purchaseOrderId ? getPurchaseOrder(current.purchaseOrderId) : undefined
-  const related = buildUedRelatedInfo(
-    'stock-inbounds',
-    toRelatedInboundShape(current) as Record<string, unknown>,
-  )
-  const parentFields = parentsToFields(related.parents)
+  const current = detailQuery.data
+  const order = orderQuery.data
   const canEdit = current.status === '待上架'
   const canShelve = current.status === '待上架'
   const canCancel = current.status === '待上架'
@@ -89,7 +129,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
         description={`${current.sourceType} · ${current.sku} × ${current.quantity}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">数据库</Badge>
             <Badge variant={statusVariant(current.status)}>{current.status}</Badge>
           </>
         }
@@ -103,14 +143,8 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
             {canShelve ? (
               <Button
                 size="sm"
-                onClick={() => {
-                  const result = confirmStockInboundShelve(inbounds, current.id)
-                  setNotice(
-                    result.ok
-                      ? `${result.inbound.inboundNo} 已上架：库位 ${result.inbound.bin}；流水幂等键 ${result.inbound.idempotencyKey}`
-                      : result.reason,
-                  )
-                }}
+                disabled={shelveMutation.isPending}
+                onClick={() => shelveMutation.mutate({ id: current.id, operator: current.operator || '库管' })}
               >
                 确认上架
               </Button>
@@ -119,10 +153,8 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => {
-                  const result = cancelStockInbound(inbounds, current.id, '库内取消')
-                  setNotice(result.ok ? `${current.inboundNo} 已取消。` : result.reason)
-                }}
+                disabled={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate({ id: current.id, reason: '库内取消' })}
               >
                 取消入库单
               </Button>
@@ -138,6 +170,20 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
                 查看来源收货
               </Button>
             ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                openAdjustWith({
+                  sku: current.sku,
+                  warehouse: current.warehouse,
+                  bin: current.bin,
+                  qtySystem: current.quantity,
+                })
+              }
+            >
+              发起调整
+            </Button>
           </div>
         }
       />
@@ -145,7 +191,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
       <Alert>
         <AlertTitle>确认上架写库存流水</AlertTitle>
         <AlertDescription>
-          采购路径：收货质检合格 → 自动生成本单（待上架）→ 确认上架写 inventory_ledger（幂等键防重复）。库位与操作人可在上架前调整。
+          采购路径：收货质检合格 → 自动生成本单（待上架）→ 确认上架写 inventory_movements（幂等键防重复）。
         </AlertDescription>
       </Alert>
 
@@ -153,7 +199,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
         {current.status === '待上架'
           ? '核对 SKU、数量、质检结果与目标库位后点击「确认上架」。重复提交会被幂等键拦截。'
           : current.status === '已上架'
-            ? `已上架；幂等键 ${current.idempotencyKey || '—'}。采购单 qty_stocked 已投影回写。`
+            ? `已上架；幂等键 ${current.idempotencyKey || '—'}。采购单上架数量已回写。`
             : '入库单已取消，不可再上架。'}
       </UedPrototypeNotice>
 
@@ -162,10 +208,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
           { label: '入库数量', value: String(current.quantity) },
           { label: '质检结果', value: current.qcResult || '—' },
           { label: '目标库位', value: current.bin },
-          {
-            label: '状态',
-            value: current.status,
-          },
+          { label: '状态', value: current.status },
         ]}
       />
 
@@ -174,7 +217,6 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
         description="stock_inbounds / 采购入库：来源单据、SKU、数量、库位、操作人"
         fields={[
           { label: '入库单号', value: current.inboundNo, mono: true },
-          ...parentFields,
           { label: '入库类型', value: current.sourceType },
           {
             label: '来源单据',
@@ -267,13 +309,9 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
 
       <DetailSection title="状态机">
         <p className="text-sm text-muted-foreground">
-          待上架 → 已上架（确认上架写 inventory_ledger，回写采购 qty_stocked）/ 已取消。采购入库由到货质检合格自动生成；手工创建须绑定来源单号。
+          待上架 → 已上架（确认上架写 inventory_movements，回写采购 qty_stocked）/ 已取消。采购入库由到货质检合格自动生成。
         </p>
       </DetailSection>
-
-      {related.sections && related.sections.length > 0 ? (
-        <DetailRelatedTables sections={related.sections} />
-      ) : null}
 
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">
@@ -289,7 +327,7 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
             {
               key: 'bin',
               label: '目标库位',
-              options: [...BIN_OPTIONS],
+              options: binOptions.length > 0 ? binOptions : [current.bin || ''].filter(Boolean),
               defaultValue: current.bin,
               required: true,
             },
@@ -309,16 +347,22 @@ export default function StockInboundDetailPage({ params }: { params: Promise<{ i
           ]}
           onClose={() => setEditOpen(false)}
           onSave={(values) => {
-            const result = updateStockInboundDraft(inbounds, current.id, {
+            updateMutation.mutate({
+              id: current.id,
               bin: values.bin,
               operator: values.operator,
               remark: values.remark,
             })
-            setEditOpen(false)
-            setNotice(result.ok ? '已保存库位与备注。' : result.reason)
           }}
           saveLabel="保存"
         />
+      ) : null}
+
+      {adjustDialog}
+      {adjustNotice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {adjustNotice}
+        </p>
       ) : null}
     </div>
   )

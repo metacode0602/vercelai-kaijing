@@ -2,17 +2,12 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { usePurchaseOrders } from '@/lib/crossborder/purchase-order-store'
-import {
-  approveAndConvertPurchaseRequest,
-  countByStatus,
-  rejectPurchaseRequest,
-  toApprovalListRow,
-  usePurchaseRequests,
-} from '@/lib/crossborder/purchase-request-store'
+import { countByStatus } from '@/lib/crossborder/purchase-request-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 function statusVariant(status: string) {
   if (status === '待审核') return 'outline' as const
@@ -22,54 +17,67 @@ function statusVariant(status: string) {
 }
 
 export default function PurchaseApprovalsPage() {
-  const requests = usePurchaseRequests()
-  const orders = usePurchaseOrders()
   const router = useLocaleRouter()
-  const rows = React.useMemo(() => {
-    const mapped = requests.map(toApprovalListRow)
-    return [...mapped].sort((a, b) => {
-      const rank = (status: string) => (status === '待审核' ? 0 : status === '已驳回' ? 1 : 2)
-      const diff = rank(a.status) - rank(b.status)
-      if (diff !== 0) return diff
-      return (b.submittedAt || '').localeCompare(a.submittedAt || '')
-    })
-  }, [requests])
-  const counts = React.useMemo(() => countByStatus(requests), [requests])
+  const utils = trpc.useUtils()
   const [notice, setNotice] = React.useState('')
   const [opinionFor, setOpinionFor] = React.useState<string | null>(null)
   const [decisionMode, setDecisionMode] = React.useState<'approve' | 'reject'>('reject')
 
-  function approve(id: string, opinion?: string, approver?: string) {
-    const result = approveAndConvertPurchaseRequest(requests, orders, id, { opinion, approver })
-    if (!result.ok) {
-      setNotice(result.reason)
-      setOpinionFor(null)
-      return
-    }
-    setNotice(
-      `${id} 已批准并生成采购单 ${result.order.poNo}（草稿，含 ${result.order.lines.length} 行明细）。申请状态「已转采购单」。`,
-    )
-    setOpinionFor(null)
-  }
+  const listQuery = trpc.purchase.listRequests.useQuery({ page: 1, pageSize: 100 })
+  const statsQuery = trpc.purchase.requestStats.useQuery()
 
-  function reject(id: string, opinion: string, approver?: string) {
-    const result = rejectPurchaseRequest(requests, id, { opinion, approver })
-    if (!result.ok) {
-      setNotice(result.reason)
+  const approveMutation = trpc.purchase.approveAndConvert.useMutation({
+    onSuccess: async (result) => {
+      await utils.purchase.listRequests.invalidate()
+      await utils.purchase.listOrders.invalidate()
+      await utils.purchase.requestStats.invalidate()
+      setNotice(
+        `${result.request.requestNo} 已批准并生成采购单 ${result.order.poNo}（含 ${result.order.lines.length} 行明细）。`,
+      )
       setOpinionFor(null)
-      return
-    }
-    setNotice(`${id} 已驳回（原型会话）；申请人可编辑后重新提交。`)
-    setOpinionFor(null)
-  }
+    },
+    onError: (error) => {
+      setNotice(error.message)
+      setOpinionFor(null)
+    },
+  })
+  const rejectMutation = trpc.purchase.rejectRequest.useMutation({
+    onSuccess: async (row) => {
+      await utils.purchase.listRequests.invalidate()
+      await utils.purchase.requestStats.invalidate()
+      setNotice(`${row.requestNo} 已驳回；申请人可编辑后重新提交。`)
+      setOpinionFor(null)
+    },
+    onError: (error) => {
+      setNotice(error.message)
+      setOpinionFor(null)
+    },
+  })
+
+  const requests = listQuery.data?.items ?? []
+  const rows = React.useMemo(() => {
+    return [...requests]
+      .map((row) => ({
+        ...row,
+        pendingLabel: row.status === '待审核' ? '待审' : row.status,
+      }))
+      .sort((a, b) => {
+        const rank = (status: string) => (status === '待审核' ? 0 : status === '已驳回' ? 1 : 2)
+        const diff = rank(a.status) - rank(b.status)
+        if (diff !== 0) return diff
+        return (b.submittedAt || '').localeCompare(a.submittedAt || '')
+      })
+  }, [requests])
+  const counts = statsQuery.data?.byStatus ?? countByStatus(rows)
+  const current = requests.find((item) => item.id === opinionFor)
 
   const editor = opinionFor ? (
     <UedDialog
-      title={`${decisionMode === 'approve' ? '批准并转采购单' : '驳回申请'} · ${opinionFor}`}
+      title={`${decisionMode === 'approve' ? '批准并转采购单' : '驳回申请'} · ${current?.requestNo || opinionFor}`}
       description={
         decisionMode === 'approve'
-          ? '通过后写入 purchase_orders + purchase_order_lines，申请标记为「已转采购单」。审核意见随审批事件留痕。'
-          : '驳回理由必填；驳回后申请回到可编辑状态（已驳回），保留审核历史意见。'
+          ? '通过后写入 purchase_orders + purchase_order_lines，申请标记为「已转采购单」。'
+          : '驳回理由必填；驳回后申请回到可编辑状态（已驳回）。'
       }
       fields={[
         {
@@ -79,22 +87,30 @@ export default function PurchaseApprovalsPage() {
           required: true,
           fullWidth: true,
           placeholder: decisionMode === 'approve' ? '说明通过依据' : '说明驳回依据（必填）',
-          defaultValue: decisionMode === 'approve' ? '同意转采购单（原型）' : '',
+          defaultValue: decisionMode === 'approve' ? '同意转采购单' : '',
         },
         {
           key: 'approver',
           label: '审核人',
           required: true,
           helper: '系统按互审规则自动分配，不允许自审',
-          defaultValue: requests.find((item) => item.id === opinionFor)?.approver.split(' / ')[0] || '杨洁',
+          defaultValue: current?.approver.split(' / ')[0] || '杨洁',
         },
       ]}
       onClose={() => setOpinionFor(null)}
       onSave={(values) => {
         if (decisionMode === 'approve') {
-          approve(opinionFor, values.opinion, values.approver)
+          approveMutation.mutate({
+            id: opinionFor,
+            opinion: values.opinion,
+            approver: values.approver,
+          })
         } else {
-          reject(opinionFor, values.opinion || '', values.approver)
+          rejectMutation.mutate({
+            id: opinionFor,
+            opinion: values.opinion || '',
+            approver: values.approver,
+          })
         }
       }}
       saveLabel={decisionMode === 'approve' ? '批准并生成采购单' : '确认驳回'}
@@ -106,7 +122,7 @@ export default function PurchaseApprovalsPage() {
       {editor}
       <UedWorkspace
         title="采购审核"
-        description="审核队列与采购申请共享同一数据源。通过后正式生成采购单；驳回须填写意见。"
+        description="审核队列与采购申请共享数据库。通过后正式生成采购单；驳回须填写意见。"
         rows={rows}
         detailHref={(row) => `/console/purchase-approvals/${encodeURIComponent(row.id)}`}
         searchKeys={['id', 'requestNo', 'applicant', 'firstSku', 'approver', 'status', 'supplier']}
@@ -147,19 +163,19 @@ export default function PurchaseApprovalsPage() {
           },
         ]}
       >
+        {listQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>加载失败</AlertTitle>
+            <AlertDescription>{listQuery.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
         <UedPrototypeNotice>
-          互审规则：普通员工由杨洁或黄发聪审核；杨洁的申请由黄发聪审核、黄发聪的申请由杨洁审核，禁止自审。批准动作会创建
-          purchase_orders（主信息）并复制 purchase_request_lines → purchase_order_lines；申请状态变为「已转采购单」。
+          互审规则：普通员工由杨洁或黄发聪审核，禁止自审。批准后会生成采购单并复制明细。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">待审核 {counts.待审核}</Badge>
-          <Badge variant="secondary">已转采购单 {counts.已转采购单}</Badge>
-          <Badge variant="destructive">已驳回 {counts.已驳回}</Badge>
-          {['杨洁 ↔ 黄发聪 互审', '禁自审', '批准即生成采购单'].map((rule) => (
-            <Badge key={rule} variant="outline">
-              {rule}
-            </Badge>
-          ))}
+          <Badge variant="outline">待审核 {counts['待审核'] ?? 0}</Badge>
+          <Badge variant="secondary">已转采购单 {counts['已转采购单'] ?? 0}</Badge>
+          <Badge variant="destructive">已驳回 {counts['已驳回'] ?? 0}</Badge>
         </div>
         <div className="flex flex-wrap gap-2">
           {rows
@@ -173,7 +189,7 @@ export default function PurchaseApprovalsPage() {
                     setOpinionFor(row.id)
                   }}
                 >
-                  通过并转采购单 · {row.id}
+                  通过并转采购单 · {row.requestNo}
                 </Button>
                 <Button
                   variant="outline"

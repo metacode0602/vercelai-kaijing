@@ -2,164 +2,123 @@
 
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  inventoryBucketsFromLots,
-  useOceanLots,
-} from '@/lib/crossborder/ocean-container-store'
-import { countBalancesKpi, useInventoryBalances } from '@/lib/crossborder/wms-store'
-import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
+import { trpc } from '@/lib/trpc/client'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 export default function InventoryBalancesPage() {
-  const rows = useInventoryBalances()
-  const lots = useOceanLots()
-  const oceanBuckets = React.useMemo(() => inventoryBucketsFromLots(lots), [lots])
-  const kpi = React.useMemo(() => countBalancesKpi(rows), [rows])
-  const oceanKpi = React.useMemo(() => {
-    return oceanBuckets.reduce(
-      (acc, row) => {
-        acc.inTransit += row.inTransit
-        acc.customsClearing += row.customsClearing
-        acc.available += row.available
-        acc.damaged += row.damaged
-        return acc
-      },
-      { inTransit: 0, customsClearing: 0, available: 0, damaged: 0 },
-    )
-  }, [oceanBuckets])
-  const router = useLocaleRouter()
-  const [notice, setNotice] = React.useState('')
-
-  const kpiItems = React.useMemo(
-    () => [
-      { label: 'SKU 数', value: String(kpi.skuCount), hint: '仓+库位+SKU 维度' },
-      { label: '本地仓可用', value: String(kpi.availableTotal + oceanKpi.available), hint: 'WMS available + 已入本地仓柜次' },
-      {
-        label: '在途',
-        value: String(kpi.inTransitTotal + oceanKpi.inTransit),
-        hint: '采购在途 + 海运柜次 在途',
-      },
-      {
-        label: '清关中',
-        value: String(oceanKpi.customsClearing),
-        hint: 'Daraz LK 柜次状态=清关中；不计入可用',
-      },
-      { label: '残次', value: String(kpi.damagedTotal + oceanKpi.damaged), hint: 'WMS damaged + 柜次残次' },
-      { label: '低库存', value: String(kpi.lowStock), hint: '可用 < 安全库存' },
-    ],
-    [kpi, oceanKpi],
+  const listQuery = trpc.wms.listBalances.useQuery({ page: 1, pageSize: 100 })
+  const statsQuery = trpc.wms.balanceStats.useQuery()
+  const oceanBucketsQuery = trpc.ocean.inventoryBuckets.useQuery({})
+  const rows = listQuery.data?.items ?? []
+  const stats = statsQuery.data
+  const oceanBuckets = oceanBucketsQuery.data ?? []
+  const { openWith, dialog, notice } = useStockAdjustmentDialog()
+  const oceanKpi = React.useMemo(
+    () =>
+      oceanBuckets.reduce(
+        (acc, row) => {
+          acc.inTransit += row.inTransit
+          acc.customsClearing += row.customsClearing
+          acc.available += row.available
+          acc.damaged += row.damaged
+          return acc
+        },
+        { inTransit: 0, customsClearing: 0, available: 0, damaged: 0 },
+      ),
+    [oceanBuckets],
   )
 
+  const kpiItems = [
+    { label: 'SKU 数', value: String(stats?.skuCount ?? 0), hint: '仓+库位+SKU 维度' },
+    {
+      label: '本地仓可用',
+      value: String((stats?.availableTotal ?? 0) + oceanKpi.available),
+      hint: 'available = on_hand - reserved - qc_hold - damaged',
+    },
+    {
+      label: '在途',
+      value: String((stats?.inTransitTotal ?? 0) + oceanKpi.inTransit),
+      hint: '采购在途 + 海运柜次',
+    },
+    { label: '清关中', value: String((stats?.customsClearingTotal ?? 0) + oceanKpi.customsClearing) },
+    { label: '残次', value: String((stats?.damagedTotal ?? 0) + oceanKpi.damaged) },
+    { label: '预留', value: String(stats?.reservedTotal ?? 0) },
+    { label: '低库存', value: String(stats?.lowStock ?? 0), hint: '可用 < 20' },
+  ]
+
   return (
-    <UedWorkspace
-      title="库存汇总"
-      description="Daraz LK：在途 / 清关中 / 本地仓可用 / 残次；柜次投影与 WMS 余额并存（原型）。"
-      rows={rows}
-      detailHref={(row) => `/console/inventory-balances/${encodeURIComponent(row.id)}`}
-      searchKeys={['sku', 'name', 'warehouse', 'bin', 'status']}
-      searchPlaceholder="搜索 SKU、仓库或库位"
-      filters={[{ label: '状态', options: ['正常', '低库存'] }]}
-      emptyText="暂无库存余额。请先完成入库上架，或导入期初库存。"
-      columns={[
-        { key: 'sku', label: '内部 SKU' },
-        { key: 'name', label: '商品' },
-        { key: 'warehouse', label: '仓库' },
-        { key: 'bin', label: '库位' },
-        { key: 'onHand', label: '实物 on_hand', render: (row) => String(row.onHand) },
-        { key: 'reserved', label: '预留 reserved', render: (row) => String(row.reserved) },
-        { key: 'qcHold', label: '质检 qc_hold', render: (row) => String(row.qcHold) },
-        { key: 'damaged', label: '残次 damaged', render: (row) => String(row.damaged) },
-        {
-          key: 'available',
-          label: '可用 available',
-          render: (row) => <span className="font-medium tabular-nums">{row.available}</span>,
-        },
-        {
-          key: 'inTransit',
-          label: '在途·待入',
-          render: (row) => (
-            <span className="tabular-nums" title="采购未上架 / 售后回库在途，不计入 available">
-              {row.inTransit}
-            </span>
-          ),
-        },
-        { key: 'threshold', label: '安全库存', render: (row) => String(row.threshold) },
-        {
-          key: 'status',
-          label: '状态',
-          render: (row) => (
-            <Badge variant={row.status === '低库存' ? 'destructive' : 'secondary'}>{row.status}</Badge>
-          ),
-        },
-      ]}
-    >
+    <div className="space-y-4">
+      <Alert>
+        <AlertTitle>库存余额已接 PostgreSQL</AlertTitle>
+        <AlertDescription>
+          `wms.listBalances` 派生 available；在途/清关列来自 m7。禁止 UI 直改余额。
+        </AlertDescription>
+      </Alert>
       <DetailKpiRow items={kpiItems} />
-      <UedPrototypeNotice>
-        WMS 不变量：available = on_hand − reserved − qc_hold − damaged。Daraz LK 另增「清关中」桶（customs_clearing），由海运柜次投影，不计入可用。厦门现货池不用于 Daraz。
-      </UedPrototypeNotice>
-      <div className="rounded-lg border p-3 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-medium">海运柜次库存投影（F22）</h3>
-          <Button size="sm" variant="outline" asChild>
-            <LocaleLink href="/console/ocean-containers">打开柜次</LocaleLink>
-          </Button>
-        </div>
-        {oceanBuckets.length === 0 ? (
-          <p className="text-sm text-muted-foreground">暂无柜次投影。</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-1 pr-3 font-medium">SKU</th>
-                  <th className="py-1 pr-3 font-medium">仓</th>
-                  <th className="py-1 pr-3 font-medium">在途</th>
-                  <th className="py-1 pr-3 font-medium">清关中</th>
-                  <th className="py-1 pr-3 font-medium">本地可用</th>
-                  <th className="py-1 pr-3 font-medium">残次</th>
-                </tr>
-              </thead>
-              <tbody>
-                {oceanBuckets.map((row) => (
-                  <tr key={row.id} className="border-b last:border-0">
-                    <td className="py-1.5 pr-3 font-mono text-xs">{row.sku}</td>
-                    <td className="py-1.5 pr-3">{row.warehouse}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{row.inTransit}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{row.customsClearing}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{row.available}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{row.damaged}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setNotice('按店铺查看锁定明细：Lazada MY 锁定 8 件、Daraz LK 锁定 5 件（示例）。')}
-        >
-          按店铺看预留
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => router.push('/console/inventory-ledger')}>
-          打开库存流水
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => router.push('/console/stock-adjustments')}>
-          发起盘点 / 调整
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setNotice('低库存 SKU 已按建议采购量生成采购申请草稿（原型）。')}
-        >
-          从低库存生成采购申请
-        </Button>
-      </div>
+      <UedWorkspace
+        title="库存汇总"
+        description="inventory_balances · DB 分页 · available 派生"
+        rows={rows}
+        detailHref={(row) => `/console/inventory-balances/${encodeURIComponent(row.id)}`}
+        searchKeys={['sku', 'name', 'warehouse', 'bin', 'status']}
+        searchPlaceholder="搜索 SKU、仓库或库位"
+        filters={[{ label: '状态', options: ['正常', '低库存'] }]}
+        emptyText={listQuery.isLoading ? '加载中…' : '暂无库存余额。请先种子或入库上架。'}
+        columns={[
+          { key: 'sku', label: '内部 SKU' },
+          { key: 'name', label: '商品' },
+          { key: 'warehouse', label: '仓库' },
+          { key: 'bin', label: '库位' },
+          { key: 'onHand', label: '实物 on_hand', render: (row) => String(row.onHand) },
+          { key: 'reserved', label: '预留', render: (row) => String(row.reserved) },
+          { key: 'available', label: '可用', render: (row) => String(row.available) },
+          { key: 'inTransit', label: '在途', render: (row) => String(row.inTransit) },
+          { key: 'customsClearing', label: '清关', render: (row) => String(row.customsClearing) },
+          { key: 'damaged', label: '残次', render: (row) => String(row.damaged) },
+          {
+            key: 'status',
+            label: '状态',
+            render: (row) => (
+              <Badge variant={row.status === '低库存' ? 'destructive' : 'secondary'}>{row.status}</Badge>
+            ),
+          },
+          {
+            key: 'id',
+            label: '操作',
+            render: (row) => (
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    openWith({
+                      sku: row.sku,
+                      warehouse: row.warehouse,
+                      bin: row.bin,
+                      qtySystem: row.onHand,
+                    })
+                  }
+                >
+                  发起调整
+                </Button>
+                <LocaleLink
+                  className="underline text-sm"
+                  href={`/console/inventory-ledger?sku=${encodeURIComponent(row.sku)}`}
+                >
+                  台账
+                </LocaleLink>
+              </div>
+            ),
+          },
+        ]}
+      />
+      {dialog}
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-    </UedWorkspace>
+    </div>
   )
 }

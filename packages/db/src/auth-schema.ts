@@ -1,6 +1,19 @@
 import { relations } from "drizzle-orm"
 import { pgTable, text, timestamp, boolean, index, varchar, integer, jsonb, type AnyPgColumn } from "drizzle-orm/pg-core"
 import { createId } from '@paralleldrive/cuid2'
+import {
+  accountColumns,
+  accountIndexes,
+  invitationColumns,
+  invitationIndexes,
+  memberColumns,
+  organizationColumns,
+  sessionColumns,
+  sessionIndexes,
+  usersColumns,
+  verificationColumns,
+  verificationIndexes,
+} from "./auth-columns"
 
 // ---------------------------------------------------------------------------
 // 组织类型枚举
@@ -9,90 +22,32 @@ import { createId } from '@paralleldrive/cuid2'
 export const orgTypes = ['platform', 'supplier', 'merchant', 'tenant'] as const
 export type OrgType = (typeof orgTypes)[number]
 
-export const user = pgTable("users", {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull(),
-  image: text('image'),
-  phoneNumber: text('phone_number').unique(), // 用户手机号码
-  phoneNumberVerified: boolean('phone_number_verified').default(false).notNull(), // 手机号是否已验证
-  role: varchar('role', { length: 256 }).default('user'), // 用户角色：admin, user, guest
-  mustChangePassword: boolean('must_change_password').default(false).notNull(),
-  provisionedBy: text('provisioned_by'),
-  provisionedAt: timestamp('provisioned_at', { withTimezone: true }),
-  banned: boolean('banned'),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires'),
-  customerId: text('customer_id'),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-})
+export const user = pgTable("users", usersColumns())
+
+// 列定义复用见 auth-columns.ts；organization 需先于 session 定义（传引用非懒回调）
+export const organization = pgTable(
+  'organization',
+  organizationColumns((): AnyPgColumn => organization.id)
+)
 
 export const session = pgTable(
   "session",
-  {
-    id: text("id").primaryKey(),
-    expiresAt: timestamp("expires_at").notNull(),
-    token: text("token").notNull().unique(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .$onUpdate(() => /* @__PURE__ */ new Date())
-      .notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    activeOrganizationId: text("active_organization_id")
-      .references(() => organization.id, { onDelete: "cascade" }),
-    impersonatedBy: text('impersonated_by'),
-  },
-  (table) => [index("session_userId_idx").on(table.userId)]
+  sessionColumns(user, organization),
+  (table) => sessionIndexes(table)
 )
 
 export const account = pgTable(
   "account",
-  {
-    id: text("id").primaryKey(),
-    accountId: text("account_id").notNull(),
-    providerId: text("provider_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    idToken: text("id_token"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at"),
-    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-    scope: text("scope"),
-    password: text("password"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .$onUpdate(() => /* @__PURE__ */ new Date())
-      .notNull(),
-  },
-  (table) => [index("account_userId_idx").on(table.userId)]
+  accountColumns(user),
+  (table) => accountIndexes(table)
 )
 
 export const verification = pgTable(
   "verification",
-  {
-    id: text("id").primaryKey(),
-    identifier: text("identifier").notNull(),
-    value: text("value").notNull(),
-    expiresAt: timestamp("expires_at").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
-      .notNull(),
-  },
-  (table) => [index("verification_identifier_idx").on(table.identifier)]
+  verificationColumns(),
+  (table) => verificationIndexes(table)
 )
+
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
@@ -202,82 +157,10 @@ export type NewUserInvitationCode = typeof userInvitationCodes.$inferInsert
 export type UserInvitationRelation = typeof userInvitationRelations.$inferSelect
 export type NewUserInvitationRelation = typeof userInvitationRelations.$inferInsert
 
-export const organization = pgTable('organization', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  slug: text('slug').unique(),
-  logo: text('logo'),
-  createdAt: timestamp('created_at').notNull(),
-  metadata: jsonb('metadata'),
-  entryApproved: boolean('entry_approved').notNull().default(false),
-  isCurrent: boolean('is_current').notNull().default(false),
-  status: text('status').default('active').notNull(),
-
-  // ---- 多租户组织类型 ----
-  orgType: varchar('org_type', { length: 16 }).notNull().default('tenant'),
-  // 'platform' | 'supplier' | 'merchant' | 'tenant'
-
-  // ---- 经销商关联（仅 tenant） ----
-  parentMerchantOrgId: text('parent_merchant_org_id')
-    .references((): AnyPgColumn => organization.id, { onDelete: 'set null' }),
-  // ---- 供应商专属字段 ----
-  supplierType: varchar('supplier_type', { length: 16 }),
-  // 'gpu' | 'cpu' | 'hybrid' | null
-  supplierTier: varchar('supplier_tier', { length: 16 }),
-  // 'basic' | 'professional' | 'enterprise' | null
-  supplierStatus: varchar('supplier_status', { length: 16 }),
-  // 'pending' | 'approved' | 'suspended' | null
-  commissionRate: integer('commission_rate'),
-  // 平台抽成比例 (千分比, e.g. 100 = 10%)
-
-  // ---- 经销商专属字段 ----
-  merchantTier: varchar('merchant_tier', { length: 16 }),
-  // 'basic' | 'professional' | 'enterprise' | null
-  merchantStatus: varchar('merchant_status', { length: 16 }),
-  // 'pending' | 'approved' | 'suspended' | null
-  merchantCommissionRate: integer('merchant_commission_rate'),
-  // 经销商分成比例 (千分比)
-
-  // ---- 企业认证（兼容字段；权威摘要见 identityStatus）----
-  enterpriseVerificationStatus: varchar('enterprise_verification_status', {
-    length: 16,
-  }).default('unverified').notNull(),
-  // 'unverified' | 'pending' | 'verified' | 'rejected'
-
-  /**
-   * 实名认证摘要状态（权威展示）
-   * unverified | pending | individual_verified | enterprise_verified | rejected
-   */
-  identityStatus: varchar('identity_status', { length: 32 })
-    .default('unverified')
-    .notNull(),
-
-  // ---- Capsule 多租户隔离状态 ----
-  capsuleNamespaceReady: boolean('capsule_namespace_ready').default(false).notNull(),
-  // 租户首次提交任务时懒加载 Namespace，完成后置 true
-  capsuleSyncStatus: varchar('capsule_sync_status', { length: 20 }).default('pending'),
-  // 'pending' | 'syncing' | 'synced' | 'failed' | 'suspended'
-  capsuleSyncedAt: timestamp('capsule_synced_at'),
-  capsuleSyncError: text('capsule_sync_error'),
-})
-
 export type Organization = typeof organization.$inferSelect
 
-export const member = pgTable('member', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id')
-    .notNull()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  role: text('role').default('member').notNull(),
-  // ---- 资源级作用域（用于 site_operator 等限定角色） ----
-  scopeType: varchar('scope_type', { length: 16 }),
-  // 'project' | 'task' | null (null = 组织级权限)
-  scopeId: text('scope_id'),
-  createdAt: timestamp('created_at').notNull(),
-})
+export const member = pgTable('member', memberColumns(organization, user))
+
 
 export const memberRelations = relations(member, ({ one }) => ({
   organization: one(organization, {
@@ -298,24 +181,12 @@ export type Member = typeof member.$inferSelect & {
   user: typeof user.$inferSelect
 }
 
-export const invitation = pgTable('invitation', {
-  id: text('id').primaryKey(),
-  organizationId: text('organization_id')
-    .notNull()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  email: text('email').notNull(),
-  role: text('role'),
-  status: text('status').default('pending').notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
-  inviterId: text('inviter_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (table) => [
-  index('invitation_organization_id_idx').on(table.organizationId),
-  index('invitation_email_idx').on(table.email),
-  index('invitation_inviter_id_idx').on(table.inviterId),
-])
+export const invitation = pgTable(
+  'invitation',
+  invitationColumns(organization, user),
+  (table) => invitationIndexes(table)
+)
+
 
 export enum Role {
   Admin = 'admin',

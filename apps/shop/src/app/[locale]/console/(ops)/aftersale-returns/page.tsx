@@ -3,12 +3,7 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  RETURN_STATUSES,
-  countReturnsByStatus,
-  registerReturnReceive,
-  useAftersaleReturns,
-} from '@/lib/crossborder/aftersale-store'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 
 function statusVariant(status: string) {
@@ -18,8 +13,31 @@ function statusVariant(status: string) {
 }
 
 export default function AftersaleReturnsPage() {
-  const rows = useAftersaleReturns()
-  const kpi = React.useMemo(() => countReturnsByStatus(rows), [rows])
+  const utils = trpc.useUtils()
+  const listQuery = trpc.aftersale.listReturns.useQuery({ page: 1, pageSize: 100 })
+  const statsQuery = trpc.aftersale.returnStats.useQuery()
+  const metaQuery = trpc.aftersale.meta.useQuery()
+  const receiveMutation = trpc.aftersale.registerReceive.useMutation({
+    onSuccess: async (row) => {
+      await Promise.all([
+        utils.aftersale.listReturns.invalidate(),
+        utils.aftersale.returnStats.invalidate(),
+        utils.aftersale.list.invalidate(),
+      ])
+      setOpen(false)
+      setNotice(`${row.id} 已收货，状态「待质检」；请在详情完成质检过账`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
+  const kpi = statsQuery.data ?? {
+    total: 0,
+    pendingReceive: 0,
+    pendingQc: 0,
+    restocked: 0,
+    scrapped: 0,
+  }
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
@@ -37,16 +55,15 @@ export default function AftersaleReturnsPage() {
   const editor = open ? (
     <UedDialog
       title="登记退货收货"
-      description="寄回运单收货后才可质检；收货不直接增加可用库存，须质检过账经 WMS 流水回库/报损。"
+      description="寄回运单收货后才可质检；收货不直接增加可用库存，须质检过账经库存流水回库/报损。"
       fields={[
         {
           key: 'id',
           label: '售后单号',
-          options: ['AS-2026-0081', 'AS-2026-0079', 'AS-2026-0088'],
           required: true,
-          helper: '关联已登记的退货退款售后单',
+          helper: '关联已登记的退货退款售后单（uiId / 外部逆向单号）',
         },
-        { key: 'order', label: '原订单', options: ['DZ-10018', 'DZ-10012', 'LZ-2180'], required: true },
+        { key: 'order', label: '原订单', required: true },
         {
           key: 'sku',
           label: '内部 SKU',
@@ -65,7 +82,7 @@ export default function AftersaleReturnsPage() {
         {
           key: 'bin',
           label: '收货库位',
-          options: ['B-02-01-01', 'A-01-01-02', 'A-01-01-01'],
+          options: ['B-02-01-01', 'A-01-01-02', 'A-01-01-01', 'A-01-01', 'A-01-02'],
           required: true,
         },
         {
@@ -78,7 +95,7 @@ export default function AftersaleReturnsPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
-        const result = registerReturnReceive({
+        receiveMutation.mutate({
           id: values.id || '',
           order: values.order || '',
           shop: values.shop,
@@ -90,33 +107,44 @@ export default function AftersaleReturnsPage() {
           packageCondition: values.packageCondition,
           remark: values.remark,
         })
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setNotice(`${result.row.id} 已收货，状态「待质检」；请在详情完成质检过账`)
-        setOpen(false)
       }}
+      saveLabel={receiveMutation.isPending ? '提交中…' : '登记收货'}
     />
   ) : null
 
   return (
     <UedWorkspace
       title="退货收货与质检"
-      description="收货 → 质检 → 回库/报损。回库与报损经 wms-store 写流水投影余额，禁止直改库存。"
+      description="收货 → 质检 → 回库/报损。回库与报损经 inventory_movements 写流水投影余额，禁止直改库存。"
       rows={rows}
       detailHref={(row) => `/console/aftersale-returns/${encodeURIComponent(row.id)}`}
-      searchKeys={['id', 'order', 'sku', 'tracking', 'shop', 'warehouse', 'bin', 'status', 'qc']}
+      searchKeys={[
+        'id',
+        'reverseOrderId',
+        'externalReturnId',
+        'order',
+        'sku',
+        'tracking',
+        'returnShipmentId',
+        'shop',
+        'warehouse',
+        'bin',
+        'status',
+        'qc',
+        'platformStatus',
+      ]}
       searchPlaceholder="搜索售后单、订单、SKU 或运单"
-      filters={[{ label: '状态', options: [...RETURN_STATUSES], key: 'status' }]}
-      emptyText="暂无退货收货单。登记寄回运单收货后进入待质检。"
+      filters={[{ label: '状态', options: [...(metaQuery.data?.returnStatuses ?? [])], key: 'status' }]}
+      emptyText={listQuery.isLoading ? '加载中…' : '暂无退货收货单。登记寄回运单收货后进入待质检。'}
       addLabel="登记退货收货"
       onAdd={() => setOpen(true)}
       columns={[
         { key: 'id', label: '售后单号' },
+        { key: 'reverseOrderId', label: '逆向单 ID' },
         { key: 'order', label: '原订单' },
         { key: 'shop', label: '店铺', className: 'hidden md:table-cell' },
         { key: 'sku', label: '内部 SKU' },
+        { key: 'returnShipmentId', label: '退货包裹' },
         { key: 'tracking', label: '寄回运单', className: 'hidden md:table-cell' },
         { key: 'receivedAt', label: '收货时间', className: 'hidden md:table-cell' },
         {
@@ -125,12 +153,15 @@ export default function AftersaleReturnsPage() {
           render: (row) => String(row.qty),
         },
         { key: 'qc', label: '质检', className: 'hidden lg:table-cell' },
+        { key: 'qcDecision', label: '质检结论', className: 'hidden lg:table-cell' },
         {
           key: 'restock',
           label: '回库 / 报损',
           className: 'hidden lg:table-cell',
           render: (row) => `${row.restock} / ${row.scrap}`,
         },
+        { key: 'refundStatus', label: '退款状态' },
+        { key: 'platformStatus', label: '平台状态' },
         {
           key: 'status',
           label: '状态',
@@ -140,7 +171,7 @@ export default function AftersaleReturnsPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        收货不增加可用库存。质检过账：合格件写「售后回库」流水，残次写「质检报损」流水；幂等键绑定售后单号。
+        退货收货不增加可用库存；质检合格件回库、残次件报废在质检完成后处理。
       </UedPrototypeNotice>
       {editor}
       {notice ? (

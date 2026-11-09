@@ -17,7 +17,7 @@ packages/db/src/
   schema.ts               # 聚合导出
 ```
 
-迁移：`0005_crossborder_commerce.sql` → `0006_commerce_lean_payload.sql` → `0007_commerce_platform_enrichment.sql`（编号以 journal 实际为准）。
+迁移：`0005_crossborder_commerce.sql` → `0006_commerce_lean_payload.sql` → `0007_commerce_platform_enrichment.sql`（历史编号；2026-11-08 `drizzle-kit generate` 重生成后仓库仅 `0000_flashy_silver_samurai.sql` / `0001_parched_namora.sql` / `0002_glamorous_bruce_banner.sql`，以上 DDL 均并入其中，以 journal 实际为准）。
 
 **知识库边界：** 本文 3.15 起为 Skill execution/OKF 索引设计建议，不表示相应 Drizzle 表已实现。实现前需确定 LLM Wiki/OKF provider 的稳定 ID、ACL、revision 和幂等写入接口。Open Shop SQL 不存完整知识正文。
 

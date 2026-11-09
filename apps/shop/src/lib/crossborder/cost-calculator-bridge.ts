@@ -1,6 +1,6 @@
 /**
- * Lightweight event bridge between console Copilot mock and cost calculator.
- * No real LLM — suggestion chips / mock replies dispatch these actions.
+ * Lightweight event bridge between console Copilot suggestion chips and cost calculator.
+ * Dispatches UI actions only (no LLM / no network).
  */
 
 import type {

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
-import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { ATTRIBUTION_REASON_LABELS, ATTRIBUTION_SEED } from '@/lib/crossborder/daraz-ops-store'
 import { Button } from '@workspace/ui/components/button'
 
@@ -45,9 +45,6 @@ export default function AttributionBoardPage() {
           { label: '原因类', value: '5' },
         ]}
       />
-      <UedPrototypeNotice>
-        P2 评论/优惠券抓取推迟（Q36/Q38/Q44）。本页仅 mock 归因分布 + 下钻提示。
-      </UedPrototypeNotice>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     </UedWorkspace>
   )

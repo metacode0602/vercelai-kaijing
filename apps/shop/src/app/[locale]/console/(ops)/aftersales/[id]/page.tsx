@@ -12,34 +12,38 @@ import { ConsoleBreadcrumbRegistration } from '@/components/console/console-brea
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import { toRelatedTicketShape, useAftersaleTickets } from '@/lib/crossborder/aftersale-store'
+import { toRelatedTicketShape } from '@/lib/crossborder/aftersale-related-shapes'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
 export default function AftersaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const rows = useAftersaleTickets()
-  const row = rows.find((item) => item.id === id)
-  const [mounted, setMounted] = React.useState(false)
+  const query = trpc.aftersale.get.useQuery({ id }, { retry: false })
+  const row = query.data
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  if (query.isLoading) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader backHref="/console/aftersales" title="加载中…" description="正在读取售后单…" />
+      </div>
+    )
+  }
 
   if (!row) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/aftersales"
-          title={mounted ? '未找到售后单' : '加载中…'}
-          description={mounted ? `售后单 ${id} 不存在。` : '正在读取本机原型会话…'}
+          title="未找到售后单"
+          description={`售后单 ${id} 不存在。`}
         />
       </div>
     )
   }
 
-  const related = buildUedRelatedInfo('aftersales', toRelatedTicketShape(row))
+  const related = buildUedRelatedInfo('aftersales', toRelatedTicketShape(row as never))
   const parentFields = parentsToFields(related.parents)
 
   return (
@@ -51,8 +55,10 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
         description={`${row.type} · ${row.order} · ${row.shop}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">PostgreSQL</Badge>
             <Badge variant={row.status === '待确认' ? 'outline' : 'secondary'}>{row.status}</Badge>
+            <Badge variant="outline">{row.platformStatus}</Badge>
+            <Badge variant={row.refundStatus === 'refunded' ? 'secondary' : 'outline'}>退款 {row.refundStatus}</Badge>
           </>
         }
         actions={
@@ -74,7 +80,7 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
         }
       />
       <UedPrototypeNotice>
-        只读售后总览。实物回库请在「退货收货与质检」完成；取消释放锁定见「取消与退款」。
+        实物回库请在「退货收货与质检」完成；取消释放锁定见「取消与退款」。
       </UedPrototypeNotice>
       <DetailKpiRow
         items={[
@@ -88,6 +94,8 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
         title="售后主信息"
         fields={[
           { label: '售后单号', value: row.id, mono: true },
+          { label: '逆向单 ID', value: row.reverseOrderId, mono: true },
+          { label: '平台逆向单号', value: row.externalReverseId, mono: true },
           ...parentFields,
           { label: '店铺', value: row.shop },
           { label: '仓库', value: row.warehouse, mono: true },
@@ -95,6 +103,15 @@ export default function AftersaleDetailPage({ params }: { params: Promise<{ id: 
           { label: '内部 SKU', value: row.sku, mono: true },
           { label: '类型', value: row.type },
           { label: '原因', value: row.reason },
+          { label: '平台状态', value: row.platformStatus },
+          { label: '平台更新时间', value: row.platformUpdatedAt },
+          { label: '退货包裹', value: row.returnShipmentId || '—', mono: true },
+          { label: '寄回运单', value: row.returnTracking || '—', mono: true },
+          { label: '质检结论', value: row.qcDecision },
+          { label: '退款单号', value: row.refundId, mono: true },
+          { label: '退款状态', value: row.refundStatus },
+          { label: '退款完成', value: row.refundedAt || '—' },
+          { label: '退款方式', value: row.refundMethod },
         ]}
       />
       <DetailRelatedTables sections={related.sections ?? []} />

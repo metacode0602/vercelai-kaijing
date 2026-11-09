@@ -16,6 +16,7 @@ import {
   decryptCredentialPayload,
   type CredentialPayload,
 } from "../crypto/credentials"
+import type { TokenProvider } from "../tokens/types"
 
 export type SyncResource = "shop" | "brands" | "categories" | "products" | "orders" | "all"
 
@@ -45,6 +46,8 @@ export interface SyncWorkerInput {
   fetchImpl?: typeof fetch
   /** Injected for tests / shop entry that has a DB client. */
   persistHooks?: SyncPersistHooks
+  /** Lazily resolves/rotates access tokens (DB-backed in apps/shop). */
+  tokenProvider?: TokenProvider
 }
 
 export interface SyncLogRow {
@@ -235,9 +238,9 @@ export async function runMarketplaceSync(
   let connector: MarketplaceConnector | null = null
 
   if (live) {
-    if (!creds?.accessToken) {
+    if (!creds?.accessToken && !input.tokenProvider) {
       const err =
-        "live=true but no credentials (pass credentials / payloadEncrypted / MARKETPLACE_SYNC_ACCESS_TOKEN)"
+        "live=true but no credentials (pass credentials / payloadEncrypted / tokenProvider / MARKETPLACE_SYNC_ACCESS_TOKEN)"
       statePatch.health = "error"
       statePatch.lastError = err
       await withLog(logs, hooks, persist, {
@@ -258,25 +261,18 @@ export async function runMarketplaceSync(
         statePatch,
       }
     }
-    const appKey =
-      input.appKey ||
-      process.env[`${platform === "tiktok_shop" ? "TIKTOK" : platform.toUpperCase()}_APP_KEY`] ||
-      ""
-    const appSecret =
-      input.appSecret ||
-      process.env[
-        `${platform === "tiktok_shop" ? "TIKTOK" : platform.toUpperCase()}_APP_SECRET`
-      ] ||
-      ""
+    const appKey = input.appKey || ""
+    const appSecret = input.appSecret || ""
     connector = createMarketplaceConnector({
       platform,
       region: input.region,
       appKey,
       appSecret,
-      accessToken: creds.accessToken,
+      accessToken: creds?.accessToken,
+      tokenProvider: input.tokenProvider,
       shopCipher:
         input.shopCipher ||
-        (typeof creds.meta?.shopCipher === "string" ? creds.meta.shopCipher : undefined),
+        (typeof creds?.meta?.shopCipher === "string" ? creds.meta.shopCipher : undefined),
       fetchImpl: input.fetchImpl,
     })
   }

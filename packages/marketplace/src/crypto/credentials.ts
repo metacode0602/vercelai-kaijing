@@ -30,12 +30,14 @@ function resolveKeyMaterial(): Buffer {
 }
 
 /** Returns `v1.<iv_b64>.<tag_b64>.<cipher_b64>`. */
-export function encryptCredentialPayload(payload: CredentialPayload): string {
+function encryptString(plaintext: string): string {
   const key = resolveKeyMaterial()
   const iv = randomBytes(12)
   const cipher = createCipheriv("aes-256-gcm", key, iv)
-  const plaintext = Buffer.from(JSON.stringify(payload), "utf8")
-  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()])
+  const encrypted = Buffer.concat([
+    cipher.update(Buffer.from(plaintext, "utf8")),
+    cipher.final(),
+  ])
   const tag = cipher.getAuthTag()
   return [
     "v1",
@@ -45,7 +47,7 @@ export function encryptCredentialPayload(payload: CredentialPayload): string {
   ].join(".")
 }
 
-export function decryptCredentialPayload(blob: string): CredentialPayload {
+function decryptString(blob: string): string {
   const [version, ivB64, tagB64, dataB64] = blob.split(".")
   if (version !== "v1" || !ivB64 || !tagB64 || !dataB64) {
     throw new Error("Unsupported credential ciphertext format")
@@ -57,7 +59,24 @@ export function decryptCredentialPayload(blob: string): CredentialPayload {
     decipher.update(Buffer.from(dataB64, "base64url")),
     decipher.final(),
   ])
-  return JSON.parse(decrypted.toString("utf8")) as CredentialPayload
+  return decrypted.toString("utf8")
+}
+
+export function encryptCredentialPayload(payload: CredentialPayload): string {
+  return encryptString(JSON.stringify(payload))
+}
+
+export function decryptCredentialPayload(blob: string): CredentialPayload {
+  return JSON.parse(decryptString(blob)) as CredentialPayload
+}
+
+/** Encrypt tenant-owned app secrets (App Secret) with the same AES-256-GCM format. */
+export function encryptSecret(value: string): string {
+  return encryptString(value)
+}
+
+export function decryptSecret(blob: string): string {
+  return decryptString(blob)
 }
 
 export function maskToken(token: string | undefined | null, visible = 4): string {

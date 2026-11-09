@@ -18,7 +18,7 @@ export function DashboardKpiCard({
   value,
   delta,
   tone = 'neutral',
-  hint = 'vs 上期 · 示例',
+  hint = 'vs 上期',
   href,
 }: DashboardKpiCardProps) {
   return (

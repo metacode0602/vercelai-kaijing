@@ -17,7 +17,7 @@
 - **优先级口径冲突**：Excel 将售后列为 P1，但核心流程规定取消释放库存、退货质检后才能回库；建议至少把“取消释放”和“退货质检库存处理”提为 P0 的库存安全子集。
 - **设计不可直接定案**：库存状态节点、成本/汇率算法、平台/JSB数据可获取性、广告分摊、仪表盘口径等，必须由技术评估和杨洁/财务确认。
 
-当前代码事实：`open-shop/apps/shop` 的运营台多个页面直接 import `apps/shop/src/lib/crossborder/mock-data.ts`；`apps/web/src/lib/server/routers/index.ts` 目前只注册 `apiKeys` router，尚无 ERP 业务 router。`packages/db/src/commerce-schema.ts` 已有通用商品、变体、Listing、订单、库存余额等表，但没有采购、仓库/库位、库存流水、ERP 审批规则等核心实体。
+分析时点代码事实（2026-10 快照）：`open-shop/apps/shop` 的运营台多个页面直接 import `apps/shop/src/lib/crossborder/mock-data.ts`（该文件已于 2026-11-08 删除）；`apps/web/src/lib/server/routers/index.ts` 目前只注册 `apiKeys` router，尚无 ERP 业务 router。`packages/db/src/commerce-schema.ts` 已有通用商品、变体、Listing、订单、库存余额等表，但没有采购、仓库/库位、库存流水、ERP 审批规则等核心实体。
 
 ## 2. 覆盖状态定义
 
@@ -32,7 +32,7 @@
 
 ### 3.1 需求总览 / 现有 ERP 整改总表
 
-工作台/dashboard、商品、刊登、订单、库存、成本/财务、候选商品等现有页面在 `apps/shop/src/app/[locale]/console/(ops)/` 可见；其中 dashboard、products、listings、orders、inventory、costs、finance、pending、candidates 均导入 mock 数据。详情路由存在，但同样读取 mock。页面框架可复用，不能视作真实功能已覆盖。
+工作台/dashboard、商品、刊登、订单、库存、成本/财务、候选商品等现有页面在 `apps/shop/src/app/[locale]/console/(ops)/` 可见；其中 dashboard、products、listings、orders、inventory、costs、finance、pending、candidates 当时均导入 mock 数据（快照）。**2026-11-08 更新**：`mock-data.ts` 已删除，上述主路径页已接 tRPC，详见 shop-module1–14 各模块文档。页面框架可复用的判断仍成立。
 
 | Excel 整改主题 | 当前判断 | 证据/差距 |
 |---|---|---|
@@ -130,7 +130,7 @@ erDiagram
 
 ## 4.2 UED 实现边界（本轮）
 
-基础设置页面 `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
+基础设置页面 `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口（**快照时点口径；2026-11-08 主路径已接 tRPC，见 §1 更新注**）。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
 
 ### 4.3 其余页面 UED 规格
 
@@ -191,7 +191,7 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 
 ## 6. 页面和 API 改造边界
 
-- UI 保留 `apps/shop` 的既有页面和组件，逐步将 `mock-data.ts` 移出生产 route 的数据依赖。
+- UI 保留 `apps/shop` 的既有页面和组件，逐步将 `mock-data.ts` 移出生产 route 的数据依赖。（**已完成**：2026-11-08 `mock-data.ts` 已删除。）
 - 业务实现按 Open Shop `AGENTS.md` 分层：`apps/shop` UI → tRPC (`apps/web`) → domain/dataaccess → Drizzle。当前 tRPC router 只有 `apiKeys`，因此这是一项新的业务接入工作，不应从页面直接查 DB。
 - 列表数据库级分页；筛选条件可由 URL 表达；权限必须在服务端复验，不依赖隐藏按钮。
 - 平台外部连接器只负责平台适配；库存/审批/映射规则在 domain service，避免在平台 connector 或 UI 中重复实现。
@@ -223,7 +223,7 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 | Q07 | 什么平台状态锁库、什么状态正式扣减 | 保留待定；开发前由 IT 给出平台状态映射供杨洁确认 |
 | Q08 | 支付失败/超时/取消释放的精确状态和延时 | 必须有自动释放与流水，具体触发节点待定 |
 | Q09 | 五国并发库存策略/超卖允许值 | 单库存池、事务原子预留；是否负库存及平台推送策略待确认 |
-| Q10 | 库位强唯一的数据库实现细节 | active binding 唯一约束/事务校验，解绑留历史 |
+| Q10 | 库位强唯一的数据库实现细节 | **已定（2026-11-03 C1/C2）**：partial unique index `(org, bin) WHERE state='active'` + 事务双保险；绑定禁物理删除，`bin_binding_history` 留痕（见 erp-rectification-2026-11-03 §2） |
 | Q11 | 盘点、报损、手工调整是否以及何种金额/数量审批 | 强制原因、前后量、操作者、来源；审批阈值待确认 |
 | Q12 | 采购审批规则 | 附件 PUR-001~003 可按原文实现，需确认员工名单/账号绑定 |
 | Q13 | 分批收货/质检能力 | 按 receipt、QC、入库分别记账，支持部分完成 |
@@ -233,17 +233,17 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 | Q17 | JSB API 能力及无 API 时操作方式 | 先设计人工录入/批量导入，接口确认后适配 |
 | Q18 | 售后状态与退货质检关联字段 | 退货实物不得在质检前增加可用库存 |
 | Q19 | 迁移数据范围、模板及回滚 | 先 dry-run、行级错误和批次标记；确认业务数据源后执行 |
-| Q20 | 删除与保留政策 | 订单、库存流水、审核记录不可物理删；主档停用 |
+| Q20 | 删除与保留政策 | 订单、库存流水、审核记录、**库位绑定记录**（2026-11-03 C1）不可物理删；主档停用 |
 | Q21 | 操作恢复范围及审计保留期 | 审计追加存储；修正以反向业务单据，不篡改历史流水 |
 | Q22 | 云/服务器/最高管理员/备份责任人 | 公司持有全量导出、最高管理权；需确定基础设施负责人 |
-| Q23 | 各角色平台/国家/店铺和操作权限边界 | 使用 role + permission + scope，服务端授权 |
+| Q23 | 各角色平台/国家/店铺和操作权限边界 | 使用 role + permission + scope，服务端授权；**已定（C5）** scope 增 `country`、六动作码，演示方案见 erp-rectification-2026-11-03 §3 |
 | Q24 | 店铺、SKU、订单量、并发和扩展指标 | IT提供容量假设并做压测，具体数字待确认 |
 | Q25 | 测试环境/账号、缺陷修复 SLA 和验收日程 | 杨洁业务验收；上线前跑完整测试订单 |
 | Q26 | P0 页面、接口、里程碑和日期 | 本文 §5 给出建议阶段，日期/负责人待确认 |
 | Q27 | TEE-001、HUB-01 等旧码的实体含义 | 先建立 legacy code mapping，不覆盖旧码；待逐项盘点 |
 | Q28 | Listing 内变体及仅部分颜色尺码上架 | 模型支持一 Listing 多变体映射；验证平台 API 结构后定稿 |
 | Q29 | GMV/净利润/跨币种汇总口径 | 先定义维度元数据；具体公式、日期及汇率待运营确认 |
-| Q30 | PAL/CESS/VAT/SSCL 费用参数是否写死 | 设计为平台+站点+履约+有效期版本化模板；税务含义待确认 |
+| Q30 | PAL/CESS/VAT/SSCL 费用参数是否写死 | 设计为平台+站点+履约+有效期版本化模板；税务含义待确认；**审核状态机+历史快照已定（C8/C9）**，见 erp-rectification-2026-11-03 §4 |
 | Q31 | 现有九页面真实数据/mock/未开发清单 | 代码可判定运营台主要页面依赖 mock；外部现有 ERP 与生产连接状态不可由仓库证明，需开发方逐页回复 |
 | Q32 | 当前详情原型覆盖度 | 仓库存在商品、Listing、订单、库存、成本详情路由，但多为 mock；需验收字段交互 |
 | Q33 | 缺失 P0 模块原型日期 | 采购/库位/流水/权限先于完整 AI 选品；日期待开发方回复 |
@@ -269,8 +269,8 @@ ERP 目标能力的域级覆盖、D0-D3 成熟度定义和 P0/P1 验收依赖另
 ## 10. 仓库证据索引
 
 - 领域模型：`open-shop/packages/db/src/commerce-schema.ts`
-- 初始跨境迁移：`open-shop/packages/db/drizzle/0005_crossborder_commerce.sql`
-- mock 数据：`open-shop/apps/shop/src/lib/crossborder/mock-data.ts`
+- 初始跨境迁移：`open-shop/packages/db/drizzle/0005_crossborder_commerce.sql`（历史编号；2026-11-08 重生成后为 `0000_flashy_silver_samurai.sql` 等 3 个文件）
+- ~~mock 数据：`open-shop/apps/shop/src/lib/crossborder/mock-data.ts`~~（2026-11-08 已删除）
 - 运营台页面：`open-shop/apps/shop/src/app/[locale]/console/(ops)/`
 - tRPC 入口：`open-shop/apps/web/src/lib/server/routers/index.ts`
 - 现有阶段/交付边界：`open-shop/docs/design/crossborder-mvp-overview.md`

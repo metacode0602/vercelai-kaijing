@@ -50,7 +50,7 @@ flowchart LR
 
 - 租户与平台共享 Better Auth 用户 / 组织模型，业务表强制 `organization_id`。
 - 跨境域 schema 位于 `packages/db/src/commerce-schema.ts`。
-- `apps/shop` 当前以 mock 数据跑通控制台；`apps/web` 已接入 tRPC 基础路由。
+- `apps/shop` 控制台主路径已接 tRPC → dataaccess → PostgreSQL（模块1–16），残留会话草稿与示例文案见 [G9 已知遗留](docs/design/cost-finance-production-closure.md)；`apps/web` 已接入 tRPC（`apiKeys` / `platformOnboarding` / `platformOps`）。
 - 平台端跨租户操作只读或受限；写操作走待审队列。
 
 ## 技术栈

@@ -26,30 +26,124 @@ import { DetailPageHeader } from '@/components/console/detail'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import {
   FEE_TEMPLATE_TYPE_LABEL,
-  createFeeTemplateVersionDraft,
-  getFeeTemplate,
-  listFeeTemplateVersions,
-  publishFeeTemplateVersion,
-  updateFeeTemplateVersion,
-  upsertFeeTemplate,
-  useFeeTemplateStore,
   type FeeComponent,
-  type FeeTemplateVersion,
+  type FeeTemplateType,
 } from '@/lib/crossborder/fee-template-store'
+import { trpc } from '@/lib/trpc/client'
+
+type DraftVersion = {
+  id: string
+  versionNo: number
+  effectiveFrom: string
+  effectiveTo: string
+  priority: number
+  formulaProfile: string
+  components: FeeComponent[]
+  published: boolean
+  reviewNeeded: boolean
+  note: string
+  status: string
+  statusLabel: string
+}
 
 export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const state = useFeeTemplateStore()
-  const template = getFeeTemplate(id) ?? state.templates.find((row) => row.id === id)
-  const versions = template ? listFeeTemplateVersions(template.id) : []
+  const utils = trpc.useUtils()
   const [selectedVersionId, setSelectedVersionId] = React.useState<string | null>(null)
+  const [draft, setDraft] = React.useState<DraftVersion | null>(null)
   const [notice, setNotice] = React.useState('')
+  const [dirty, setDirty] = React.useState(false)
+
+  const detailQuery = trpc.feeTemplates.get.useQuery({ id })
+  const template = detailQuery.data
+  const versions = template?.versions ?? []
 
   React.useEffect(() => {
     if (!selectedVersionId && versions[0]) setSelectedVersionId(versions[0].id)
   }, [versions, selectedVersionId])
 
-  const selected = versions.find((row) => row.id === selectedVersionId) ?? versions[0]
+  const selectedFromServer = versions.find((row) => row.id === selectedVersionId) ?? versions[0]
+
+  React.useEffect(() => {
+    if (!selectedFromServer) {
+      setDraft(null)
+      setDirty(false)
+      return
+    }
+    setDraft({
+      id: selectedFromServer.id,
+      versionNo: selectedFromServer.versionNo,
+      effectiveFrom: selectedFromServer.effectiveFrom,
+      effectiveTo: selectedFromServer.effectiveTo,
+      priority: selectedFromServer.priority,
+      formulaProfile: selectedFromServer.formulaProfile,
+      components: selectedFromServer.components.map((c) => ({ ...c })),
+      published: selectedFromServer.published,
+      reviewNeeded: selectedFromServer.reviewNeeded,
+      note: selectedFromServer.note,
+      status: selectedFromServer.status,
+      statusLabel: selectedFromServer.statusLabel,
+    })
+    setDirty(false)
+  }, [selectedFromServer?.id, selectedFromServer?.updatedAt])
+
+  const invalidate = React.useCallback(async () => {
+    await utils.feeTemplates.get.invalidate({ id })
+    await utils.feeTemplates.list.invalidate()
+  }, [utils, id])
+
+  const createVersionMutation = trpc.feeTemplates.createVersion.useMutation({
+    onSuccess: async (row) => {
+      await invalidate()
+      setSelectedVersionId(row.id)
+      setNotice(`已基于当前版本创建草稿 v${row.versionNo}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const updateVersionMutation = trpc.feeTemplates.updateVersion.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setDirty(false)
+      setNotice('版本已保存到数据库。')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const submitMutation = trpc.feeTemplates.submit.useMutation({
+    onSuccess: async (row) => {
+      await invalidate()
+      setNotice(`v${row.versionNo} 已提交审核（in_review）。`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const publishMutation = trpc.feeTemplates.publish.useMutation({
+    onSuccess: async (row) => {
+      await invalidate()
+      setNotice(`已发布 v${row.versionNo}，测算可命中。`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const disableVersionMutation = trpc.feeTemplates.disableVersion.useMutation({
+    onSuccess: async (row) => {
+      await invalidate()
+      setNotice(`v${row.versionNo} 已停用。`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const updateHeaderMutation = trpc.feeTemplates.update.useMutation({
+    onSuccess: async () => {
+      await invalidate()
+      setNotice('模板头已更新。')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  if (detailQuery.isLoading) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader backHref="/console/fee-templates" title="加载费用模板…" description={id} />
+      </div>
+    )
+  }
 
   if (!template) {
     return (
@@ -57,22 +151,36 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
         <DetailPageHeader
           backHref="/console/fee-templates"
           title="未找到费用模板"
-          description={`模板 ${id} 不存在或已被删除。`}
+          description={`模板 ${id} 不存在或已被删除。${detailQuery.error?.message ?? ''}`}
         />
       </div>
     )
   }
 
-  function saveComponents(next: FeeComponent[]) {
-    if (!selected) return
-    updateFeeTemplateVersion(selected.id, { components: next })
-    setNotice('组件已保存到当前版本（本地会话）。')
+  const typeKey = (template.type === 'platform_fee' ? 'platform_fee' : 'import_tax') as FeeTemplateType
+  const selected = draft
+
+  function patchDraft(patch: Partial<DraftVersion>) {
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
+    setDirty(true)
   }
 
-  function patchSelected(patch: Partial<FeeTemplateVersion>) {
+  function saveComponents(next: FeeComponent[]) {
+    patchDraft({ components: next })
+  }
+
+  function saveVersion() {
     if (!selected) return
-    updateFeeTemplateVersion(selected.id, patch)
-    setNotice('版本字段已更新。')
+    updateVersionMutation.mutate({
+      versionId: selected.id,
+      effectiveFrom: selected.effectiveFrom,
+      effectiveTo: selected.effectiveTo || null,
+      priority: selected.priority,
+      formulaProfile: selected.formulaProfile,
+      components: selected.components,
+      note: selected.note,
+      reviewNeeded: selected.reviewNeeded,
+    })
   }
 
   return (
@@ -80,12 +188,14 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
       <DetailPageHeader
         backHref="/console/fee-templates"
         title={template.name}
-        description={`${template.code} · ${template.platform.toUpperCase()} / ${template.country} · ${template.fulfillmentPool} · ${FEE_TEMPLATE_TYPE_LABEL[template.type]}`}
+        description={`${template.code} · ${template.platform.toUpperCase()} / ${template.country} · ${template.fulfillmentPool} · ${FEE_TEMPLATE_TYPE_LABEL[typeKey]}`}
       />
 
       <div className="flex flex-wrap gap-2">
-        <Badge variant="secondary">{FEE_TEMPLATE_TYPE_LABEL[template.type]}</Badge>
-        <Badge variant={template.status === '启用' ? 'secondary' : 'outline'}>{template.status}</Badge>
+        <Badge variant="secondary">{FEE_TEMPLATE_TYPE_LABEL[typeKey]}</Badge>
+        <Badge variant={template.statusLabel === '启用' ? 'secondary' : 'outline'}>
+          {template.statusLabel}
+        </Badge>
         <Badge variant="outline">物流 {template.fulfillmentLogistics || '不限'}</Badge>
         {template.note ? <Badge variant="outline">{template.note}</Badge> : null}
       </div>
@@ -109,11 +219,13 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
               size="sm"
               variant="outline"
               className="w-full"
-              onClick={() => {
-                const draft = createFeeTemplateVersionDraft(template.id, selected)
-                setSelectedVersionId(draft.id)
-                setNotice(`已基于当前版本创建草稿 v${draft.versionNo}`)
-              }}
+              disabled={createVersionMutation.isPending}
+              onClick={() =>
+                createVersionMutation.mutate({
+                  templateId: template.id,
+                  baseVersionId: selected?.id,
+                })
+              }
             >
               新建草稿版本
             </Button>
@@ -131,8 +243,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                     v{row.versionNo} · 优先级 {row.priority}
                   </span>
                   <span className="text-muted-foreground">
-                    {row.effectiveFrom} → {row.effectiveTo || '长期'} ·{' '}
-                    {row.published ? '已发布' : '草稿'}
+                    {row.effectiveFrom} → {row.effectiveTo || '长期'} · {row.statusLabel}
                   </span>
                 </button>
               ))}
@@ -153,7 +264,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                   <Input
                     type="date"
                     value={selected.effectiveFrom}
-                    onChange={(e) => patchSelected({ effectiveFrom: e.target.value })}
+                    onChange={(e) => patchDraft({ effectiveFrom: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
@@ -161,7 +272,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                   <Input
                     type="date"
                     value={selected.effectiveTo}
-                    onChange={(e) => patchSelected({ effectiveTo: e.target.value })}
+                    onChange={(e) => patchDraft({ effectiveTo: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
@@ -169,47 +280,73 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                   <Input
                     type="number"
                     value={selected.priority}
-                    onChange={(e) => patchSelected({ priority: Number(e.target.value) || 0 })}
+                    onChange={(e) => patchDraft({ priority: Number(e.target.value) || 0 })}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label>公式档 formulaProfile</Label>
                   <Input
                     value={selected.formulaProfile}
-                    onChange={(e) => patchSelected({ formulaProfile: e.target.value })}
+                    onChange={(e) => patchDraft({ formulaProfile: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label>备注</Label>
                   <Textarea
                     value={selected.note}
-                    onChange={(e) => patchSelected({ note: e.target.value })}
+                    onChange={(e) => patchDraft({ note: e.target.value })}
                     rows={2}
                   />
                 </div>
                 <div className="flex flex-wrap gap-2 sm:col-span-2">
                   <Badge variant={selected.published ? 'secondary' : 'outline'}>
-                    {selected.published ? '已发布' : '草稿'}
+                    {selected.statusLabel || (selected.published ? '已发布' : '草稿')}
                   </Badge>
                   {selected.reviewNeeded ? <Badge variant="outline">待报关行复核</Badge> : null}
+                  {dirty ? <Badge variant="outline">未保存</Badge> : null}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!dirty || updateVersionMutation.isPending || selected.published}
+                    onClick={saveVersion}
+                  >
+                    保存版本
+                  </Button>
+                  {!selected.published && selected.status !== 'in_review' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={submitMutation.isPending || dirty}
+                      onClick={() => submitMutation.mutate({ versionId: selected.id })}
+                    >
+                      提交审核
+                    </Button>
+                  ) : null}
                   {!selected.published ? (
                     <Button
                       size="sm"
-                      onClick={() => {
-                        publishFeeTemplateVersion(selected.id)
-                        setNotice(`已发布 v${selected.versionNo}，测算可命中。`)
-                      }}
+                      disabled={publishMutation.isPending || dirty}
+                      onClick={() => publishMutation.mutate({ versionId: selected.id })}
                     >
                       发布此版本
                     </Button>
-                  ) : null}
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={disableVersionMutation.isPending}
+                      onClick={() => disableVersionMutation.mutate({ versionId: selected.id })}
+                    >
+                      停用此版本
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      upsertFeeTemplate({ ...template, status: '启用' })
-                      setNotice('模板头已标为启用。')
-                    }}
+                    disabled={updateHeaderMutation.isPending}
+                    onClick={() =>
+                      updateHeaderMutation.mutate({ id: template.id, status: '启用' })
+                    }
                   >
                     启用模板头
                   </Button>
@@ -223,12 +360,13 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                   <div>
                     <CardTitle className="text-sm">费用组件</CardTitle>
                     <CardDescription className="text-xs">
-                      进口税常见 customs/cess/pal/vat/sscl；平台费常见 commission/payment_fee。
+                      进口税常见 customs/cess/pal/vat/sscl；平台费常见 commission/payment_fee。修改后点「保存版本」。
                     </CardDescription>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={selected.published}
                     onClick={() =>
                       saveComponents([
                         ...selected.components,
@@ -267,6 +405,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                             <Input
                               className="h-8 min-w-24"
                               value={comp.code}
+                              disabled={selected.published}
                               onChange={(e) => {
                                 const next = selected.components.map((c, i) =>
                                   i === index ? { ...c, code: e.target.value } : c,
@@ -279,6 +418,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                             <Input
                               className="h-8 min-w-24"
                               value={comp.labelZh}
+                              disabled={selected.published}
                               onChange={(e) => {
                                 const next = selected.components.map((c, i) =>
                                   i === index ? { ...c, labelZh: e.target.value } : c,
@@ -293,6 +433,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                               type="number"
                               step="0.001"
                               value={comp.rate}
+                              disabled={selected.published}
                               onChange={(e) => {
                                 const next = selected.components.map((c, i) =>
                                   i === index ? { ...c, rate: Number(e.target.value) || 0 } : c,
@@ -304,6 +445,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                           <TableCell>
                             <Select
                               value={comp.unit}
+                              disabled={selected.published}
                               onValueChange={(value) => {
                                 const unit: FeeComponent['unit'] = value === 'usd' ? 'usd' : 'pct'
                                 const next: FeeComponent[] = selected.components.map((c, i) =>
@@ -325,6 +467,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                             <Input
                               className="h-8 min-w-28"
                               value={comp.baseHint ?? ''}
+                              disabled={selected.published}
                               onChange={(e) => {
                                 const next = selected.components.map((c, i) =>
                                   i === index ? { ...c, baseHint: e.target.value } : c,
@@ -337,6 +480,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                             <Button
                               size="sm"
                               variant="ghost"
+                              disabled={selected.published}
                               onClick={() =>
                                 saveComponents(selected.components.filter((_, i) => i !== index))
                               }

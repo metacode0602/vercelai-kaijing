@@ -1,144 +1,84 @@
-import { notFound } from 'next/navigation'
-import {
-  DetailKpiRow,
-  DetailPageHeader,
-  DetailSection,
-  EditableDetailFields,
-} from '@/components/console/detail'
+'use client'
+
+import * as React from 'react'
+import { DetailKpiRow, DetailPageHeader, DetailSection } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
-import { getInventoryBySku } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@workspace/ui/components/table'
-import { labelField, labelStatus } from '@/lib/console/labels'
+import { labelStatus } from '@/lib/console/labels'
 import { Button } from '@workspace/ui/components/button'
+import { trpc } from '@/lib/trpc/client'
+import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 
-interface InventoryDetailPageProps {
-  params: Promise<{ sku: string }>
-}
-
-export default async function InventoryDetailPage({ params }: InventoryDetailPageProps) {
-  const { sku } = await params
-  const item = getInventoryBySku(sku)
-  if (!item) notFound()
-
-  const totalOnHand = item.shopBalances.reduce((sum, b) => sum + b.onHand, 0)
-  const totalReserved = item.shopBalances.reduce((sum, b) => sum + b.reserved, 0)
-  const openAlerts = item.shopBalances.filter((b) => b.alertStatus === 'open').length
-
+export default function InventoryDetailPage({ params }: { params: Promise<{ sku: string }> }) {
+  const sku = decodeRouteParam(React.use(params).sku)
+  const alertQuery = trpc.wms.getInventoryAlertBySku.useQuery({ sku }, { retry: false })
+  const balancesQuery = trpc.wms.listBalances.useQuery({ page: 1, pageSize: 100, sku })
+  if (alertQuery.isLoading || balancesQuery.isLoading) return <p className="text-sm text-muted-foreground">加载库存…</p>
+  const item = alertQuery.data
+  const balances = balancesQuery.data?.items ?? []
+  if (!item && balances.length === 0) {
+    return <div className="space-y-4"><DetailPageHeader backHref="/console/inventory" title="未找到库存" description={`SKU ${sku}`} /></div>
+  }
+  const title = item?.title ?? balances[0]?.name ?? sku
+  const totalOnHand = item?.onHand ?? balances.reduce((s, b) => s + b.onHand, 0)
+  const totalReserved = item?.reserved ?? balances.reduce((s, b) => s + b.reserved, 0)
+  const totalAvailable = item?.available ?? balances.reduce((s, b) => s + b.available, 0)
   return (
     <div className="space-y-4">
-      <ConsoleBreadcrumbRegistration
-        items={[{ label: '库存', href: '/console/inventory' }, { label: item.sku }]}
-      />
+      <ConsoleBreadcrumbRegistration items={[{ label: '库存', href: '/console/inventory' }, { label: sku }]} />
       <DetailPageHeader
         backHref="/console/inventory"
-        title={`${item.sku} · 库存`}
-        description={item.title}
-        badges={
-          <>
-            <Badge
-              variant={
-                item.reorderSignal === 'critical_age'
-                  ? 'destructive'
-                  : item.reorderSignal === 'below_threshold'
-                    ? 'secondary'
-                    : 'outline'
-              }
-            >
-              {labelStatus(item.reorderSignal)}
-            </Badge>
-            <Badge variant="outline">库龄 {item.ageDays}d</Badge>
-          </>
-        }
-        actions={
-          <LocaleLink
-            href={`/console/products/${item.sku}`}
-            className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-          >
-            查看商品
-          </LocaleLink>
-        }
+        title={`${sku} · 库存`}
+        description={title}
+        badges={<>
+          {item?.alert ? <Badge variant={item.alert === 'critical' ? 'destructive' : 'secondary'}>{labelStatus(item.alert)}</Badge> : <Badge variant="outline">正常</Badge>}
+          {item ? <Badge variant="outline">库龄 {item.ageDays}d</Badge> : null}
+        </>}
+        actions={<LocaleLink href={`/console/products/${sku}`} className="text-sm text-muted-foreground underline-offset-2 hover:underline">查看商品</LocaleLink>}
       />
-
       <Alert>
-        <AlertTitle>UED 示例库存 · 非实时仓存</AlertTitle>
-        <AlertDescription>
-          多店余额、库龄与补货建议均为演示数据，不能作为实际出库或采购依据。
-        </AlertDescription>
+        <AlertTitle>库存已接库</AlertTitle>
+        <AlertDescription>读 inventory_balances。建议：{item?.suggestion ?? '—'}。禁止 UI 直改余额。</AlertDescription>
       </Alert>
-
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" asChild><LocaleLink href="/console/inventory-ledger">查看库存流水</LocaleLink></Button>
-        <Button variant="outline" asChild><LocaleLink href="/console/warehouse">查看仓库与库位</LocaleLink></Button>
-        <Button variant="outline" asChild><LocaleLink href="/console/costs">查看成本参考</LocaleLink></Button>
+        <Button variant="outline" asChild><LocaleLink href="/console/warehouse">仓库与库位</LocaleLink></Button>
       </div>
-
-      <DetailKpiRow
-        items={[
-          { label: '多店在库合计', value: String(totalOnHand) },
-          { label: '预留合计', value: String(totalReserved) },
-          { label: '开放告警', value: String(openAlerts) },
-          { label: '补货建议', value: item.suggestion },
-        ]}
-      />
-
-      <EditableDetailFields
-        title="变体引用"
-        fields={[
-          { key: 'sku', label: labelField('sku'), value: item.sku, mono: true, readOnly: true, required: true },
-          { key: 'variantId', label: labelField('variantId'), value: item.variantId, mono: true },
-          { key: 'ageDays', label: labelField('ageDays'), value: `${item.ageDays} 天`, type: 'number' },
-          { key: 'reorderSignal', label: labelField('reorderSignal'), value: labelStatus(item.reorderSignal) },
-        ]}
-      />
-
-      <DetailSection
-        title="多店库存与告警"
-        description="在库 · 预留 · 阈值 · 告警状态"
-      >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>店铺</TableHead>
-              <TableHead>在库</TableHead>
-              <TableHead>预留</TableHead>
-              <TableHead>可用</TableHead>
-              <TableHead>阈值</TableHead>
-              <TableHead>告警</TableHead>
-              <TableHead>触发时间</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {item.shopBalances.map((bal) => (
-              <TableRow key={bal.shopId}>
-                <TableCell className="font-medium">{bal.shopName}</TableCell>
-                <TableCell className="tabular-nums">{bal.onHand}</TableCell>
-                <TableCell className="tabular-nums">{bal.reserved}</TableCell>
-                <TableCell className="tabular-nums">{bal.available}</TableCell>
-                <TableCell className="tabular-nums">{bal.threshold}</TableCell>
-                <TableCell>
-                  {bal.alertStatus ? (
-                    <Badge variant="secondary">{labelStatus(bal.alertStatus)}</Badge>
-                  ) : (
-                    '—'
-                  )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {bal.triggeredAt ?? '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <DetailKpiRow items={[
+        { label: '在库', value: String(totalOnHand) },
+        { label: '预留', value: String(totalReserved) },
+        { label: '可用', value: String(totalAvailable) },
+        { label: '在途', value: String(item?.inTransit ?? 0) },
+        { label: '清关', value: String(item?.customsClearing ?? 0) },
+      ]} />
+      <DetailSection title="仓库余额" description="按仓+库位">
+        {balances.length === 0 ? <p className="text-sm text-muted-foreground">暂无余额行</p> : (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>仓库</TableHead><TableHead>库位</TableHead><TableHead>在库</TableHead><TableHead>预留</TableHead>
+              <TableHead>可用</TableHead><TableHead>在途</TableHead><TableHead>清关</TableHead><TableHead>状态</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {balances.map((b) => (
+                <TableRow key={b.id}>
+                  <TableCell>{b.warehouse}</TableCell>
+                  <TableCell className="font-mono text-xs">{b.bin || '—'}</TableCell>
+                  <TableCell className="tabular-nums">{b.onHand}</TableCell>
+                  <TableCell className="tabular-nums">{b.reserved}</TableCell>
+                  <TableCell className="tabular-nums">{b.available}</TableCell>
+                  <TableCell className="tabular-nums">{b.inTransit}</TableCell>
+                  <TableCell className="tabular-nums">{b.customsClearing}</TableCell>
+                  <TableCell><Badge variant={b.status === '低库存' ? 'destructive' : 'secondary'}>{b.status}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </DetailSection>
     </div>
   )

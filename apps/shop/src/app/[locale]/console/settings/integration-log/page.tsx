@@ -4,12 +4,8 @@ import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  countLogsByResult,
-  retryIntegrationLog,
-  useIntegrationLogs,
-} from '@/lib/crossborder/sync-store'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
@@ -20,40 +16,52 @@ function resultVariant(result: string) {
 }
 
 export default function SystemLogPage() {
-  const logs = useIntegrationLogs()
   const searchParams = useSearchParams()
   const requestIdFilter = searchParams.get('requestId') || ''
+  const utils = trpc.useUtils()
+  const listQuery = trpc.integrationLogs.list.useQuery({
+    page: 1,
+    pageSize: 100,
+    requestId: requestIdFilter || undefined,
+  })
+  const meta = trpc.integrationLogs.meta.useQuery()
+  const rows = listQuery.data?.items ?? []
   const [notice, setNotice] = React.useState('')
 
-  const filtered = React.useMemo(() => {
-    if (!requestIdFilter) return logs
-    return logs.filter((item) => item.requestId === requestIdFilter)
-  }, [logs, requestIdFilter])
+  const retry = trpc.integrationLogs.retry.useMutation({
+    onSuccess: async (res) => {
+      setNotice(res.note)
+      await utils.integrationLogs.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
 
-  const counts = React.useMemo(() => countLogsByResult(logs), [logs])
-  const kpiItems = React.useMemo(
-    () => [
-      { label: '日志条数', value: String(logs.length) },
-      { label: '成功', value: String(counts.成功) },
-      { label: '失败', value: String(counts.失败) },
-      { label: '未连接', value: String(counts.未连接) },
-    ],
-    [logs.length, counts],
-  )
+  const counts = React.useMemo(() => {
+    const c = { 成功: 0, 失败: 0, 未连接: 0, 其他: 0 }
+    for (const row of rows) {
+      if (row.result === '成功') c.成功 += 1
+      else if (row.result === '失败') c.失败 += 1
+      else if (row.result === '未连接') c.未连接 += 1
+      else c.其他 += 1
+    }
+    return c
+  }, [rows])
 
   return (
     <UedWorkspace
       title="接口与操作日志"
-      description="平台 HTTP 调用流水：方法、路径、状态码、耗时与错误码；与同步任务通过 request id 关联。"
-      rows={filtered}
+      description="integration_logs：方法/状态/摘要（脱敏）；与同步任务通过 requestId / taskId 关联。"
+      rows={rows}
       detailHref={(row) => `/console/settings/integration-log/${encodeURIComponent(row.id)}`}
       searchKeys={['requestId', 'actor', 'action', 'object', 'result', 'detail', 'shop', 'path', 'errorCode', 'syncTaskId']}
       searchPlaceholder="搜索 request id、店铺、路径或错误码"
-      filters={[{ label: '结果', options: ['成功', '失败', '未连接', '重试已排队'], key: 'result' }]}
+      filters={[{ label: '结果', options: ['成功', '失败', '未连接', '排队中', '部分成功'], key: 'result' }]}
       emptyText={
-        requestIdFilter
-          ? `没有 request id = ${requestIdFilter} 的日志。清除筛选或返回同步任务。`
-          : '暂无接口日志。同步任务执行后会写入本机原型会话。'
+        listQuery.isLoading
+          ? '加载中…'
+          : requestIdFilter
+            ? `没有 request id = ${requestIdFilter} 的日志。`
+            : '暂无接口日志。同步任务入队后会写入 integration_logs。'
       }
       columns={[
         { key: 'at', label: '时间' },
@@ -87,9 +95,16 @@ export default function SystemLogPage() {
         { key: 'detail', label: '摘要' },
       ]}
     >
-      <DetailKpiRow items={kpiItems} />
+      <DetailKpiRow
+        items={[
+          { label: '日志条数', value: String(rows.length) },
+          { label: '成功', value: String(counts.成功) },
+          { label: '失败', value: String(counts.失败) },
+          { label: '未连接', value: String(counts.未连接) },
+        ]}
+      />
       <UedPrototypeNotice>
-        敏感 token 不展示。详情保留脱敏摘要、错误代码、重试状态与 request id。
+        {meta.data?.note || '敏感凭证已脱敏；仅关联同步任务的请求可以重试。'}
         {requestIdFilter ? ` 当前按 request id 筛选：${requestIdFilter}。` : ''}
       </UedPrototypeNotice>
       {requestIdFilter ? (
@@ -98,23 +113,17 @@ export default function SystemLogPage() {
         </Button>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {filtered
-          .filter((row) => row.result === '失败' || row.result === '未连接' || row.result === '部分成功')
+        {rows
+          .filter((row) => row.canRetry)
           .map((row) => (
             <React.Fragment key={row.id}>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const result = retryIntegrationLog(row.id)
-                  setNotice(
-                    result.ok
-                      ? `${row.object} 重试已排队（原型）${result.task ? ` · 任务 ${result.task.id}` : ''}`
-                      : result.reason,
-                  )
-                }}
+                disabled={retry.isPending}
+                onClick={() => retry.mutate({ id: row.id })}
               >
-                重试 · {row.object}
+                重试 · {row.object || row.action}
               </Button>
               {row.syncTaskId ? (
                 <Button variant="ghost" size="sm" asChild>

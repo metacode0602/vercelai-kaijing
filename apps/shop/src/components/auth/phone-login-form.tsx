@@ -159,6 +159,8 @@ export function PhoneLoginForm({ className, callbackUrl: propCallbackUrl }: Phon
     <AuthCard
       headerLabel={t('welcomeBack')}
       description={t('description')}
+      bottomButtonLabel={t('signUpHint')}
+      bottomButtonHref={Routes.Register}
       className={cn('w-full', className)}
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-2">
@@ -257,7 +259,8 @@ export function PhoneLoginForm({ className, callbackUrl: propCallbackUrl }: Phon
           hint: t('captchaHint'),
           loading: t('captchaLoading'),
           verifying: t('captchaVerifying'),
-          codeSent: t('codeSent'),
+          // 拼图通过仅表示安全校验完成，尚未请求下发验证码，用「验证成功」而非「已发送」
+          codeSent: t('verifySuccess'),
           challengeFailed: t('captchaChallengeFailed'),
           verifyFailed: t('captchaVerifyFailed'),
           mismatch: t('captchaMismatch'),

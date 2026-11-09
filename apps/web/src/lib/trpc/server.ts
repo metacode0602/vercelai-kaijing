@@ -1,4 +1,5 @@
 import { normalizeAppRole } from '@/lib/auth/app-role'
+import { isPlatformAdminUserId } from '@/lib/auth/platform-admin'
 import { auth } from '@/lib/auth'
 
 /**
@@ -20,7 +21,11 @@ export const createContextFromRequest = async (req: Request) => {
       }
     : null
 
-  return { user }
+  const isPlatformAdmin = sessionUser
+    ? await isPlatformAdminUserId(sessionUser.id)
+    : false
+
+  return { user, isPlatformAdmin }
 }
 
 export type TRPCContext = Awaited<ReturnType<typeof createContextFromRequest>>

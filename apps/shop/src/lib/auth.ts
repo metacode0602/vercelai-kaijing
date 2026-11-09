@@ -1,4 +1,5 @@
 import { AUTH_PATH, normalizeContactPhone } from '@/lib/auth/constants'
+import { sharedAuthOptions } from '@workspace/auth'
 import { schema } from '@workspace/db'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -11,6 +12,7 @@ import { sendEmailOtpStub, sendPhoneOtpStub } from '@/lib/auth/otp-adapters'
 import { sendEmail } from '@/lib/mail'
 import { routing } from '@/lib/i18n/routing'
 import { consumeAndValidateToken } from '@workspace/sms-captcha/server'
+import { acceptPendingInvitationsForPhone } from '@/lib/server/dataaccess/members'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -69,6 +71,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    ...(sharedAuthOptions.plugins ?? []),
     phoneNumber({
       otpLength: 6,
       expiresIn: 300,
@@ -95,6 +98,22 @@ export const auth = betterAuth({
           return `${normalized}@${websiteConfig.auth.emailSuffix}`
         },
         getTempName: (phone) => normalizeContactPhone(phone),
+      },
+      callbackOnVerification: async ({ phoneNumber: phone, user }) => {
+        try {
+          const result = await acceptPendingInvitationsForPhone(
+            db,
+            user.id,
+            normalizeContactPhone(phone),
+          )
+          if (result.accepted > 0) {
+            console.info(
+              `[auth] phone invite auto-bind: user=${user.id} orgs=${result.organizationIds.join(',')}`,
+            )
+          }
+        } catch (error) {
+          console.error('[auth] phone invite auto-bind failed:', error)
+        }
       },
     }),
     emailOTP({

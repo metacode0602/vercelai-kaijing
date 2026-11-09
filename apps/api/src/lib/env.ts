@@ -30,10 +30,52 @@ export const env = createEnv({
      * 未配置时该端点一律 401 —— 宁可不可用，也不能裸奔。
      */
     INTERNAL_SYNC_API_KEY: z.string().min(16).optional(),
+    /** 手动触发应用内 cron 的共享密钥（POST /api/v1/cron/marketplace-sync）。 */
+    CRON_SECRET: z.string().min(16).optional(),
+    /** 应用内 marketplace 同步开关；默认开启，设置 false/0 可关闭。 */
+    MARKETPLACE_SYNC_CRON_ENABLED: z
+      .string()
+      .optional()
+      .default("true")
+      .transform((value) => value !== "false" && value !== "0"),
+    MARKETPLACE_SYNC_ORDERS_CRON: z.string().default("*/15 * * * *"),
+    MARKETPLACE_SYNC_LOGISTICS_CRON: z.string().default("*/30 * * * *"),
+    MARKETPLACE_SYNC_REVIEWS_CRON: z.string().default("0 */6 * * *"),
+    MARKETPLACE_SYNC_LISTINGS_CRON: z.string().default("0 */4 * * *"),
+    MARKETPLACE_SYNC_SETTLEMENTS_CRON: z.string().default("30 2 * * *"),
+    /** 售后逆向单同步 cron（拉取建档 + 策略释放 / 排期）。 */
+    MARKETPLACE_SYNC_REVERSE_CRON_ENABLED: z
+      .string()
+      .optional()
+      .default("true")
+      .transform((value) => value !== "false" && value !== "0"),
+    MARKETPLACE_SYNC_REVERSE_CRON: z.string().default("*/15 * * * *"),
+    /** 到期退款决定 cron。 */
+    MARKETPLACE_SYNC_REVERSE_DECIDE_CRON: z.string().default("*/10 * * * *"),
+    MARKETPLACE_SYNC_CRON_TIMEZONE: z.string().default("Asia/Shanghai"),
+    /** 订单履约异常扫描 cron（apps/api 后台扫描，不依赖 shop） */
+    ORDER_EXCEPTIONS_SCAN_CRON: z.string().default("15 * * * *"),
+    ORDER_EXCEPTIONS_SCAN_CRON_ENABLED: z
+      .string()
+      .optional()
+      .default("true")
+      .transform((value) => value !== "false" && value !== "0"),
+    /** 收到 LAZOP push 后异步补单；默认开启。 */
+    MARKETPLACE_WEBHOOK_SYNC_ENABLED: z
+      .string()
+      .optional()
+      .default("true")
+      .transform((value) => value !== "false" && value !== "0"),
+    /** 仅本地联调使用：跳过 push 签名校验。生产禁止开启。 */
+    MARKETPLACE_WEBHOOK_SKIP_VERIFY: z
+      .string()
+      .optional()
+      .default("false")
+      .transform((value) => value === "true" || value === "1"),
     /** Edge Agent REST API key（请求头 X-Agent-API-Key） */
     AGENT_API_KEY: z.string().min(1),
     /** Agent 二进制版本号（/version 与 CDN 路径） */
-    AGENT_VERSION: z.string().min(1).default('1.0.0'),
+    AGENT_VERSION: z.string().min(1).default("1.0.0"),
     /** Agent 二进制 CDN 根 URL；未设置时 /downloads 返回 501 stub */
     AGENT_CDN_BASE_URL: z.url().optional(),
   },

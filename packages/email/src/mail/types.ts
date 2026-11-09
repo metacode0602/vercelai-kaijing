@@ -3,6 +3,7 @@ import { ContactMessage } from './templates/contact-message'
 import { EmailOtp } from './templates/email-otp'
 import { ContractForSupplierConfirmation } from './templates/contract-for-supplier-confirmation'
 import { ForgotPassword } from './templates/forgot-password'
+import { OrganizationInvitation } from './templates/organization-invitation'
 import { LiteLLMBudgetUpdateFailed } from './templates/litellm-budget-update-failed'
 import { SubscribeNewsletter } from './templates/subscribe-newsletter'
 import { SyncErrorNotification } from './templates/sync-error-notification'
@@ -15,6 +16,7 @@ import { WechatWebhookFailed } from './templates/wechat-webhook-failed'
  */
 export const EmailTemplates = {
   forgotPassword: ForgotPassword,
+  organizationInvitation: OrganizationInvitation,
   verifyEmail: VerifyEmail,
   emailOtp: EmailOtp,
   subscribeNewsletter: SubscribeNewsletter,

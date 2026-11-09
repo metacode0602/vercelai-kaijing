@@ -5,12 +5,21 @@ import {
   ConsoleFilterBar,
   ConsoleListSection,
   ConsoleTableEmpty,
-  matchesKeyword,
   useConsolePagination,
 } from '@/components/console/list'
-import { MOCK_CANDIDATES } from '@/lib/crossborder/mock-data'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
+import { Label } from '@workspace/ui/components/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@workspace/ui/components/dialog'
 import {
   Table,
   TableBody,
@@ -19,45 +28,73 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
-import { labelStatus, labeledOptions } from '@/lib/console/labels'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
-
-const DECISION_OPTIONS = [
-  { value: 'all', label: '全部决策' },
-  ...[...new Set(MOCK_CANDIDATES.map((row) => row.goNoGo))].map((value) => ({ value: String(value), label: labelStatus(String(value)) })),
-] satisfies { value: string; label: string }[]
-
-const STATUSES = [...new Set(MOCK_CANDIDATES.map((r) => r.status))] as string[]
-const CATEGORIES = [...new Set(MOCK_CANDIDATES.map((r) => r.categoryHint))] as string[]
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 
 export default function CandidatesPage() {
   const [keyword, setKeyword] = React.useState('')
   const [status, setStatus] = React.useState('all')
-  const [goNoGo, setGoNoGo] = React.useState('all')
-  const [category, setCategory] = React.useState('all')
+  const [source, setSource] = React.useState('all')
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [title, setTitle] = React.useState('')
+  const [categoryHint, setCategoryHint] = React.useState('')
+  const [url, setUrl] = React.useState('')
+  const [createSource, setCreateSource] = React.useState('手工录入')
+  const [notice, setNotice] = React.useState('')
 
-  const rows = MOCK_CANDIDATES.filter((row) => {
-    if (!matchesKeyword(keyword, row.title, row.id, row.categoryHint)) return false
-    if (status !== 'all' && row.status !== status) return false
-    if (goNoGo !== 'all' && row.goNoGo !== goNoGo) return false
-    if (category !== 'all' && row.categoryHint !== category) return false
-    return true
+  const utils = trpc.useUtils()
+  const meta = trpc.candidates.meta.useQuery()
+  const listQuery = trpc.candidates.list.useQuery({
+    page: 1,
+    pageSize: 100,
+    q: keyword || undefined,
+    status: status === 'all' ? undefined : status,
+    source: source === 'all' ? undefined : source,
   })
+  const createMutation = trpc.candidates.create.useMutation({
+    onSuccess: async () => {
+      setCreateOpen(false)
+      setTitle('')
+      setCategoryHint('')
+      setUrl('')
+      setNotice('已落库（手工/导入）。未调用市场爬虫。')
+      await utils.candidates.list.invalidate()
+      await utils.candidates.stats.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
   const { pagedRows, pagination } = useConsolePagination(rows)
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">AI 选品</h2>
-        <p className="text-sm text-muted-foreground">候选列表 · 查看证据、数据状态和成本情景后再决定下一步</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">AI 选品</h2>
+          <p className="text-sm text-muted-foreground">
+            候选列表 · 手工录入 / 导入落库 · 审核通过转 SPU 草稿
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setCreateOpen(true)}>
+          新建候选
+        </Button>
       </div>
 
       <Alert>
-        <AlertTitle>UED 演示数据</AlertTitle>
+        <AlertTitle>数据来源说明</AlertTitle>
         <AlertDescription>
-          页面中的市场、评分和成本均为示例或估算，尚未连接真实数据，也不会保存到业务数据库。不要将示例结论当成采购或上架建议。
+          列表读取 product_candidates / pending_actions。支持手工录入与导入落库；
+          <strong>不提供假市场爬虫成功</strong>。审核通过可创建 SPU 草稿或关联已有商品。
         </AlertDescription>
       </Alert>
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
 
       <ConsoleFilterBar
         keyword={keyword}
@@ -69,26 +106,29 @@ export default function CandidatesPage() {
             label: '状态',
             value: status,
             onChange: setStatus,
-            options: labeledOptions(STATUSES),
+            options: [
+              { value: 'all', label: '全部状态' },
+              ...(meta.data?.statuses ?? []).map((s) => ({ value: s, label: s })),
+            ],
           },
           {
-            id: 'go',
-            label: '决策',
-            value: goNoGo,
-            onChange: setGoNoGo,
-            options: DECISION_OPTIONS,
-          },
-          {
-            id: 'category',
-            label: '类目',
-            value: category,
-            onChange: setCategory,
-            options: CATEGORIES.map((v) => ({ value: v, label: v })),
+            id: 'source',
+            label: '来源',
+            value: source,
+            onChange: setSource,
+            options: [
+              { value: 'all', label: '全部来源' },
+              ...(meta.data?.sources ?? []).map((s) => ({ value: s, label: s })),
+            ],
           },
         ]}
       />
 
-      <ConsoleListSection title="候选列表" description={`共 ${rows.length} 条`} pagination={pagination}>
+      <ConsoleListSection
+        title="候选列表"
+        description={listQuery.isLoading ? '加载中…' : `共 ${listQuery.data?.total ?? 0} 条`}
+        pagination={pagination}
+      >
         {rows.length === 0 ? (
           <ConsoleTableEmpty />
         ) : (
@@ -97,11 +137,12 @@ export default function CandidatesPage() {
               <TableRow>
                 <TableHead>产品</TableHead>
                 <TableHead>类目</TableHead>
-                <TableHead>到仓成本（估算）</TableHead>
-                <TableHead>建议售价（估算）</TableHead>
-                <TableHead>经营净利率（估算）</TableHead>
-                <TableHead>证据状态</TableHead>
-                <TableHead>潜力（示例）</TableHead>
+                <TableHead>来源</TableHead>
+                <TableHead>到仓成本</TableHead>
+                <TableHead>建议售价</TableHead>
+                <TableHead>净利率</TableHead>
+                <TableHead>证据</TableHead>
+                <TableHead>评分</TableHead>
                 <TableHead>决策</TableHead>
                 <TableHead>状态</TableHead>
               </TableRow>
@@ -117,23 +158,26 @@ export default function CandidatesPage() {
                       {row.title}
                     </LocaleLink>
                   </TableCell>
+                  <TableCell>{row.categoryHint || '—'}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{row.categoryHint}</Badge>
+                    <Badge variant="outline">{row.source}</Badge>
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {row.landedCost.toFixed(2)} {row.currency}
+                    {row.landedCost ? `${row.landedCost} ${row.currency}` : '—'}
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {row.suggestPrice.toFixed(2)} {row.currency}
+                    {row.suggestPrice ? `${row.suggestPrice} ${row.currency}` : '—'}
                   </TableCell>
-                  <TableCell className="tabular-nums">{row.marginPct}% <span className="text-muted-foreground">估算</span></TableCell>
-                  <TableCell><Badge variant="outline">{row.evidenceLabel}</Badge></TableCell>
-                  <TableCell className="tabular-nums">{row.score.toFixed(2)} <span className="text-muted-foreground">演示分</span></TableCell>
+                  <TableCell className="tabular-nums">
+                    {row.marginPct ? `${row.marginPct}%` : '—'}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{row.evidenceLabel}</TableCell>
+                  <TableCell className="tabular-nums">{row.score.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Badge variant={row.goNoGo === 'GO' ? 'default' : 'secondary'}>{labelStatus(row.goNoGo)}</Badge>
+                    <Badge variant="secondary">{row.goNoGo}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={row.status === 'new' ? 'secondary' : 'default'}>{labelStatus(row.status)}</Badge>
+                    <Badge variant={row.dbStatus === 'new' ? 'secondary' : 'default'}>{row.status}</Badge>
                   </TableCell>
                 </TableRow>
               ))}
@@ -141,6 +185,59 @@ export default function CandidatesPage() {
           </Table>
         )}
       </ConsoleListSection>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新建候选（落库）</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="space-y-1">
+              <Label>标题</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="商品标题" />
+            </div>
+            <div className="space-y-1">
+              <Label>类目提示</Label>
+              <Input value={categoryHint} onChange={(e) => setCategoryHint(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>参考链接（可选）</Label>
+              <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            </div>
+            <div className="space-y-1">
+              <Label>来源</Label>
+              <Select value={createSource} onValueChange={setCreateSource}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="手工录入">手工录入</SelectItem>
+                  <SelectItem value="导入">导入</SelectItem>
+                  <SelectItem value="寻源">寻源备注</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              取消
+            </Button>
+            <Button
+              disabled={!title.trim() || createMutation.isPending}
+              onClick={() =>
+                createMutation.mutate({
+                  title: title.trim(),
+                  categoryHint: categoryHint.trim() || undefined,
+                  url: url.trim() || undefined,
+                  source: createSource,
+                })
+              }
+            >
+              保存到库
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

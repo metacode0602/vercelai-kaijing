@@ -1,15 +1,16 @@
 import { sharedAuthOptions } from '@workspace/auth'
-import { schema } from '@workspace/db'
+import { webAuthAdapterSchema } from '@workspace/db'
+import { consumeAndValidateToken } from '@workspace/sms-captcha/server'
 import { getSmsOtpValidityMinutes, sendTencentSms } from '@workspace/redis'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import { admin as adminPlugin, lastLoginMethod, phoneNumber } from 'better-auth/plugins'
 import type { Locale } from 'next-intl'
-import { consumeAndValidateToken } from './captcha/sms-captcha-server'
 import { sendEmail } from './mail'
 import { routing } from './i18n/routing'
-import { db } from './db'
+import { webAuthDb } from './db'
+import { platformAdminGate } from './auth/platform-admin'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -42,7 +43,9 @@ export const auth = betterAuth({
   ...sharedAuthOptions,
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
-  database: drizzleAdapter(db, { schema, provider: 'pg' }),
+  // webAuthDb：web_auth schema 专用实例（join 查询按 db.query 键名解析，
+  // 复用 public 聚合会命中租户表，见 @workspace/db web-auth-schema 说明）
+  database: drizzleAdapter(webAuthDb, { schema: webAuthAdapterSchema, provider: 'pg' }),
   advanced: {
     // Must match createAuthClient cookiePrefix in @/lib/auth-client
     cookiePrefix: 'web',
@@ -68,6 +71,7 @@ export const auth = betterAuth({
   },
   plugins: [
     ...(sharedAuthOptions.plugins ?? []),
+    platformAdminGate,
     phoneNumber({
       sendOTP: async ({ phoneNumber, code }, request) => {
         // 校验拼图验证码令牌，通过后才真正下发短信，避免验证码被绕过

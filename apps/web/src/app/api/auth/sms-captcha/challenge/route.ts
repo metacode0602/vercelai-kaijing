@@ -1,33 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { rateLimiter } from '@/lib/rate-limiter'
-import { createJigsawChallenge } from '@/lib/captcha/sms-captcha-server'
-import { getClientIp } from '@/lib/utils/request'
+import { createChallengeHandler, createChallengeGetHandler } from '@workspace/sms-captcha/server'
 
-export async function POST(request: NextRequest) {
-  try {
-    const ip = getClientIp(request)
-    const ok = (await rateLimiter.check('smsCaptchaChallengeIpMinute', ip)).ok
-    if (!ok) {
-      return NextResponse.json(
-        { error: 'TOO_MANY_REQUESTS', message: '获取验证码过于频繁，请稍后再试' },
-        { status: 429 }
-      )
-    }
-    await rateLimiter.limit('smsCaptchaChallengeIpMinute', ip, { throws: true })
-    const result = await createJigsawChallenge()
-    return NextResponse.json(result)
-  } catch (e) {
-    if ((e as Error).message?.includes('Rate limit')) {
-      return NextResponse.json(
-        { error: 'TOO_MANY_REQUESTS', message: '获取验证码过于频繁，请稍后再试' },
-        { status: 429 }
-      )
-    }
-    console.warn('[sms-captcha challenge]', e)
-    return NextResponse.json({ error: 'CHALLENGE_FAILED' }, { status: 500 })
-  }
-}
+// 包内 handler 以自身依赖树的 NextRequest 类型标注，与应用内 Next 16 类型生成器不兼容；
+// 运行时为同构对象，这里以 Request 适配导出。
+const post = createChallengeHandler() as unknown as (req: Request) => Promise<Response>
+const get = createChallengeGetHandler() as unknown as (req: Request) => Promise<Response>
 
-export async function GET(request: NextRequest) {
-  return POST(request)
-}
+export const POST = (req: Request) => post(req)
+export const GET = (req: Request) => get(req)

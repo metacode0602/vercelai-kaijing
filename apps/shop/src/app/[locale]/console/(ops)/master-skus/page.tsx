@@ -1,27 +1,65 @@
 'use client'
 
 import * as React from 'react'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { UedDialog, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import {
+  buildCreateInternalSkuFields,
+  parseCreateInternalSkuValues,
+} from '@/components/console/create-internal-sku-fields'
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
-import {
-  createVariant,
-  listSkuRows,
-  useProducts,
-} from '@/lib/crossborder/product-store'
-import { activeDictionaryValues, useDictionaries } from '@/lib/crossborder/dictionary-store'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
-import { Button } from '@workspace/ui/components/button'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
+
+const PAGE_SIZE = 20
 
 export default function MasterSkusPage() {
-  const products = useProducts()
-  const rows = React.useMemo(() => listSkuRows(products), [products])
-  const dictionaries = useDictionaries()
-  const packOptions = activeDictionaryValues(dictionaries, 'product_pack')
-  const colorOptions = activeDictionaryValues(dictionaries, 'product_color')
-  const sizeOptions = activeDictionaryValues(dictionaries, 'product_size')
+  const dictionariesQuery = trpc.dictionaries.list.useQuery()
+  const dictMap = Object.fromEntries((dictionariesQuery.data ?? []).map((d) => [d.key, d]))
+  const activeOptions = (key: string) => {
+    const d = dictMap[key]
+    if (!d) return []
+    const inactive = new Set(d.inactiveValues ?? [])
+    return d.values
+      .filter((value) => !inactive.has(value))
+      .map((value) => ({ value, title: d.valueTitles?.[value] ?? value }))
+  }
+  const packOptions = activeOptions('product_pack')
+  const colorOptions = activeOptions('product_color')
+  const sizeOptions = activeOptions('product_size')
+  const packTitles = dictMap.product_pack?.valueTitles ?? {}
+  const colorTitles = dictMap.product_color?.valueTitles ?? {}
+  const sizeTitles = dictMap.product_size?.valueTitles ?? {}
+
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const [page, setPage] = React.useState(1)
+  const [q, setQ] = React.useState('')
+  const [status, setStatus] = React.useState('全部')
+
+  const utils = trpc.useUtils()
+  const listQuery = trpc.products.listSkus.useQuery({
+    page,
+    pageSize: PAGE_SIZE,
+    q: q || undefined,
+    status: status === '全部' ? undefined : status,
+  })
+  const productsQuery = trpc.products.list.useQuery({ page: 1, pageSize: 100 })
+  const createMutation = trpc.products.createVariant.useMutation({
+    onSuccess: async (created) => {
+      await utils.products.listSkus.invalidate()
+      await utils.products.stats.invalidate()
+      await utils.products.listSkuCodes.invalidate()
+      setOpen(false)
+      setNotice(`${created.code} 已写入数据库。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
+  const rows = listQuery.data?.items ?? []
+  const total = listQuery.data?.total ?? 0
+  const products = productsQuery.data?.items ?? []
 
   const kpiItems = React.useMemo(() => {
     const enabled = rows.filter((item) => item.status === '启用').length
@@ -34,64 +72,30 @@ export default function MasterSkusPage() {
     const spuCount = new Set(rows.map((item) => item.spu)).size
     const totalWeight = rows.reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
     return [
-      { label: 'SKU 数', value: String(rows.length), hint: '当前原型会话' },
-      { label: '启用', value: String(enabled) },
-      { label: '待确认', value: String(pending) },
-      { label: '停用', value: String(disabled) },
-      { label: '可刊登', value: String(listable), hint: '启用且条码齐全' },
-      { label: '缺条码', value: String(missingBarcode), hint: '缺条码不可刊登' },
-      { label: '覆盖 SPU', value: String(spuCount) },
-      { label: '总重量', value: `${(totalWeight / 1000).toFixed(1)} kg` },
+      { label: '本页 SKU', value: String(rows.length), hint: `库内共 ${total}` },
+      { label: '启用(页)', value: String(enabled) },
+      { label: '待确认(页)', value: String(pending) },
+      { label: '停用(页)', value: String(disabled) },
+      { label: '可刊登(页)', value: String(listable), hint: '启用且条码齐全' },
+      { label: '缺条码(页)', value: String(missingBarcode) },
+      { label: '覆盖 SPU(页)', value: String(spuCount) },
+      { label: '总重量(页)', value: `${(totalWeight / 1000).toFixed(1)} kg` },
     ]
-  }, [rows])
-
-  const filters = React.useMemo(() => {
-    const unique = (values: string[]) => [...new Set(values)]
-    return [
-      { label: '状态', key: 'status', options: ['启用', '待确认', '停用'] },
-      { label: '所属 SPU', key: 'spu', options: unique(rows.map((row) => row.spu)) },
-      { label: '颜色', key: 'color', options: unique(rows.map((row) => row.color)) },
-      { label: '尺码', key: 'size', options: unique(rows.map((row) => row.size)) },
-    ]
-  }, [rows])
+  }, [rows, total])
 
   const editor = open ? (
     <UedDialog
       title="生成内部 SKU"
-      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成；创建后可在详情页补充图片与关联信息。"
-      fields={[
-        {
-          key: 'spu',
-          label: '所属 SPU',
+      description="选择所属 SPU 与规格组合，编号由系统按 SPU+三位流水生成并写入 product_variants。"
+      fields={buildCreateInternalSkuFields({
+        colorOptions,
+        sizeOptions,
+        packOptions,
+        spu: {
+          mode: 'select',
           options: products.map((product) => `${product.spu} · ${product.name}`),
-          required: true,
         },
-        {
-          key: 'color',
-          label: '颜色',
-          options: colorOptions.length ? colorOptions : ['黑色', '白色', '深灰色', '蓝色', '红色'],
-          required: true,
-        },
-        {
-          key: 'size',
-          label: '尺码',
-          options: sizeOptions.length ? sizeOptions : ['M', 'L', 'XL', '2XL', '3XL', '标准'],
-          required: true,
-        },
-        {
-          key: 'pack',
-          label: '包装规格',
-          options: packOptions.length ? packOptions : ['单件'],
-          required: true,
-        },
-        { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，后续可补录' },
-        { key: 'weight', label: '重量（g）', type: 'number', required: true },
-        { key: 'lengthMm', label: '长（mm）', type: 'number', helper: '外箱/件尺寸，对齐 length_mm' },
-        { key: 'widthMm', label: '宽（mm）', type: 'number' },
-        { key: 'heightMm', label: '高（mm）', type: 'number' },
-        { key: 'status', label: '状态', options: ['待确认', '启用', '停用'], required: true },
-        { key: 'remark', label: '规格备注', type: 'textarea', fullWidth: true },
-      ]}
+      })}
       onClose={() => setOpen(false)}
       onSave={(values) => {
         const product =
@@ -101,23 +105,16 @@ export default function MasterSkusPage() {
           setNotice('请先创建 SPU 再生成 SKU。')
           return
         }
-        const created = createVariant({
-          spu: product.spu,
-          color: values.color || '黑色',
-          size: values.size || 'L',
-          pack: values.pack || packOptions[0] || '单件',
-          barcode: values.barcode,
-          weight: Number(values.weight) || 220,
-          lengthMm: Number(values.lengthMm) || 0,
-          widthMm: Number(values.widthMm) || 0,
-          heightMm: Number(values.heightMm) || 0,
-          status: (values.status as '待确认' | '启用' | '停用') || '待确认',
+        const parsed = parseCreateInternalSkuValues(values, {
+          defaultPack:
+            (typeof packOptions[0] === 'string' ? packOptions[0] : packOptions[0]?.value) || '单件',
         })
-        if (created) {
-          setNotice(`${created.code} 已生成（原型会话）；实际编号规则由后端校验去重与流水号。`)
-        }
-        setOpen(false)
+        createMutation.mutate({
+          spu: product.spu,
+          ...parsed,
+        })
       }}
+      saveLabel={createMutation.isPending ? '生成中…' : '生成 SKU'}
     />
   ) : null
 
@@ -126,21 +123,33 @@ export default function MasterSkusPage() {
       {editor}
       <UedWorkspace
         title="内部 SKU"
-        description="维护真实交付规格（颜色/尺码/包装/条码/重量/长宽高 mm）；编码生成后不可修改、不可复用。"
+        description="product_variants 真实交付规格；列表经 tRPC 数据库分页。"
         rows={rows}
-        detailHref={(row) => `/console/master-skus/${encodeURIComponent(row.id)}`}
+        detailHref={(row) => `/console/master-skus/${encodeURIComponent(row.sku)}`}
         searchKeys={['sku', 'spu', 'name', 'color', 'size', 'barcode', 'status']}
-        searchPlaceholder="搜索 SKU、SPU、颜色或条码"
-        filters={filters}
-        addLabel="生成内部 SKU"
+        search={q}
+        onSearchChange={setQ}
+        onStatusFilterChange={setStatus}
+        filters={[
+          { label: '状态', key: 'status', options: ['启用', '待确认', '停用'] },
+        ]}
+        addLabel="生成 SKU"
         onAdd={() => setOpen(true)}
+        listTitle="内部 SKU 列表"
+        pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}
+        emptyText={
+          listQuery.isError
+            ? `加载失败：${listQuery.error.message}`
+            : listQuery.isLoading
+              ? '正在从数据库加载 SKU…'
+              : '暂无内部 SKU。请先建 SPU 再生成规格行。'
+        }
         columns={[
           {
             key: 'cover',
             label: '封面',
             render: (row) => (
               <ProductCoverCell
-                imageKey={`sku:${row.sku}`}
                 fallback={{ cover: row.coverImage, images: row.images ?? [] }}
                 alt={row.name}
               />
@@ -149,45 +158,25 @@ export default function MasterSkusPage() {
           { key: 'sku', label: '内部 SKU' },
           { key: 'spu', label: '所属 SPU' },
           { key: 'name', label: '商品名称' },
-          { key: 'color', label: '颜色' },
-          { key: 'size', label: '尺码' },
-          { key: 'pack', label: '包装' },
+          { key: 'color', label: '颜色', render: (row) => colorTitles[row.color] ?? row.color },
+          { key: 'size', label: '尺码', render: (row) => sizeTitles[row.size] ?? row.size },
+          { key: 'pack', label: '包装', render: (row) => packTitles[row.pack] ?? row.pack },
           { key: 'barcode', label: '条码' },
-          { key: 'weight', label: '重量 g', render: (row) => String(row.weight) },
-          {
-            key: 'dims',
-            label: '尺寸 mm',
-            render: (row) => `${row.lengthMm || 0}×${row.widthMm || 0}×${row.heightMm || 0}`,
-          },
+          { key: 'weight', label: '重量 g' },
           {
             key: 'status',
             label: '状态',
-            render: (row) => (
-              <Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>
-            ),
+            render: (row) => <Badge variant="secondary">{row.status}</Badge>,
           },
         ]}
       >
         <DetailKpiRow items={kpiItems} />
-        <UedPrototypeNotice>
-          SKU 与 SPU 编号不可编辑、不可复用；停用保留历史。颜色与尺码从属性字典标准值选择，服装尺码不允许自造值。条码缺失的 SKU 不允许刊登。
-        </UedPrototypeNotice>
-        <div className="flex flex-wrap gap-2">
-          {rows
-            .filter((row) => row.status === '待确认')
-            .map((row) => (
-              <Button
-                key={row.sku}
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setNotice(`${row.sku}：补全条码并确认后才可被刊登与采购引用。`)
-                }
-              >
-                待确认 · {row.sku}
-              </Button>
-            ))}
-        </div>
+        <Alert>
+          <AlertTitle>已接库 · 内部 SKU</AlertTitle>
+          <AlertDescription>
+            本页 KPI 中标注「页」的为当前页统计；总数见分页。Seller SKU / 刊登映射仍为 stub。
+          </AlertDescription>
+        </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>

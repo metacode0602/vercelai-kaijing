@@ -1,13 +1,25 @@
 'use client'
 
 import * as React from 'react'
-import { notFound } from 'next/navigation'
-import { decodeRouteParam, UedRecordDetail } from '@/components/console/erp-ued-detail'
-import { ERP_DEMO_ROLES } from '@/lib/crossborder/erp-ued-data'
+import { DetailPageHeader } from '@/components/console/detail'
+import { decodeRouteParam } from '@/components/console/erp-ued-detail'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
-export default function ErpAccessDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function AccessRoleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const row = ERP_DEMO_ROLES.find((item) => item.role === id)
-  if (!row) notFound()
-  return <UedRecordDetail backHref="/console/settings/erp-access" moduleTitle="角色与数据范围" module="erp-access" idKey="role" titleKeys={['role', 'person']} row={row as unknown as Record<string, unknown>} />
+  return (
+    <div className="space-y-4">
+      <DetailPageHeader
+        backHref="/console/settings/erp-access"
+        title={`角色 ${id}`}
+        description="细粒度 ERP 角色详情待权限服务。"
+      />
+      <Alert>
+        <AlertTitle>待权限服务</AlertTitle>
+        <AlertDescription>
+          角色详情待权限服务接入；RBAC 与店铺权限范围落库后即可提供可编辑的角色矩阵。
+        </AlertDescription>
+      </Alert>
+    </div>
+  )
 }

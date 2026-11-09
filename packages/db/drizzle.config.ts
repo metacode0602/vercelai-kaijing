@@ -35,7 +35,8 @@ function resolveSsl(url: string): boolean | "require" | "verify-full" | "allow" 
 }
 
 export default defineConfig({
-  schema: "./src/schema.ts",
+  // web-auth-schema 单独列入：不进 schema.ts 聚合（其 adapter 键名会覆盖 public 同名键）
+  schema: ["./src/schema.ts", "./src/web-auth-schema.ts"],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

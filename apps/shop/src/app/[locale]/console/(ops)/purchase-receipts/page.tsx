@@ -3,19 +3,11 @@
 import * as React from 'react'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  listReceivablePurchaseOrders,
-  usePurchaseOrders,
-} from '@/lib/crossborder/purchase-order-store'
-import {
-  countReceiptsByStatus,
-  createReceiptFromPurchaseOrder,
-  toReceiptListRow,
-  usePurchaseReceipts,
-} from '@/lib/crossborder/purchase-receipt-store'
 import { useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 function statusVariant(status: string) {
   if (status === '已完成') return 'secondary' as const
@@ -23,45 +15,94 @@ function statusVariant(status: string) {
   return 'outline' as const
 }
 
+function todayDateInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 10)
+}
+
 export default function PurchaseReceiptsPage() {
-  const receipts = usePurchaseReceipts()
-  const orders = usePurchaseOrders()
-  const rows = React.useMemo(() => receipts.map(toReceiptListRow), [receipts])
-  const counts = React.useMemo(() => countReceiptsByStatus(receipts), [receipts])
-  const receivable = React.useMemo(() => listReceivablePurchaseOrders(orders), [orders])
   const router = useLocaleRouter()
+  const utils = trpc.useUtils()
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
-  const poOptions = React.useMemo(() => {
-    if (receivable.length === 0) return ['（暂无可收货采购单）']
-    return receivable.map((order) => {
-      const openQty = order.lines.reduce((sum, line) => sum + Math.max(0, line.qtyOrdered - line.qtyReceived), 0)
-      return `${order.poNo} · ${order.supplier} · 待收 ${openQty}`
-    })
-  }, [receivable])
+  const receiptsQuery = trpc.purchase.listReceipts.useQuery({ page: 1, pageSize: 100 })
+  const ordersQuery = trpc.purchase.listOrders.useQuery({ page: 1, pageSize: 100 })
+  const rows = receiptsQuery.data?.items ?? []
+  const orders = ordersQuery.data?.items ?? []
+  const receivable = orders.filter((row) => ['已下发', '部分到货'].includes(row.status))
+
+  const counts = React.useMemo(() => {
+    return rows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.status] = (acc[row.status] || 0) + 1
+      return acc
+    }, {})
+  }, [rows])
 
   const kpiItems = React.useMemo(
     () => [
       { label: '收货批次', value: String(rows.length), hint: 'purchase_receipts' },
-      { label: '待质检', value: String(counts.待质检), hint: '需完成合格/残次录入' },
-      { label: '草稿', value: String(counts.草稿) },
-      { label: '已完成', value: String(counts.已完成), hint: '合格数已生成入库单' },
+      { label: '待质检', value: String(counts['待质检'] ?? 0), hint: '需完成合格/残次录入' },
+      { label: '草稿', value: String(counts['草稿'] ?? 0) },
+      { label: '已完成', value: String(counts['已完成'] ?? 0), hint: '合格数已生成入库单' },
     ],
     [rows.length, counts],
   )
 
+  const poOptions = React.useMemo(() => {
+    if (receivable.length === 0) return ['（暂无可收货采购单）']
+    return receivable.map((order) => `${order.poNo} · ${order.supplier}`)
+  }, [receivable])
+
+  const registerMutation = trpc.purchase.registerReceipt.useMutation({
+    onSuccess: async (receipt) => {
+      await utils.purchase.listReceipts.invalidate()
+      await utils.purchase.listOrders.invalidate()
+      setOpen(false)
+      setNotice(`${receipt.receiptNo} 已创建，正在进入详情…`)
+      router.push(`/console/purchase-receipts/${encodeURIComponent(receipt.id)}`)
+    },
+    onError: (error) => {
+      setOpen(false)
+      setNotice(error.message)
+    },
+  })
+
   const editor = open ? (
     <UedDialog
       title="登记到货批次 · 主信息"
-      description="从已下发/部分到货的采购单创建 purchase_receipts。明细按采购行剩余可收数量自动带出；保存后进入详情清点数量并提交质检。"
+      description="从已下发/部分到货的采购单创建 purchase_receipts。明细按采购行剩余可收数量自动带出。"
       fields={[
         {
           key: 'po',
           label: '采购单',
           options: poOptions,
           required: true,
-          helper: '仅展示仍有未收数量的采购单；供应商/仓库随单带出',
+          helper: '仅展示仍可收货的采购单；供应商/仓库随单带出',
+        },
+        {
+          key: 'batchNo',
+          label: '到货批次编号',
+          placeholder: '如 BATCH-20261107-01',
+          required: true,
+        },
+        {
+          key: 'arrivedAt',
+          label: '到货日期',
+          type: 'date',
+          defaultValue: todayDateInput(),
+          required: true,
+        },
+        {
+          key: 'carrier',
+          label: '物流商',
+          placeholder: '如 顺丰 / DHL / 货代名称',
+        },
+        {
+          key: 'trackingNo',
+          label: '物流单号',
+          placeholder: '填写物流运单号',
         },
         {
           key: 'receivedBy',
@@ -72,7 +113,7 @@ export default function PurchaseReceiptsPage() {
         {
           key: 'deliveryNote',
           label: '送货单号',
-          placeholder: '供应商送货单 / 物流单号',
+          placeholder: '供应商送货单',
         },
         {
           key: 'remark',
@@ -83,29 +124,44 @@ export default function PurchaseReceiptsPage() {
         },
       ]}
       onClose={() => setOpen(false)}
-      onSave={(values) => {
+      onSave={async (values) => {
         const poNo = (values.po || '').split(' · ')[0]?.trim()
         if (!poNo || poNo.startsWith('（')) {
           setNotice('请选择可收货的采购单。')
           setOpen(false)
           return
         }
-        const result = createReceiptFromPurchaseOrder(receipts, poNo, {
-          receivedBy: values.receivedBy,
-          deliveryNote: values.deliveryNote,
-          remark: values.remark,
-        })
-        setOpen(false)
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
+        try {
+          const order = await utils.purchase.getOrder.fetch({ id: poNo })
+          const lines = order.lines
+            .map((line) => ({
+              poLineId: line.id,
+              sku: line.sku,
+              qtyArrived: Math.max(0, line.qtyOrdered - line.qtyReceived),
+            }))
+            .filter((line) => line.qtyArrived > 0)
+          if (!lines.length) {
+            setNotice('该采购单已无待收数量')
+            setOpen(false)
+            return
+          }
+          registerMutation.mutate({
+            purchaseOrderId: order.id,
+            batchNo: values.batchNo?.trim() || undefined,
+            arrivedAt: values.arrivedAt || undefined,
+            carrier: values.carrier?.trim() || undefined,
+            trackingNo: values.trackingNo?.trim() || undefined,
+            receivedBy: values.receivedBy,
+            deliveryNote: values.deliveryNote,
+            remark: values.remark,
+            lines,
+          })
+        } catch (error) {
+          setNotice(error instanceof Error ? error.message : '加载采购单失败')
+          setOpen(false)
         }
-        setNotice(
-          `${result.receipt.receiptNo} 已创建（草稿），供应商「${result.receipt.supplier}」、仓库「${result.receipt.warehouse}」已带出。正在进入详情…`,
-        )
-        router.push(`/console/purchase-receipts/${encodeURIComponent(result.receipt.id)}`)
       }}
-      saveLabel="创建收货单并继续"
+      saveLabel={registerMutation.isPending ? '创建中…' : '创建收货单并继续'}
     />
   ) : null
 
@@ -114,7 +170,7 @@ export default function PurchaseReceiptsPage() {
       {editor}
       <UedWorkspace
         title="到货质检入库"
-        description="采购单分批到货 → 质检（合格/残次）→ 生成入库上架单。仅合格数量进入可用库存；残次进不可售并要求原因。"
+        description="采购单分批到货 → 质检（合格/残次）→ 生成入库上架单。数据经 tRPC 写入 PostgreSQL。"
         rows={rows}
         detailHref={(row) => `/console/purchase-receipts/${encodeURIComponent(row.id)}`}
         searchKeys={[
@@ -124,19 +180,31 @@ export default function PurchaseReceiptsPage() {
           'firstSku',
           'supplier',
           'warehouse',
+          'batchNo',
+          'carrier',
+          'trackingNo',
           'receivedBy',
           'status',
           'deliveryNote',
         ]}
-        searchPlaceholder="搜索收货单号、采购单、SKU 或供应商"
-        filters={[{ label: '状态', options: [...['草稿', '待质检', '已完成', '已取消']] }]}
-        emptyText="暂无收货批次。请从可收货采购单登记到货，或到「采购单」详情点击登记到货。"
+        searchPlaceholder="搜索收货单号、采购单、SKU、批次或物流单号"
+        filters={[{ label: '状态', options: ['草稿', '待质检', '已完成', '已取消'] }]}
+        emptyText="暂无收货批次。请从可收货采购单登记到货。"
         addLabel="登记到货"
         onAdd={() => setOpen(true)}
         columns={[
           { key: 'receiptNo', label: '收货单号' },
+          { key: 'batchNo', label: '批次编号' },
           { key: 'purchaseOrderId', label: '采购单' },
           { key: 'supplier', label: '供应商' },
+          {
+            key: 'trackingNo',
+            label: '物流',
+            render: (row) =>
+              row.carrier || row.trackingNo
+                ? [row.carrier, row.trackingNo].filter(Boolean).join(' · ')
+                : '—',
+          },
           {
             key: 'firstSku',
             label: '首行 SKU',
@@ -167,10 +235,15 @@ export default function PurchaseReceiptsPage() {
           },
         ]}
       >
+        {receiptsQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>加载失败</AlertTitle>
+            <AlertDescription>{receiptsQuery.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
         <DetailKpiRow items={kpiItems} />
         <UedPrototypeNotice>
-          对齐 schema：purchase_receipts（分批）→ 质检行结果 → 仅 qty_passed 生成入库/库存流水（幂等键）。采购申请未批准不得生成
-          PO/收货。列表与详情共享本地会话 store，可与采购单、入库单互相跳转。
+          流程：收货 → 质检 → 仅合格数量生成入库单；确认上架会记账库存流水，重复提交按幂等键拦截。
         </UedPrototypeNotice>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">可收货采购单 {receivable.length}</Badge>
@@ -187,18 +260,10 @@ export default function PurchaseReceiptsPage() {
                 去质检 · {row.receiptNo}
               </Button>
             ))}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => router.push('/console/purchase-orders')}
-          >
+          <Button size="sm" variant="ghost" onClick={() => router.push('/console/purchase-orders')}>
             打开采购单
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => router.push('/console/stock-inbounds')}
-          >
+          <Button size="sm" variant="ghost" onClick={() => router.push('/console/stock-inbounds')}>
             打开入库单
           </Button>
         </div>

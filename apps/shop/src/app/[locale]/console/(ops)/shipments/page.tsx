@@ -2,47 +2,312 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { Badge } from '@workspace/ui/components/badge'
-import { ERP_DEMO_MAPPINGS } from '@/lib/crossborder/erp-ued-data'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
+import {
+  labelProviderType,
+  labelShipmentStatus,
+  SHIPMENT_PROVIDER_OPTIONS,
+  TRACKING_EVENT_TYPES,
+} from '@/lib/crossborder/shipment-store'
 
-type Shipment = { id: string; order: string; shop: string; site: string; mode: string; packageId: string; tracking: string; carrier: string; warehouse: string; status: string; events: string[] }
+const EVENT_LABELS = TRACKING_EVENT_TYPES.map((item) => item.label)
+const PROVIDER_LABELS = SHIPMENT_PROVIDER_OPTIONS.map((item) => item.label)
+const SOURCE_OPTIONS = ['接口', '人工录入', '批量导入']
 
-export const initialShipments: Shipment[] = [
-  { id: 'SHP-2026-10018', order: 'DZ-10018', shop: 'Daraz LK', site: 'LK', mode: '平台物流', packageId: 'PKG-DZ-10018', tracking: 'DZLK9981', carrier: 'Daraz Express', warehouse: 'WH-CN-XMN-001', status: '运输中', events: ['仓库出库 · 2026-10-20 10:20', '承运商揽收 · 2026-10-20 14:10'] },
-  { id: 'SHP-2026-2201', order: 'LZ-2201', shop: 'Lazada TH', site: 'TH', mode: 'JSB 灰清', packageId: 'PKG-LZ-2201', tracking: 'THJSB-8821', carrier: 'JSB', warehouse: 'WH-CN-XMN-001', status: '待交接 JSB', events: ['仓库出库 · 2026-10-28 08:40'] },
-]
-
-const eventOptions = ['仓库拣货完成', '仓库出库', 'LGS 揽收', '交接 JSB', '清关中', '清关完成', '官方尾程派送', '已签收', '物流异常']
+type DialogMode = 'event' | 'create' | null
 
 export default function ShipmentsPage() {
-  const [rows, setRows] = React.useState(initialShipments)
-  const [selected, setSelected] = React.useState(initialShipments[0]?.id ?? '')
-  const [eventOpen, setEventOpen] = React.useState(false)
-  const [eventTarget, setEventTarget] = React.useState(initialShipments[0]?.id ?? '')
+  const utils = trpc.useUtils()
+  const [selected, setSelected] = React.useState('')
+  const [dialogMode, setDialogMode] = React.useState<DialogMode>(null)
+  const [eventTarget, setEventTarget] = React.useState('')
   const [notice, setNotice] = React.useState('')
-  const current = rows.find((row) => row.id === selected)
-  const sellerSkuSamples = ERP_DEMO_MAPPINGS.slice(0, 2).map((item) => item.sellerSku)
-  const editor = eventOpen ? <UedDialog title={current?.id === eventTarget ? '追加包裹履约事件' : '创建包裹 / 履约记录'} description="原型展示表单与事件轨迹；不会创建真实运单。" fields={[
-        { key: 'order', label: '关联订单', options: ['DZ-10021', 'DZ-10018', 'LZ-2201'], required: true },
-        { key: 'shop', label: '店铺', options: ['Daraz LK', 'Lazada TH', 'Lazada MY'], required: true },
-        { key: 'site', label: '站点', options: ['LK', 'TH', 'MY', 'PH'], required: true },
-        { key: 'mode', label: '履约模式', options: ['平台物流', 'LGS', 'JSB 灰清'], required: true },
-        { key: 'packageId', label: '包裹 ID', placeholder: '一单多包裹时必填' },
-        { key: 'event', label: '履约事件', options: eventOptions, required: true },
-        { key: 'eventAt', label: '事件时间', type: 'datetime-local', required: true },
-        { key: 'tracking', label: '运单号', required: true },
-        { key: 'carrier', label: '承运商', options: ['LGS', 'JSB', 'Daraz Express', '平台官方尾程'], required: true },
-        { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
-        { key: 'weight', label: '包裹重量（g）', type: 'number' },
-        { key: 'exception', label: '异常说明', type: 'textarea', fullWidth: true },
-      ]} onClose={() => setEventOpen(false)} onSave={() => { if (eventTarget && rows.some((row) => row.id === eventTarget)) { const nextEvent = '人工更新状态'; setRows((currentRows) => currentRows.map((row) => row.id === eventTarget ? { ...row, status: nextEvent, events: [...row.events, `${nextEvent} · 刚刚（人工示例）`] } : row)); setSelected(eventTarget); setNotice('履约事件已追加到所选包裹（本地示例）。') } else { const newId = `SHP-2026-${rows.length + 31}`; setRows((currentRows) => [{ id: newId, order: 'DZ-10021', shop: 'Daraz LK', site: 'LK', mode: 'LGS', packageId: `PKG-DEMO-${currentRows.length + 31}`, tracking: '待同步', carrier: 'LGS', warehouse: 'WH-CN-XMN-001', status: '待拣货', events: ['包裹已创建 · 刚刚（示例）'] }, ...currentRows]); setSelected(newId); setNotice('包裹记录已加入本次原型会话。') } setEventOpen(false) }} /> : null
-  return <>{editor}<UedWorkspace title="包裹与物流" description="一单可多包裹；按站点履约模式展示 LGS 或 TH/JSB 状态链。" rows={rows} detailHref={(row) => `/console/shipments/${encodeURIComponent(row.id)}`} searchKeys={['id', 'order', 'shop', 'site', 'mode', 'packageId', 'tracking', 'carrier', 'status']} addLabel="新建包裹" onAdd={() => { setEventTarget(''); setEventOpen(true) }} columns={[
-    { key: 'id', label: '包裹号' }, { key: 'order', label: '订单号' }, { key: 'shop', label: '店铺 / 站点', render: (row) => `${row.shop} · ${row.site}` }, { key: 'mode', label: '履约模式' }, { key: 'tracking', label: '运单号' }, { key: 'carrier', label: '承运商' }, { key: 'warehouse', label: '发货仓' }, { key: 'status', label: '当前状态', render: (row) => <Badge variant="secondary">{row.status}</Badge> },
-  ]}>
-    <UedPrototypeNotice>MY/PH/SG/VN 以 LGS 事件链展示；TH 展示自营仓→JSB交接→清关→官方尾程。接口能力未确认时，事件可人工录入并标记来源。</UedPrototypeNotice>
-    <div className="flex flex-wrap gap-2">{rows.map((row) => <Button key={row.id} variant={selected === row.id ? 'secondary' : 'outline'} size="sm" onClick={() => setSelected(row.id)}>{row.packageId} · {row.status}</Button>)}{current ? <Button size="sm" onClick={() => { setEventTarget(current.id); setEventOpen(true) }}>追加履约事件</Button> : null}</div>
-    {current ? <div className="rounded-lg border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-medium">{current.packageId} · {current.order}</h2><p className="mt-1 text-sm text-muted-foreground">{current.mode} · {current.carrier} · {current.tracking}</p></div><Badge variant="outline">事件来源：人工示例</Badge></div><ol className="mt-4 flex flex-col gap-2 border-l pl-4">{current.events.map((event, index) => <li key={`${event}-${index}`} className="text-sm">{event}</li>)}</ol><p className="mt-4 text-xs text-muted-foreground">订单行示例 Seller SKU：{sellerSkuSamples.join('、')}</p></div> : null}
-    {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-  </UedWorkspace></>
+  const [statusFilter, setStatusFilter] = React.useState('all')
+  const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
+
+  const listQuery = trpc.logistics.list.useQuery({ page: 1, pageSize: 100, status: statusFilter })
+  const statsQuery = trpc.logistics.stats.useQuery()
+  const metaQuery = trpc.logistics.meta.useQuery()
+  const detailQuery = trpc.logistics.get.useQuery(
+    { id: selected },
+    { enabled: Boolean(selected) },
+  )
+
+  const createMutation = trpc.logistics.createFromOrder.useMutation({
+    onSuccess: async (row) => {
+      await utils.logistics.list.invalidate()
+      await utils.logistics.stats.invalidate()
+      setSelected(row.id)
+      setNotice(`包裹 ${row.externalPackageId} 已写入 PostgreSQL（${row.providerLabel}）`)
+      setDialogMode(null)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const appendMutation = trpc.logistics.appendTracking.useMutation({
+    onSuccess: async (res) => {
+      await utils.logistics.list.invalidate()
+      await utils.logistics.get.invalidate({ id: res.shipment.id })
+      setSelected(res.shipment.id)
+      setNotice(
+        res.duplicated
+          ? `轨迹已存在（幂等跳过），状态 ${res.shipment.statusLabel}`
+          : `已追加轨迹，包裹状态 ${res.shipment.statusLabel}`,
+      )
+      setDialogMode(null)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const syncMutation = trpc.logistics.syncFromPlatform.useMutation({
+    onSuccess: async (res) => {
+      await utils.logistics.list.invalidate()
+      await utils.logistics.get.invalidate({ id: res.shipment.id })
+      setNotice(res.note)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const shipments = listQuery.data?.items ?? []
+  React.useEffect(() => {
+    if (!selected && shipments[0]) setSelected(shipments[0].id)
+  }, [selected, shipments])
+
+  const current = detailQuery.data ?? shipments.find((row) => row.id === selected) ?? shipments[0]
+  const rows = shipments.map((row) => ({
+    ...row,
+    platformLabel: row.platform.toUpperCase(),
+  }))
+
+  const dialog =
+    dialogMode === 'event' ? (
+      <UedDialog
+        title="追加包裹履约事件"
+        description="事件写入 tracking_events，必须标记 source（api / manual / import）。"
+        fields={[
+          { key: 'event', label: '履约事件', options: EVENT_LABELS, required: true },
+          { key: 'eventAt', label: '事件时间', type: 'datetime-local', required: true },
+          { key: 'source', label: '来源', options: SOURCE_OPTIONS, required: true },
+          { key: 'location', label: '发生地点', placeholder: '如 Colombo / 厦门仓' },
+          { key: 'description', label: '说明', type: 'textarea', fullWidth: true },
+        ]}
+        onClose={() => setDialogMode(null)}
+        onSave={(values) => {
+          const event = TRACKING_EVENT_TYPES.find((item) => item.label === values.event)
+          if (!event) return
+          const source =
+            values.source === '接口' ? 'api' : values.source === '批量导入' ? 'import' : 'manual'
+          appendMutation.mutate({
+            shipmentId: eventTarget || selected,
+            statusCode: event.code,
+            title: event.label,
+            description: values.description,
+            location: values.location,
+            eventTime: values.eventAt,
+            source,
+          })
+        }}
+      />
+    ) : dialogMode === 'create' ? (
+      <UedDialog
+        title="从订单创建包裹"
+        description="关联已过账/已出库订单的 orderId；真实平台运单仍为 stub，包裹写入 PostgreSQL。"
+        fields={[
+          { key: 'orderId', label: '订单 ID（DB）', placeholder: 'orders.id', required: true },
+          { key: 'providerType', label: '物流类型', options: PROVIDER_LABELS, required: true },
+          { key: 'providerCode', label: '物流渠道', placeholder: '如 DARAZ_LOGISTICS / LGS_MY' },
+          { key: 'tracking', label: '运单号', placeholder: '留空则显示待生成' },
+          { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
+          { key: 'weight', label: '包裹重量', placeholder: '如 460 g' },
+          { key: 'skus', label: 'SKU 明细提示', placeholder: '如 HSY000001001 ×2' },
+          { key: 'picker', label: '拣货人', placeholder: '默认当前用户' },
+          { key: 'remark', label: '备注', type: 'textarea', fullWidth: true },
+        ]}
+        onClose={() => setDialogMode(null)}
+        onSave={(values) => {
+          const provider =
+            SHIPMENT_PROVIDER_OPTIONS.find((item) => item.label === values.providerType) ??
+            SHIPMENT_PROVIDER_OPTIONS[0]!
+          createMutation.mutate({
+            orderId: values.orderId.trim(),
+            providerType: provider.value,
+            providerCode: values.providerCode || provider.value.toUpperCase(),
+            trackingNumber: values.tracking || undefined,
+            warehouseCode: values.warehouse,
+            weight: values.weight,
+            skusHint: values.skus,
+            picker: values.picker,
+            remark: values.remark,
+          })
+        }}
+      />
+    ) : null
+
+  return (
+    <>
+      {dialog}
+      <UedWorkspace
+        title="包裹与物流"
+        description="按 shipments / shipment_items / tracking_events 展示一单多包裹、履约模式与平台轨迹（已接 PostgreSQL）。"
+        rows={rows}
+        detailHref={(row) => `/console/shipments/${encodeURIComponent(row.id)}`}
+        searchKeys={['id', 'externalPackageId', 'order', 'shop', 'site', 'mode', 'tracking', 'providerCode', 'statusLabel']}
+        filters={[
+          {
+            label: '状态',
+            key: 'statusLabel',
+            options: rows.map((row) => row.statusLabel).filter((value, index, list) => list.indexOf(value) === index),
+          },
+          { label: '平台', key: 'platformLabel', options: ['DARAZ', 'LAZADA', 'TIKTOK_SHOP'] },
+        ]}
+        addLabel="新建包裹"
+        onAdd={() => setDialogMode('create')}
+        columns={[
+          { key: 'id', label: '包裹号', render: (row) => row.externalPackageId || row.id },
+          { key: 'order', label: '订单号' },
+          { key: 'shop', label: '店铺 / 站点', render: (row) => `${row.shop} · ${row.site}` },
+          { key: 'mode', label: '履约模式', render: (row) => `${row.mode} · ${row.providerCode}` },
+          { key: 'tracking', label: '运单号' },
+          { key: 'items', label: '件数' },
+          { key: 'lastSyncedAt', label: '最近同步' },
+          {
+            key: 'statusLabel',
+            label: '当前状态',
+            render: (row) => <Badge variant="secondary">{row.statusLabel}</Badge>,
+          },
+        ]}
+      >
+        <UedPrototypeNotice>
+          共 {statsQuery.data?.total ?? rows.length} 个包裹 ·{' '}
+          {metaQuery.data?.note}
+        </UedPrototypeNotice>
+        {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
+        {listQuery.isError ? (
+          <p className="text-sm text-destructive">{listQuery.error.message}</p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={statusFilter === 'all' ? 'secondary' : 'outline'}
+            onClick={() => setStatusFilter('all')}
+          >
+            全部
+          </Button>
+          {rows.map((row) => (
+            <Button
+              key={row.id}
+              variant={selected === row.id ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setSelected(row.id)}
+            >
+              {row.externalPackageId} · {row.statusLabel}
+            </Button>
+          ))}
+        </div>
+        {current ? (
+          <div className="rounded-lg border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="font-medium">
+                  {current.externalPackageId} · {current.order}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {current.id} · {current.shop} · {current.mode} · {current.tracking}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">{labelProviderType(current.providerType)}</Badge>
+                <Badge variant="secondary">{labelShipmentStatus(current.status)}</Badge>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <p>平台状态：{current.platformStatus}</p>
+              <p>发货仓：{current.warehouse}</p>
+              <p>最近同步：{current.lastSyncedAt || '—'}</p>
+              <p>RTS：{current.rtsAt || '—'}</p>
+              <p>出库：{current.shippedAt || '—'}</p>
+              <p>签收：{current.deliveredAt || '—'}</p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEventTarget(current.id)
+                  setDialogMode('event')
+                }}
+              >
+                追加履约事件
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={syncMutation.isPending}
+                onClick={() => setSyncConfirmOpen(true)}
+              >
+                {syncMutation.isPending ? '同步中…' : '同步平台轨迹（stub）'}
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <LocaleLink href={`/console/shipments/${encodeURIComponent(current.id)}`}>
+                  查看完整详情
+                </LocaleLink>
+              </Button>
+            </div>
+            <ol className="mt-4 flex flex-col gap-2 border-l pl-4">
+              {'events' in current && Array.isArray(current.events) && current.events.length > 0 ? (
+                current.events.map((event) => (
+                  <li key={event.id} className="text-sm">
+                    <span className="font-medium">
+                      {event.eventTime} · {event.title}
+                    </span>
+                    <span className="ml-2 text-muted-foreground">
+                      {event.location} · {event.sourceLabel}
+                    </span>
+                    {event.description ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">{event.description}</p>
+                    ) : null}
+                  </li>
+                ))
+              ) : (
+                <li className="text-sm text-muted-foreground">
+                  暂无履约轨迹，等待仓库出库或平台同步。
+                </li>
+              )}
+            </ol>
+            {'remark' in current && current.remark ? (
+              <p className="mt-3 text-xs text-muted-foreground">备注：{current.remark}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {notice ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {notice}
+          </p>
+        ) : null}
+      </UedWorkspace>
+      {current ? (
+        <SyncConfirmDialog
+          open={syncConfirmOpen}
+          onOpenChange={setSyncConfirmOpen}
+          title="同步平台物流轨迹"
+          description="拉取该包裹的最新物流轨迹。"
+          scope={{
+            label: '作用包裹',
+            value: `包裹 ${current.externalPackageId} · ${current.shop}`,
+          }}
+          impacts={[
+            '当前为 stub：仅写一条 fulfillment_attempts 记录，不调用平台',
+            '真实轨迹同步需待 connector 联调',
+          ]}
+          confirmLabel="同步轨迹"
+          pending={syncMutation.isPending}
+          onConfirm={() => {
+            setSyncConfirmOpen(false)
+            syncMutation.mutate({ id: current.id })
+          }}
+        />
+      ) : null}
+    </>
+  )
 }

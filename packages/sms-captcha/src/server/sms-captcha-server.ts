@@ -55,12 +55,13 @@ function getTolerancePx(config?: SmsCaptchaConfig) {
   return config?.tolerancePx ?? 12
 }
 
+/**
+ * 图片访问地址的来源 URL：只在显式传入 config.appUrl 时拼绝对地址。
+ * 默认输出相对路径，由浏览器按页面当前源解析，避免 env 中的
+ * NEXT_PUBLIC_APP_URL 与实际访问端口/域名不一致导致拼图图片加载失败。
+ */
 function getAppUrl(config?: SmsCaptchaConfig) {
-  return (
-    config?.appUrl?.replace(/\/$/, '') ??
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ??
-    ''
-  )
+  return config?.appUrl?.replace(/\/$/, '') ?? ''
 }
 
 function getApiBasePath(config?: SmsCaptchaConfig) {
