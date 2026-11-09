@@ -776,72 +776,75 @@ function CostCalculatorFormPanel({
           {input.clearanceMiscTotal} USD
         </p>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" onClick={onCompute}>
-
-      <div className="space-y-2 rounded-md border p-3">
-        <p className="text-xs text-muted-foreground">{fxHint}</p>
-        <p className="text-xs text-muted-foreground">{freightHint}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>箱规主档</Label>
-            <Select
-              value={input.cartonSpecCode || '__manual__'}
-              onValueChange={(value) => {
-                if (value === '__manual__') {
-                  setInput((prev) => ({ ...prev, cartonSpecCode: '', cartonSpecSource: 'manual' }))
-                  return
-                }
-                const spec = cartonSpecs.find((c) => c.code === value)
-                if (!spec) return
-                setInput((prev) => ({
-                  ...prev,
-                  cartonSpecCode: spec.code,
-                  cartonSpecSource: 'master',
-                  cartonLcm: Number(spec.lengthCm) || prev.cartonLcm,
-                  cartonWcm: Number(spec.widthCm) || prev.cartonWcm,
-                  cartonHcm: Number(spec.heightCm) || prev.cartonHcm,
-                  kgPerCarton: Number(spec.grossWeightKg) || prev.kgPerCarton,
-                  unitsPerCarton: Number(spec.unitsPerCarton) || prev.unitsPerCarton,
-                }))
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择箱规或手工" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__manual__">手工录入尺寸</SelectItem>
-                {cartonSpecs.map((c) => (
-                  <SelectItem key={c.id} value={c.code}>
-                    {c.code} · {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {input.cartonSpecSource === 'manual' ? (
-              <p className="text-[11px] text-amber-700">手工尺寸（未引用箱规主档）</p>
-            ) : null}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="manual-freight">手工运费总额 USD（可选）</Label>
-            <Input
-              id="manual-freight"
-              type="number"
-              step="0.01"
-              value={input.manualFreightTotal ?? ''}
-              placeholder="留空则用运价卡"
-              onChange={(e) => {
-                const v = e.target.value
-                setInput((prev) => ({
-                  ...prev,
-                  manualFreightTotal: v === '' ? null : Number(v),
-                }))
-              }}
-            />
+        <div className="space-y-2 rounded-md border p-3">
+          <p className="text-xs text-muted-foreground">{fxHint}</p>
+          <p className="text-xs text-muted-foreground">{freightHint}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>箱规主档</Label>
+              <Select
+                value={input.cartonSpecCode || '__manual__'}
+                onValueChange={(value) => {
+                  if (value === '__manual__') {
+                    setInput((prev) => ({
+                      ...prev,
+                      cartonSpecCode: '',
+                      cartonSpecSource: 'manual',
+                    }))
+                    return
+                  }
+                  const spec = cartonSpecs.find((c) => c.code === value)
+                  if (!spec) return
+                  setInput((prev) => ({
+                    ...prev,
+                    cartonSpecCode: spec.code,
+                    cartonSpecSource: 'master',
+                    cartonLcm: Number(spec.lengthCm) || prev.cartonLcm,
+                    cartonWcm: Number(spec.widthCm) || prev.cartonWcm,
+                    cartonHcm: Number(spec.heightCm) || prev.cartonHcm,
+                    kgPerCarton: Number(spec.grossWeightKg) || prev.kgPerCarton,
+                    unitsPerCarton: Number(spec.unitsPerCarton) || prev.unitsPerCarton,
+                  }))
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择箱规或手工" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__manual__">手工录入尺寸</SelectItem>
+                  {cartonSpecs.map((c) => (
+                    <SelectItem key={c.id} value={c.code}>
+                      {c.code} · {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {input.cartonSpecSource === 'manual' ? (
+                <p className="text-[11px] text-amber-700">手工尺寸（未引用箱规主档）</p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="manual-freight">手工运费总额 USD（可选）</Label>
+              <Input
+                id="manual-freight"
+                type="number"
+                step="0.01"
+                value={input.manualFreightTotal ?? ''}
+                placeholder="留空则用运价卡"
+                onChange={(e) => {
+                  const v = e.target.value
+                  setInput((prev) => ({
+                    ...prev,
+                    manualFreightTotal: v === '' ? null : Number(v),
+                  }))
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={onCompute}>
             {computeLabel}
           </Button>
           {showCopilotButton ? (

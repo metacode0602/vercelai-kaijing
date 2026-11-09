@@ -13,6 +13,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { and, eq } from 'drizzle-orm'
 import { createPgClient } from '../client'
 import {
+  fxRates,
   integrationLogs,
   logisticsFeeDetails,
   organization,
@@ -36,6 +37,46 @@ async function main() {
     const [org] = await db.select().from(organization).where(eq(organization.id, ORG_ID)).limit(1)
     if (!org) {
       throw new Error(`组织不存在：${ORG_ID}。请先 seed products 或创建组织。`)
+    }
+
+    // fx_rates：成本测算/保存强制要求有效汇率（演示值；真实汇率在「设置/汇率配置」维护）
+    const fxSeed = {
+      platform: 'Daraz',
+      marketplaceCode: 'Daraz LK',
+      baseCurrency: 'USD',
+      quoteCurrency: 'LKR',
+      rate: '300',
+      effectiveDate: '2026-01-01',
+    }
+    const shopOrgRows = await db
+      .selectDistinct({ organizationId: shops.organizationId })
+      .from(shops)
+    const fxOrgIds = [...new Set([ORG_ID, ...shopOrgRows.map((row) => row.organizationId)])]
+    const fxPair = `${fxSeed.baseCurrency}/${fxSeed.quoteCurrency}`
+    for (const orgId of fxOrgIds) {
+      const [existingFx] = await db
+        .select({ id: fxRates.id })
+        .from(fxRates)
+        .where(
+          and(
+            eq(fxRates.organizationId, orgId),
+            eq(fxRates.baseCurrency, fxSeed.baseCurrency),
+            eq(fxRates.quoteCurrency, fxSeed.quoteCurrency),
+            eq(fxRates.status, 'active'),
+          ),
+        )
+        .limit(1)
+      if (existingFx) {
+        console.log('fx_rate exists', orgId, fxPair)
+        continue
+      }
+      await db.insert(fxRates).values({
+        organizationId: orgId,
+        ...fxSeed,
+        source: 'manual',
+        note: 'seed：演示汇率，请在设置/汇率配置按真实汇率维护',
+      })
+      console.log('fx_rate', orgId, `${fxPair} @ ${fxSeed.rate}`)
     }
 
     const shopRows = await db.select().from(shops).where(eq(shops.organizationId, ORG_ID)).limit(5)

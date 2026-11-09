@@ -1,7 +1,7 @@
 /**
  * fx_rates（F33）— 组织隔离汇率；历史不覆盖删除，软停用。
  */
-import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { fxRates } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -297,21 +297,36 @@ export async function resolveFxRate(
   const base = input.baseCurrency.trim().toUpperCase()
   const quote = input.quoteCurrency.trim().toUpperCase()
   const asOf = (input.asOf || new Date().toISOString().slice(0, 10)).slice(0, 10)
-  const filters: SQL[] = [
+  const pairFilters: SQL[] = [
     eq(fxRates.organizationId, organizationId),
     eq(fxRates.status, 'active'),
     eq(fxRates.baseCurrency, base),
     eq(fxRates.quoteCurrency, quote),
     sql`${fxRates.effectiveDate} <= ${asOf}`,
   ]
-  if (input.platform?.trim()) {
-    filters.push(eq(fxRates.platform, input.platform.trim()))
+  const pick = async (extra: SQL[]) => {
+    const [row] = await db
+      .select()
+      .from(fxRates)
+      .where(and(...pairFilters, ...extra)!)
+      .orderBy(desc(fxRates.effectiveDate), desc(fxRates.createdAt))
+      .limit(1)
+    return row ?? null
   }
-  const [row] = await db
-    .select()
-    .from(fxRates)
-    .where(and(...filters)!)
-    .orderBy(desc(fxRates.effectiveDate), desc(fxRates.createdAt))
-    .limit(1)
+  const platform = input.platform?.trim()
+  if (platform) {
+    // 平台相关汇率优先（大小写不敏感：设置页存 'Daraz'，测算页传 'daraz'）
+    const specific = await pick([
+      sql`lower(${fxRates.platform}) = lower(${platform})`,
+    ])
+    if (specific) return mapRow(specific)
+    // 回退到未指定平台的全局汇率
+    const global = await pick([
+      or(isNull(fxRates.platform), eq(fxRates.platform, ''))!,
+    ])
+    if (global) return mapRow(global)
+    return null
+  }
+  const row = await pick([])
   return row ? mapRow(row) : null
 }
