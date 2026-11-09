@@ -2,6 +2,8 @@
 
 import { Sparkles, UserRound } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { signOut } from '@/lib/auth-client'
+import { Routes } from '@/lib/routes'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useConsoleBreadcrumbTrail } from '@/components/console/console-breadcrumbs-context'
 import { ConsoleInboxSheet } from '@/components/console/console-inbox-sheet'
@@ -39,6 +41,11 @@ export function ConsoleTopbar() {
   const title = resolveTitle(pathname, t)
   const breadcrumbs = useConsoleBreadcrumbTrail()
   const { open: copilotOpen, toggle: toggleCopilot } = useConsoleCopilot()
+
+  const handleSignOut = async () => {
+    await signOut()
+    window.location.assign(Routes.Login)
+  }
 
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur md:px-4">
@@ -93,7 +100,7 @@ export function ConsoleTopbar() {
               <LocaleLink href="/console/profile/preferences">{t('profile.preferences')}</LocaleLink>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>{tc('logout')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleSignOut()}>{tc('logout')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -51,41 +51,17 @@ function runCostCalcOnPageOrNavigate(
 
 const PANEL_WIDTH = 'w-[min(100%,380px)]'
 
-function mockReply(input: string): string {
-  const lower = input.toLowerCase()
-  if (
-    lower.includes('到仓') ||
-    lower.includes('成本测算') ||
-    lower.includes('成本计算') ||
-    lower.includes('landed')
-  ) {
-    return COST_SUGGESTION_REPLIES[0]
-  }
-  if (lower.includes('拼柜') || lower.includes('整柜') || lower.includes('lcl') || lower.includes('fcl')) {
-    return COST_SUGGESTION_REPLIES[1]
-  }
-  if (lower.includes('净利率') || lower.includes('建议售价') || lower.includes('售价')) {
-    return COST_SUGGESTION_REPLIES[2]
-  }
-  if (lower.includes('库存') || lower.includes('inventory')) {
-    return '（示例）TEE-001 与 MAT-02 低于阈值；可前往库存预警查看补货建议，敏感改价请走待审队列。'
-  }
-  if (lower.includes('利润') || lower.includes('财务') || lower.includes('profit')) {
-    return '（示例）近 7 天 Daraz 净利润约 4,720 USD（示例数据）。详见财务中心。'
-  }
-  if (lower.includes('选品') || lower.includes('候选')) {
-    return '（示例）当前高分候选：Oversized Cotton Tee（0.91）。接受上架会进入待审。'
-  }
-  if (lower.includes('日报') || lower.includes('报告')) {
-    return '（示例）今日：订单 186、待审 2、库存告警 2。建议优先处理待审刊登。'
-  }
-  return '（示例 · mock）我是运营助手（AI-C）。可问日报、库存、利润、选品，或点下方成本测算快捷指令。需执行的动作请到待审队列确认。'
-}
+/**
+ * 尚未接入模型服务时的兜底回复：只陈述现状，不编造业务数字。
+ * 接入真实 AI 网关后，改为在 send 流程内调用后端并回填模型输出。
+ */
+const MODEL_NOT_CONNECTED_REPLY =
+  '当前环境未接入模型服务，暂时无法回答该问题。日报、库存、利润、选品请到对应控制台页面查看；下方成本测算快捷指令可直接执行。'
 
 const COST_SUGGESTION_REPLIES = [
-  '（示例 · mock）已打开成本计算器并套用 TEE-001 预设：FOB 4.2 USD、服装税率档、LCL。右侧瀑布会展示 Customs→PAL→CESS→VAT→SSCL 与到仓/件。数字为估算·需报关/法务复核。',
-  '（示例 · mock）已切换海运模式以便对比。结果区「LCL vs FCL」表会标出当前批量更优方案，并提示约多少件后 FCL 20\' 可能更划算（示意）。',
-  '（示例 · mock）已将目标净利率设为 20%，并按 P* = (landed + 尾程) / (1 − 佣金 − 支付 − m) 重算建议售价。详见工作台「计算规则与公式」。',
+  '已打开成本计算器并套用 TEE-001 预设：FOB 4.2 USD、服装税率档、LCL。右侧瀑布会展示 Customs→PAL→CESS→VAT→SSCL 与到仓/件。数字为估算，需报关 / 法务复核。',
+  '已切换海运模式以便对比。结果区「LCL vs FCL」表会标出当前批量更优方案，并提示约多少件后 FCL 20\' 可能更划算（估算）。',
+  '已将目标净利率设为 20%，并按 P* = (landed + 尾程) / (1 − 佣金 − 支付 − m) 重算建议售价。详见工作台「计算规则与公式」。',
 ] as const
 
 /**
@@ -188,7 +164,7 @@ export function ConsoleCopilot() {
     const botMsg: ChatMessage = {
       id: `a-${Date.now()}`,
       role: 'assistant',
-      content: replyOverride ?? mockReply(trimmed),
+      content: replyOverride ?? MODEL_NOT_CONNECTED_REPLY,
     }
     setMessages((prev) => [...prev, userMsg, botMsg])
     setInput('')
@@ -261,7 +237,7 @@ export function ConsoleCopilot() {
             </Button>
           ))}
         </div>
-        <p className="text-[10px] font-medium text-muted-foreground">成本测算（示例）</p>
+        <p className="text-[10px] font-medium text-muted-foreground">成本测算</p>
         <div className="flex flex-wrap gap-1.5">
           {costSuggestions.map((s) => (
             <Button

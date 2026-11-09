@@ -1,4 +1,5 @@
 import { signLazopRequest } from "../signing/lazop"
+import type { TokenProvider } from "../tokens/types"
 import {
   resolveDarazRestBase,
   resolveLazadaRestBase,
@@ -14,6 +15,8 @@ export interface LazopHttpClientOptions {
   appKey: string
   appSecret: string
   accessToken?: string
+  /** Lazily resolves access tokens and force-refreshes on auth errors. */
+  tokenProvider?: TokenProvider
   /** Override resolved REST base (include `/rest`). */
   baseUrl?: string
   fetchImpl?: typeof fetch
@@ -49,6 +52,20 @@ export function resolveLazopBaseUrl(
   return resolveLazadaRestBase(region)
 }
 
+function isAuthFailure(status: number, json: unknown): boolean {
+  if (status === 401 || status === 403) return true
+  const code = String((json as { code?: string | number })?.code ?? "")
+  if (code === "900") return true
+  const message = String(
+    (json as { message?: string; msg?: string })?.message ??
+      (json as { msg?: string })?.msg ??
+      "",
+  )
+  return /unauthori[sz]ed|invalid.*(access_?token|token)|token.*(expired|invalid)/i.test(
+    message,
+  )
+}
+
 export class LazopHttpClient {
   readonly family: LazopFamily
   readonly region: string
@@ -56,6 +73,7 @@ export class LazopHttpClient {
   private readonly appKey: string
   private readonly appSecret: string
   private accessToken?: string
+  private readonly tokenProvider?: TokenProvider
   private readonly fetchImpl: typeof fetch
 
   constructor(opts: LazopHttpClientOptions) {
@@ -65,6 +83,7 @@ export class LazopHttpClient {
     this.appKey = opts.appKey
     this.appSecret = opts.appSecret
     this.accessToken = opts.accessToken
+    this.tokenProvider = opts.tokenProvider
     this.fetchImpl = opts.fetchImpl ?? fetch
   }
 
@@ -73,17 +92,28 @@ export class LazopHttpClient {
   }
 
   async call<T = unknown>(options: LazopCallOptions): Promise<T> {
+    return this.execute<T>(options, true)
+  }
+
+  private async execute<T>(
+    options: LazopCallOptions,
+    allowAuthRetry: boolean,
+  ): Promise<T> {
     const method = options.method ?? "GET"
     const apiPath = options.path.startsWith("/") ? options.path : `/${options.path}`
     const timestamp = String(Date.now())
+
+    const accessToken = this.tokenProvider
+      ? await this.tokenProvider.getAccessToken()
+      : this.accessToken
 
     const sys: Record<string, string> = {
       app_key: this.appKey,
       sign_method: "sha256",
       timestamp,
     }
-    if (this.accessToken) {
-      sys.access_token = this.accessToken
+    if (accessToken) {
+      sys.access_token = accessToken
     }
 
     const business: Record<string, string> = {}
@@ -127,6 +157,15 @@ export class LazopHttpClient {
 
     const code = String((json as { code?: string | number })?.code ?? "")
     if (!res.ok || (code && code !== "0")) {
+      if (
+        allowAuthRetry &&
+        this.tokenProvider &&
+        isAuthFailure(res.status, json)
+      ) {
+        await this.tokenProvider.getAccessToken({ forceRefresh: true })
+        return this.execute<T>(options, false)
+      }
+
       const message =
         (json as { message?: string; msg?: string })?.message ??
         (json as { msg?: string })?.msg ??

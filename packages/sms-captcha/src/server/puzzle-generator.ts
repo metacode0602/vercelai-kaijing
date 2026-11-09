@@ -41,10 +41,10 @@ export type CreatePuzzleResult = {
 export async function getRandomImagePathFromGallery(
   galleryDir = 'public/images/blog'
 ): Promise<string | null> {
-  const dir = path.join(process.cwd(), galleryDir)
+  const dir = path.join(/* turbopackIgnore: true */ process.cwd(), galleryDir)
   let entries: string[]
   try {
-    entries = await fs.readdir(dir)
+    entries = await fs.readdir(/* turbopackIgnore: true */ dir)
   } catch {
     return null
   }
@@ -53,7 +53,7 @@ export async function getRandomImagePathFromGallery(
   )
   if (files.length === 0) return null
   const name = files[Math.floor(Math.random() * files.length)]!
-  return path.join(dir, name)
+  return path.join(/* turbopackIgnore: true */ dir, name)
 }
 
 /** 生成默认背景图（图库无图时使用），返回 Buffer */

@@ -12,6 +12,7 @@ export type ConsoleNavTitleKey =
   | 'nav.productCenter'
   | 'nav.masterProducts'
   | 'nav.categories'
+  | 'nav.brands'
   | 'nav.masterSkus'
   | 'nav.supplierSkus'
   | 'nav.dictionaries'
@@ -50,6 +51,7 @@ export type ConsoleNavTitleKey =
   | 'nav.settlements'
   | 'nav.profits'
   | 'nav.freight'
+  | 'nav.freightRateCards'
   | 'nav.carriers'
   | 'nav.cartonSpecs'
   | 'nav.reports'
@@ -103,6 +105,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     items: [
       { url: '/console/master-products', titleKey: 'nav.masterProducts' },
       { url: '/console/categories', titleKey: 'nav.categories' },
+      { url: '/console/brands', titleKey: 'nav.brands' },
       { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
       { url: '/console/dictionaries', titleKey: 'nav.dictionaries' },
@@ -136,6 +139,8 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
     items: [
       { url: '/console/inventory-balances', titleKey: 'nav.inventoryBalances' },
       { url: '/console/ocean-containers', titleKey: 'nav.oceanContainers' },
+      { url: '/console/carriers', titleKey: 'nav.carriers' },
+      { url: '/console/carton-specs', titleKey: 'nav.cartonSpecs' },
       { url: '/console/warehouse', titleKey: 'nav.warehouse' },
       { url: '/console/warehouse-zones', titleKey: 'nav.warehouseZones' },
       { url: '/console/stock-inbounds', titleKey: 'nav.stockInbounds' },
@@ -173,8 +178,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/fee-templates', titleKey: 'nav.feeTemplates' },
       { url: '/console/settlements', titleKey: 'nav.settlements' },
       { url: '/console/profits', titleKey: 'nav.profits' },
-      { url: '/console/carriers', titleKey: 'nav.carriers' },
-      { url: '/console/carton-specs', titleKey: 'nav.cartonSpecs' },
+      { url: '/console/freight-rate-cards', titleKey: 'nav.freightRateCards' },
       { url: '/console/freight', titleKey: 'nav.freight' },
     ],
   },
@@ -199,7 +203,7 @@ export const COEXIST_NAV: ConsoleNavItemConfig[] = [
   { url: '/console/purchases', titleKey: 'nav.purchases' },
   { url: '/console/shipments', titleKey: 'nav.shipments' },
   { url: '/console/aftersales', titleKey: 'nav.aftersales' },
-  { url: '/console/finance', titleKey: 'nav.finance' },
+  // /console/finance 已重定向至 settlements，不再并存入口
 ]
 
 export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
@@ -208,9 +212,11 @@ export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
 
 export const SETTINGS_NAV = [
   { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
-  { url: '/console/settings/credentials', titleKey: 'settings.credentials' as const },
+  { url: '/console/settings/marketplace-apps', titleKey: 'settings.marketplaceApps' as const },
   { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
   { url: '/console/settings/fx-rates', titleKey: 'settings.fxRates' as const },
+  { url: '/console/settings/stock-alerts', titleKey: 'settings.stockAlerts' as const },
+  { url: '/console/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy' as const },
   { url: '/console/dictionaries', titleKey: 'settings.dictionaries' as const },
   { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
   { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },

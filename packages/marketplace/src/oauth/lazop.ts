@@ -1,5 +1,9 @@
 import { LazopHttpClient, type LazopFamily } from "../clients/lazop-http"
-import { LAZOP_AUTH } from "../regions/endpoints"
+import {
+  LAZOP_AUTH,
+  resolveLazopAuthorizeBase,
+  resolveLazopTokenBase,
+} from "../regions/endpoints"
 import type { OAuthTokenSet } from "../domain/types"
 
 export interface LazopOAuthAppConfig {
@@ -12,13 +16,16 @@ export interface LazopOAuthAppConfig {
 }
 
 export function buildLazopAuthorizeUrl(input: {
+  family: LazopFamily
   appKey: string
   redirectUri: string
   state: string
+  region?: string
   /** ISO country for authorize page, e.g. lk / my. */
   country?: string
 }): string {
-  const url = new URL(LAZOP_AUTH.authorizeUrl)
+  const base = resolveLazopAuthorizeBase(input.family, input.region)
+  const url = new URL(`${base}${LAZOP_AUTH.authorizePath}`)
   url.searchParams.set("response_type", "code")
   url.searchParams.set("force_auth", "true")
   url.searchParams.set("redirect_uri", input.redirectUri)
@@ -59,6 +66,7 @@ export async function exchangeLazopCode(
   const client = new LazopHttpClient({
     family: cfg.family,
     region: cfg.region,
+    baseUrl: resolveLazopTokenBase(cfg.family, cfg.region),
     appKey: cfg.appKey,
     appSecret: cfg.appSecret,
     fetchImpl: cfg.fetchImpl,
@@ -86,6 +94,7 @@ export async function refreshLazopToken(
   const client = new LazopHttpClient({
     family: cfg.family,
     region: cfg.region,
+    baseUrl: resolveLazopTokenBase(cfg.family, cfg.region),
     appKey: cfg.appKey,
     appSecret: cfg.appSecret,
     fetchImpl: cfg.fetchImpl,

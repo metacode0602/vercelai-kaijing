@@ -14,7 +14,7 @@
 
 1. **Excel「菜单模块蓝图」**（`好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`）：10 个一级菜单、37 个二级页面，含页面目的/主要功能/核心数据对象/权限/阶段（P0/P1/P2）。原始口径：「在现有左侧菜单基础上按业务闭环重组；第一阶段先完成 P0，再建设利润与 AI 功能」。
 2. **现有导航**（`apps/shop/src/lib/console-nav.ts`）：6 个分组（workbench/masterData/procurement/fulfillment/analytics/administration）+ footer 设置；平铺渲染、无二级折叠。
-3. **现有路由**：`/console` 下 44 个 page（D1 原型/mock），设置区 8 Tab。
+3. **现有路由**：`/console` 下 44 个 page（D1 原型/mock；**2026-11-08 更新**：多数已接 tRPC，见 shop-module1–14），设置区 8 Tab。
 4. **权威 schema**：域 A–K 约 75 表——菜单必须保证每表有展示路径（§4）。
 5. **IA 既有建议**：[haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) §1 六组分法。
 
@@ -131,7 +131,7 @@
 │ 设置                 │  ├────────────────────────────────────┤
 │                      │  │                                    │
 │  · 店铺连接        ◀ │  │  主区域（三种既有交互模式）：        │
-│  · 平台凭证          │  │  ① 列表+分步向导   （店铺连接）      │
+│  · 平台应用配置      │  │  ① 列表+分步向导   （店铺连接）      │
 │  · 平台基础资料      │  │  ② 页内水平Tab+弹窗（平台基础资料）  │
 │  · 基础数据字典      │  │  ③ 左右 master-detail（字典）        │
 │  · 数据导入   [新]   │  │                                    │
@@ -145,7 +145,7 @@
 
 - 现有 8 Tab 保留；**新增**「数据导入」「接口日志」2 个 Tab（D2：主侧栏 `administration` 组的 `/console/imports`、`/console/system-log` 内容迁入，D6 旧路由删除）。
 - 「角色权限」Tab 沿用现有 `settings/erp-access`（re-export 角色矩阵）；「组织成员」负责账号启停，与角色权限合并覆盖 Excel「人员角色权限」。
-- 「平台店铺与授权」= 现有「店铺连接」+「平台凭证」两 Tab（店铺主档向导 / OAuth 凭据），不合并以保持现状交互。
+- 「平台店铺与授权」收口到「店铺连接」：店铺主档、OAuth 授权、到期与健康同页；组织级 App Key/Secret 放在「平台应用配置」。独立「平台凭证」页已删除。
 - 「基础数据字典」Tab 保留（D5）：与商品中心「商品评论」外的属性字典入口同页。
 
 ---
@@ -196,7 +196,7 @@
 | 二级页 | 主要功能（子功能） | 核心数据表 | 权限 | 阶段 | 来源 |
 |---|---|---|---|---|---|
 | 库存汇总 | 按仓库/库位/SKU 查实际、可用、锁定、在途、残次；五国共享池视图 | inventory_balances（+inventory_reservations 摘要） | 共享池只读+权限 | P0 | 新增（与预警分离） |
-| 仓库与库位 | 建仓库/库位、SKU 绑定与解绑、停用、绑定历史 | commerce_warehouses、commerce_bins、绑定历史 | 一库位一启用 SKU | P0 | 现有 |
+| 仓库与库位 | 建仓库/库位、SKU 绑定与解绑、停用、**绑定履历（只读，禁物理删除）** | commerce_warehouses、commerce_bins、commerce_bin_bindings、bin_binding_history | 一库位一启用 SKU（C1/C2） | P0 | 现有 |
 | 入库单 | 采购收货、质检结果确认、上架库位、触发流水 | purchase_receipts 视角 + inventory_ledger（in） | 必须关联来源单据 | P0 | 新增 |
 | 出库单 | 拣货、复核、打包、称重、出库交接 | stock out 单据 + inventory_ledger（out） | 出库与流水一致 | P0 | 新增 |
 | 库存流水 | 全类型查询（采购入库/锁定/释放/出库/盘点/售后/报损）、按幂等键追溯 | inventory_ledger | 历史不可删除 | P0 | 现有（剥离调整） |
@@ -222,12 +222,18 @@
 
 ### 3.8 成本财务
 
+> **导航方案 B（#64–#68，已落地）**：成本财务组保留 costs / fee-templates / settlements / profits / freight-rate-cards / freight；**承运商、箱规迁至仓库中心**。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
+
 | 二级页 | 主要功能（子功能） | 核心数据表 | 权限 | 阶段 | 来源 |
 |---|---|---|---|---|---|
-| SKU成本 | 成本模板、版本、测算（LK 工作台）、审核、历史；汇率快照选择 | cost_templates(+versions)、sku_costs、fx_rates | 历史版本不覆盖 | P1 | 现有 `/costs`（重构） |
-| 平台结算对账 | 导入账单、自动匹配、差异处理、确认 | settlements(+settlement_lines) | 蔡值只读 | P1 | 拆分（finance） |
-| 订单与SKU利润 | 费用归集、汇率折算、订单/SKU 维度汇总、下钻、利润快照 | order_fees、order_profit_snapshots | 各维度汇总一致 | P1 | 拆分 |
-| 运费测算 | 情景测算（air_ddp/sea_lcl/sea_fcl）、报价/牌价比较、HS 税率匹配、快照采纳；参考数据维护（承运商/线路/HS/箱规） | freight_estimates、freight_quotes(_lines)、freight_rate_cards(_versions/_tiers)、hs_*、freight_carriers/lanes、packaging_specs | 平台参考数据=平台运营写 | P1 | 新增（域 K，D4） |
+| SKU成本 | 测算（LK 工作台）、柜次成本写 `sku_costs`；汇率选自设置·fx-rates；费用模板 resolve | sku_costs、fx_rates、fee_templates(+versions)、ocean_shipments | 正式成本禁 localStorage | P1 | `/costs`（#64 闭环） |
+| 费用模板 | import_tax / platform_fee / ocean_freight；版本审核与 resolve | fee_templates、fee_template_versions | 审核状态机 | P1 | `/fee-templates` |
+| 平台结算对账 | CSV/JSON 导入、Lazop 同步、状态确认 | settlements(+settlement_lines)、sync_tasks | 确认后改状态 | P1 | `/settlements` |
+| 订单与SKU利润 | 营收−成本−结算/物流费；下钻 | orders、sku_costs、settlement_lines | 只读派生 | P1 | `/profits` |
+| 运价卡 | 空运/LCL/FCL 牌价 CRUD；可选承运商 | commerce_freight_rate_cards、commerce_carriers | 组织主档 | P1 | `/freight-rate-cards`（#64/#65） |
+| 运费测算 | 只读拼盘：运价卡 + ocean_freight 模板 + ocean packing | commerce_freight_rate_cards、fee_templates、ocean_* | 只读 | P1 | `/freight` |
+| （迁出）承运商 | 主档 CRUD → **仓库中心** | commerce_carriers | — | P1 | `/carriers` |
+| （迁出）箱规 | 主档 CRUD → **仓库中心**；海运装箱引用 code | commerce_carton_specs | — | P1 | `/carton-specs` |
 
 ### 3.9 报表中心
 
@@ -240,7 +246,7 @@
 | 设置 Tab | 主要功能（子功能） | 核心数据表 | 来源 |
 |---|---|---|---|
 | 店铺连接 | 列表 + 分步向导（平台→站点→资料→多选仓库→唯一默认仓）、详情、停用 | shops、shop_warehouses、integration_states（同步健康） | 现有 |
-| 平台凭证 | 凭据卡片、OAuth 重新授权、到期提醒、测试连接 | integration_credentials | 现有 |
+| 平台应用配置 | 组织级 App Key/App Secret、默认/独立回调、最近验证与错误 | marketplace_app_credentials | 现有 |
 | 平台基础资料 | 页内 4 Tab：平台/国家站点/仓库/币种 CRUD、启停 | commerce_platforms、commerce_countries、platform_marketplaces、commerce_currencies、commerce_warehouses | 现有 |
 | 基础数据字典 | 左右两栏字典维护（同商品中心入口） | commerce_dictionaries 系 | 现有 |
 | 数据导入 | 模板下载、上传校验、错误行报告、批次回滚（双通道 file/platform_api） | import_batches、import_rows | **新增 Tab**（迁自 /console/imports） |
@@ -328,6 +334,8 @@
 
 ### 4.8 域 H 成本财务（8）
 
+> 生产闭环补充表：`commerce_freight_rate_cards`（历史 0012，现于 `0002_glamorous_bruce_banner.sql`）；承运商/箱规展示路径改为仓库中心（导航 B）。详见 [cost-finance-production-closure.md](cost-finance-production-closure.md)。
+
 | 表 | 展示路径 |
 |---|---|
 | fx_rates | 成本财务·SKU成本（汇率快照选择器）+ 运费测算（fx 引用展示） |
@@ -345,7 +353,7 @@
 | audit_events | 设置·接口日志（操作审计 Tab/关联跳转） |
 | import_batches / import_rows | 设置·数据导入（批次列表+行错误报告） |
 | report_metrics | 报表中心·经营报表（指标口径说明） |
-| integration_credentials | 设置·平台凭证 |
+| integration_credentials | 设置·店铺连接（授权状态/到期/健康） |
 | integration_states | 设置·店铺连接（详情同步健康）+ 发布与同步任务（游标摘要） |
 | integration_logs | 设置·接口日志 + 刊登中心·发布与同步任务（action 过滤视图） |
 
@@ -386,7 +394,7 @@
 | 仓库中心 | **仓库中心** | 独立成组（原归「采购与库存」） |
 | 订单履约 | **订单履约** | 发货/物流按 Excel 拆 3 页 |
 | 售后中心 | **售后中心** | 独立成组（原平铺 fulfillment） |
-| 成本财务 | **成本财务** | 独立成组 + 运费测算（D4） |
+| 成本财务 | **成本财务** | 独立成组 + 运费测算 + 运价卡；承运商/箱规迁仓库中心（方案 B，#64） |
 | 报表中心 | **报表中心** | 4 报表为页内 Tab（Excel 单页口径） |
 | AI辅助 | → 工作台 | D1 |
 | 系统设置 | → 设置区 | D2（主侧栏 administration 组移除） |
@@ -417,7 +425,7 @@
 | administration/access-control | → 设置·角色权限（settings/erp-access 同页 re-export） | **删除**（同页二入口合一） |
 | settings/dictionaries | → 商品中心·`/console/dictionaries`（同页换壳） | **删除**旧路由；设置 Tab 变导航链接 |
 | `groupKey` 联合类型 | `workbench`\|`products`\|`listings`\|`procurement`\|`warehouse`\|`fulfillment`\|`aftersales`\|`finance`\|`reports` | — |
-| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 imports、integration-log 两项（10 Tab） | — |
+| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 marketplace-apps、imports、integration-log；删除 credentials | — |
 | 图标映射 NAV_ICONS | 按新组补 lucide 图标（如 Boxes/Factory/Truck/BadgePercent/ChartNoAxesCombined） | — |
 
 ### 5.3 旧路由处置清单

@@ -5,29 +5,13 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailRelatedTables,
   DetailSection,
-  parentsToFields,
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedDialog, UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import {
-  BIN_OPTIONS,
-  cancelPurchaseReceipt,
-  completeReceiptQc,
-  listInboundsForReceipt,
-  submitReceiptForQc,
-  toRelatedReceiptShape,
-  updateReceiptHeader,
-  updateReceiptLineQty,
-  usePurchaseReceipts,
-  useStockInbounds,
-  type QcLineResultInput,
-} from '@/lib/crossborder/purchase-receipt-store'
-import { getPurchaseOrder } from '@/lib/crossborder/purchase-order-store'
+import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -57,70 +41,109 @@ function statusVariant(status: string) {
 
 export default function PurchaseReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const receipts = usePurchaseReceipts()
-  const inbounds = useStockInbounds()
-  const receipt = receipts.find((item) => item.id === id)
   const router = useLocaleRouter()
-
-  const [headerOpen, setHeaderOpen] = React.useState(false)
+  const utils = trpc.useUtils()
   const [qcOpen, setQcOpen] = React.useState(false)
-  const [lineEditId, setLineEditId] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState('')
-  const [mounted, setMounted] = React.useState(false)
-  const [qcDraft, setQcDraft] = React.useState<Record<string, { passed: string; failed: string; bin: string; note: string }>>(
-    {},
+  const [qcDraft, setQcDraft] = React.useState<
+    Record<string, { passed: string; failed: string; bin: string; note: string }>
+  >({})
+
+  const detailQuery = trpc.purchase.getReceipt.useQuery({ id })
+  const inboundsQuery = trpc.purchase.listInbounds.useQuery({ page: 1, pageSize: 100 })
+  const binsQuery = trpc.wms.listBins.useQuery(
+    {
+      page: 1,
+      pageSize: 100,
+      warehouse: detailQuery.data?.warehouse || undefined,
+      status: undefined,
+    },
+    { enabled: Boolean(detailQuery.data?.warehouse) },
   )
+  const binOptions = React.useMemo(() => {
+    const codes = (binsQuery.data?.items ?? [])
+      .filter((bin) => bin.status !== '停用')
+      .map((bin) => bin.code)
+    return Array.from(new Set(codes))
+  }, [binsQuery.data?.items])
+
+  const invalidate = async () => {
+    await utils.purchase.getReceipt.invalidate({ id })
+    await utils.purchase.listReceipts.invalidate()
+    await utils.purchase.listInbounds.invalidate()
+    await utils.purchase.listOrders.invalidate()
+  }
+
+  const qcMutation = trpc.purchase.submitQc.useMutation({
+    onSuccess: async (result) => {
+      await invalidate()
+      setQcOpen(false)
+      setNotice(
+        `质检完成（${result.receipt.qcNo}）。已生成入库单 ${result.inbounds.map((item) => item.inboundNo).join('、') || '无（合格为 0）'}。`,
+      )
+      if (result.inbounds[0]) {
+        router.push(`/console/stock-inbounds/${encodeURIComponent(result.inbounds[0].id)}`)
+      }
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const cancelMutation = trpc.purchase.cancelReceipt.useMutation({
+    onSuccess: async (row) => {
+      await invalidate()
+      setNotice(`${row.receiptNo} 已取消。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
 
   React.useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  React.useEffect(() => {
-    if (!receipt) return
+    if (!detailQuery.data) return
     const draft: Record<string, { passed: string; failed: string; bin: string; note: string }> = {}
-    for (const line of receipt.lines) {
+    for (const line of detailQuery.data.lines) {
       draft[line.id] = {
         passed: String(line.qtyPassed || line.qtyArrived),
         failed: String(line.qtyFailed || 0),
-        bin: line.suggestedBin || BIN_OPTIONS[0]!,
+        bin: line.suggestedBin || binOptions[0] || '',
         note: line.note || '',
       }
     }
     setQcDraft(draft)
-  }, [receipt?.id, receipt?.status, receipt?.lines.length])
+  }, [detailQuery.data?.id, detailQuery.data?.status, detailQuery.data?.lines.length, binOptions.join("|")])
 
-  if (!receipt) {
+  if (detailQuery.isLoading) {
+    return (
+      <DetailPageHeader
+        backHref="/console/purchase-receipts"
+        title="加载收货单…"
+        description="正在从数据库读取…"
+      />
+    )
+  }
+
+  if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/purchase-receipts"
-          title={mounted ? '未找到收货单' : '加载收货单…'}
-          description={
-            mounted
-              ? `收货单 ${id} 不存在，或仅存在于其他浏览器会话。`
-              : '正在读取本机原型会话中的收货单…'
-          }
+          title="未找到收货单"
+          description={detailQuery.error?.message || `收货单 ${id} 不存在。`}
         />
-        <p className="rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          请返回列表重新选择，或从采购单登记到货。
-        </p>
       </div>
     )
   }
 
-  const current = receipt
-  const order = getPurchaseOrder(current.purchaseOrderId)
-  const relatedInbounds = listInboundsForReceipt(current.receiptNo)
-  const related = buildUedRelatedInfo('purchase-receipts', toRelatedReceiptShape(current) as Record<string, unknown>)
-  const parentFields = parentsToFields(related.parents)
-
-  const lineEdit = lineEditId ? current.lines.find((line) => line.id === lineEditId) : undefined
+  const current = detailQuery.data
+  const relatedInbounds = (inboundsQuery.data?.items || []).filter(
+    (item) =>
+      current.inboundIds.includes(item.inboundNo) ||
+      item.sourceDoc === current.receiptNo ||
+      item.sourceDoc === current.id,
+  )
 
   return (
     <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbRegistration
         items={[
-          { label: '到货质检入库', href: '/console/purchase-receipts' },
+          { label: '到货质检', href: '/console/purchase-receipts' },
           { label: current.receiptNo },
         ]}
       />
@@ -128,225 +151,126 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
       <DetailPageHeader
         backHref="/console/purchase-receipts"
         title={current.receiptNo}
-        description={`采购收货 · ${current.supplier} · ${current.warehouse}`}
+        description={`${current.supplier} · ${current.warehouse} · 操作人 ${current.receivedBy || '—'}`}
         badges={
           <>
-            <Badge variant="outline">示例数据</Badge>
+            <Badge variant="outline">数据库</Badge>
             <Badge variant={statusVariant(current.status)}>{current.status}</Badge>
           </>
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            {(current.status === '草稿' || current.status === '待质检') && (
-              <Button size="sm" variant="outline" onClick={() => setHeaderOpen(true)}>
-                编辑主信息
-              </Button>
-            )}
-            {current.status === '草稿' && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  const result = submitReceiptForQc(receipts, current.id)
-                  setNotice(result.ok ? `${current.receiptNo} 已提交质检（待质检）。` : result.reason)
-                }}
-              >
-                提交质检
-              </Button>
-            )}
-            {current.status === '待质检' && (
-              <Button size="sm" onClick={() => setQcOpen(true)}>
+            {current.status === '待质检' || current.status === '草稿' ? (
+              <Button size="sm" onClick={() => setQcOpen(true)} disabled={qcMutation.isPending}>
                 录入质检结果
               </Button>
-            )}
-            {relatedInbounds.some((item) => item.status === '待上架') && (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => router.push('/console/stock-inbounds')}
-              >
-                去确认上架
+            ) : null}
+            {current.purchaseOrderId ? (
+              <Button size="sm" variant="secondary" asChild>
+                <LocaleLink
+                  href={`/console/purchase-orders/${encodeURIComponent(current.purchaseOrderId)}`}
+                >
+                  查看采购单 {current.purchaseOrderId}
+                </LocaleLink>
               </Button>
-            )}
+            ) : null}
           </div>
         }
       />
 
       <Alert>
-        <AlertTitle>收货 → 质检 → 入库连贯操作</AlertTitle>
+        <AlertTitle>到货 → 质检 → 生成入库单</AlertTitle>
         <AlertDescription>
-          主信息与明细来自采购单自动带出（供应商、仓库、SKU、订购量）。质检合格数生成入库单；确认上架后才写库存流水（幂等键防重复记账）。
+          登记到货后进入待质检。完成质检后合格数量自动生成待上架入库单，并回写采购单投影。
         </AlertDescription>
       </Alert>
 
       <UedPrototypeNotice>
-        {current.status === '草稿'
-          ? '请核对到货数量与库位建议，然后「提交质检」。'
-          : current.status === '待质检'
-            ? '录入每行合格/残次（合计须等于到货），完成后自动生成待上架入库单并回写采购单到货投影。'
-            : current.status === '已完成'
-              ? `质检单 ${current.qcNo || '—'} 已完成；请到入库单确认上架以回写 qty_stocked。`
-              : '收货单已取消。'}
+        {current.status === '待质检'
+          ? '请录入每行合格/残次数量（合计须等于到货）。合格 &gt; 0 时生成待上架入库单。'
+          : current.status === '已完成'
+            ? `质检单 ${current.qcNo || '—'} 已完成；入库单见下方。`
+            : '收货单状态已结束，不可再质检。'}
       </UedPrototypeNotice>
 
       <DetailKpiRow
         items={[
-          { label: '明细行', value: String(current.lines.length) },
+          { label: '明细行数', value: String(current.lines.length) },
           {
             label: '到货合计',
             value: String(current.lines.reduce((sum, line) => sum + line.qtyArrived, 0)),
           },
           {
-            label: '质检合格',
+            label: '合格合计',
             value: String(current.lines.reduce((sum, line) => sum + line.qtyPassed, 0)),
           },
           {
-            label: '关联入库单',
-            value: String(current.inboundIds.length || relatedInbounds.length),
+            label: '残次合计',
+            value: String(current.lines.reduce((sum, line) => sum + line.qtyFailed, 0)),
           },
         ]}
       />
 
       <DetailFieldGrid
         title="收货主信息"
-        description="purchase_receipts：采购单、仓库、到货时间、操作人"
+        description="purchase_receipts：到货批次与质检摘要"
         fields={[
           { label: '收货单号', value: current.receiptNo, mono: true },
-          ...parentFields,
-          {
-            label: '采购单',
-            value: (
-              <LocaleLink
-                href={`/console/purchase-orders/${encodeURIComponent(current.purchaseOrderId)}`}
-                className="font-mono text-xs underline-offset-2 hover:underline"
-              >
-                {current.purchaseOrderId}
-              </LocaleLink>
-            ),
-          },
+          { label: '采购单', value: current.purchaseOrderId, mono: true },
           { label: '供应商', value: current.supplier },
-          { label: '收货仓库', value: current.warehouse, mono: true },
-          { label: '到货时间', value: current.arrivedAt },
-          { label: '操作人', value: current.receivedBy },
+          { label: '仓库', value: current.warehouse, mono: true },
+          { label: '到货批次编号', value: current.batchNo || '—', mono: true },
+          { label: '到货时间', value: current.arrivedAt || '—' },
+          { label: '物流商', value: current.carrier || '—' },
+          { label: '物流单号', value: current.trackingNo || '—', mono: true },
+          { label: '收货人', value: current.receivedBy || '—' },
           { label: '送货单号', value: current.deliveryNote || '—' },
-          { label: '备注', value: current.remark || '—' },
+          { label: '质检单号', value: current.qcNo || '—', mono: true },
+          { label: '质检人', value: current.qcInspector || '—' },
+          { label: '质检完成', value: current.qcCompletedAt || '—' },
           {
             label: '状态',
             value: <Badge variant={statusVariant(current.status)}>{current.status}</Badge>,
           },
-          { label: '质检单号', value: current.qcNo || '—', mono: true },
-          { label: '质检人', value: current.qcInspector || '—' },
-          { label: '质检完成', value: current.qcCompletedAt || '—' },
+          { label: '备注', value: current.remark || '—' },
         ]}
         columns={3}
-        action={
-          current.status === '草稿' || current.status === '待质检' ? (
-            <Button size="sm" variant="ghost" onClick={() => setHeaderOpen(true)}>
-              编辑
-            </Button>
-          ) : null
-        }
       />
 
-      {order ? (
-        <DetailFieldGrid
-          title="来源采购单快照"
-          description="决策辅助：订购/已收/合格/入库投影，避免二次查找"
-          fields={[
-            { label: '采购状态', value: order.status },
-            { label: '预计到货', value: order.expectedAt },
-            {
-              label: '订购合计',
-              value: String(order.lines.reduce((sum, line) => sum + line.qtyOrdered, 0)),
-            },
-            {
-              label: '已到货投影',
-              value: String(order.lines.reduce((sum, line) => sum + line.qtyReceived, 0)),
-            },
-            {
-              label: '合格投影',
-              value: String(order.lines.reduce((sum, line) => sum + line.qtyQcPassed, 0)),
-            },
-            {
-              label: '已入库投影',
-              value: String(order.lines.reduce((sum, line) => sum + line.qtyStocked, 0)),
-            },
-          ]}
-          columns={3}
-        />
-      ) : null}
-
-      <DetailSection
-        title="收货明细"
-        description="purchase_receipt_lines：到货数量、质检结果、建议库位"
-        action={
-          current.status === '待质检' ? (
-            <Button size="sm" variant="outline" onClick={() => setQcOpen(true)}>
-              录入质检结果
-            </Button>
-          ) : null
-        }
-      >
-        {current.lines.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-            无收货明细。请从含明细的采购单重新登记到货。
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>行号</TableHead>
-                <TableHead>内部 SKU</TableHead>
-                <TableHead className="text-right">订购</TableHead>
-                <TableHead className="text-right">本批到货</TableHead>
-                <TableHead className="text-right">待检</TableHead>
-                <TableHead className="text-right">合格</TableHead>
-                <TableHead className="text-right">残次</TableHead>
-                <TableHead>建议库位</TableHead>
-                <TableHead>备注</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+      <DetailSection title="到货明细" description="purchase_receipt_lines">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>行号</TableHead>
+              <TableHead>内部 SKU</TableHead>
+              <TableHead className="text-right">订购</TableHead>
+              <TableHead className="text-right">本批到货</TableHead>
+              <TableHead className="text-right">待检</TableHead>
+              <TableHead className="text-right">合格</TableHead>
+              <TableHead className="text-right">残次</TableHead>
+              <TableHead>建议库位</TableHead>
+              <TableHead>备注</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {current.lines.map((line) => (
+              <TableRow key={line.id}>
+                <TableCell className="tabular-nums">{line.lineNo}</TableCell>
+                <TableCell className="font-mono text-xs">{line.sku}</TableCell>
+                <TableCell className="text-right tabular-nums">{line.qtyOrdered}</TableCell>
+                <TableCell className="text-right tabular-nums">{line.qtyArrived}</TableCell>
+                <TableCell className="text-right tabular-nums">{line.qtyPendingQc}</TableCell>
+                <TableCell className="text-right tabular-nums">{line.qtyPassed}</TableCell>
+                <TableCell className="text-right tabular-nums">{line.qtyFailed}</TableCell>
+                <TableCell className="font-mono text-xs">{line.suggestedBin || '—'}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{line.note || '—'}</TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {current.lines.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell className="tabular-nums">{line.lineNo}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    <LocaleLink
-                      href={`/console/master-skus/${encodeURIComponent(line.sku)}`}
-                      className="underline-offset-2 hover:underline"
-                    >
-                      {line.sku}
-                    </LocaleLink>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{line.qtyOrdered}</TableCell>
-                  <TableCell className="text-right tabular-nums">{line.qtyArrived}</TableCell>
-                  <TableCell className="text-right tabular-nums">{line.qtyPendingQc}</TableCell>
-                  <TableCell className="text-right tabular-nums">{line.qtyPassed}</TableCell>
-                  <TableCell className="text-right tabular-nums">{line.qtyFailed}</TableCell>
-                  <TableCell className="font-mono text-xs">{line.suggestedBin || '—'}</TableCell>
-                  <TableCell className="max-w-[12rem] truncate text-sm text-muted-foreground">
-                    {line.note || '—'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {current.status === '草稿' ? (
-                      <Button size="sm" variant="ghost" onClick={() => setLineEditId(line.id)}>
-                        改数量
-                      </Button>
-                    ) : (
-                      '—'
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+            ))}
+          </TableBody>
+        </Table>
       </DetailSection>
 
-      <DetailSection
-        title="本批入库单"
-        description="质检合格后自动生成；确认上架后回写采购单 qty_stocked 并记账"
-      >
+      <DetailSection title="关联入库单" description="质检合格后自动生成">
         {relatedInbounds.length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
             尚未生成入库单。完成质检且合格数 &gt; 0 后会出现在此。
@@ -390,19 +314,13 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
         )}
       </DetailSection>
 
-      {related.sections && related.sections.length > 0 ? (
-        <DetailRelatedTables sections={related.sections} />
-      ) : null}
-
       <div className="flex flex-wrap gap-2">
         {current.status === '草稿' || current.status === '待质检' ? (
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => {
-              const result = cancelPurchaseReceipt(receipts, current.id)
-              setNotice(result.ok ? `${current.receiptNo} 已取消。` : result.reason)
-            }}
+            disabled={cancelMutation.isPending}
+            onClick={() => cancelMutation.mutate({ id: current.id })}
           >
             取消收货单
           </Button>
@@ -422,85 +340,6 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
         <p role="status" className="text-sm text-muted-foreground">
           {notice}
         </p>
-      ) : null}
-
-      {headerOpen ? (
-        <UedDialog
-          title="编辑收货主信息"
-          description="修改操作人、送货单号与备注；供应商与仓库随采购单锁定。"
-          fields={[
-            {
-              key: 'receivedBy',
-              label: '收货操作人',
-              required: true,
-              defaultValue: current.receivedBy,
-            },
-            {
-              key: 'deliveryNote',
-              label: '送货单号',
-              defaultValue: current.deliveryNote,
-            },
-            {
-              key: 'remark',
-              label: '收货备注',
-              type: 'textarea',
-              fullWidth: true,
-              defaultValue: current.remark,
-            },
-          ]}
-          initialValues={{
-            receivedBy: current.receivedBy,
-            deliveryNote: current.deliveryNote,
-            remark: current.remark,
-          }}
-          onClose={() => setHeaderOpen(false)}
-          onSave={(values) => {
-            updateReceiptHeader(receipts, current.id, {
-              receivedBy: values.receivedBy || current.receivedBy,
-              deliveryNote: values.deliveryNote ?? current.deliveryNote,
-              remark: values.remark ?? current.remark,
-            })
-            setHeaderOpen(false)
-            setNotice('收货主信息已更新（原型会话）。')
-          }}
-          saveLabel="保存"
-        />
-      ) : null}
-
-      {lineEdit ? (
-        <UedDialog
-          title={`修改到货数量 · ${lineEdit.sku}`}
-          description="草稿阶段可调整本批到货数量与建议库位；提交质检后不可改。"
-          fields={[
-            {
-              key: 'qtyArrived',
-              label: '本批到货数量',
-              type: 'number',
-              required: true,
-              defaultValue: String(lineEdit.qtyArrived),
-            },
-            {
-              key: 'suggestedBin',
-              label: '建议库位',
-              options: [...BIN_OPTIONS],
-              defaultValue: lineEdit.suggestedBin,
-              required: true,
-            },
-          ]}
-          onClose={() => setLineEditId(null)}
-          onSave={(values) => {
-            const result = updateReceiptLineQty(
-              receipts,
-              current.id,
-              lineEdit.id,
-              Number(values.qtyArrived || lineEdit.qtyArrived),
-              values.suggestedBin,
-            )
-            setLineEditId(null)
-            setNotice(result.ok ? `已更新 ${lineEdit.sku} 到货数量。` : result.reason)
-          }}
-          saveLabel="保存明细"
-        />
       ) : null}
 
       {qcOpen ? (
@@ -527,7 +366,7 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
                 const draft = qcDraft[line.id] || {
                   passed: String(line.qtyArrived),
                   failed: '0',
-                  bin: line.suggestedBin,
+                  bin: line.suggestedBin || binOptions[0] || '',
                   note: '',
                 }
                 return (
@@ -583,11 +422,17 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {BIN_OPTIONS.map((bin) => (
-                              <SelectItem key={bin} value={bin}>
-                                {bin}
+                            {binOptions.length === 0 ? (
+                              <SelectItem value="__empty__" disabled>
+                                暂无可用库位（请先在仓库中心维护）
                               </SelectItem>
-                            ))}
+                            ) : (
+                              binOptions.map((bin) => (
+                                <SelectItem key={bin} value={bin}>
+                                  {bin}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -615,32 +460,22 @@ export default function PurchaseReceiptDetailPage({ params }: { params: Promise<
                 取消
               </Button>
               <Button
+                disabled={qcMutation.isPending}
                 onClick={() => {
-                  const lineResults: QcLineResultInput[] = current.lines.map((line) => {
-                    const draft = qcDraft[line.id]
-                    return {
-                      lineId: line.id,
-                      qtyPassed: Number(draft?.passed || 0),
-                      qtyFailed: Number(draft?.failed || 0),
-                      suggestedBin: draft?.bin,
-                      note: draft?.note,
-                    }
+                  qcMutation.mutate({
+                    receiptId: current.id,
+                    inspector: current.receivedBy || '质检员',
+                    lines: current.lines.map((line) => {
+                      const draft = qcDraft[line.id]
+                      return {
+                        lineId: line.id,
+                        qtyPassed: Number(draft?.passed || 0),
+                        qtyFailed: Number(draft?.failed || 0),
+                        suggestedBin: draft?.bin,
+                        note: draft?.note,
+                      }
+                    }),
                   })
-                  const result = completeReceiptQc(
-                    receipts,
-                    inbounds,
-                    current.id,
-                    lineResults,
-                    current.receivedBy,
-                  )
-                  if (!result.ok) {
-                    setNotice(result.reason)
-                    return
-                  }
-                  setQcOpen(false)
-                  setNotice(
-                    `质检完成（${result.receipt.qcNo}）。已生成入库单 ${result.createdInbounds.map((item) => item.inboundNo).join('、') || '无（合格为 0）'}；采购单到货投影已回写。`,
-                  )
                 }}
               >
                 完成质检并生成入库单

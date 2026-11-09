@@ -2,12 +2,18 @@ import { serve } from "@hono/node-server"
 import app from "./app"
 import { pool } from "./lib/db"
 import { env } from "./lib/env"
+import {
+  startMarketplaceSyncCron,
+  stopMarketplaceSyncCron,
+} from "./lib/marketplace/cron"
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`API running on http://localhost:${info.port}`)
+  startMarketplaceSyncCron()
 })
 
 function shutdown() {
+  stopMarketplaceSyncCron()
   server.close(async (err) => {
     if (err) {
       console.error(err)

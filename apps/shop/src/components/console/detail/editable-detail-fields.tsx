@@ -66,13 +66,13 @@ export function EditableDetailFields({
       {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
       {saved ? (
         <p role="status" className="text-sm text-muted-foreground">
-          详情已更新（原型会话，未写入数据库）。
+          详情已更新（未写入数据库）。
         </p>
       ) : null}
       {editing ? (
         <UedDialog
           title={dialogTitle ?? `编辑 · ${title ?? '详情'}`}
-          description="修改详情主体字段；保存仅作用于本次原型会话。"
+          description="修改详情主体字段；保存仅作用于当前页面会话，不会写入数据库。"
           fields={dialogFields}
           initialValues={Object.fromEntries(current.map((field) => [field.key, field.value]))}
           onClose={() => setEditing(false)}

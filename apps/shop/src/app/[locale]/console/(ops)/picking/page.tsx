@@ -1,142 +1,255 @@
 'use client'
 
 import * as React from 'react'
-import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import {
-  advancePackage,
-  createPackage,
-  toRelatedPackageShape,
-  usePackages,
-} from '@/lib/crossborder/order-store'
+import { UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
 export default function PickingPage() {
-  const packages = usePackages()
-  const rows = packages.map(toRelatedPackageShape)
-  const [open, setOpen] = React.useState(false)
+  const utils = trpc.useUtils()
   const [notice, setNotice] = React.useState('')
+  const [pickerFilter, setPickerFilter] = React.useState('all')
+  const [assigningId, setAssigningId] = React.useState<string | null>(null)
+  const [assignName, setAssignName] = React.useState('')
 
-  const editor = open ? (
-    <UedDialog
-      title="补建拣货单"
-      description="正常由订单自动生成；漏单补建需订单已完成映射且未占用其他包裹。出库终态写库存流水。"
-      fields={[
-        { key: 'order', label: '订单', options: ['DZ-10021', 'LZ-2201', 'DZ-10018', 'TTS-901'], required: true },
-        { key: 'shop', label: '店铺', options: ['Daraz LK', 'Lazada TH', 'Lazada MY', 'TikTok Shop'], required: true },
-        { key: 'site', label: '站点', options: ['LK', 'TH', 'MY', 'PH', 'US'], required: true },
-        { key: 'sku', label: '内部 SKU', options: ['HSY000001001', 'HSY000001002', 'HSY000002001'], required: true },
-        { key: 'quantity', label: '数量', type: 'number', required: true, defaultValue: '1' },
-        { key: 'bin', label: '拣货库位', options: ['A-01-01-01', 'A-01-01-02', 'B-02-01-01'], required: true },
-        { key: 'picker', label: '拣货人', placeholder: '默认当前用户' },
-        { key: 'weight', label: '预估重量（g）', type: 'number' },
-        {
-          key: 'remark',
-          label: '补建原因',
-          type: 'textarea',
-          fullWidth: true,
-          required: true,
-          placeholder: '说明漏单原因与关联订单',
-        },
-      ]}
-      onClose={() => setOpen(false)}
-      onSave={(values) => {
-        const qty = Number(values.quantity || '1')
-        const result = createPackage({
-          order: values.order || '',
-          shop: values.shop || '',
-          site: values.site || '',
-          sku: values.sku || '',
-          quantity: qty,
-          bin: values.bin || '',
-          picker: values.picker,
-          weight: values.weight ? `${values.weight} g` : undefined,
-          remark: values.remark || '',
-        })
-        if (!result.ok) {
-          setNotice(result.reason)
-          return
-        }
-        setOpen(false)
-        setNotice(`${result.package.id} 已补建；重复出库保护已按订单校验。`)
-      }}
-    />
-  ) : null
+  const listQuery = trpc.order.listOutbounds.useQuery({ page: 1, pageSize: 100 })
+  const pickersQuery = trpc.order.listPickers.useQuery()
 
-  function advance(id: string) {
-    const result = advancePackage(id)
-    if (!result.ok) {
-      setNotice(result.reason)
-      return
-    }
-    if (result.package.status === '已出库' && result.outbound) {
+  const advanceMutation = trpc.order.advanceOutbound.useMutation({
+    onSuccess: async (row) => {
+      await utils.order.listOutbounds.invalidate()
       setNotice(
-        `${id} 已出库 · 出库单 ${result.outbound.outboundNo} 已过账写「订单出库」流水（扣减 on_hand / reserved）`,
+        row.status === '已出库'
+          ? `${row.packageId || row.outboundNo} 已出库过账，写入 order_ship 流水`
+          : `${row.packageId || row.outboundNo} 已推进至「${row.status}」`,
       )
-      return
-    }
-    setNotice(
-      `${id} 已推进至「${result.package.status}」${
-        result.package.outboundId ? ` · 关联出库单 ${result.package.outboundId}` : ''
-      }`,
-    )
-  }
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const assignMutation = trpc.order.assignPicker.useMutation({
+    onSuccess: async (row) => {
+      await utils.order.listOutbounds.invalidate()
+      await utils.order.listPickers.invalidate()
+      setNotice(`${row.outboundNo} 已分配拣货人 ${row.picker}`)
+      setAssigningId(null)
+      setAssignName('')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  const allRows = (listQuery.data?.items ?? []).map((ob) => ({
+    id: ob.id,
+    packageId: ob.packageId || ob.outboundNo,
+    outboundNo: ob.outboundNo,
+    order: ob.externalOrderId,
+    orderId: ob.orderId,
+    status: ob.status,
+    picker: ob.picker || '—',
+    warehouse: ob.warehouse,
+    skus: ob.firstSku,
+    items: ob.totalQty,
+    createdAt: ob.createdAt,
+  }))
+
+  const rows = React.useMemo(() => {
+    if (pickerFilter === 'all') return allRows
+    if (pickerFilter === 'unassigned') return allRows.filter((r) => r.picker === '—')
+    return allRows.filter((r) => r.picker === pickerFilter)
+  }, [allRows, pickerFilter])
+
+  const pickers = pickersQuery.data ?? []
 
   return (
     <>
-      {editor}
+      <Alert className="mb-4">
+        <AlertTitle>拣货打包 = 出库单作业视图</AlertTitle>
+        <AlertDescription>
+          主路径已切 tRPC / PostgreSQL（stock_outbounds）。请先在订单详情「确认占库」后「创建出库 / 拣货单」。
+          推进至「已出库」会过账扣减 on_hand / reserved。可按拣货人筛选并分配。
+        </AlertDescription>
+      </Alert>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">拣货人：</span>
+        <Button
+          size="sm"
+          variant={pickerFilter === 'all' ? 'default' : 'outline'}
+          onClick={() => setPickerFilter('all')}
+        >
+          全部
+        </Button>
+        <Button
+          size="sm"
+          variant={pickerFilter === 'unassigned' ? 'default' : 'outline'}
+          onClick={() => setPickerFilter('unassigned')}
+        >
+          未分配
+        </Button>
+        {pickers.map((p) => (
+          <Button
+            key={p}
+            size="sm"
+            variant={pickerFilter === p ? 'default' : 'outline'}
+            onClick={() => setPickerFilter(p)}
+          >
+            {p}
+          </Button>
+        ))}
+      </div>
       <UedWorkspace
-        title="拣货打包发货"
-        description="按订单生成拣货单：拣货 → 复核 → 称重 → 生成面单 → 出库交接；终态调用 wms-store 出库过账写流水。"
+        title="拣货打包"
+        description="出库单状态机：待拣货 → 拣货中 → 已复核 → 已出库（过账）。数据来自 PostgreSQL。"
         rows={rows}
         detailHref={(row) => `/console/picking/${encodeURIComponent(row.id)}`}
-        searchKeys={['id', 'order', 'shop', 'skus', 'tracking', 'picker', 'status', 'outboundId']}
-        searchPlaceholder="搜索包裹号、订单、店铺或运单号"
+        searchKeys={['packageId', 'outboundNo', 'order', 'picker', 'skus', 'status']}
+        searchPlaceholder="搜索包裹 / 出库单 / 订单"
         filters={[{ label: '状态', options: ['待拣货', '拣货中', '已复核', '已出库', '已取消'] }]}
-        addLabel="补建拣货单"
-        onAdd={() => setOpen(true)}
+        emptyText={
+          listQuery.isLoading
+            ? '加载中…'
+            : '暂无拣货任务。请到订单详情创建出库单，或查看出库单列表。'
+        }
         columns={[
-          { key: 'id', label: '包裹 / 拣货单' },
-          { key: 'order', label: '订单号' },
-          { key: 'shop', label: '店铺 / 站点', render: (row) => `${row.shop} · ${row.site}` },
-          { key: 'items', label: '件数', render: (row) => String(row.items) },
-          { key: 'skus', label: 'SKU 明细' },
-          { key: 'weight', label: '称重' },
-          { key: 'tracking', label: '面单 / 运单号' },
-          { key: 'picker', label: '拣货人' },
+          { key: 'packageId', label: '包裹 / 拣货单' },
+          { key: 'outboundNo', label: '出库单号' },
           {
-            key: 'outboundId',
-            label: '出库单',
-            render: (row) => (row.outboundId && row.outboundId !== '—' ? row.outboundId : '—'),
+            key: 'order',
+            label: '订单',
+            render: (row) => (
+              <LocaleLink
+                href={`/console/orders/${encodeURIComponent(row.orderId || row.order)}`}
+                className="underline-offset-2 hover:underline"
+              >
+                {row.order || '—'}
+              </LocaleLink>
+            ),
+          },
+          { key: 'skus', label: '首行 SKU' },
+          {
+            key: 'items',
+            label: '件数',
+            render: (row) => String(row.items),
+          },
+          { key: 'warehouse', label: '仓库' },
+          {
+            key: 'picker',
+            label: '拣货人',
+            render: (row) =>
+              assigningId === row.id ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    autoFocus
+                    value={assignName}
+                    onChange={(e) => setAssignName(e.target.value)}
+                    placeholder="输入拣货人"
+                    className="h-7 w-24 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && assignName.trim()) {
+                        assignMutation.mutate({ id: row.id, picker: assignName.trim() })
+                      }
+                      if (e.key === 'Escape') {
+                        setAssigningId(null)
+                        setAssignName('')
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={!assignName.trim() || assignMutation.isPending}
+                    onClick={() =>
+                      assignName.trim() &&
+                      assignMutation.mutate({ id: row.id, picker: assignName.trim() })
+                    }
+                  >
+                    确定
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setAssigningId(null)
+                      setAssignName('')
+                    }}
+                  >
+                    取消
+                  </Button>
+                </div>
+              ) : (
+                <span>{row.picker}</span>
+              ),
           },
           {
             key: 'status',
             label: '状态',
             render: (row) => (
-              <Badge variant={row.status === '已出库' ? 'secondary' : 'outline'}>{row.status}</Badge>
+              <Badge variant={row.status === '已出库' ? 'secondary' : row.status === '已取消' ? 'destructive' : 'outline'}>
+                {row.status}
+              </Badge>
             ),
           },
+          {
+            key: 'id',
+            label: '操作',
+            render: (row) => {
+              if (row.status === '已出库' || row.status === '已取消') {
+                return (
+                  <LocaleLink
+                    href={`/console/stock-outbounds/${encodeURIComponent(row.id)}`}
+                    className="text-xs underline-offset-2 hover:underline"
+                  >
+                    查看出库
+                  </LocaleLink>
+                )
+              }
+              return (
+                <div className="flex gap-1">
+                  {assigningId !== row.id && row.picker === '—' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setAssigningId(row.id)
+                        setAssignName('')
+                      }}
+                    >
+                      分配拣货人
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={advanceMutation.isPending}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      advanceMutation.mutate({ id: row.id })
+                    }}
+                  >
+                    推进
+                  </Button>
+                </div>
+              )
+            },
+          },
         ]}
-      >
-        <UedPrototypeNotice>
-          同一订单行只允许一个未出库包裹。终态「已出库」调用 createStockOutbound（若无）+
-          postStockOutbound，与库存流水同事务扣减；面单号回写包裹与订单。
-        </UedPrototypeNotice>
-        <div className="flex flex-wrap gap-2">
-          {packages
-            .filter((row) => row.status !== '已出库' && row.status !== '已取消')
-            .map((row) => (
-              <Button key={row.id} variant="outline" size="sm" onClick={() => advance(row.id)}>
-                推进 · {row.id}（{row.status}）
-              </Button>
-            ))}
-        </div>
-        {notice ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            {notice}
-          </p>
-        ) : null}
-      </UedWorkspace>
+      />
+      <div className="mt-3 flex gap-2">
+        <Button variant="outline" asChild>
+          <LocaleLink href="/console/orders">返回订单</LocaleLink>
+        </Button>
+        <Button variant="outline" asChild>
+          <LocaleLink href="/console/stock-outbounds">出库单列表</LocaleLink>
+        </Button>
+      </div>
+      {notice ? (
+        <p role="status" className="mt-2 text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
     </>
   )
 }

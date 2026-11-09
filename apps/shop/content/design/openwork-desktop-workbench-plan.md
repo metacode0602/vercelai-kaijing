@@ -26,7 +26,7 @@
 | 驱动 | 事实依据 |
 |------|----------|
 | open-shop 已定「薄数据中枢 + Agent 选品」边界 | `crossborder-mvp-overview.md`：选品推理在 OpenWork skills；平台存数据并暴露 MCP/OpenAPI |
-| Web 控制台壳已成型 | `/console` 中文 IA：仪表盘 / 选品 / 待审 / 商品 / 刊登 / 订单 / 库存 / 成本 / 财务；CopilotKit 右侧列仍为本地 mock；inbox Sheet 为 DEMO |
+| Web 控制台壳已成型 | `/console` 中文 IA：仪表盘 / 选品 / 待审 / 商品 / 刊登 / 订单 / 库存 / 成本 / 财务；CopilotKit 右侧列未接模型服务时走 `MODEL_NOT_CONNECTED_REPLY`；inbox Sheet 已接 `trpc.notifications`（2026-11-08） |
 | 连接器与 schema 已落地 | `@workspace/marketplace`（Daraz/Lazada/TikTok）、`commerce-schema` + 迁移 `0005–0007`；**Shopee 与生产 cron 仍不在范围** |
 | OpenWork 桌面就是「本地 Agent 干活」产品 | Electron + `apps/app` + `openwork-server` + OpenCode；skills / MCP / computer-use；**automations / dashboard / Slack** 上游能力存在，客户端经 `apps/app/src/app/lib/den.ts` 调 Den `/v1/*` |
 | openmcp 已有控制面/网关商业与技术决策 | `OPENMCP_COMMERCIAL_PLAN.md`：中国区 **不托管 Den EE**；LLM+MCP+A2A 走 OpenMCP 平台网关（LiteLLM 实现）；企业控制面自研 |
@@ -55,7 +55,7 @@
 
 | 模块 | 现状（tip） |
 |------|-------------|
-| `apps/shop` | Next.js 租户端；`/console/*` 跨境 lean 侧栏（含 **listings**）；中文文案端到端（#17）；成本计算器 Dialog + 重算页；CopilotKit 依赖已引入，无 runtime URL 时走 **本地 mock 对话**；**inbox Sheet DEMO**（`console-inbox-sheet.md`，无真实 `site_messages`） |
+| `apps/shop` | Next.js 租户端；`/console/*` 跨境 lean 侧栏（含 **listings**）；中文文案端到端（#17）；成本计算器 Dialog + 重算页；CopilotKit 依赖已引入，无 runtime URL 时走 **`MODEL_NOT_CONNECTED_REPLY` 兜底**；**inbox Sheet 已接 `trpc.notifications`（`console_notifications`，2026-11-08）**（`site_messages` 外传仍为后续项） |
 | `apps/web` | 平台运营后台；跨境设计文档与部分 `/crossborder` 页；另有大量 **供应域飞书** 设计（工单/Webhook/Bitable），**非 shop 知识库** |
 | `apps/api` | Hono OpenAPI 骨架；**尚无 MCP 实现**（仅有设计 `crossborder-api-mcp-design.md`） |
 | `packages/db` | `commerce-schema.ts`：shops、credentials、products、listings、orders、inventory、cost、settlements、pending_actions、product_candidates 等；另有遗留 `feishu-schema.ts`（供应/飞书侧）；**无独立「知识库」表/包** |

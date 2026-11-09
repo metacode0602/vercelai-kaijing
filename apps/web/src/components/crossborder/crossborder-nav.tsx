@@ -1,7 +1,7 @@
 "use client"
 
 import { LocaleLink, useLocalePathname } from "@/lib/i18n/navigation"
-import { CROSSBORDER_NAV } from "@/lib/crossborder/mock-data"
+import { CROSSBORDER_NAV } from "@/lib/crossborder/nav"
 import { cn } from "@workspace/ui/lib/utils"
 
 export function CrossborderNav() {

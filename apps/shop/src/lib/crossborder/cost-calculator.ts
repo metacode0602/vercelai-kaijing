@@ -1,13 +1,9 @@
 /**
- * Sri Lanka landed-cost calculator (illustrative mock engine).
+ * Sri Lanka landed-cost calculator（生产路径）。
  *
- * Numbers and rates are DEMO / 示例 only — not legal advice and not an
- * official customs API. Always mark results 估算·需报关/法务复核.
- *
- * Tax stack (MVP, Excise/Surcharge/SCL off):
- *   Customs → CESS → PAL on CIF (v); then VAT & SSCL on (v + 10%v + d + c + p).
- * Rates resolve from fee templates (platform + country + fulfillment + asOf + priority).
- * TARIFF_PROFILES kept as fallback seed / 文案 only.
+ * Tax stack (MVP): Customs → CESS → PAL on CIF (v); then VAT & SSCL on (v + 10%v + d + c + p).
+ * 正式保存要求：费用模板命中 + 汇率 fx_rates；运价来自 freight_rate_cards 或手工运费总额。
+ * 不再使用 TARIFF_PROFILES / FREIGHT_RATES / 写死汇率作为正式成本来源。
  * See apps/shop/content/design/cost-calculator-sl-landed-ued.md §5–§7
  * and apps/shop/content/design/fee-templates-ued.md.
  */
@@ -15,19 +11,19 @@
 import {
   componentsToTariffRates,
   getPlatformFeePercents,
-  resolveFeeTemplateVersion,
+  TARIFF_PROFILE_META,
   type ResolvedFeeTemplate,
 } from '@/lib/crossborder/fee-template-store'
 
-export const TARIFF_TABLE_VERSION = 'v2026.10-mock'
-export const FREIGHT_RATE_VERSION = 'freight-mock-2026.10'
-export const FX_RATE_DATE = '2026-10-21'
-/** Illustrative USD→LKR; not a live FX feed. */
-export const FX_USD_LKR = 300
+/** @deprecated 仅作公式档案标签；正式路径禁止回退到此表税率 */
+export const TARIFF_TABLE_VERSION = 'fee-template'
+export const FREIGHT_RATE_VERSION = 'freight-rate-card'
 
 export type FreightMode = 'AIR_DDP' | 'LCL' | 'FCL20' | 'FCL40'
 
 export type TariffProfileId = 'apparel' | 'electronics' | 'home_sports'
+
+export const TARIFF_PROFILE_IDS: TariffProfileId[] = ['apparel', 'electronics', 'home_sports']
 
 export type TariffRates = {
   id: TariffProfileId
@@ -46,58 +42,78 @@ export type TariffRates = {
   reviewNeeded: boolean
 }
 
-/** @deprecated Prefer fee templates; kept as fallback seed / 文案. 示例·待复核 */
+/** 公式档案标签（不含税率；税率只来自已发布费用模板组件）。 */
 export const TARIFF_PROFILES: Record<TariffProfileId, TariffRates> = {
   apparel: {
     id: 'apparel',
-    labelZh: '服装（示例）',
-    hsHint: '6109.10',
-    customs: 0.15,
-    cess: 0.1,
-    pal: 0.1,
-    vat: 0.18,
-    sscl: 0.025,
+    labelZh: TARIFF_PROFILE_META.apparel!.labelZh,
+    hsHint: TARIFF_PROFILE_META.apparel!.hsHint,
+    customs: 0,
+    cess: 0,
+    pal: 0,
+    vat: 0,
+    sscl: 0,
     reviewNeeded: true,
   },
   electronics: {
     id: 'electronics',
-    labelZh: '3C 电子（示例）',
-    hsHint: '8471.80',
-    customs: 0.1,
-    cess: 0.05,
-    pal: 0.1,
-    vat: 0.18,
-    sscl: 0.025,
+    labelZh: TARIFF_PROFILE_META.electronics!.labelZh,
+    hsHint: TARIFF_PROFILE_META.electronics!.hsHint,
+    customs: 0,
+    cess: 0,
+    pal: 0,
+    vat: 0,
+    sscl: 0,
     reviewNeeded: true,
   },
   home_sports: {
     id: 'home_sports',
-    labelZh: '家居/运动（示例）',
-    hsHint: '9506.91',
-    customs: 0.12,
-    cess: 0.08,
-    pal: 0.1,
-    vat: 0.18,
-    sscl: 0.025,
+    labelZh: TARIFF_PROFILE_META.home_sports!.labelZh,
+    hsHint: TARIFF_PROFILE_META.home_sports!.hsHint,
+    customs: 0,
+    cess: 0,
+    pal: 0,
+    vat: 0,
+    sscl: 0,
     reviewNeeded: true,
   },
 }
 
-export const FREIGHT_RATES = {
-  /** Illustrative DDP quote only; no source quote is connected in this UED. */
-  airDdpUsdPerKg: 13,
-  airDdpMinChargeUsd: 25,
+export type FreightRateBundle = {
+  code: string
+  versionLabel: string
+  airDdpUsdPerKg: number
+  airDdpMinChargeUsd: number
+  airDdpVolumetricDivisor: number
+  lclUsdPerCbm: number
+  lclUsdPerTon: number
+  lclSurchargeUsd: number
+  fcl20Usd: number
+  fcl40Usd: number
+  thcUsd: number
+  fcl20UsableCbm: number
+  fcl40UsableCbm: number
+}
+
+/** 无运价卡时仅允许手工运费总额；此默认结构数值为 0，不可当正式运价。 */
+export const EMPTY_FREIGHT_RATES: FreightRateBundle = {
+  code: '',
+  versionLabel: '未配置运价卡',
+  airDdpUsdPerKg: 0,
+  airDdpMinChargeUsd: 0,
   airDdpVolumetricDivisor: 6000,
-  lclUsdPerCbm: 120,
-  lclUsdPerTon: 180,
-  lclSurchargeUsd: 35,
-  fcl20Usd: 1800,
-  fcl40Usd: 2800,
-  thcUsd: 120,
-  /** Practical usable CBM (示意) */
+  lclUsdPerCbm: 0,
+  lclUsdPerTon: 0,
+  lclSurchargeUsd: 0,
+  fcl20Usd: 0,
+  fcl40Usd: 0,
+  thcUsd: 0,
   fcl20UsableCbm: 28,
   fcl40UsableCbm: 58,
-} as const
+}
+
+/** @deprecated 已移除硬编码运价；保留别名避免旧 import 崩溃 */
+export const FREIGHT_RATES = EMPTY_FREIGHT_RATES
 
 export type CostCalculatorInput = {
   sku: string
@@ -117,7 +133,7 @@ export type CostCalculatorInput = {
   unitsPerCarton: number
   /** Gross kg per carton (optional; used for LCL ton quote) */
   kgPerCarton: number
-  /** Carrier quote's volumetric divisor; demo value only, not a default rule. */
+  /** 承运商报价泡重除数；未配置运价卡时不作为正式规则默认值。 */
   airVolumetricDivisor: number
   /** Estimated gross package volume in cm³ for AIR DDP chargeable weight. */
   airQuoteIncludesTax: boolean
@@ -142,6 +158,11 @@ export type CostCalculatorInput = {
   paymentFeePct: number
   adsPct: number
   lastMileUnit: number
+  /** 手工运费总额（USD，整批）；有值时覆盖运价卡计算结果 */
+  manualFreightTotal?: number | null
+  /** 箱规主档 code；空=手工尺寸 */
+  cartonSpecCode?: string
+  cartonSpecSource?: 'master' | 'manual'
 }
 
 export type TaxBreakdown = {
@@ -158,7 +179,7 @@ export type TaxBreakdown = {
   feeTemplateVersionId: string | null
   feeTemplateCode: string | null
   feeTemplatePriority: number | null
-  resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
+  resolvedFrom: 'fee_template' | 'missing'
 }
 
 export type WaterfallLine = {
@@ -214,11 +235,18 @@ export type CostCalculatorResult = {
     freightRateVersion: string
     fxRateDate: string
     fxUsdLkr: number
+    fxRateId: string | null
     disclaimerZh: string
     feeTemplateVersionId: string | null
     feeTemplateCode: string | null
     platformFeeTemplateVersionId: string | null
+    platformFeeTemplateCode: string | null
+    missingImportTaxComponents: string[]
     componentsSnapshot: Array<{ code: string; labelZh: string; rate: number; unit: string }>
+    canPublishFormal: boolean
+    blockReasons: string[]
+    freightSource: 'rate_card' | 'manual' | 'missing'
+    cartonSpecSource: 'master' | 'manual'
   }
 }
 
@@ -238,48 +266,56 @@ export function computeOceanFreight(
   mode: FreightMode,
   cbmTotal: number,
   chargeableTon: number,
+  rates: FreightRateBundle = EMPTY_FREIGHT_RATES,
 ): number {
-  const r = FREIGHT_RATES
+  const r = rates
   if (mode === 'LCL') {
     const byCbm = cbmTotal * r.lclUsdPerCbm
     const byTon = chargeableTon * r.lclUsdPerTon
     return Math.max(byCbm, byTon) + r.lclSurchargeUsd
   }
-  if (mode === 'FCL20') return Math.ceil(cbmTotal / r.fcl20UsableCbm) * (r.fcl20Usd + r.thcUsd)
-  return Math.ceil(cbmTotal / r.fcl40UsableCbm) * (r.fcl40Usd + r.thcUsd)
+  if (mode === 'FCL20') {
+    const usable = Math.max(0.1, r.fcl20UsableCbm || 28)
+    return Math.ceil(cbmTotal / usable) * (r.fcl20Usd + r.thcUsd)
+  }
+  const usable = Math.max(0.1, r.fcl40UsableCbm || 58)
+  return Math.ceil(cbmTotal / usable) * (r.fcl40Usd + r.thcUsd)
 }
 
-/** Demo-only DDP quote calculation. Divisor/rate/minimum must come from a real quote in production. */
+/** 空运 DDP；费率必须来自运价卡或手工总额。 */
 export function computeAirDdpFreight(
   actualWeightKg: number,
   volumeCbm: number,
   volumetricDivisor: number,
+  rates: FreightRateBundle = EMPTY_FREIGHT_RATES,
 ): { total: number; chargeableWeightKg: number } {
-  const divisor = Math.max(1, volumetricDivisor)
+  const divisor = Math.max(1, volumetricDivisor || rates.airDdpVolumetricDivisor || 6000)
   const volumetricWeightKg = (volumeCbm * 1_000_000) / divisor
   const chargeableWeightKg = Math.max(actualWeightKg, volumetricWeightKg)
   const total = Math.max(
-    FREIGHT_RATES.airDdpMinChargeUsd,
-    chargeableWeightKg * FREIGHT_RATES.airDdpUsdPerKg,
+    rates.airDdpMinChargeUsd,
+    chargeableWeightKg * rates.airDdpUsdPerKg,
   )
   return { total: round2(total), chargeableWeightKg: round2(chargeableWeightKg) }
 }
 
 /**
  * LK tax stack on CIF total (USD). Internally converts to LKR for levy math,
- * then converts tax amounts back to USD at FX_USD_LKR.
+ * then converts tax amounts back to USD at provided FX.
  */
 export function computeLkTaxStack(
   cifTotalUsd: number,
   rates: TariffRates,
+  fxUsdLkr: number,
   resolveMeta?: {
     feeTemplateVersionId: string | null
     feeTemplateCode: string | null
     feeTemplatePriority: number | null
-    resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
+    resolvedFrom: 'fee_template' | 'missing'
   },
 ): TaxBreakdown {
-  const v = cifTotalUsd * FX_USD_LKR
+  const fx = fxUsdLkr > 0 ? fxUsdLkr : 0
+  const v = cifTotalUsd * fx
   const d = v * rates.customs
   const c = v * rates.cess
   const p = v * rates.pal
@@ -287,7 +323,7 @@ export function computeLkTaxStack(
   const sscl = base2 * rates.sscl
   const vat = base2 * rates.vat
   const taxTotalLkr = d + c + p + sscl + vat
-  const toUsd = (x: number) => round4(x / FX_USD_LKR)
+  const toUsd = (x: number) => (fx > 0 ? round4(x / fx) : 0)
   return {
     cifTotalUsd: round2(cifTotalUsd),
     cifTotalLkr: round2(v),
@@ -302,47 +338,46 @@ export function computeLkTaxStack(
     feeTemplateVersionId: resolveMeta?.feeTemplateVersionId ?? null,
     feeTemplateCode: resolveMeta?.feeTemplateCode ?? null,
     feeTemplatePriority: resolveMeta?.feeTemplatePriority ?? null,
-    resolvedFrom: resolveMeta?.resolvedFrom ?? 'tariff_profile_fallback',
+    resolvedFrom: resolveMeta?.resolvedFrom ?? 'missing',
   }
 }
 
-function logisticsFromFreightMode(mode: FreightMode): string {
-  if (mode === 'AIR_DDP') return 'AIR_DDP'
-  if (mode === 'LCL') return 'LCL'
-  if (mode === 'FCL20' || mode === 'FCL40') return 'FCL'
-  return mode
+/** 服务端 / tRPC resolve 结果注入；主路径读 DB，未注入时不再走 localStorage。 */
+export type FeeResolutionOverrides = {
+  importTax?: ResolvedFeeTemplate | null
+  platformFee?: ResolvedFeeTemplate | null
 }
 
-/** 按平台+国家+履约+asOf 解析进口税费用模板；失败则回退 TARIFF_PROFILES。 */
-export function resolveImportTaxRates(input: Pick<
-  CostCalculatorInput,
-  | 'platform'
-  | 'country'
-  | 'fulfillmentPool'
-  | 'fulfillmentLogistics'
-  | 'freightMode'
-  | 'asOf'
-  | 'tariffProfileId'
-  | 'importTaxTemplateId'
->): {
+/** 测算运行时上下文：汇率 / 运价卡（生产必填项）。 */
+export type CostCalcRuntime = {
+  fxUsdLkr?: number | null
+  fxRateDate?: string | null
+  fxRateId?: string | null
+  freightRates?: FreightRateBundle | null
+}
+
+/** 按平台+国家+履约+asOf 解析进口税费用模板；未命中则 missing（禁止正式保存）。 */
+export function resolveImportTaxRates(
+  input: Pick<
+    CostCalculatorInput,
+    | 'platform'
+    | 'country'
+    | 'fulfillmentPool'
+    | 'fulfillmentLogistics'
+    | 'freightMode'
+    | 'asOf'
+    | 'tariffProfileId'
+    | 'importTaxTemplateId'
+  >,
+  overrides?: FeeResolutionOverrides,
+): {
   rates: TariffRates
   resolved: ResolvedFeeTemplate | null
-  resolvedFrom: 'fee_template' | 'tariff_profile_fallback'
+  resolvedFrom: 'fee_template' | 'missing'
+  missingComponents: string[]
 } {
-  const logistics =
-    input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode)
-  const baseArgs = {
-    platform: input.platform || 'daraz',
-    country: input.country || 'LK',
-    fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
-    fulfillmentLogistics: logistics,
-    type: 'import_tax' as const,
-    asOf: input.asOf,
-    templateCodeOrId: input.importTaxTemplateId,
-  }
   const resolved =
-    resolveFeeTemplateVersion({ ...baseArgs, formulaProfile: input.tariffProfileId }) ??
-    resolveFeeTemplateVersion(baseArgs)
+    overrides && 'importTax' in overrides ? (overrides.importTax ?? null) : null
   if (resolved) {
     const mapped = componentsToTariffRates(resolved.version, input.tariffProfileId)
     const rates: TariffRates = {
@@ -358,12 +393,24 @@ export function resolveImportTaxRates(input: Pick<
       sscl: mapped.sscl,
       reviewNeeded: mapped.reviewNeeded,
     }
-    return { rates, resolved, resolvedFrom: 'fee_template' }
+    return { rates, resolved, resolvedFrom: 'fee_template', missingComponents: mapped.missingCodes }
   }
+  const profile = TARIFF_PROFILES[input.tariffProfileId]
   return {
-    rates: TARIFF_PROFILES[input.tariffProfileId],
+    rates: {
+      id: profile.id,
+      labelZh: profile.labelZh,
+      hsHint: profile.hsHint,
+      customs: 0,
+      cess: 0,
+      pal: 0,
+      vat: 0,
+      sscl: 0,
+      reviewNeeded: true,
+    },
     resolved: null,
-    resolvedFrom: 'tariff_profile_fallback',
+    resolvedFrom: 'missing',
+    missingComponents: [],
   }
 }
 
@@ -385,7 +432,11 @@ export function suggestSellPrice(
   return { price: round2(price), error: null }
 }
 
-export function computeLandedCost(input: CostCalculatorInput): CostCalculatorResult {
+export function computeLandedCost(
+  input: CostCalculatorInput,
+  overrides?: FeeResolutionOverrides,
+  runtime?: CostCalcRuntime,
+): CostCalculatorResult {
   const units = Math.max(1, Math.floor(input.units))
   const upc = Math.max(1, Math.floor(input.unitsPerCarton))
   const cartons = Math.ceil(units / upc)
@@ -394,26 +445,57 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   const kgTotal = input.kgPerCarton * cartons
   const chargeableTon = kgTotal / 1000
 
-  const oceanFreightTotal = input.freightMode === 'AIR_DDP'
-    ? 0
-    : computeOceanFreight(input.freightMode, cbmTotal, chargeableTon)
+  const freightRates = runtime?.freightRates ?? EMPTY_FREIGHT_RATES
+  const fxUsdLkr = runtime?.fxUsdLkr && runtime.fxUsdLkr > 0 ? runtime.fxUsdLkr : 0
+  const fxRateDate = runtime?.fxRateDate || ''
+  const fxRateId = runtime?.fxRateId ?? null
+
+  const hasManualFreight =
+    input.manualFreightTotal != null && Number.isFinite(input.manualFreightTotal) && input.manualFreightTotal >= 0
+  const hasRateCard = Boolean(freightRates.code) && (
+    freightRates.airDdpUsdPerKg > 0 ||
+    freightRates.lclUsdPerCbm > 0 ||
+    freightRates.fcl20Usd > 0 ||
+    freightRates.fcl40Usd > 0
+  )
+
+  const oceanFreightTotal =
+    input.freightMode === 'AIR_DDP'
+      ? 0
+      : computeOceanFreight(input.freightMode, cbmTotal, chargeableTon, freightRates)
   const airDdp = computeAirDdpFreight(
     kgTotal,
     cbmTotal,
-    input.airVolumetricDivisor || FREIGHT_RATES.airDdpVolumetricDivisor,
+    input.airVolumetricDivisor || freightRates.airDdpVolumetricDivisor,
+    freightRates,
   )
-  const fcl20Containers = Math.max(1, Math.ceil(cbmTotal / FREIGHT_RATES.fcl20UsableCbm))
-  const fcl40Containers = Math.max(1, Math.ceil(cbmTotal / FREIGHT_RATES.fcl40UsableCbm))
-  const selectedFreightTotal = input.freightMode === 'AIR_DDP' ? airDdp.total : oceanFreightTotal
+  const fcl20Usable = Math.max(0.1, freightRates.fcl20UsableCbm || 28)
+  const fcl40Usable = Math.max(0.1, freightRates.fcl40UsableCbm || 58)
+  const fcl20Containers = Math.max(1, Math.ceil(cbmTotal / fcl20Usable))
+  const fcl40Containers = Math.max(1, Math.ceil(cbmTotal / fcl40Usable))
+
+  let selectedFreightTotal = input.freightMode === 'AIR_DDP' ? airDdp.total : oceanFreightTotal
+  let freightSource: 'rate_card' | 'manual' | 'missing' = hasRateCard ? 'rate_card' : 'missing'
+  if (hasManualFreight) {
+    selectedFreightTotal = Number(input.manualFreightTotal)
+    freightSource = 'manual'
+  }
   const selectedFreightUnit = selectedFreightTotal / units
   const freightIncludesTax = input.freightMode === 'AIR_DDP' && input.airQuoteIncludesTax
 
   const fobTotal = input.fobUnit * units
   const insurance = input.insuranceTotal
   const firstMileInCif = input.firstMileInCif ? input.firstMileTotal : 0
-  const cifTotal = fobTotal + insurance + (input.freightMode === 'AIR_DDP' ? 0 : selectedFreightTotal) + firstMileInCif
+  const cifTotal =
+    fobTotal +
+    insurance +
+    (input.freightMode === 'AIR_DDP' ? 0 : selectedFreightTotal) +
+    firstMileInCif
 
-  const { rates, resolved: importResolved, resolvedFrom } = resolveImportTaxRates(input)
+  const { rates, resolved: importResolved, resolvedFrom, missingComponents } = resolveImportTaxRates(
+    input,
+    overrides,
+  )
   const resolveMeta = {
     feeTemplateVersionId: importResolved?.version.id ?? null,
     feeTemplateCode: importResolved?.template.code ?? null,
@@ -421,18 +503,11 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
     resolvedFrom,
   }
   const tax = freightIncludesTax
-    ? computeLkTaxStack(0, rates, resolveMeta)
-    : computeLkTaxStack(cifTotal, rates, resolveMeta)
+    ? computeLkTaxStack(0, rates, fxUsdLkr, resolveMeta)
+    : computeLkTaxStack(cifTotal, rates, fxUsdLkr, resolveMeta)
 
-  const platformFeeResolved = resolveFeeTemplateVersion({
-    platform: input.platform || 'daraz',
-    country: input.country || 'LK',
-    fulfillmentPool: input.fulfillmentPool || 'daraz_lk_sea_lot',
-    fulfillmentLogistics: input.fulfillmentLogistics || logisticsFromFreightMode(input.freightMode),
-    type: 'platform_fee',
-    asOf: input.asOf,
-    templateCodeOrId: input.platformFeeTemplateId,
-  })
+  const platformFeeResolved =
+    overrides && 'platformFee' in overrides ? (overrides.platformFee ?? null) : null
   const platformFeePercents = getPlatformFeePercents(platformFeeResolved)
   const platformCommissionPct = platformFeeResolved
     ? platformFeePercents.commissionPct
@@ -462,14 +537,10 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
   let grossMarginOnLandedPct: number | null = null
   if (suggestPrice != null && suggestPrice > 0) {
     const feeVar =
-      (suggestPrice *
-        (platformCommissionPct + paymentFeePct + input.adsPct)) /
-      100
+      (suggestPrice * (platformCommissionPct + paymentFeePct + input.adsPct)) / 100
     const costAtP = landedUnit + input.lastMileUnit + feeVar
     netMarginPct = round2(((suggestPrice - costAtP) / suggestPrice) * 100)
-    grossMarginOnLandedPct = round2(
-      ((suggestPrice - landedUnit) / suggestPrice) * 100,
-    )
+    grossMarginOnLandedPct = round2(((suggestPrice - landedUnit) / suggestPrice) * 100)
   }
 
   const waterfall: WaterfallLine[] = [
@@ -538,27 +609,38 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
     },
   ]
 
-  const lclOcean = computeOceanFreight('LCL', cbmTotal, chargeableTon)
-  const fcl20Ocean = computeOceanFreight('FCL20', cbmTotal, chargeableTon)
-  const fcl40Ocean = computeOceanFreight('FCL40', cbmTotal, chargeableTon)
-  // DDP quote and sea rates have different included cost boundaries; never auto-pick a winner.
+  const lclOcean = computeOceanFreight('LCL', cbmTotal, chargeableTon, freightRates)
+  const fcl20Ocean = computeOceanFreight('FCL20', cbmTotal, chargeableTon, freightRates)
+  const fcl40Ocean = computeOceanFreight('FCL40', cbmTotal, chargeableTon, freightRates)
   const preferred: FreightMode | null = null
 
-  // Approx units where FCL20 beats LCL for this SKU's CBM/unit
   const cbmPerUnit = cbmTotal / units
   let fclBetterFromUnitsApprox: number | null = null
-  if (cbmPerUnit > 0) {
-    const lclPerCbmEffective = FREIGHT_RATES.lclUsdPerCbm
-    // Ignore surcharge for rough crossover: n * cbm * lclRate ≈ fcl20+thc
+  if (cbmPerUnit > 0 && freightRates.lclUsdPerCbm > 0) {
     const n = Math.ceil(
-      (FREIGHT_RATES.fcl20Usd + FREIGHT_RATES.thcUsd) /
-        (cbmPerUnit * lclPerCbmEffective),
+      (freightRates.fcl20Usd + freightRates.thcUsd) / (cbmPerUnit * freightRates.lclUsdPerCbm),
     )
     fclBetterFromUnitsApprox = n
   }
 
+  const blockReasons: string[] = []
+  if (fxUsdLkr <= 0) blockReasons.push('缺少有效汇率（请在设置/汇率配置维护 USD→LKR）')
+  if (resolvedFrom !== 'fee_template') blockReasons.push('未命中进口税费用模板，不可发布正式成本版本')
+  if (missingComponents.length > 0) {
+    blockReasons.push(`进口税费用模板缺少组件：${missingComponents.join('、')}，不可发布正式成本版本`)
+  }
+  if (!platformFeeResolved) blockReasons.push('未命中平台费费用模板，不可发布正式成本版本')
+  if (freightSource === 'missing') blockReasons.push('缺少运价卡或手工运费总额')
+  const canPublishFormal = blockReasons.length === 0
+
   const noteZh =
-    '方案费用范围不同：空运 DDP 示例含税打包，海运示例未含进口税。当前仅比较演示物流报价，不可据此判定完整成本最优方案。'
+    freightSource === 'missing'
+      ? '未配置运价卡且未填手工运费；运费为 0，仅供草稿测算。'
+      : freightSource === 'manual'
+        ? '运费来自手工总额；请核对与承运商报价一致。'
+        : `运费来自运价卡 ${freightRates.code}。`
+
+  const cartonSpecSource = input.cartonSpecSource === 'master' ? 'master' : 'manual'
 
   return {
     input: { ...input, units },
@@ -590,34 +672,40 @@ export function computeLandedCost(input: CostCalculatorInput): CostCalculatorRes
       fcl40OceanUnit: round4(fcl40Ocean / units),
       preferred,
       comparable: false,
-      nonComparableReason: 'DDP 示例报价含税，LCL/FCL 示例报价未含税，且来源/有效期未核实。',
+      nonComparableReason: '空运 DDP 与海运费用范围可能不同，不可自动判定最优方案。',
       fcl20Containers,
       fcl40Containers,
-      exceedsFcl20: cbmTotal > FREIGHT_RATES.fcl20UsableCbm,
-      exceedsFcl40: cbmTotal > FREIGHT_RATES.fcl40UsableCbm,
+      exceedsFcl20: cbmTotal > fcl20Usable,
+      exceedsFcl40: cbmTotal > fcl40Usable,
       fclBetterFromUnitsApprox,
       noteZh,
     },
     meta: {
       tariffTableVersion: importResolved
         ? `${importResolved.template.code}@v${importResolved.version.versionNo}`
-        : TARIFF_TABLE_VERSION,
-      freightRateVersion: FREIGHT_RATE_VERSION,
-      fxRateDate: FX_RATE_DATE,
-      fxUsdLkr: FX_USD_LKR,
-      disclaimerZh:
-        resolvedFrom === 'fee_template'
-          ? `估算 · 需报关/法务复核。税率来自费用模板 ${importResolved?.template.code}（优先级 ${importResolved?.version.priority}）。`
-          : '估算 · 需报关/法务复核。未命中费用模板，已回退 TARIFF_PROFILES 示例税率。',
+        : '未命中费用模板',
+      freightRateVersion: freightSource === 'rate_card' ? freightRates.versionLabel : freightSource === 'manual' ? '手工运费' : '未配置运价',
+      fxRateDate: fxRateDate || '—',
+      fxUsdLkr,
+      fxRateId,
+      disclaimerZh: canPublishFormal
+        ? `正式测算就绪。进口税模板 ${importResolved?.template.code} · 平台费模板 ${platformFeeResolved?.template.code}；汇率 ${fxRateDate}（1 USD = ${fxUsdLkr} LKR）。仍需报关/法务复核。`
+        : `不可发布正式成本：${blockReasons.join('；')}`,
       feeTemplateVersionId: importResolved?.version.id ?? null,
       feeTemplateCode: importResolved?.template.code ?? null,
       platformFeeTemplateVersionId: platformFeeResolved?.version.id ?? null,
+      platformFeeTemplateCode: platformFeeResolved?.template.code ?? null,
+      missingImportTaxComponents: missingComponents,
       componentsSnapshot: (importResolved?.version.components ?? []).map((c) => ({
         code: c.code,
         labelZh: c.labelZh,
         rate: c.rate,
         unit: c.unit,
       })),
+      canPublishFormal,
+      blockReasons,
+      freightSource,
+      cartonSpecSource,
     },
   }
 }
@@ -632,8 +720,8 @@ export function getFormulaDocs(rates: TariffRates): {
     titleZh: '计算规则与公式',
     lines: [
       {
-        zh: `计税输入为演示口径：FOB + 保险 + 海运分摊；DDP 报价含税开关打开时不重复计入进口税（须以真实报价核实）`,
-        en: 'demo_cif = fob_total + insurance + sea_freight; DDP included tax is not added twice',
+        zh: `计税输入：FOB + 保险 + 海运分摊；DDP 报价含税开关打开时不重复计入进口税（须以真实报价核实）`,
+        en: 'cif = fob_total + insurance + sea_freight; DDP included tax is not added twice',
       },
       {
         zh: `Customs Duty d = v × ${pct(rates.customs)}（税基 CIF）`,
@@ -664,8 +752,8 @@ export function getFormulaDocs(rates: TariffRates): {
         en: 'P* = (landed + last_mile) / (1 − f − m)',
       },
       {
-        zh: `税率表 ${TARIFF_TABLE_VERSION} · 运价 ${FREIGHT_RATE_VERSION} · 汇率日 ${FX_RATE_DATE}（1 USD = ${FX_USD_LKR} LKR）· HS 示意 ${rates.hsHint} · DDP ${FREIGHT_RATES.airDdpUsdPerKg} USD/kg 示例，含税范围待核实`,
-        en: `tariff ${TARIFF_TABLE_VERSION}; freight ${FREIGHT_RATE_VERSION}; fx ${FX_RATE_DATE}`,
+        zh: `税率来自费用模板 · 运价来自运价卡或手工总额 · HS 示意 ${rates.hsHint}`,
+        en: `tariff from fee template; freight from rate card or manual total; HS ${rates.hsHint}`,
       },
     ],
   }

@@ -61,7 +61,7 @@
       "codePlaceholder": "Enter code",
       "sendCode": "Send Code",
       "countdown": "Resend in {seconds}s",
-      "codeSent": "Verification code sent",
+      "codeSent": "No SMS channel configured; the code was written to the server log",
       "signIn": "Sign In",
       "switchToEmail": "Use email instead",
       "verifyFailed": "Verification failed, please try again",
@@ -74,7 +74,8 @@
       "captchaChallengeFailed": "Failed to load captcha",
       "captchaVerifyFailed": "Verification failed",
       "captchaMismatch": "Slide position mismatch, please try again",
-      "captchaTooManyAttempts": "Too many attempts, please try again later"
+      "captchaTooManyAttempts": "Too many attempts, please try again later",
+      "signUpHint": "Don't have an account? Sign up"
     },
     "register": {
       "nameRequired": "Please enter your name",
@@ -150,6 +151,7 @@
       "masterData": "Master data",
       "masterProducts": "Products & SKUs",
       "categories": "Category tree",
+      "brands": "Brands",
       "suppliers": "Suppliers",
       "warehouse": "Warehouses & bins",
       "warehouseZones": "Warehouse zones",
@@ -209,7 +211,8 @@
       "stockRisk": "Slow / stockout",
       "attribution": "Review attribution",
       "complianceHsSlsi": "HS & SLSI",
-      "csInbox": "CS inbox (RO)"
+      "csInbox": "CS inbox (RO)",
+      "freightRateCards": "Freight rate cards"
     },
     "usage": {
       "title": "Usage",
@@ -340,6 +343,7 @@
       "profile": "Profile",
       "listings": "Listings",
       "categories": "Category tree",
+      "brands": "Brands",
       "warehouseZones": "Warehouse zones",
       "carriers": "Carriers",
       "cartonSpecs": "Carton specs",
@@ -349,7 +353,12 @@
       "stockRisk": "Slow / stockout",
       "attribution": "Review attribution",
       "complianceHsSlsi": "HS & SLSI",
-      "csInbox": "CS inbox (RO)"
+      "csInbox": "CS inbox (RO)",
+      "freightRateCards": "Freight rate cards",
+      "freight": "Freight estimation",
+      "settlements": "Settlements",
+      "profits": "Order & SKU profits",
+      "costFinance": "Cost & finance"
     },
     "comingSoon": {
       "billing": {
@@ -376,6 +385,7 @@
     "backToWorkbench": "Back to workbench",
     "settings": {
       "shops": "Shops",
+      "marketplaceApps": "Marketplace apps",
       "platformBasics": "Platform basics",
       "dictionaries": "Data dictionaries",
       "imports": "Data imports",
@@ -383,11 +393,12 @@
       "integrationLog": "API logs",
       "audit": "Audit log",
       "erpAccess": "Roles & data scope",
-      "credentials": "Credentials",
       "notifications": "Notifications",
       "members": "Members",
       "preferences": "Preferences",
-      "fxRates": "FX rates"
+      "fxRates": "FX rates",
+      "stockAlerts": "Stock alert thresholds",
+      "aftersalePolicy": "Aftersale policy"
     },
     "profile": {
       "account": "Account",
@@ -561,6 +572,14 @@
       "code": "Verification code: {code}",
       "expires": "The code expires in 5 minutes. Do not share it with anyone.",
       "ignore": "If you did not perform this action, please ignore this email."
+    },
+    "organizationInvitation": {
+      "subject": "Organization invitation",
+      "title": "Hello {name},",
+      "body": "{invitedByName} invited you to join {organizationName}. Click below to accept and set a login password.",
+      "passwordHint": "After setting your password you must sign in again.",
+      "accept": "Accept invitation & set password",
+      "relogin": "Then sign in with your email and new password."
     }
   }
 }

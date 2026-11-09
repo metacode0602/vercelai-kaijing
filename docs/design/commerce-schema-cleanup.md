@@ -2,7 +2,7 @@
 
 > 对照 `haoshiyun-erp-database-schema.md`，对 `packages/db/src/commerce-schema.ts` 旧表做 KEEP / MERGE / DROP / ADD。
 > 目标：去掉死表与重复语义，向设计对齐列；**不**一次落地 ~75 张生产表，**不**要求破坏性生产迁移。
-> 控制台仍仅用 localStorage 原型；本文件不接入 tRPC / DB。
+> 控制台仍仅用 localStorage 原型（**调查时点 2026-10-31 口径**；2026-11-08 复核：控制台主路径已接 tRPC，`mock-data.ts` 已删）。本文件不接入 tRPC / DB。
 
 调查结论（2026-10-31）：除 `shops` + `integrationCredentials` 被 OAuth 持久化引用外，其余 commerce 表在应用代码中**未被读写**，删除/改列对运行时安全；类型导出经 `packages/db/src/schema.ts` 再导出。
 
@@ -47,7 +47,7 @@
 
 ## 明确推迟（不在本 PR）
 
-- 完整 WMS：`warehouses`、`bins`、`inventory_ledger`、`stock_outbounds`、拣货/出库单等（控制台已有 localStorage 原型）。
+- 完整 WMS：`warehouses`、`bins`、`inventory_ledger`、`stock_outbounds`、拣货/出库单等（2026-11-08：控制台 WMS 已接 tRPC；调查时点为 localStorage 原型）。
 - 采购域全表、JSB 交接正式表、财务利润快照表、字典/序列表等 ~75 表余量。
 - Drizzle 生产 migration SQL（无破坏性要求；类型 + 文档足够；若 monorepo 强制 migration，另开最小空迁移）。
 - 控制台接入 tRPC / 真实 DB（明确禁止）。
@@ -68,4 +68,4 @@
 | `ocean_shipments` / `ocean_shipment_lines` | **ADD（精简）** | 海运柜次头/行 |
 | `sku_costs` | **MERGE** | `container_lot_id` / `version_no` / `tax_breakdown` / `calculator_snapshot` |
 
-仍不落地完整 75 表；无破坏性 migration；控制台 localStorage。
+仍不落地完整 75 表；无破坏性 migration；控制台 localStorage（调查时点口径；**2026-11-08**：控制台已接 tRPC，`mock-data.ts` 已删）。

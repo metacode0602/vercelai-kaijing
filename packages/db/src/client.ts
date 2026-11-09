@@ -1,6 +1,7 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
 import { Pool, type PoolConfig } from "pg"
 import { schema, type AppDbSchema } from "./schema"
+import { webAuthAdapterSchema } from "./web-auth-schema"
 
 export type NodePgClientConfig = {
   connectionString?: string
@@ -14,8 +15,14 @@ export type NodePgClientConfig = {
  */
 export type AppDatabase = NodePgDatabase<AppDbSchema> & { $client: Pool }
 
+/** apps/web 平台管理员身份库专用实例（web_auth schema），见 web-auth-schema.ts */
+export type WebAuthDatabase = NodePgDatabase<typeof webAuthAdapterSchema> & {
+  $client: Pool
+}
+
 export type NodePgClient = {
   db: AppDatabase
+  webAuthDb: WebAuthDatabase
   pool: Pool
 }
 
@@ -86,5 +93,13 @@ export function createPgClient(config: NodePgClientConfig = {}): NodePgClient {
     schema,
   })
 
-  return { db, pool }
+  // 与 db 共享同一连接池，但 schema 隔离：join 查询按 db.query 键名解析，
+  // 必须指向 web_auth 表，见 web-auth-schema.ts 顶部说明。
+  const webAuthDb: WebAuthDatabase = drizzle({
+    client: pool,
+    logger: config.logger ?? false,
+    schema: webAuthAdapterSchema,
+  })
+
+  return { db, webAuthDb, pool }
 }

@@ -46,3 +46,4 @@ apps/geo-cms
 # Large data dumps (purged from history)
 crm_data_only.sql
 crm_data_only_v2.sql
+.storage

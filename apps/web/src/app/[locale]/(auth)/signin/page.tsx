@@ -5,7 +5,7 @@ import { Routes } from '@/lib/routes'
 import { getTranslations } from 'next-intl/server'
 
 export default async function SigninPage() {
-  await requireUnauth('/dashboard')
+  await requireUnauth(Routes.Settings)
   const common = await getTranslations('AuthPage.common')
 
   return (

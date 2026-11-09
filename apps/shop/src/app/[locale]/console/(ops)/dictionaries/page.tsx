@@ -1,154 +1,462 @@
 'use client'
 
 import * as React from 'react'
-import { Check, ChevronRight, Plus, Search, Tag, X } from 'lucide-react'
+import { Check, ChevronRight, Pencil, Plus, Search, Tag } from 'lucide-react'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { Textarea } from '@workspace/ui/components/textarea'
-import { ProductCover, ProductImageField } from '@/components/console/product-images'
-import { INITIAL_DICTIONARIES } from '@/lib/crossborder/platform-basics-data'
 import {
-  addDictionaryCategory,
-  addDictionaryValue,
-  setDictionaryValueActive,
-  updateDictionaryValue,
-  useDictionaries,
-} from '@/lib/crossborder/dictionary-store'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@workspace/ui/components/dialog'
 import {
-  getProductImageSet,
-  removeProductImageSet,
-  setProductImageSet,
-  useProductImageSet,
-  type DemoImageSet,
-} from '@/lib/crossborder/product-image-store'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@workspace/ui/components/alert-dialog'
+import { trpc } from '@/lib/trpc/client'
 
-const BRAND_DICTIONARY_KEY = 'product_brand'
+const KEY_PATTERN = /^[a-z][a-z0-9_]*$/
 
-function brandImageKey(value: string) {
-  return `brand:${BRAND_DICTIONARY_KEY}:${value}`
-}
-
-function BrandValueCover({ value }: { value: string }) {
-  const images = useProductImageSet(brandImageKey(value))
-  const src = images.cover ?? images.images[0]
-  if (!src) return null
-  return <ProductCover src={src} alt={`${value} 封面`} className="size-7" />
-}
+type DialogMode = 'create-category' | 'edit-category' | 'create-value' | 'edit-value' | null
+type ConfirmState = { value: string; active: boolean } | null
 
 export default function DictionariesPage() {
-  const { categories, inactiveValues } = useDictionaries()
-  const [selectedKey, setSelectedKey] = React.useState(INITIAL_DICTIONARIES[0]?.key ?? '')
+  const utils = trpc.useUtils()
+  const listQuery = trpc.dictionaries.list.useQuery()
+  const categories = listQuery.data ?? []
+  const [selectedKey, setSelectedKey] = React.useState('')
   const [query, setQuery] = React.useState('')
-  const [dialog, setDialog] = React.useState<'category' | 'value' | 'edit-value' | null>(null)
-  const [categoryName, setCategoryName] = React.useState('')
+  const [dialog, setDialog] = React.useState<DialogMode>(null)
+  const [confirm, setConfirm] = React.useState<ConfirmState>(null)
+  const [categoryKey, setCategoryKey] = React.useState('')
+  const [categoryLabel, setCategoryLabel] = React.useState('')
   const [categoryDescription, setCategoryDescription] = React.useState('')
   const [valueName, setValueName] = React.useState('')
-  const [aliases, setAliases] = React.useState('')
+  const [valueTitle, setValueTitle] = React.useState('')
   const [editingValue, setEditingValue] = React.useState('')
-  const [valueImages, setValueImages] = React.useState<DemoImageSet>({ images: [] })
   const [notice, setNotice] = React.useState('')
 
+  React.useEffect(() => {
+    if (!selectedKey && categories[0]) setSelectedKey(categories[0].key)
+  }, [categories, selectedKey])
+
   const selected = categories.find((item) => item.key === selectedKey) ?? categories[0]
-  const isBrandDictionary = selected?.key === BRAND_DICTIONARY_KEY
-  const activeValues = selected?.values.filter((value) => !inactiveValues[selected.key]?.includes(value)) ?? []
-  const filteredCategories = categories.filter((item) => `${item.label} ${item.description} ${item.values.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
+  const inactive = new Set(selected?.inactiveValues ?? [])
+  const activeValues = (selected?.values ?? []).filter((value) => !inactive.has(value))
+  const titleOf = (value: string) => selected?.valueTitles?.[value] ?? value
+  const filtered = categories.filter((item) =>
+    `${item.label} ${item.key} ${item.description} ${item.values.join(' ')} ${Object.values(item.valueTitles).join(' ')}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  )
+  const invalidate = () => utils.dictionaries.list.invalidate()
+
+  const upsert = trpc.dictionaries.upsert.useMutation({
+    onSuccess: async (row) => {
+      setDialog(null)
+      if (row) setSelectedKey(row.key)
+      setNotice(dialog === 'edit-category' ? '字典标题已更新。' : '字典已新增。')
+      await invalidate()
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const addValue = trpc.dictionaries.addValue.useMutation({
+    onSuccess: async () => {
+      setDialog(null)
+      setValueName('')
+      setValueTitle('')
+      setNotice('标准值已添加。')
+      await invalidate()
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const updateValue = trpc.dictionaries.updateValue.useMutation({
+    onSuccess: async () => {
+      setDialog(null)
+      setValueName('')
+      setValueTitle('')
+      setEditingValue('')
+      setNotice('标准值已修改。')
+      await invalidate()
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const setActive = trpc.dictionaries.setValueActive.useMutation({
+    onSuccess: async () => {
+      setNotice(confirm?.active ? '标准值已启用。' : '标准值已停用。')
+      setConfirm(null)
+      await invalidate()
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
+  function openCreateCategory() {
+    setCategoryKey('')
+    setCategoryLabel('')
+    setCategoryDescription('')
+    setDialog('create-category')
+  }
+
+  function openEditCategory() {
+    if (!selected) return
+    setCategoryKey(selected.key)
+    setCategoryLabel(selected.label)
+    setCategoryDescription(selected.description)
+    setDialog('edit-category')
+  }
+
+  function openCreateValue() {
+    setValueName('')
+    setValueTitle('')
+    setEditingValue('')
+    setDialog('create-value')
+  }
+
+  function openEditValue(value: string) {
+    setValueName(value)
+    setValueTitle(titleOf(value))
+    setEditingValue(value)
+    setDialog('edit-value')
+  }
 
   function saveCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const key = categoryName.trim().toLowerCase().replace(/\s+/g, '_')
-    if (!key || categories.some((item) => item.key === key)) {
-      setNotice('请使用未重复的字典名称。')
+    const key = categoryKey.trim().toLowerCase()
+    const label = categoryLabel.trim()
+    if (!KEY_PATTERN.test(key)) {
+      setNotice('值需为英文小写，且只能包含字母、数字和下划线，例如 product_style。')
       return
     }
-    const item = { key, label: categoryName.trim(), description: categoryDescription.trim() || '可被多个业务模块复用', shared: true, values: [] }
-    addDictionaryCategory(item)
-    setSelectedKey(key)
-    setDialog(null)
-    setCategoryName('')
-    setCategoryDescription('')
-    setNotice('字典已新增到本次原型会话。')
+    if (!label) {
+      setNotice('请填写中文标题。')
+      return
+    }
+    upsert.mutate({
+      key,
+      label,
+      description: categoryDescription.trim(),
+      ...(dialog === 'create-category' ? { values: [], valueTitles: {}, inactiveValues: [] } : {}),
+    })
   }
 
   function saveValue(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!selected || !valueName.trim()) return
-    const normalizedAliases = aliases.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
-    const aliasConflict = categories.some((category) => category.key === selected.key && category.values.some((canonical) => canonical !== editingValue && normalizedAliases.includes(canonical.toLowerCase())))
-    if (aliasConflict) {
-      setNotice('别名与现有标准值重名，请合并到已有标准值。')
+    if (!selected) return
+    const value = valueName.trim()
+    const title = valueTitle.trim()
+    if (!value) {
+      setNotice('请填写值（英文）。')
+      return
+    }
+    if (!title) {
+      setNotice('请填写标题（中文）。')
       return
     }
     if (dialog === 'edit-value') {
-      updateDictionaryValue(selected.key, editingValue, valueName.trim())
-    } else if (selected.values.some((value) => value.toLowerCase() === valueName.trim().toLowerCase())) {
-      setNotice('该标准值已存在，请编辑现有值或补充为别名。')
-      return
-    } else {
-      addDictionaryValue(selected.key, valueName.trim())
-    }
-    if (isBrandDictionary) {
-      setProductImageSet(brandImageKey(valueName.trim()), valueImages)
-      if (dialog === 'edit-value' && editingValue !== valueName.trim()) {
-        removeProductImageSet(brandImageKey(editingValue))
+      if (value === editingValue && title === titleOf(editingValue)) {
+        setDialog(null)
+        return
       }
+      updateValue.mutate({ key: selected.key, from: editingValue, to: value, title })
+      return
     }
-    setDialog(null)
-    setValueName('')
-    setAliases('')
-    setEditingValue('')
-    setValueImages({ images: [] })
-    setNotice('字典值已保存到本次原型会话；别名随标准值归一。')
+    addValue.mutate({ key: selected.key, value, title })
   }
 
-  function deactivateValue(value: string) {
-    if (!selected) return
-    setDictionaryValueActive(selected.key, value, false)
-    setNotice('该值已停用，不再出现在原型选择项中；历史记录保留。')
-  }
-
-  function activateValue(value: string) {
-    if (!selected) return
-    setDictionaryValueActive(selected.key, value, true)
-    setNotice('该值已重新启用。')
-  }
+  const dialogTitle =
+    dialog === 'create-category'
+      ? '新增字典'
+      : dialog === 'edit-category'
+        ? '编辑字典'
+        : dialog === 'edit-value'
+          ? '编辑标准值'
+          : `新增${selected?.label ?? ''}标准值`
 
   return (
     <div className="flex w-full flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1"><h1 className="text-xl font-semibold tracking-tight">基础数据字典</h1><p className="text-sm text-muted-foreground">一次维护，商品、店铺和仓库配置共用标准值</p></div>
-        <Button onClick={() => setDialog('category')}><Plus data-icon="inline-start" />新增字典</Button>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold tracking-tight">基础数据字典</h1>
+          <p className="text-sm text-muted-foreground">一次维护，商品、店铺和仓库配置共用标准值</p>
+        </div>
+        <Button onClick={openCreateCategory}>
+          <Plus data-icon="inline-start" />新增字典
+        </Button>
       </header>
 
       <div className="grid min-h-[540px] overflow-hidden rounded-lg border md:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="border-b bg-muted/20 md:border-b-0 md:border-r">
-          <div className="border-b p-3"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索字典" className="pl-9" /></div></div>
+          <div className="border-b p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索字典"
+                className="pl-9"
+              />
+            </div>
+          </div>
           <nav className="flex flex-col p-2" aria-label="字典分类">
-            {filteredCategories.map((item) => <button type="button" key={item.key} onClick={() => setSelectedKey(item.key)} className={`flex items-center justify-between rounded-md px-3 py-2 text-left text-sm ${selectedKey === item.key ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><span className="flex min-w-0 items-center gap-2"><Tag className="size-4 shrink-0" /><span className="truncate">{item.label}</span></span><span className="ml-2 text-xs tabular-nums">{item.values.length}</span></button>)}
-        {filteredCategories.length === 0 ? <p className="px-3 py-6 text-center text-sm text-muted-foreground">没有匹配字典</p> : null}
+            {listQuery.isLoading ? (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">加载中…</p>
+            ) : null}
+            {!listQuery.isLoading && filtered.length === 0 ? (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">没有匹配字典</p>
+            ) : null}
+            {filtered.map((item) => (
+              <button
+                type="button"
+                key={item.key}
+                onClick={() => setSelectedKey(item.key)}
+                className={`flex items-center justify-between rounded-md px-3 py-2 text-left text-sm ${selectedKey === item.key ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Tag className="size-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                <span className="ml-2 text-xs tabular-nums">{item.values.length}</span>
+              </button>
+            ))}
           </nav>
         </aside>
 
-        {selected ? <section className="flex min-w-0 flex-col">
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4"><div><h2 className="font-semibold">{selected.label}</h2><p className="mt-1 text-sm text-muted-foreground">{selected.description}</p></div><Button size="sm" onClick={() => { setValueName(''); setAliases(''); setValueImages({ images: [] }); setDialog('value') }}><Plus data-icon="inline-start" />新增标准值</Button></div>
-          <div className="flex items-center gap-2 border-b px-5 py-3 text-sm text-muted-foreground"><Badge variant="secondary">共享字典</Badge><span>用于所有关联平台、站点和业务对象</span><span className="ml-auto">{activeValues.length} 个启用值{(inactiveValues[selected.key] ?? []).length ? ` · ${inactiveValues[selected.key].length} 个停用值` : ''}</span></div>
-          <div className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b px-5 py-2 text-xs font-medium text-muted-foreground"><span>标准名称</span><span>历史别名</span><span className="text-right">操作</span></div>
-          <div className="flex flex-col">
-            {activeValues.map((value) => <div key={value} className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b px-5 py-3 text-sm last:border-0"><span className="flex min-w-0 items-center gap-2">{isBrandDictionary ? <BrandValueCover value={value} /> : null}<span className="font-medium truncate">{value}</span></span><span className="truncate text-muted-foreground" title={value === '深灰色' ? '深灰、深灰色' : '—'}>{value === '深灰色' ? '深灰、深灰色' : '—'}</span><div className="flex justify-end gap-1"><Button variant="ghost" size="sm" onClick={() => { setEditingValue(value); setValueName(value); setAliases(value === '深灰色' ? '深灰' : ''); setValueImages(isBrandDictionary ? getProductImageSet(brandImageKey(value)) : { images: [] }); setDialog('edit-value') }}>编辑</Button><Button variant="ghost" size="sm" onClick={() => deactivateValue(value)}>停用</Button></div></div>)}
-            {(inactiveValues[selected.key] ?? []).map((value) => <div key={`inactive-${value}`} className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.5fr)_100px] items-center gap-3 border-b bg-muted/20 px-5 py-3 text-sm last:border-0"><span className="text-muted-foreground line-through">{value}</span><span className="truncate text-muted-foreground">停用</span><Button variant="ghost" size="sm" onClick={() => activateValue(value)}>启用</Button></div>)}
-            {activeValues.length === 0 ? <div className="flex flex-col items-center gap-2 px-5 py-16 text-center"><p className="font-medium">此字典还没有启用的标准值</p><p className="text-sm text-muted-foreground">新增标准值后，关联表单即可直接复用。</p><Button variant="outline" size="sm" onClick={() => { setValueImages({ images: [] }); setDialog('value') }}><Plus data-icon="inline-start" />新增标准值</Button></div> : null}
-          </div>
-          <div className="mt-auto flex items-start gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground"><ChevronRight className="mt-0.5 size-4 shrink-0" /><p>历史别名用于旧数据导入与搜索；业务录入只选择标准名称。已被业务记录引用的值应停用保留，不应物理删除。</p></div>
-        </section> : null}
+        {selected ? (
+          <section className="flex min-w-0 flex-col">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
+              <div>
+                <h2 className="font-semibold">{selected.label}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {selected.description || selected.key}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={openEditCategory}>
+                  <Pencil data-icon="inline-start" />编辑字典
+                </Button>
+                <Button size="sm" onClick={openCreateValue}>
+                  <Plus data-icon="inline-start" />新增标准值
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-b px-5 py-3 text-sm text-muted-foreground">
+              <Badge variant="secondary">共享字典</Badge>
+              <span>用于所有关联平台、站点和业务对象</span>
+              <span className="ml-auto">
+                {activeValues.length} 个启用值
+                {selected.inactiveValues.length ? ` · ${selected.inactiveValues.length} 个停用值` : ''}
+              </span>
+            </div>
+            <div className="grid grid-cols-[minmax(120px,1fr)_minmax(140px,1fr)_80px_150px] items-center gap-3 border-b px-5 py-2 text-xs font-medium text-muted-foreground">
+              <span>标题</span>
+              <span>值</span>
+              <span>状态</span>
+              <span className="text-right">操作</span>
+            </div>
+            <div className="flex flex-col">
+              {activeValues.map((value) => (
+                <div
+                  key={value}
+                  className="grid grid-cols-[minmax(120px,1fr)_minmax(140px,1fr)_80px_150px] items-center gap-3 border-b px-5 py-3 text-sm last:border-0"
+                >
+                  <span className="truncate font-medium">{titleOf(value)}</span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">{value}</span>
+                  <span>
+                    <Badge variant="secondary">启用</Badge>
+                  </span>
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => openEditValue(value)}>
+                      修改
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setConfirm({ value, active: false })}
+                    >
+                      停用
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {selected.inactiveValues.map((value) => (
+                <div
+                  key={`inactive-${value}`}
+                  className="grid grid-cols-[minmax(120px,1fr)_minmax(140px,1fr)_80px_150px] items-center gap-3 border-b bg-muted/20 px-5 py-3 text-sm last:border-0"
+                >
+                  <span className="truncate text-muted-foreground line-through">{titleOf(value)}</span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">{value}</span>
+                  <span>
+                    <Badge variant="outline">停用</Badge>
+                  </span>
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => openEditValue(value)}>
+                      修改
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setConfirm({ value, active: true })}
+                    >
+                      启用
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {activeValues.length === 0 && selected.inactiveValues.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-5 py-16 text-center">
+                  <p className="font-medium">此字典还没有标准值</p>
+                  <p className="text-sm text-muted-foreground">新增标准值后，关联表单即可直接复用。</p>
+                  <Button variant="outline" size="sm" onClick={openCreateValue}>
+                    <Plus data-icon="inline-start" />新增标准值
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-auto flex items-start gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground">
+              <ChevronRight className="mt-0.5 size-4 shrink-0" />
+              <p>已被业务记录引用的值应停用保留，不应物理删除；停用值不会出现在新业务表单中。</p>
+            </div>
+          </section>
+        ) : (
+          <p className="p-5 text-sm text-muted-foreground">请选择或新增字典。</p>
+        )}
       </div>
 
-      {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+      {notice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
 
-      {dialog ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(null) }} onKeyDown={(event) => { if (event.key === 'Escape') setDialog(null) }}><div role="dialog" aria-modal="true" aria-labelledby="dictionary-dialog-title" className={`w-full ${isBrandDictionary && dialog !== 'category' ? 'max-w-2xl' : 'max-w-md'} rounded-xl border bg-background p-5 shadow-lg`}>
-        <div className="mb-5 flex items-start justify-between"><div><h2 id="dictionary-dialog-title" className="font-semibold">{dialog === 'category' ? '新增字典' : dialog === 'edit-value' ? '编辑标准值' : `新增${selected?.label ?? ''}标准值`}</h2><p className="mt-1 text-sm text-muted-foreground">标准数据可被多个业务表单复用</p></div><Button variant="ghost" size="icon-sm" aria-label="关闭" onClick={() => setDialog(null)}><X /></Button></div>
-        {dialog === 'category' ? <form onSubmit={saveCategory} className="flex flex-col gap-4"><div className="flex flex-col gap-2"><Label htmlFor="dictionary-name">字典名称</Label><Input id="dictionary-name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="如 承运商" required /></div><div className="flex flex-col gap-2"><Label htmlFor="dictionary-description">用途</Label><Textarea id="dictionary-description" value={categoryDescription} onChange={(event) => setCategoryDescription(event.target.value)} placeholder="描述哪些模块会复用" rows={3} /></div><div className="flex justify-end gap-2 border-t pt-4"><Button type="button" variant="outline" onClick={() => setDialog(null)}>取消</Button><Button type="submit"><Check data-icon="inline-start" />创建字典</Button></div></form> : <form onSubmit={saveValue} className="flex flex-col gap-4"><div className="flex flex-col gap-2"><Label htmlFor="dictionary-value">标准名称</Label><Input id="dictionary-value" value={valueName} onChange={(event) => setValueName(event.target.value)} placeholder="输入统一标准值" required /></div><div className="flex flex-col gap-2"><Label htmlFor="dictionary-aliases">历史别名</Label><Textarea id="dictionary-aliases" value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="多个别名用逗号分隔" rows={2} /><p className="text-xs text-muted-foreground">导入和搜索时可匹配别名；新建业务数据仍保存标准名称。</p></div>{isBrandDictionary ? <ProductImageField value={valueImages} onChange={setValueImages} label="品牌图片" description="封面图用于品牌展示；截图可上传多张，用于品牌素材归档。" /> : null}<div className="flex justify-end gap-2 border-t pt-4"><Button type="button" variant="outline" onClick={() => setDialog(null)}>取消</Button><Button type="submit"><Check data-icon="inline-start" />保存标准值</Button></div></form>}
-      </div></div> : null}
+      <Dialog open={Boolean(dialog)} onOpenChange={(open) => !open && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            <DialogDescription>
+              {dialog === 'create-category' || dialog === 'edit-category'
+                ? '值使用英文，标题用于中文界面展示'
+                : '标准值保存英文 code，标题用于界面展示与筛选'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dialog === 'create-category' || dialog === 'edit-category' ? (
+            <form onSubmit={saveCategory} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="dictionary-key">值（英文）</Label>
+                <Input
+                  id="dictionary-key"
+                  value={categoryKey}
+                  onChange={(event) => setCategoryKey(event.target.value)}
+                  placeholder="如 product_style"
+                  readOnly={dialog === 'edit-category'}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  小写字母开头，仅允许字母、数字和下划线；创建后不可修改。
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="dictionary-label">标题（中文）</Label>
+                <Input
+                  id="dictionary-label"
+                  value={categoryLabel}
+                  onChange={(event) => setCategoryLabel(event.target.value)}
+                  placeholder="如 款式/版型"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="dictionary-description">说明</Label>
+                <Textarea
+                  id="dictionary-description"
+                  value={categoryDescription}
+                  onChange={(event) => setCategoryDescription(event.target.value)}
+                  placeholder="描述哪些模块会复用"
+                  rows={3}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialog(null)}>
+                  取消
+                </Button>
+                <Button type="submit" disabled={upsert.isPending}>
+                  <Check data-icon="inline-start" />
+                  {dialog === 'edit-category' ? '保存' : '创建字典'}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <form onSubmit={saveValue} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="dictionary-value">值（英文）</Label>
+                <Input
+                  id="dictionary-value"
+                  value={valueName}
+                  onChange={(event) => setValueName(event.target.value)}
+                  placeholder="如 cotton"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="dictionary-value-title">标题（中文）</Label>
+                <Input
+                  id="dictionary-value-title"
+                  value={valueTitle}
+                  onChange={(event) => setValueTitle(event.target.value)}
+                  placeholder="如 棉"
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialog(null)}>
+                  取消
+                </Button>
+                <Button type="submit" disabled={addValue.isPending || updateValue.isPending}>
+                  <Check data-icon="inline-start" />保存标准值
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(confirm)} onOpenChange={(open) => !open && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirm?.active ? '确认启用标准值？' : '确认停用标准值？'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.active
+                ? `启用「${confirm ? titleOf(confirm.value) : ''}」后，新业务表单将重新显示该选项。`
+                : `停用「${confirm ? titleOf(confirm.value) : ''}」后，新业务表单将不再显示该选项，历史数据保持不变。`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant={confirm?.active ? 'default' : 'destructive'}
+              disabled={setActive.isPending}
+              onClick={() => {
+                if (!confirm || !selected) return
+                setActive.mutate({ key: selected.key, value: confirm.value, active: confirm.active })
+              }}
+            >
+              确认{confirm?.active ? '启用' : '停用'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -276,7 +276,7 @@ interface RefreshReviewsInput {
 }
 ```
 
-数据来源：首版可先用静态 JSON（从工具链产出）放在 `apps/shop/src/lib/crossborder/reviews-mock.ts` 或通过 tRPC 获取。刷新接口 `reviews.refresh` 实现「API 优先，其次 AI 自动抓取」。
+数据来源：~~首版可先用静态 JSON（从工具链产出）放在 `apps/shop/src/lib/crossborder/reviews-mock.ts`~~ **2026-11-08 已接 `trpc.reviews.*`**（`reviews-mock.ts` 未落地）。刷新接口 `reviews.refresh` 实现「API 优先，其次 AI 自动抓取」。
 
 ## 7. 实现建议
 
@@ -299,7 +299,7 @@ apps/shop/src/app/[locale]/console/(ops)/reviews/  # 可选扩展
     └── review-insights.tsx
 
 apps/shop/src/lib/crossborder/
-└── reviews-mock.ts                 # Mock 数据（首版可用）
+└── ~~reviews-mock.ts~~            # 已改为 trpc.reviews（2026-11-08，文件未落地）
 ```
 
 ### 7.2 导航接入

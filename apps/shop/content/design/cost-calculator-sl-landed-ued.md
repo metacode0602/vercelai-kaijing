@@ -8,7 +8,7 @@
 | 日期 | 2026-10-21（Asia/Shanghai） |
 | 仓库 | `openroute-ai/open-shop` |
 | 关联 | `crossborder-shop-ued-product-design.md`（§5.7 成本页总览；本文为深化专篇）、[`crossborder-database-design.md`](../../../../docs/design/crossborder-database-design.md)（现状基线）、[`haoshiyun-erp-database-schema.md`](../../../../docs/design/haoshiyun-erp-database-schema.md)（权威 schema：§8 域 H 成本 / §11 域 K 运费）、[`crossborder-mvp-overview.md`](../../../../docs/design/crossborder-mvp-overview.md) |
-| 实现现状 | 控制台 mock：`/console/costs`、`/console/costs/[sku]`；先实现可交互 UED，用户确认后再接业务 tRPC |
+| 实现现状 | ~~控制台 mock~~ **已接 tRPC**（2026-11-08）：`/console/costs`、`/console/costs/[sku]` 走 `trpc.costs.*`；测算含 blockReasons 阻断与服务端强制校验（见 cost-finance-production-closure.md §9 G2） |
 | 门禁 | 设计稿；先交付可交互 UED 并确认用户习惯，再接业务 API/tRPC 和持久化 |
 
 ### 修订记录
@@ -26,7 +26,7 @@
 
 ### 1.1 背景
 
-Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shopee / TikTok；**MVP 仅 Daraz → 斯里兰卡**）。选品与刊登前必须能快速估算「FOB → 到仓」全成本，并在目标净利率下给出建议售价。现有 `/console/costs` 已有列表与 SKU 详情 mock（采购 / 头程 / Customs / PAL / CESS / VAT / SSCL 列 + 海运方案表），但**缺少可交互计算器、分摊规则、税基说明与版本化配置模型**。主 UED 文档 §5.7 仅给区块级规格，故本文作为**独立专篇**深化成本计算。
+Open Shop 租户端是多租户跨境运营数据中枢（Daraz / Lazada / Shopee / TikTok；**MVP 仅 Daraz → 斯里兰卡**）。选品与刊登前必须能快速估算「FOB → 到仓」全成本，并在目标净利率下给出建议售价。现有 `/console/costs` 已有列表与 SKU 详情（原为 mock；**2026-11-08 已接 `trpc.costs.*`，可交互计算器已落地**，含分摊/税基/版本化，见 cost-finance-production-closure.md §9），但当时**缺少可交互计算器、分摊规则、税基说明与版本化配置模型**。主 UED 文档 §5.7 仅给区块级规格，故本文作为**独立专篇**深化成本计算。
 
 ### 1.2 目标
 
@@ -165,7 +165,7 @@ flowchart LR
 > - 下列公式整理自 Sri Lanka Customs 公开材料 *Computation of Import Levies* / *National Imports Tariff Guide*（如 2026 年版 preamble）。  
 > - **税率、豁免、优惠协定、是否适用 Excise / SCL / Surcharge 均按 HS Code 与现行 Gazette 变化。**  
 > - 产品内所有计算结果须标 **「估算 · 需报关/法务复核」**；**不提供、不假装已有官方实时税率 API**。  
-> - MVP mock 使用**示例税率表**（可版本化 JSON）；P1 由运营维护配置，非法务结论。
+> - ~~MVP mock 使用**示例税率表**（可版本化 JSON）~~ **2026-11-08**：税率/费率由 `fee_templates`（LK 种子）版本供数，缺档标 **待复核**；非法务结论。
 
 ### 5.1 符号
 
@@ -225,7 +225,7 @@ flowchart TB
 | 项 | MVP 行为 |
 |----|----------|
 | Excise / Surcharge / SCL | 默认关闭；高级区可填；开启后按上表 |
-| 税率来源 | mock `tariff_profiles[]`：按 HS 前缀或「示例档：服装/3C/家居」 |
+| 税率来源 | ~~mock `tariff_profiles[]`~~ **2026-11-08**：优先取 `fee_templates`（LK 种子模板）；缺档回落 `tariff_profiles`（税率列为 0 占位）并标 **待复核** |
 | 校验 | 缺 HS 或税率 → 结果区 Badge **待复核**；仍可出「仅运费+FOB」粗算 |
 | AI | HS/税率提示 = **C**；写入成本影响在售价 = **B**（待审） |
 
@@ -376,10 +376,10 @@ FOB/件
 
 | 数据 | P0 | P1 | 备注 |
 |------|----|----|------|
-| 税率 / HS 档 | 代码内 mock JSON | 租户可编辑「税率表版本」 | 每条计算结果打 `tariff_table_version` |
+| 税率 / HS 档 | ~~代码内 mock JSON~~ `fee_templates`（LK 种子，2026-11-08） | 租户可编辑「税率表版本」 | 每条计算结果打 `tariff_table_version` |
 | 空运 DDP / LCL / FCL 运价 | 明确标记的示例报价 | 有效报价/规则版本 + 来源/有效期 | 各方案计费依据与包含/排除项目 |
 | 汇率 | 固定示意 | 按日手工/导入 | `fx_rate_date` + `fx_usd_lkr` |
-| 平台费率 | mock 按类目 | 配置 | 与财务中心后期对齐 |
+| 平台费率 | ~~mock 按类目~~ `fee_templates`（佣金/支付/广告费率，2026-11-08） | 配置 | 与财务中心后期对齐 |
 | 实际清关账单 | — | 复盘录入 | 差异报告，不自动改税率真理 |
 
 阶段二每次「保存测算」生成不可变快照：输入 + 来源/报价/税率/汇率/公式版本 + 输出，便于审计与复用。阶段一仅前端 state/session，必须明示“尚未写入业务数据库”。

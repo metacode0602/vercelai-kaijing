@@ -5,57 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1791297973819,
-      "tag": "0000_cold_amazoness",
+      "when": 1794012666907,
+      "tag": "0000_flashy_silver_samurai",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1792224000000,
-      "tag": "0001_waverless_orchestrator",
+      "when": 1794015682973,
+      "tag": "0001_parched_namora",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1792227600000,
-      "tag": "0002_waverless_billing_p0",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1792231200000,
-      "tag": "0003_waverless_billing_contract_snapshot",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1792234800000,
-      "tag": "0004_serverless_placement_m1",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1792500000000,
-      "tag": "0005_crossborder_commerce",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1792600000000,
-      "tag": "0006_commerce_lean_payload",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1792700000000,
-      "tag": "0007_commerce_platform_enrichment",
+      "when": 1794114849148,
+      "tag": "0002_glamorous_bruce_banner",
       "breakpoints": true
     }
   ]

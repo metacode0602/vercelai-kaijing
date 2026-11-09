@@ -22,13 +22,41 @@ import {
 import { Progress } from '@workspace/ui/components/progress'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
 import { cn } from '@workspace/ui/lib/utils'
-import {
-  getDashboardTrend,
-  MOCK_DASHBOARD_INVENTORY,
-  MOCK_DASHBOARD_PLATFORM_MIX,
-  type DashboardTrendPoint,
-  type DashboardTrendRange,
-} from '@/lib/crossborder/mock-data'
+import type { DashboardTrendRange } from '@/lib/console/dashboard-types'
+
+export type DashboardChartPoint = {
+  day: string
+  orders: number
+  revenue: number
+  units: number
+  aov: number
+  refundRate: number
+  grossProfit: number
+  grossMargin: number
+  netProfit: number
+  netMargin: number
+}
+
+export type PlatformMixItem = {
+  platform: string
+  share: number
+  revenue?: number
+}
+
+export type InventoryCategoryPoint = {
+  category: string
+  stock: number
+  inTransit: number
+  turnoverDays: number
+}
+
+function ChartEmpty({ label = '暂无数据' }: { label?: string }) {
+  return (
+    <div className="flex h-[220px] min-h-[220px] w-full items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+      {label}
+    </div>
+  )
+}
 
 const RANGE_OPTIONS: { value: DashboardTrendRange; label: string }[] = [
   { value: 7, label: '近7天' },
@@ -97,9 +125,13 @@ export function SalesTrendChart({
   data,
 }: {
   range: DashboardTrendRange
-  data?: DashboardTrendPoint[]
+  data?: DashboardChartPoint[]
 }) {
-  const points = data && data.length > 0 ? data : getDashboardTrend(range)
+  const points = data ?? []
+  const hasSignal = points.some((p) => p.revenue > 0 || p.orders > 0 || p.units > 0)
+  if (!hasSignal) {
+    return <ChartEmpty label="暂无销售趋势数据" />
+  }
 
   return (
     <div className="h-[280px] min-h-[280px] w-full">
@@ -201,8 +233,18 @@ const profitChartConfig = {
   },
 } satisfies ChartConfig
 
-export function ProfitTrendChart({ range }: { range: DashboardTrendRange }) {
-  const points = getDashboardTrend(range)
+export function ProfitTrendChart({
+  range,
+  data,
+}: {
+  range: DashboardTrendRange
+  data?: DashboardChartPoint[]
+}) {
+  const points = data ?? []
+  const hasSignal = points.some((p) => p.grossProfit !== 0 || p.netProfit !== 0 || p.revenue > 0)
+  if (!hasSignal) {
+    return <ChartEmpty label="暂无利润数据" />
+  }
 
   return (
     <div className="h-[260px] min-h-[260px] w-full">
@@ -302,8 +344,18 @@ const refundChartConfig = {
   },
 } satisfies ChartConfig
 
-export function RefundRateChart({ range }: { range: DashboardTrendRange }) {
-  const points = getDashboardTrend(range)
+export function RefundRateChart({
+  range,
+  data,
+}: {
+  range: DashboardTrendRange
+  data?: DashboardChartPoint[]
+}) {
+  const points = data ?? []
+  const hasSignal = points.some((p) => p.orders > 0 || p.refundRate > 0)
+  if (!hasSignal) {
+    return <ChartEmpty label="暂无退款率数据" />
+  }
 
   return (
     <div className="h-[260px] min-h-[260px] w-full">
@@ -372,8 +424,18 @@ const aovChartConfig = {
   },
 } satisfies ChartConfig
 
-export function AovOrdersChart({ range }: { range: DashboardTrendRange }) {
-  const points = getDashboardTrend(range)
+export function AovOrdersChart({
+  range,
+  data,
+}: {
+  range: DashboardTrendRange
+  data?: DashboardChartPoint[]
+}) {
+  const points = data ?? []
+  const hasSignal = points.some((p) => p.orders > 0 || p.aov > 0)
+  if (!hasSignal) {
+    return <ChartEmpty label="暂无客单价 / 订单数据" />
+  }
 
   return (
     <div className="h-[260px] min-h-[260px] w-full">
@@ -451,7 +513,11 @@ const inventoryChartConfig = {
   },
 } satisfies ChartConfig
 
-export function InventoryStructureChart() {
+export function InventoryStructureChart({ data }: { data?: InventoryCategoryPoint[] }) {
+  const rows = data ?? []
+  if (rows.length === 0) {
+    return <ChartEmpty label="暂无分类库存（balances 为空）" />
+  }
   return (
     <div className="h-[240px] min-h-[240px] w-full">
       <ChartContainer
@@ -462,7 +528,7 @@ export function InventoryStructureChart() {
         <BarChart
           accessibilityLayer
           layout="vertical"
-          data={MOCK_DASHBOARD_INVENTORY.categories}
+          data={rows}
           margin={{ left: 8, right: 12, top: 8, bottom: 0 }}
         >
           <CartesianGrid horizontal={false} strokeDasharray="3 3" />
@@ -511,7 +577,11 @@ const turnoverChartConfig = {
   },
 } satisfies ChartConfig
 
-export function TurnoverChart() {
+export function TurnoverChart({ data }: { data?: InventoryCategoryPoint[] }) {
+  const rows = data ?? []
+  if (rows.length === 0) {
+    return <ChartEmpty label="暂无周转数据（movements/balances 为空）" />
+  }
   return (
     <div className="h-[240px] min-h-[240px] w-full">
       <ChartContainer
@@ -522,7 +592,7 @@ export function TurnoverChart() {
         <BarChart
           accessibilityLayer
           layout="vertical"
-          data={MOCK_DASHBOARD_INVENTORY.categories}
+          data={rows}
           margin={{ left: 8, right: 24, top: 8, bottom: 0 }}
         >
           <CartesianGrid horizontal={false} strokeDasharray="3 3" />
@@ -566,10 +636,14 @@ export function TurnoverChart() {
   )
 }
 
-export function PlatformMixCard() {
+export function PlatformMixCard({ data }: { data?: PlatformMixItem[] }) {
+  const items = data ?? []
+  if (items.length === 0) {
+    return <ChartEmpty label="暂无平台占比数据" />
+  }
   return (
     <div className="space-y-4">
-      {MOCK_DASHBOARD_PLATFORM_MIX.map((item, index) => (
+      {items.map((item, index) => (
         <div key={item.platform} className="space-y-1.5">
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-2">
@@ -586,7 +660,7 @@ export function PlatformMixCard() {
           <Progress value={item.share} className="h-2" />
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">MVP 仅 Daraz LK 为真实连接；其他站点为占位。</p>
+      <p className="text-xs text-muted-foreground">按订单店铺 platform / 站点聚合销售额占比。</p>
     </div>
   )
 }

@@ -34,7 +34,7 @@ UED 阶段可以执行前端确定性计算以验证交互，但结果必须显�
 ### 1.3 现状分析
 
 当前代码库已有雏形：
-- **前端**: `apps/shop/src/app/[locale]/console/(ops)/candidates/` 已有候选列表页和详情页，使用 mock 数据（`@/lib/crossborder/mock-data`）
+- **前端**: `apps/shop/src/app/[locale]/console/(ops)/candidates/` 已有候选列表页和详情页；原 mock 数据源（`@/lib/crossborder/mock-data`）已删，**2026-11-08 起接 `trpc.candidates.*`**
 - **数据模型**: `packages/db/src/commerce-schema.ts` 中已存在 `productCandidates` 表（字段较简：`title`、`url`、`categoryHint`、`score`、`rationale`、`status`、`pendingActionId`）
 - **市场数据**: `packages/marketplace` 已具备 Daraz（基于 LazOP）连接器能力
 
@@ -115,7 +115,7 @@ UI (apps/shop/src/app/[locale]/console/(ops)/ai-selection/*)
     ↓ PostgreSQL
 ```
 
-> 注意：AGENTS.md 指出 `apps/shop` 当前以 mock 展示，尚未接入业务 tRPC。AI选品是自然的首批接入场景，需按此链路补全。
+> 注意（**2026-11-08 更新**）：AGENTS.md 的「以 mock 展示、尚未接入业务 tRPC」为旧口径——`mock-data.ts` 已删、主路径已分模块接 tRPC（候选列表已接 `trpc.candidates.*`）；七步法/AI 执行链路仍待补全，仍需按此 dataaccess 链路推进。
 
 ## 4. 数据模型设计（阶段二旧草案/概念示例，非生产表清单）
 
@@ -661,7 +661,7 @@ flowchart TD
 现有结构：
 ```
 apps/shop/src/app/[locale]/console/(ops)/candidates/
-├── page.tsx        # 列表（已存在，mock）
+├── page.tsx        # 列表（已接 trpc.candidates，2026-11-08）
 └── [id]/
     └── page.tsx    # 详情（已存在）
 ```
@@ -950,7 +950,7 @@ pnpm typecheck
 | **AI成本** | 中 | 差评挖掘用LLM可能产生费用 | 规则优先、限制样本量（前N条差评）、结构化prompt、可配置开关（可先用规则模拟） |
 | **数据量膨胀** | 中 | 竞品、差评快照会产生大量数据 | 按任务归档、定期清理、只存必要字段、jsonb合理使用 |
 | **关税规则复杂** | 中 | 各国规则不同，Sri Lanka有PAL Gen/SG两档等细节 | 先硬编码常用规则（参考文档），做成配置表便于扩展 |
-| **与现有mock冲突** | 低 | 现有candidates用mock数据 | 渐进迁移：先新增ai-selection路由，保留旧路由，逐步切换数据源 |
+| **与现有mock冲突** | 低 | ~~现有candidates用mock数据~~（已接 `trpc.candidates.*`，2026-11-08） | 渐进迁移：先新增ai-selection路由，保留旧路由，逐步切换数据源 |
 | **Schema迁移影响** | 低 | 扩展productCandidates需注意现有查询 | 只新增可空字段，避免破坏性变更 |
 
 ## 12. 参考

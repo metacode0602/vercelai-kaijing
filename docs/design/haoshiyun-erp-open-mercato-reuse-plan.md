@@ -2,6 +2,7 @@
 
 > 状态：**调研结论，待业务/IT确认**
 > 日期：2026-10-28
+> **更新 2026-11-08**：文中「业务数据来自 mock-data.ts」等现状描述为调研时点口径；`mock-data.ts` 已删，console 主路径已接 tRPC（见 shop-module1–14）。
 > 输入：`apps/shop/content/design/好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx`（9 张 sheet）
 > 参考：[Open Mercato](https://github.com/open-mercato/open-mercato)（MIT Core / Enterprise 商业许可）
 > 关联：[haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md)、[haoshiyun-erp-target-function-matrix.md](haoshiyun-erp-target-function-matrix.md)、[crossborder-mvp-overview.md](crossborder-mvp-overview.md)
@@ -77,9 +78,9 @@
 
 | 层 | 现状 |
 | --- | --- |
-| DB | `packages/db/src/commerce-schema.ts` 19 张业务表（店铺/商品/变体/刊登/映射/订单/库存余额/成本/结算/待办/候选/同步日志）+ 迁移 0005–0007 |
+| DB | `packages/db/src/commerce-schema.ts` 19 张业务表（店铺/商品/变体/刊登/映射/订单/库存余额/成本/结算/待办/候选/同步日志）+ 迁移（历史 0005–0007；2026-11-08 重生成为 `0000`/`0001`/`0002`） |
 | tRPC | 仅注册 `apiKeys` router；`dataaccess/`、`mappers/` 目录不存在 |
-| 租户端 | `apps/shop` console 页面齐全，但业务数据来自 `mock-data.ts`（1442 行）与 `erp-ued-data.ts`（171 行 UED 示例） |
+| 租户端 | `apps/shop` console 页面齐全；调研时点业务数据来自 `mock-data.ts`（1442 行）与 `erp-ued-data.ts`（171 行 UED 示例）——**2026-11-08**：`mock-data.ts` 已删，主路径接 tRPC，`erp-ued-data.ts` 仍为示例常量 |
 | 运营后台 | `apps/web` 三页全 mock |
 | 真实业务写 | **仅 OAuth 授权 + 凭据加密落库**（`persist-credentials.ts`） |
 | 连接器 | `packages/marketplace` 支持 Daraz/Lazada/TikTok 的 OAuth、签名、同步 worker；**persist hooks 为 stdout stub，同步未落库** |
@@ -216,9 +217,9 @@ Excel"待IT确认"35 项全部留白，复用评估中以下项直接影响 sche
 | 需求 Excel | `apps/shop/content/design/好时运ERP运营需求清单_V1.1_现有ERP整改版.xlsx` |
 | 仓内差距分析 | `docs/design/haoshiyun-erp-gap-analysis-and-remediation.md` 等 3 篇好时运文档 |
 | 阶段口径 | `docs/design/crossborder-mvp-overview.md` §6 |
-| Schema | `packages/db/src/commerce-schema.ts`（19 张业务表）、迁移 `packages/db/drizzle/0005–0007` |
+| Schema | `packages/db/src/commerce-schema.ts`（19 张业务表）、迁移 `packages/db/drizzle/0005–0007`（历史编号；2026-11-08 重生成为 `0000`/`0001`/`0002`） |
 | tRPC | `apps/web/src/lib/server/routers/index.ts`（仅 apiKeys） |
-| 页面数据源 | `apps/shop/src/lib/crossborder/{mock-data.ts, erp-ued-data.ts, platform-basics-data.ts}` |
+| 页面数据源 | ~~`apps/shop/src/lib/crossborder/{mock-data.ts, erp-ued-data.ts, platform-basics-data.ts}`~~ **2026-11-08**：主路径为 tRPC；残留 `erp-ued-data.ts` / `platform-basics-data.ts` 为示例常量，`mock-data.ts` 已删 |
 | 真实业务写 | `apps/shop/src/lib/marketplace/persist-credentials.ts`、OAuth route |
 | 连接器 | `packages/marketplace/src/{adapters,signing,oauth,workers}/`、`apps/shop/src/workers/marketplace-sync.ts`（persist stub） |
 | 认证/权限 | `packages/auth/src/{permissions,realm-organization}.ts`、`packages/db/src/auth-schema.ts` |

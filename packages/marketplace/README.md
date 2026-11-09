@@ -7,11 +7,11 @@ Cross-border marketplace connectors for **Daraz**, **Lazada** (shared LAZOP prot
 - Request signing (LAZOP HMAC-SHA256, TikTok Partner Center HMAC-SHA256)
 - Region endpoint maps (Daraz defaults emphasize **LK**)
 - OAuth authorize → token → refresh
-- Domain adapters: shop, brand, category, product, listing, order, logistics
+- Domain adapters: shop, brand, category, product, listing, order, logistics, reviews, order trace
 - Lean domain types aligned with `packages/db` commerce tables
 
-Out of scope: tRPC, OpenAPI/MCP, Shopee, production cron.
-Includes: sync worker skeleton (`src/workers/sync.ts`).
+Out of scope: tRPC, OpenAPI/MCP, Shopee, scheduling ownership (cron lives in `apps/api`).
+Includes: sync worker skeleton (`src/workers/sync.ts`), LAZOP push signature, DB credential store.
 
 ## Env
 

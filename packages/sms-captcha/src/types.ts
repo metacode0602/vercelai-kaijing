@@ -30,7 +30,7 @@ export type SmsCaptchaConfig = {
   maxAttempts?: number
   /** x 像素容差，默认 12 */
   tolerancePx?: number
-  /** 应用 URL（用于生成图片访问地址），默认取 NEXT_PUBLIC_APP_URL */
+  /** 图片访问地址的来源 URL（跨源部署时显式传入）；不传时生成相对路径，推荐同源接入使用 */
   appUrl?: string
   /** API 路由基础路径，默认 '/api/auth/sms-captcha' */
   apiBasePath?: string

@@ -8,7 +8,7 @@ export default function SettingsNotificationsPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">通知 / 钉钉</h2>
-        <p className="text-sm text-muted-foreground">Webhook 与告警开关（示例）</p>
+        <p className="text-sm text-muted-foreground">Webhook 与告警开关</p>
       </div>
       <Card>
         <CardHeader>

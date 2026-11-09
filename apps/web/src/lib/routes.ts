@@ -42,7 +42,7 @@ export enum Routes {
   SettingsInvite = '/settings/invite',
   SettingsLogout = '/settings/logout',
 
-  // crossborder demo (P0)
+  // crossborder ops (P0)
   Crossborder = '/crossborder',
   CrossborderTenants = '/crossborder/tenants',
   CrossborderSyncHealth = '/crossborder/sync-health',

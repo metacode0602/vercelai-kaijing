@@ -3,6 +3,7 @@
 import * as React from 'react'
 import {
   ArrowDownToLine,
+  BadgeCheck,
   ArrowUpFromLine,
   Boxes,
   Calculator,
@@ -10,6 +11,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Container,
+  CreditCard,
   FileText,
   FolderTree,
   LayoutDashboard,
@@ -17,6 +19,7 @@ import {
   Package,
   PackageOpen,
   PackageSearch,
+  Percent,
   RefreshCw,
   Scale,
   Settings,
@@ -36,12 +39,7 @@ import {
   CONSOLE_NAV_GROUPS,
   type ConsoleNavItemConfig,
 } from '@/lib/console-nav'
-import {
-  MOCK_APPROVAL_PENDING_COUNT,
-  MOCK_INVENTORY_ALERT_COUNT,
-  MOCK_ORDER_EXCEPTION_COUNT,
-  MOCK_PENDING_COUNT,
-} from '@/lib/crossborder/mock-data'
+import { trpc } from '@/lib/trpc/client'
 import {
   Sidebar,
   SidebarContent,
@@ -63,6 +61,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/candidates': <Sparkles className="size-4" />,
   '/console/master-products': <Package className="size-4" />,
   '/console/categories': <FolderTree className="size-4" />,
+  '/console/brands': <BadgeCheck className="size-4" />,
   '/console/master-skus': <Tags className="size-4" />,
   '/console/supplier-skus': <PackageSearch className="size-4" />,
   '/console/dictionaries': <Tags className="size-4" />,
@@ -91,10 +90,12 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/aftersale-cancels': <Undo2 className="size-4" />,
   '/console/aftersale-returns': <Undo2 className="size-4" />,
   '/console/costs': <Calculator className="size-4" />,
+  '/console/fee-templates': <Percent className="size-4" />,
   '/console/settlements': <Wallet className="size-4" />,
   '/console/profits': <TrendingUp className="size-4" />,
   '/console/carriers': <Truck className="size-4" />,
   '/console/carton-specs': <PackageOpen className="size-4" />,
+  '/console/freight-rate-cards': <CreditCard className="size-4" />,
   '/console/freight': <Container className="size-4" />,
   '/console/reports': <LayoutDashboard className="size-4" />,
   '/console/products': <Package className="size-4" />,
@@ -108,13 +109,6 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
 
 function getNavIcon(url: string) {
   return NAV_ICONS[url] ?? <Circle className="size-4" />
-}
-
-const BADGE_VALUES: Record<NonNullable<ConsoleNavItemConfig['badgeKey']>, number> = {
-  pendingCount: MOCK_PENDING_COUNT,
-  inventoryAlerts: MOCK_INVENTORY_ALERT_COUNT,
-  approvalPending: MOCK_APPROVAL_PENDING_COUNT,
-  orderExceptions: MOCK_ORDER_EXCEPTION_COUNT,
 }
 
 function formatBadge(n: number) {
@@ -131,6 +125,13 @@ function isActive(pathname: string, href: string, exact = false) {
 function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
   const t = useTranslations('Console')
   const pathname = useLocalePathname() ?? ''
+  const badgesQuery = trpc.dashboard.navBadges.useQuery(undefined, { staleTime: 30_000 })
+  const badgeValues: Record<NonNullable<ConsoleNavItemConfig['badgeKey']>, number> = {
+    pendingCount: badgesQuery.data?.pendingCount ?? 0,
+    inventoryAlerts: badgesQuery.data?.inventoryAlerts ?? 0,
+    approvalPending: badgesQuery.data?.approvalPending ?? 0,
+    orderExceptions: badgesQuery.data?.orderExceptions ?? 0,
+  }
 
   return (
     <SidebarGroup>
@@ -138,7 +139,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
         <SidebarMenu>
           {items.map((item) => {
             const badge =
-              item.badgeKey != null ? formatBadge(BADGE_VALUES[item.badgeKey] ?? 0) : null
+              item.badgeKey != null ? formatBadge(badgeValues[item.badgeKey] ?? 0) : null
             const exact = item.url === '/console/dashboard'
             return (
               <SidebarMenuItem key={item.url}>
@@ -192,8 +193,8 @@ export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar
       <SidebarFooter className="border-t border-sidebar-border">
         <NavList items={CONSOLE_FOOTER_NAV} />
         <div className="px-3 pb-2">
-          <Badge variant="secondary" className="text-[10px]">
-            {t('mockBadge')}
+          <Badge variant="outline" className="text-[10px]">
+            ERP · DB
           </Badge>
         </div>
       </SidebarFooter>

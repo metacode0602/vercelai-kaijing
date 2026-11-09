@@ -6,7 +6,7 @@ export default function CrossborderLayout({ children }: { children: ReactNode })
     <div className="mx-auto max-w-6xl space-y-2 p-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">跨境运营中枢</h1>
-        <p className="text-muted-foreground text-sm">平台运营 · Demo</p>
+        <p className="text-muted-foreground text-sm">平台运营后台</p>
       </div>
       <CrossborderNav />
       {children}

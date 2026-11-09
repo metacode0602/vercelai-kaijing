@@ -5,22 +5,13 @@ import {
   DetailFieldGrid,
   DetailKpiRow,
   DetailPageHeader,
-  DetailRelatedTables,
   DetailSection,
   StatusTimeline,
-  parentsToFields,
 } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
-import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
-import { buildUedRelatedInfo } from '@/lib/console/related-info'
-import { labelField, labelStatus } from '@/lib/console/labels'
-import {
-  confirmOrder,
-  toRelatedOrderShape,
-  useOrderState,
-} from '@/lib/crossborder/order-store'
-import { LocaleLink } from '@/lib/i18n/navigation'
+import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { trpc } from '@/lib/trpc/client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -42,55 +33,63 @@ function statusVariant(status: string) {
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const { orders, packages } = useOrderState()
-  const order = orders.find((item) => item.id === id || item.externalOrderId === id)
-  const [mounted, setMounted] = React.useState(false)
+  const router = useLocaleRouter()
+  const utils = trpc.useUtils()
   const [notice, setNotice] = React.useState('')
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
+  const orderQuery = trpc.order.get.useQuery({ id })
+  const order = orderQuery.data
+
+  const reserveMutation = trpc.order.confirmReserve.useMutation({
+    onSuccess: async (row) => {
+      await utils.order.get.invalidate({ id })
+      await utils.order.list.invalidate()
+      setNotice(`${row.externalOrderId} 已占库，写入 order_reserve 流水`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const createOutboundMutation = trpc.order.createOutbound.useMutation({
+    onSuccess: async (ob) => {
+      await utils.order.get.invalidate({ id })
+      setNotice(`已创建出库单 ${ob.outboundNo}（${ob.packageId}）`)
+      router.push(`/console/stock-outbounds/${encodeURIComponent(ob.id)}`)
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const releaseMutation = trpc.order.releaseReserve.useMutation({
+    onSuccess: async () => {
+      await utils.order.get.invalidate({ id })
+      setNotice('已释放占库')
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
+  if (orderQuery.isLoading) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <DetailPageHeader backHref="/console/orders" title="加载订单…" description="正在从 PostgreSQL 读取…" />
+      </div>
+    )
+  }
 
   if (!order) {
     return (
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/console/orders"
-          title={mounted ? '未找到订单' : '加载订单…'}
-          description={
-            mounted
-              ? `订单 ${id} 不存在，或仅存在于其他浏览器会话。`
-              : '正在读取本机原型会话中的订单…'
-          }
+          title="未找到订单"
+          description={`订单 ${id} 不存在。可先在列表页执行「人工增量同步」。`}
         />
       </div>
     )
   }
 
-  const related = buildUedRelatedInfo(
-    'orders',
-    toRelatedOrderShape(order) as Record<string, unknown>,
-  )
-  const parentFields = parentsToFields(related.parents)
-  const linkedPackage = packages.find(
-    (item) => item.id === order.packageId || item.order === order.externalOrderId,
-  )
-  const canConfirm =
-    order.status !== 'shipped' &&
-    order.status !== 'delivered' &&
-    order.status !== 'cancelled' &&
-    (order.status === 'created' || order.status === 'paid' || !order.reserved)
-
-  function onConfirm() {
-    const result = confirmOrder(order!.id)
-    if (!result.ok) {
-      setNotice(result.reason)
-      return
-    }
-    setNotice(
-      `${result.order.externalOrderId} 已确认占库 · ${labelStatus(result.order.status)} · 已写「订单锁定」流水`,
-    )
-  }
+  const mappingBlocked = order.mappingStatus === '映射异常'
+  const canReserve =
+    !mappingBlocked &&
+    !order.reserved &&
+    !['shipped', 'delivered', 'cancelled'].includes(order.status)
+  const canCreateOutbound = order.reserved && order.shipmentCount === 0
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -100,184 +99,135 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <DetailPageHeader
         backHref="/console/orders"
         title={order.externalOrderId}
-        description={`店铺 · ${order.shopName}`}
-        badges={
-          <>
-            <Badge variant="outline">示例数据</Badge>
-            <Badge variant={statusVariant(order.status)}>{labelStatus(order.status)}</Badge>
-            <Badge variant={order.reserved ? 'secondary' : 'outline'}>
-              {order.reserved ? '已占库' : '未占库'}
-            </Badge>
-          </>
-        }
+        description={`${order.shop} · ${order.platform} · 数据经 tRPC → PostgreSQL`}
         actions={
           <div className="flex flex-wrap gap-2">
-            {canConfirm ? (
-              <Button size="sm" onClick={onConfirm}>
+            {canReserve ? (
+              <Button
+                size="sm"
+                disabled={reserveMutation.isPending}
+                onClick={() => reserveMutation.mutate({ id: order.id })}
+              >
                 确认占库
               </Button>
             ) : null}
+            {order.reserved && !['shipped', 'delivered'].includes(order.status) ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={releaseMutation.isPending}
+                onClick={() => releaseMutation.mutate({ id: order.id })}
+              >
+                释放占库
+              </Button>
+            ) : null}
+            {canCreateOutbound ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={createOutboundMutation.isPending}
+                onClick={() => createOutboundMutation.mutate({ orderId: order.id })}
+              >
+                创建出库 / 拣货单
+              </Button>
+            ) : null}
             <Button size="sm" variant="outline" asChild>
-              <LocaleLink href="/console/picking">拣货打包</LocaleLink>
-            </Button>
-            <Button size="sm" variant="outline" asChild>
-              <LocaleLink href="/console/order-exceptions">映射异常</LocaleLink>
+              <LocaleLink href="/console/picking">拣货列表</LocaleLink>
             </Button>
           </div>
         }
       />
 
-      <UedPrototypeNotice>
-        订单确认经 wms-store「订单锁定」流水占库；拣货终态 createStockOutbound + postStockOutbound
-        写「订单出库」流水。禁止直改余额。
-      </UedPrototypeNotice>
-
-      {notice ? (
-        <Alert>
-          <AlertTitle>操作结果</AlertTitle>
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
+      <Alert>
+        <AlertTitle>Q07 库存处理</AlertTitle>
+        <AlertDescription>
+          默认 paid/ready_to_ship 自动占库 + 人工补锁；正式扣减在出库过账（order_ship）。映射异常阻断占库。
+          当前：{order.reserved ? '已锁库' : '未锁库'} · 映射 {order.mappingStatus}
+        </AlertDescription>
+      </Alert>
 
       <DetailKpiRow
         items={[
-          {
-            label: labelField('totalAmount'),
-            value: `${order.totalAmount.toFixed(2)} ${order.currency}`,
-          },
-          {
-            label: labelField('raw.shippingAmount'),
-            value: `${order.shippingAmount.toFixed(2)} ${order.currency}`,
-          },
-          { label: '行项目', value: String(order.lines.length) },
-          { label: labelField('raw.city'), value: order.city },
+          { label: '状态', value: order.statusLabel },
+          { label: '金额', value: `${order.totalAmount.toFixed(2)} ${order.currency}` },
+          { label: '明细行', value: String(order.lines.length) },
+          { label: '出库单数', value: String(order.shipmentCount) },
         ]}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-        <div className="space-y-4">
-          <DetailFieldGrid
-            title="订单信息"
-            fields={[
-              { label: labelField('id'), value: order.id, mono: true },
-              { label: labelField('externalOrderId'), value: order.externalOrderId, mono: true },
-              { label: '店铺', value: order.shopName },
-              { label: labelField('platform'), value: order.platform },
-              { label: labelField('status'), value: labelStatus(order.status) },
-              { label: labelField('placedAt'), value: order.placedAt },
-              { label: labelField('paidAt'), value: order.paidAt ?? '—' },
-              {
-                label: '金额',
-                value: `${order.totalAmount.toFixed(2)} ${order.currency}`,
-              },
-              { label: labelField('raw.buyerNameMask'), value: order.buyerNameMask },
-              { label: '收货摘要', value: order.shippingSummary },
-              { label: '物流商', value: order.shippingProvider ?? '—' },
-              { label: '运单号', value: order.trackingNumber ?? '—' },
-              {
-                label: '包裹',
-                mono: true,
-                value: order.packageId ? (
-                  <LocaleLink
-                    href={`/console/picking/${encodeURIComponent(order.packageId)}`}
-                    className="underline-offset-2 hover:underline"
+      <DetailSection title="订单头">
+        <DetailFieldGrid
+          fields={[
+            { label: '平台订单号', value: order.externalOrderId },
+            { label: '内部订单号', value: order.orderNumber },
+            { label: '店铺', value: `${order.shop} (${order.externalShopId})` },
+            { label: '平台', value: order.platform },
+            { label: '平台状态', value: order.platformStatus || '—' },
+            { label: '履约状态', value: order.fulfillmentStatus || '—' },
+            { label: '支付方式', value: order.paymentMethod || '—' },
+            { label: '买家地区', value: order.buyerRegion || '—' },
+            { label: '下单时间', value: order.placedAt || '—' },
+            { label: '付款时间', value: order.paidAt || '—' },
+            { label: '最近同步', value: order.lastSyncedAt || '—' },
+            { label: '仓库', value: order.warehouseCode },
+            { label: '买家备注', value: order.buyerNote || '—' },
+          ]}
+        />
+      </DetailSection>
+
+      <DetailSection title="商品行">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Seller SKU</TableHead>
+              <TableHead>内部 SKU</TableHead>
+              <TableHead>标题</TableHead>
+              <TableHead>数量</TableHead>
+              <TableHead>单价</TableHead>
+              <TableHead>库位</TableHead>
+              <TableHead>映射</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {order.lines.map((line) => (
+              <TableRow key={line.id}>
+                <TableCell className="font-mono text-xs">{line.sellerSku}</TableCell>
+                <TableCell className="font-mono text-xs">{line.sku}</TableCell>
+                <TableCell>{line.title || '—'}</TableCell>
+                <TableCell>{line.qty}</TableCell>
+                <TableCell className="tabular-nums">{line.unitPrice.toFixed(2)}</TableCell>
+                <TableCell>{line.bin}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      line.mappingStatus === '映射异常'
+                        ? 'destructive'
+                        : line.mappingStatus === '待确认'
+                          ? 'outline'
+                          : 'secondary'
+                    }
                   >
-                    {order.packageId}
-                  </LocaleLink>
-                ) : (
-                  '—'
-                ),
-              },
-            ]}
-          />
+                    {line.mappingStatus}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </DetailSection>
 
-          {parentFields.length ? (
-            <DetailFieldGrid title="关联主数据" fields={parentFields} />
-          ) : null}
-
-          <DetailSection title="订单行" description="内部 SKU / Seller SKU / 数量 / 库位">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>内部 SKU</TableHead>
-                  <TableHead>标题</TableHead>
-                  <TableHead>Seller SKU</TableHead>
-                  <TableHead>数量</TableHead>
-                  <TableHead>单价</TableHead>
-                  <TableHead>库位</TableHead>
-                  <TableHead>履约</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {order.lines.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>
-                      <LocaleLink
-                        href={`/console/master-skus/${line.sku}`}
-                        className="font-mono text-xs underline-offset-2 hover:underline"
-                      >
-                        {line.sku}
-                      </LocaleLink>
-                    </TableCell>
-                    <TableCell className="font-medium">{line.title}</TableCell>
-                    <TableCell className="font-mono text-xs">{line.sellerSku}</TableCell>
-                    <TableCell className="tabular-nums">{line.qty}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {line.unitPrice.toFixed(2)} {order.currency}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{line.bin}</TableCell>
-                    <TableCell>{labelStatus(line.fulfillmentStatus)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DetailSection>
-
-          {linkedPackage ? (
-            <DetailSection title="关联拣货包裹" description="订单 → 拣货 → 出库">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <LocaleLink
-                  href={`/console/picking/${encodeURIComponent(linkedPackage.id)}`}
-                  className="font-mono underline-offset-2 hover:underline"
-                >
-                  {linkedPackage.id}
-                </LocaleLink>
-                <Badge variant="outline">{linkedPackage.status}</Badge>
-                {linkedPackage.outboundId ? (
-                  <LocaleLink
-                    href={`/console/stock-outbounds/${encodeURIComponent(linkedPackage.outboundId)}`}
-                    className="underline-offset-2 hover:underline"
-                  >
-                    出库单 {linkedPackage.outboundId}
-                  </LocaleLink>
-                ) : (
-                  <span className="text-muted-foreground">尚未关联出库单</span>
-                )}
-              </div>
-            </DetailSection>
-          ) : null}
-
-          <DetailRelatedTables sections={related.sections ?? []} />
+      <DetailSection title="状态时间线">
+        <div className="mb-2">
+          <Badge variant={statusVariant(order.status)}>{order.statusLabel}</Badge>
         </div>
+        <StatusTimeline steps={order.timeline} />
+      </DetailSection>
 
-        <div className="space-y-4">
-          <StatusTimeline
-            title="履约时间线"
-            steps={order.timeline.map((step) => ({
-              at: step.at,
-              status: labelStatus(step.status),
-              note: step.note,
-              current: step.current,
-            }))}
-          />
-          <Alert>
-            <AlertTitle>库存处理</AlertTitle>
-            <AlertDescription>
-              未映射或冲突时不应自动占库。当前种子订单 SKU 已对齐 WMS（HSY*）；确认占库与出库均走流水。
-            </AlertDescription>
-          </Alert>
-        </div>
-      </div>
+      {notice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
     </div>
   )
 }

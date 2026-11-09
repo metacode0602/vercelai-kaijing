@@ -1,5 +1,5 @@
 import { createPgClient } from '@workspace/db'
 
-const { db, pool } = createPgClient()
+const { db, webAuthDb, pool } = createPgClient()
 
-export { db, pool }
+export { db, webAuthDb, pool }
