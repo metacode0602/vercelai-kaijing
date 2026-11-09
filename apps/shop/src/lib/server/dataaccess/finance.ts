@@ -775,14 +775,14 @@ export async function listFreightEstimates(
       country: feeTemplates.country,
       type: feeTemplates.type,
       status: feeTemplates.status,
-      pool: sql<string>`coalesce(nullif(${feeTemplates.fulfillmentPool}, ''), '—')`,
+      pool: sql<string>`coalesce(nullif(${feeTemplates.fulfillmentPool}, ''), '—')`.as('pool'),
       versionNo: feeTemplateVersions.versionNo,
       priority: feeTemplateVersions.priority,
-      effectiveFrom: sql<string>`coalesce(to_char(${feeTemplateVersions.effectiveFrom}, 'YYYY-MM-DD'), '—')`,
-      note: sql<string>`coalesce(nullif(${feeTemplates.note}, ''), coalesce(${feeTemplateVersions.note}, ''))`,
-      source: sql<string>`'fee_template'`,
-      amount: sql<string | null>`null`,
-      currency: sql<string>`'—'`,
+      effectiveFrom: sql<string>`coalesce(to_char(${feeTemplateVersions.effectiveFrom}, 'YYYY-MM-DD'), '—')`.as('effective_from'),
+      note: sql<string>`coalesce(nullif(${feeTemplates.note}, ''), coalesce(${feeTemplateVersions.note}, ''))`.as('note'),
+      source: sql<string>`'fee_template'`.as('source'),
+      amount: sql<string | null>`null::numeric`.as('amount'),
+      currency: sql<string>`'—'`.as('currency'),
       sortAt: feeTemplates.updatedAt,
     })
     .from(feeTemplates)
@@ -832,23 +832,23 @@ export async function listFreightEstimates(
     .select({
       id: oceanShipments.id,
       code: oceanShipments.lotCode,
-      name: sql<string>`'海运柜次 ' || ${oceanShipments.lotCode}`,
-      platform: sql<string>`coalesce(nullif(${oceanShipments.platform}, ''), 'ocean')`,
-      country: sql<string>`coalesce(nullif(${oceanShipments.destPort}, ''), '—')`,
-      type: sql<string>`coalesce(nullif(${oceanShipments.freightMode}, ''), 'ocean')`,
+      name: sql<string>`'海运柜次 ' || ${oceanShipments.lotCode}`.as('name'),
+      platform: sql<string>`coalesce(nullif(${oceanShipments.platform}, ''), 'ocean')`.as('platform'),
+      country: sql<string>`coalesce(nullif(${oceanShipments.destPort}, ''), '—')`.as('country'),
+      type: sql<string>`coalesce(nullif(${oceanShipments.freightMode}, ''), 'ocean')`.as('type'),
       status: oceanShipments.status,
-      pool: sql<string>`coalesce(nullif(${oceanShipments.originPort}, ''), nullif(${oceanShipments.destPort}, ''), '—')`,
-      versionNo: sql<number | null>`null`,
-      priority: sql<number | null>`null`,
-      effectiveFrom: sql<string>`coalesce(${oceanShipments.etd}, '—')`,
-      note: sql<string>`coalesce(${oceanShipments.notes}, '')`,
-      source: sql<string>`'ocean'`,
+      pool: sql<string>`coalesce(nullif(${oceanShipments.originPort}, ''), nullif(${oceanShipments.destPort}, ''), '—')`.as('pool'),
+      versionNo: sql<number | null>`null::integer`.as('version_no'),
+      priority: sql<number | null>`null::integer`.as('priority'),
+      effectiveFrom: sql<string>`coalesce(${oceanShipments.etd}, '—')`.as('effective_from'),
+      note: sql<string>`coalesce(${oceanShipments.notes}, '')`.as('note'),
+      source: sql<string>`'ocean'`.as('source'),
       amount: sql<string | null>`case
         when ${oceanShipments.packingDetails}->>'freightAmount' is not null then (${oceanShipments.packingDetails}->>'freightAmount')::numeric
         when ${oceanShipments.packingDetails}->>'totalFreight' is not null then (${oceanShipments.packingDetails}->>'totalFreight')::numeric
         when ${oceanShipments.packingDetails}->>'amount' is not null then (${oceanShipments.packingDetails}->>'amount')::numeric
-        end`,
-      currency: sql<string>`coalesce(${oceanShipments.packingDetails}->>'currency', 'USD')`,
+        end`.as('amount'),
+      currency: sql<string>`coalesce(${oceanShipments.packingDetails}->>'currency', 'USD')`.as('currency'),
       sortAt: oceanShipments.updatedAt,
     })
     .from(oceanShipments)
@@ -859,8 +859,8 @@ export async function listFreightEstimates(
       id: commerceFreightRateCards.id,
       code: commerceFreightRateCards.code,
       name: commerceFreightRateCards.name,
-      platform: sql<string>`'freight_rate_card'`,
-      country: sql<string>`coalesce(nullif(${commerceFreightRateCards.destPort}, ''), '—')`,
+      platform: sql<string>`'freight_rate_card'`.as('platform'),
+      country: sql<string>`coalesce(nullif(${commerceFreightRateCards.destPort}, ''), '—')`.as('country'),
       type: commerceFreightRateCards.freightMode,
       status: commerceFreightRateCards.status,
       pool: sql<string>`case
@@ -871,14 +871,14 @@ export async function listFreightEstimates(
           then ${commerceFreightRateCards.originPort}
         when ${commerceFreightRateCards.destPort} is not null and ${commerceFreightRateCards.destPort} <> ''
           then ${commerceFreightRateCards.destPort}
-        else '—' end`,
-      versionNo: sql<number | null>`null`,
-      priority: sql<number | null>`null`,
+        else '—' end`.as('pool'),
+      versionNo: sql<number | null>`null::integer`.as('version_no'),
+      priority: sql<number | null>`null::integer`.as('priority'),
       effectiveFrom: commerceFreightRateCards.effectiveFrom,
-      note: sql<string>`coalesce(${commerceFreightRateCards.note}, '')`,
-      source: sql<string>`'freight_rate_card'`,
-      amount: sql<string | null>`${commerceFreightRateCards.unitRate}`,
-      currency: sql<string>`coalesce(${commerceFreightRateCards.currency}, 'USD')`,
+      note: sql<string>`coalesce(${commerceFreightRateCards.note}, '')`.as('note'),
+      source: sql<string>`'freight_rate_card'`.as('source'),
+      amount: sql<string | null>`${commerceFreightRateCards.unitRate}`.as('amount'),
+      currency: sql<string>`coalesce(${commerceFreightRateCards.currency}, 'USD')`.as('currency'),
       sortAt: commerceFreightRateCards.updatedAt,
     })
     .from(commerceFreightRateCards)
