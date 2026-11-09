@@ -21,6 +21,7 @@ import {
   skuCosts,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
+import { inferFeeKind } from '@workspace/marketplace'
 import {
   emptyFees,
   feeKindBucket,
@@ -1243,14 +1244,25 @@ export async function getFinanceByPlatform(
 
 
 export type SettlementImportLineInput = {
+  externalTransactionId?: string
   externalOrderNo?: string
+  transactionType?: string
   feeKind?: string
   feeType?: string
   feeName?: string
   amount?: number
+  taxAmount?: number
+  whtAmount?: number
+  whtIncludedInAmount?: boolean
   currency?: string
-  note?: string
+  paidStatus?: string
+  paymentReference?: string
   sellerSku?: string
+  platformSkuId?: string
+  shippingProvider?: string
+  shippingSpeed?: string
+  shipmentType?: string
+  note?: string
 }
 
 export type SettlementImportInput = {
@@ -1261,14 +1273,34 @@ export type SettlementImportInput = {
   periodEnd?: string
   billAmount?: number
   itemRevenue?: number
+  otherRevenueTotal?: number
+  subtotal1?: number
+  subtotal2?: number
+  refundsAmount?: number
+  feesOnRefundsTotal?: number
+  shipmentFee?: number
+  shipmentFeeCredit?: number
   feesTotal?: number
+  guaranteeDeposit?: number
+  openingBalance?: number
+  closingBalance?: number
   payoutAmount?: number
+  payoutStatus?: string
+  paid?: boolean
+  platformCreatedAt?: string
+  platformUpdatedAt?: string
   status?: string
   note?: string
   lines?: SettlementImportLineInput[]
 }
 
-/** CSV / 粘贴导入结算批次（本地 ERP，非平台 OpenAPI）。 */
+function parseImportDate(value?: string): Date | null {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** Excel / 粘贴导入结算批次（本地 ERP，非平台 OpenAPI）。仅覆盖本次提供的字段，不清空平台同步值。 */
 export async function importSettlements(
   db: AppDatabase,
   organizationId: string,
@@ -1278,6 +1310,8 @@ export async function importSettlements(
   let success = 0
   const errors: Array<{ index: number; message: string }> = []
   const ids: string[] = []
+  const lineValues: Array<typeof settlementLines.$inferInsert> = []
+  const seenLineKeys = new Set<string>()
   for (let i = 0; i < input.rows.length; i += 1) {
     const row = input.rows[i]!
     try {
@@ -1295,50 +1329,126 @@ export async function importSettlements(
         .from(settlements)
         .where(and(eq(settlements.organizationId, organizationId), eq(settlements.shopId, shop.id), eq(settlements.externalSettlementId, extId)))
         .limit(1)
-      const dbStatus = toDbSettlementStatus(row.status) || 'pending'
-      const settlementId = existing?.id ?? createId()
+      const prevRaw = (existing?.raw as Record<string, unknown> | undefined) ?? {}
+      const dbStatus = row.status
+        ? toDbSettlementStatus(row.status) || 'pending'
+        : row.paid === true
+          ? 'paid'
+          : (existing?.status ?? 'pending')
+      const payoutStatus =
+        row.payoutStatus ?? (row.paid != null ? (row.paid ? 'paid' : 'unpaid') : existing?.payoutStatus ?? null)
+      const mergeNum = (next?: number, prev?: string | null) =>
+        next != null ? String(next) : (prev ?? null)
       const values = {
         organizationId,
         shopId: shop.id,
         externalSettlementId: extId,
-        periodStart: row.periodStart ? new Date(row.periodStart) : null,
-        periodEnd: row.periodEnd ? new Date(row.periodEnd) : null,
-        currency: (row.currency || 'USD').toUpperCase(),
-        billAmount: row.billAmount != null ? String(row.billAmount) : null,
-        itemRevenue: row.itemRevenue != null ? String(row.itemRevenue) : null,
-        feesTotal: row.feesTotal != null ? String(row.feesTotal) : null,
-        payoutAmount: row.payoutAmount != null ? String(row.payoutAmount) : null,
+        periodStart: row.periodStart ? parseImportDate(row.periodStart) : existing?.periodStart ?? null,
+        periodEnd: row.periodEnd ? parseImportDate(row.periodEnd) : existing?.periodEnd ?? null,
+        currency: (row.currency ?? existing?.currency ?? 'USD').toUpperCase(),
+        billAmount: mergeNum(row.billAmount, existing?.billAmount),
+        itemRevenue: mergeNum(row.itemRevenue, existing?.itemRevenue),
+        otherRevenueTotal: mergeNum(row.otherRevenueTotal, existing?.otherRevenueTotal),
+        subtotal1: mergeNum(row.subtotal1, existing?.subtotal1),
+        subtotal2: mergeNum(row.subtotal2, existing?.subtotal2),
+        refundsAmount: mergeNum(row.refundsAmount, existing?.refundsAmount),
+        feesOnRefundsTotal: mergeNum(row.feesOnRefundsTotal, existing?.feesOnRefundsTotal),
+        shipmentFee: mergeNum(row.shipmentFee, existing?.shipmentFee),
+        shipmentFeeCredit: mergeNum(row.shipmentFeeCredit, existing?.shipmentFeeCredit),
+        feesTotal: mergeNum(row.feesTotal, existing?.feesTotal),
+        guaranteeDeposit: mergeNum(row.guaranteeDeposit, existing?.guaranteeDeposit),
+        openingBalance: mergeNum(row.openingBalance, existing?.openingBalance),
+        closingBalance: mergeNum(row.closingBalance, existing?.closingBalance),
+        payoutAmount: mergeNum(row.payoutAmount, existing?.payoutAmount),
+        payoutStatus,
+        paidAt:
+          row.paid === true
+            ? parseImportDate(row.platformUpdatedAt) ?? existing?.paidAt ?? new Date()
+            : row.paid === false
+              ? null
+              : existing?.paidAt ?? null,
+        platformCreatedAt: row.platformCreatedAt
+          ? parseImportDate(row.platformCreatedAt)
+          : existing?.platformCreatedAt ?? null,
+        platformUpdatedAt: row.platformUpdatedAt
+          ? parseImportDate(row.platformUpdatedAt)
+          : existing?.platformUpdatedAt ?? null,
         status: dbStatus,
-        raw: { importNote: row.note || '', source: 'csv_import' },
+        raw: {
+          ...prevRaw,
+          source: 'excel_import',
+          ...(row.note ? { importNote: row.note } : {}),
+        },
       }
+      const settlementId = existing?.id ?? createId()
       if (existing) {
         await db.update(settlements).set(values).where(eq(settlements.id, existing.id))
       } else {
         await db.insert(settlements).values({ id: settlementId, ...values, createdAt: new Date() })
       }
-      if (row.lines?.length) {
-        for (const line of row.lines) {
-          await db.insert(settlementLines).values({
-            id: createId(),
-            settlementId,
-            organizationId,
-            feeKind: line.feeKind || 'platform',
-            feeType: line.feeType || line.feeName || 'import',
-            feeName: line.feeName || line.feeType || '导入费用',
-            externalOrderNo: line.externalOrderNo || null,
-            amount: line.amount != null ? String(line.amount) : '0',
-            currency: (line.currency || row.currency || 'USD').toUpperCase(),
-            sellerSku: line.sellerSku || null,
-            note: line.note || null,
-            externalTransactionId: `imp-${createId()}`,
-          })
-        }
-      }
       ids.push(settlementId)
+      for (const line of row.lines ?? []) {
+        const externalTransactionId = line.externalTransactionId?.trim() || `imp-${createId()}`
+        const key = `${settlementId}:${externalTransactionId}`
+        if (seenLineKeys.has(key)) continue
+        seenLineKeys.add(key)
+        lineValues.push({
+          id: createId(),
+          settlementId,
+          organizationId,
+          feeKind: line.feeKind || inferFeeKind(line.feeType, line.feeName, line.transactionType),
+          feeType: line.feeType || line.feeName || 'import',
+          feeName: line.feeName || line.feeType || '导入费用',
+          transactionType: line.transactionType || null,
+          externalTransactionId,
+          externalOrderNo: line.externalOrderNo || null,
+          amount: line.amount != null ? String(line.amount) : '0',
+          taxAmount: line.taxAmount != null ? String(line.taxAmount) : null,
+          whtAmount: line.whtAmount != null ? String(line.whtAmount) : null,
+          whtIncludedInAmount: Boolean(line.whtIncludedInAmount),
+          currency: (line.currency || row.currency || 'USD').toUpperCase(),
+          paidStatus: line.paidStatus || null,
+          paymentReference: line.paymentReference || null,
+          sellerSku: line.sellerSku || null,
+          platformSkuId: line.platformSkuId || null,
+          shippingProvider: line.shippingProvider || null,
+          shippingSpeed: line.shippingSpeed || null,
+          shipmentType: line.shipmentType || null,
+          note: line.note || null,
+        })
+      }
       success += 1
     } catch (error) {
       errors.push({ index: i + 1, message: error instanceof Error ? error.message : '导入失败' })
     }
+  }
+  if (lineValues.length) {
+    await db
+      .insert(settlementLines)
+      .values(lineValues)
+      .onConflictDoUpdate({
+        target: [settlementLines.settlementId, settlementLines.externalTransactionId],
+        set: {
+          feeKind: sql`excluded.fee_kind`,
+          feeType: sql`excluded.fee_type`,
+          feeName: sql`excluded.fee_name`,
+          transactionType: sql`excluded.transaction_type`,
+          externalOrderNo: sql`excluded.external_order_no`,
+          amount: sql`excluded.amount`,
+          taxAmount: sql`excluded.tax_amount`,
+          whtAmount: sql`excluded.wht_amount`,
+          whtIncludedInAmount: sql`excluded.wht_included_in_amount`,
+          currency: sql`excluded.currency`,
+          paidStatus: sql`excluded.paid_status`,
+          paymentReference: sql`excluded.payment_reference`,
+          sellerSku: sql`excluded.seller_sku`,
+          platformSkuId: sql`excluded.platform_sku_id`,
+          shippingProvider: sql`excluded.shipping_provider`,
+          shippingSpeed: sql`excluded.shipping_speed`,
+          shipmentType: sql`excluded.shipment_type`,
+          note: sql`excluded.note`,
+        },
+      })
   }
   return { total: input.rows.length, success, failed: errors.length, errors: errors.slice(0, 20), ids }
 }

@@ -220,7 +220,8 @@ export function mapLazopPayoutStatus(data: unknown): DomainSettlement {
   }
 }
 
-function inferFeeKind(feeType?: string, feeName?: string, transactionType?: string): string {
+/** Exported for settlement Excel import so fee_kind inference stays in one place. */
+export function inferFeeKind(feeType?: string, feeName?: string, transactionType?: string): string {
   const text = `${feeType ?? ""} ${feeName ?? ""} ${transactionType ?? ""}`.toLowerCase()
   if (text.includes("refund") || text.includes("return")) return "refund"
   if (text.includes("ship") || text.includes("logistic") || text.includes("freight"))

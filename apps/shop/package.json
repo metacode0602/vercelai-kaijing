@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "sync:marketplace": "tsx src/workers/marketplace-sync.ts",
     "test:settings": "tsx --test src/lib/settings/**/*.test.ts",
-    "test:crossborder": "tsx --test src/lib/crossborder/*.test.ts"
+    "test:crossborder": "tsx --test src/lib/crossborder/*.test.ts",
+    "test:settlements": "tsx 'src/app/[locale]/console/(ops)/settlements/_lib/settlement-import.test.ts'"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.79.1",

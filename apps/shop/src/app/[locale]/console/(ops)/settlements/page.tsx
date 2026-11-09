@@ -5,9 +5,13 @@ import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-w
 import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { DetailKpiRow } from '@/components/console/detail'
 import { trpc } from '@/lib/trpc/client'
+import {
+  downloadSettlementTemplate,
+  parseSettlementWorkbook,
+  type SettlementWorkbookParseResult,
+} from './_lib/settlement-import'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
-import { Textarea } from '@workspace/ui/components/textarea'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@workspace/ui/components/dialog'
-import { Label } from '@workspace/ui/components/label'
 
 const PAGE_SIZE = 20
 
@@ -44,12 +47,15 @@ export default function SettlementsPage() {
   const [status, setStatus] = React.useState('全部')
   const [notice, setNotice] = React.useState('')
   const [importOpen, setImportOpen] = React.useState(false)
-  const [importText, setImportText] = React.useState('')
+  const [importFile, setImportFile] = React.useState<File | null>(null)
+  const [importPreview, setImportPreview] = React.useState<SettlementWorkbookParseResult | null>(null)
+  const [importParseError, setImportParseError] = React.useState('')
   const [pendingStatus, setPendingStatus] = React.useState<{ id: string; label: string; next: string } | null>(
     null,
   )
   const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
   const [syncShopId, setSyncShopId] = React.useState('')
+  const importFileRef = React.useRef<HTMLInputElement>(null)
   const utils = trpc.useUtils()
 
   const metaQuery = trpc.finance.meta.useQuery()
@@ -65,7 +71,8 @@ export default function SettlementsPage() {
       await utils.finance.listSettlements.invalidate()
       await utils.finance.settlementStats.invalidate()
       setImportOpen(false)
-      setImportText('')
+      setImportFile(null)
+      setImportPreview(null)
       setNotice(
         res.failed
           ? `成功 ${res.success}，失败 ${res.failed}${res.errors[0] ? `：${res.errors[0].message}` : ''}`
@@ -99,6 +106,23 @@ export default function SettlementsPage() {
     },
   })
 
+  async function onImportFile(file: File) {
+    setImportFile(file)
+    setImportPreview(null)
+    setImportParseError('')
+    try {
+      const shops = metaQuery.data?.shops ?? []
+      if (!shops.length) {
+        setImportParseError('尚未加载店铺列表，请稍后重试')
+        return
+      }
+      const buffer = await file.arrayBuffer()
+      setImportPreview(parseSettlementWorkbook(buffer, shops))
+    } catch (error) {
+      setImportParseError(error instanceof Error ? error.message : '解析 Excel 失败')
+    }
+  }
+
   const rows = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
   const stats = statsQuery.data
@@ -108,7 +132,7 @@ export default function SettlementsPage() {
     <>
       <UedWorkspace
         title="平台结算对账"
-        description="settlements / settlement_lines：账单批次、费用拆分、本地确认。可 CSV/JSON 导入，或经 apps/api 真实拉取 Lazop 结算（无凭证/未配置则禁用）。"
+        description="settlements / settlement_lines：账单批次、费用拆分、本地确认。支持 Excel 导入（模板可下载，字段对齐 Lazop Finance OpenAPI），或经 apps/api 真实拉取 Lazop 结算（无凭证/未配置则禁用）。"
         rows={rows}
         detailHref={(row) => `/console/settlements/${encodeURIComponent(row.id)}`}
         search={q}
@@ -126,7 +150,7 @@ export default function SettlementsPage() {
         emptyText={
           listQuery.isLoading
             ? '加载结算…'
-            : '暂无结算批次。可点击「导入账单」粘贴 CSV / JSON。'
+            : '暂无结算批次。可点击「导入账单」上传 Excel（先在弹窗中下载模板）。'
         }
         columns={[
           { key: 'externalSettlementId', label: '外部结算号' },
@@ -191,7 +215,7 @@ export default function SettlementsPage() {
         />
         <UedPrototypeNotice>
           费用拆分按费用类型展示；状态流转：待匹配 / 差异待处理 → 已确认 → 已打款，确认后的费用计入利润。Daraz
-          / Lazada 支持从平台拉取结算，其它平台请使用导入。
+          / Lazada 支持从平台拉取结算，其它平台请使用 Excel 导入。
         </UedPrototypeNotice>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setImportOpen(true)}>
@@ -231,77 +255,83 @@ export default function SettlementsPage() {
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
 
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+      <input
+        ref={importFileRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) void onImportFile(file)
+        }}
+      />
+
+      <Dialog
+        open={importOpen}
+        onOpenChange={(open) => {
+          setImportOpen(open)
+          if (!open) {
+            setImportFile(null)
+            setImportPreview(null)
+            setImportParseError('')
+          }
+        }}
+      >
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>导入结算账单</DialogTitle>
             <DialogDescription>
-              每行一条 JSON，或 CSV 头：shopId,externalSettlementId,currency,billAmount,feesTotal,payoutAmount,status。写入
-              settlements / settlement_lines（本地 ERP）。
+              上传 Excel（.xlsx）：settlements 表每行一个结算单，transaction_details 表经 statement
+              关联明细；字段对齐 Lazop Finance OpenAPI。写入 settlements / settlement_lines（本地 ERP）。
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="settlement-import">粘贴内容</Label>
-            <Textarea
-              id="settlement-import"
-              rows={10}
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder={
-                '{"shopId":"...","externalSettlementId":"SET-001","currency":"USD","billAmount":100,"status":"待匹配"}'
-              }
-            />
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={downloadSettlementTemplate}>
+                下载模板
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => importFileRef.current?.click()}>
+                选择 Excel 文件
+              </Button>
+              <span className="text-sm text-muted-foreground">{importFile?.name ?? '未选择文件'}</span>
+            </div>
+            {importParseError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {importParseError}
+              </p>
+            ) : null}
+            {importPreview ? (
+              <div className="rounded-md border p-3 text-sm space-y-1">
+                <p>
+                  识别结算单 <span className="tabular-nums">{importPreview.stats.settlements}</span> 条，明细{' '}
+                  <span className="tabular-nums">{importPreview.stats.lines}</span> 条，跳过{' '}
+                  <span className="tabular-nums">{importPreview.stats.skippedLines}</span> 条。
+                </p>
+                {importPreview.issues.slice(0, 5).map((issue, index) => (
+                  <p key={index} className="text-muted-foreground">
+                    {issue.sheet} 第 {issue.row || '—'} 行：{issue.message}
+                  </p>
+                ))}
+                {importPreview.issues.length > 5 ? (
+                  <p className="text-muted-foreground">…另有 {importPreview.issues.length - 5} 条提示</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setImportOpen(false)}>
               取消
             </Button>
             <Button
-              disabled={importMutation.isPending || !importText.trim()}
+              disabled={
+                importMutation.isPending ||
+                !importPreview ||
+                importPreview.rows.length === 0
+              }
               onClick={() => {
-                const raw = importText.trim()
-                let parsed: Array<Record<string, unknown>> = []
-                try {
-                  if (raw.startsWith('[')) parsed = JSON.parse(raw)
-                  else if (raw.startsWith('{'))
-                    parsed = raw
-                      .split(/\n+/)
-                      .filter(Boolean)
-                      .map((line) => JSON.parse(line))
-                  else {
-                    const lines = raw.split(/\n+/).filter(Boolean)
-                    const header = lines[0]!.split(',').map((h) => h.trim())
-                    parsed = lines.slice(1).map((line) => {
-                      const cols = line.split(',')
-                      const obj: Record<string, unknown> = {}
-                      header.forEach((h, i) => {
-                        const v = (cols[i] ?? '').trim()
-                        if (['billAmount', 'itemRevenue', 'feesTotal', 'payoutAmount'].includes(h))
-                          obj[h] = Number(v)
-                        else obj[h] = v
-                      })
-                      return obj
-                    })
-                  }
-                } catch (e) {
-                  setNotice(e instanceof Error ? e.message : '解析失败')
-                  return
-                }
-                importMutation.mutate({
-                  rows: parsed.map((r) => ({
-                    shopId: String(r.shopId || ''),
-                    externalSettlementId: String(r.externalSettlementId || ''),
-                    currency: r.currency ? String(r.currency) : undefined,
-                    periodStart: r.periodStart ? String(r.periodStart) : undefined,
-                    periodEnd: r.periodEnd ? String(r.periodEnd) : undefined,
-                    billAmount: r.billAmount != null ? Number(r.billAmount) : undefined,
-                    itemRevenue: r.itemRevenue != null ? Number(r.itemRevenue) : undefined,
-                    feesTotal: r.feesTotal != null ? Number(r.feesTotal) : undefined,
-                    payoutAmount: r.payoutAmount != null ? Number(r.payoutAmount) : undefined,
-                    status: r.status ? String(r.status) : '待匹配',
-                    note: r.note ? String(r.note) : undefined,
-                  })),
-                })
+                if (!importPreview?.rows.length) return
+                importMutation.mutate({ rows: importPreview.rows })
               }}
             >
               导入
