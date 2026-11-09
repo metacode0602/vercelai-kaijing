@@ -40,7 +40,8 @@ const partnerLinks = [
 const companyLinks = [
   { label: "招聘", href: "/docs/guides/introduction" },
   { label: "博客", href: "/docs/guides/introduction" },
-  { label: "信任中心", href: "/legal/privacy-policy" },
+  { label: "服务条款", href: "/terms" },
+  { label: "隐私政策", href: "/privacy" },
 ]
 
 function FooterColumn({
