@@ -26,6 +26,7 @@ import { dictionariesRouter } from './dictionaries'
 import { importTemplatesRouter } from './import-templates'
 import { auditRouter } from './audit'
 import { membersRouter } from './members'
+import { organizationRouter } from './organization'
 import { shopsRouter } from './shops'
 import { marketplaceAppsRouter } from './marketplace-apps'
 import { onboardingRouter } from './onboarding'
@@ -67,6 +68,7 @@ export const appRouter = router({
   importTemplates: importTemplatesRouter,
   audit: auditRouter,
   members: membersRouter,
+  organization: organizationRouter,
   shops: shopsRouter,
   marketplaceApps: marketplaceAppsRouter,
   onboarding: onboardingRouter,

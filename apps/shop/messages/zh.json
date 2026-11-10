@@ -197,7 +197,6 @@
       "productCenter": "商品中心",
       "masterSkus": "内部SKU",
       "supplierSkus": "供应商货号",
-      "dictionaries": "属性字典",
       "reviews": "商品评论",
       "listingCenter": "刊登中心",
       "syncTasks": "发布与同步任务",
@@ -402,6 +401,7 @@
     "avatarMenu": "账号",
     "backToWorkbench": "返回工作台",
     "settings": {
+      "organization": "企业信息",
       "shops": "店铺连接",
       "marketplaceApps": "平台应用配置",
       "platformBasics": "平台基础资料",

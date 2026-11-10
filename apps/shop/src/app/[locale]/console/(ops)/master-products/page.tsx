@@ -241,7 +241,7 @@ export default function MasterProductsPage() {
           <AlertTitle>已接库 · 模块 1</AlertTitle>
           <AlertDescription>
             SPU / 内部 SKU 主路径走 tRPC → dataaccess → products / product_variants。款式/材质字典键：
-            product_style / product_material（/console/dictionaries）。
+            product_style / product_material（/console/settings/dictionaries）。
           </AlertDescription>
         </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

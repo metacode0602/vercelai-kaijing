@@ -179,7 +179,6 @@
       "productCenter": "Product center",
       "masterSkus": "Internal SKUs",
       "supplierSkus": "Supplier SKUs",
-      "dictionaries": "Attribute dictionaries",
       "reviews": "Product reviews",
       "listingCenter": "Listing center",
       "syncTasks": "Publish & sync tasks",
@@ -384,6 +383,7 @@
     "avatarMenu": "Account",
     "backToWorkbench": "Back to workbench",
     "settings": {
+      "organization": "Enterprise profile",
       "shops": "Shops",
       "marketplaceApps": "Marketplace apps",
       "platformBasics": "Platform basics",

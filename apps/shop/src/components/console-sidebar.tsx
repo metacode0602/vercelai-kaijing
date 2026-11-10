@@ -64,7 +64,6 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/brands': <BadgeCheck className="size-4" />,
   '/console/master-skus': <Tags className="size-4" />,
   '/console/supplier-skus': <PackageSearch className="size-4" />,
-  '/console/dictionaries': <Tags className="size-4" />,
   '/console/reviews': <Star className="size-4" />,
   '/console/listings': <Package className="size-4" />,
   '/console/mappings': <PackageSearch className="size-4" />,

@@ -10,7 +10,7 @@
 | `/console/reviews` → `product_reviews` + `product_review_media`（列表/详情/回复状态） | 平台卖家回复 API（仅 `stub_queued`，禁止假成功） |
 | `/console/carriers` → `commerce_carriers`；运费页继续 `fee_templates` + `ocean_shipments` | 承运商实时报价 API |
 | `/console/(ops)/categories` → `commerce_categories` | `platform_categories` 平台类目树同步 |
-| `/console/dictionaries` → `commerce_dictionaries` | — |
+| `/console/settings/dictionaries` → `commerce_dictionaries` | — |
 | `/console/settings/import-templates` → `commerce_import_templates` | 导入批处理作业 / 回滚流水 |
 | `/console/settings/audit` → `audit_events` | — |
 | `/console/settings/members` → better-auth `member` + `invitation` | 真实邀请邮件发送 |

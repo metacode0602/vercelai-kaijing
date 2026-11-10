@@ -26,7 +26,7 @@
 | D2 | 系统设置落位 | Excel「系统设置」4 项**全部移入设置区**（SectionSidebar 加 Tab）；主侧栏移除 `administration` 组 |
 | D3 | 页面粒度 | **按 Excel 拆独立二级路由**：采购 4 页、售后 2 页、商品 SPU/SKU 2 页、财务 2 页、发货 3 页 |
 | D4 | 域 J/K 入口 | 评论口碑（J）→ 商品中心「商品评论」；运费测算（K）→ 成本财务「运费测算」 |
-| D5 | 属性字典 | 商品中心主入口（新 `/console/dictionaries` 路由）+ **设置区原 Tab 保留**（双侧可达，同一页面） |
+| D5 | 属性字典 | **设置区唯一入口**（`/console/settings/dictionaries` 路由）；商品中心不再保留菜单入口 |
 | D6 | 旧路由处置 | **一律删除不建 redirect**；功能不一致的合并页与拆分页**双路由并存**并标记 `[并存]`（§5.3：删 4 条、并存 5 条） |
 
 ### 1.3 设计原则
@@ -56,7 +56,6 @@
 │  · 商品库SPU         │    /console/master-products
 │  · 内部SKU           │    /console/master-skus
 │  · 供应商货号        │    /console/supplier-skus
-│  · 属性字典          │    /console/dictionaries
 │  · 商品评论          │    /console/reviews
 │                      │
 │ 刊登中心             │
@@ -423,7 +422,7 @@
 | administration/imports | → 设置·数据导入 | **删除**（功能一致，仅换壳） |
 | administration/system-log | → 设置·接口日志 | **删除**（功能一致，仅换壳） |
 | administration/access-control | → 设置·角色权限（settings/erp-access 同页 re-export） | **删除**（同页二入口合一） |
-| settings/dictionaries | → 商品中心·`/console/dictionaries`（同页换壳） | **删除**旧路由；设置 Tab 变导航链接 |
+| settings/dictionaries | → 设置区 `/console/settings/dictionaries`（唯一入口，换 settings 布局壳） | **删除**商品中心 `/console/dictionaries` 旧路由与菜单入口 |
 | `groupKey` 联合类型 | `workbench`\|`products`\|`listings`\|`procurement`\|`warehouse`\|`fulfillment`\|`aftersales`\|`finance`\|`reports` | — |
 | footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 marketplace-apps、imports、integration-log；删除 credentials | — |
 | 图标映射 NAV_ICONS | 按新组补 lucide 图标（如 Boxes/Factory/Truck/BadgePercent/ChartNoAxesCombined） | — |
@@ -437,7 +436,7 @@
 | /console/imports | /console/settings/imports |
 | /console/system-log | /console/settings/integration-log |
 | /console/access-control | /console/settings/erp-access（原 re-export 同页） |
-| /console/settings/dictionaries | /console/dictionaries（设置 Tab 链接跳转，非路由别名） |
+| /console/settings/dictionaries | /console/settings/dictionaries（设置唯一入口；`/console/dictionaries` 已删除 404） |
 
 **② `[并存]` 保留（功能不一致，旧合页与新拆页同时存在，5 条）——旧路由不在菜单展示、直达到达；设计标记收敛待定：**
 

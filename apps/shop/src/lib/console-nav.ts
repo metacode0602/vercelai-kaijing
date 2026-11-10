@@ -15,7 +15,6 @@ export type ConsoleNavTitleKey =
   | 'nav.brands'
   | 'nav.masterSkus'
   | 'nav.supplierSkus'
-  | 'nav.dictionaries'
   | 'nav.reviews'
   | 'nav.listingCenter'
   | 'nav.listings'
@@ -108,7 +107,6 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/brands', titleKey: 'nav.brands' },
       { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
-      { url: '/console/dictionaries', titleKey: 'nav.dictionaries' },
       { url: '/console/reviews', titleKey: 'nav.reviews' },
       { url: '/console/compliance-hs-slsi', titleKey: 'nav.complianceHsSlsi' },
     ],
@@ -211,13 +209,14 @@ export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
 ]
 
 export const SETTINGS_NAV = [
+  { url: '/console/settings/organization', titleKey: 'settings.organization' as const },
   { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
   { url: '/console/settings/marketplace-apps', titleKey: 'settings.marketplaceApps' as const },
   { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
   { url: '/console/settings/fx-rates', titleKey: 'settings.fxRates' as const },
   { url: '/console/settings/stock-alerts', titleKey: 'settings.stockAlerts' as const },
   { url: '/console/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy' as const },
-  { url: '/console/dictionaries', titleKey: 'settings.dictionaries' as const },
+  { url: '/console/settings/dictionaries', titleKey: 'settings.dictionaries' as const },
   { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
   { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },
   { url: '/console/settings/integration-log', titleKey: 'settings.integrationLog' as const },
