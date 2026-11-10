@@ -65,7 +65,7 @@ export async function resolveOrganizationContext(input: {
   }
   if (!input.userId) {
     const devOrg = process.env.SHOP_DEV_ORGANIZATION_ID?.trim()
-    if (devOrg) return { organizationId: devOrg, organizationRole: 'tenant_owner' }
+    if (devOrg) return { organizationId: devOrg, organizationRole: 'owner' }
   }
   return { organizationId: null, organizationRole: null }
 }

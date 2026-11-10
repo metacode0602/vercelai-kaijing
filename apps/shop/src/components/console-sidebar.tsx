@@ -53,6 +53,7 @@ import {
   SidebarMenuItem,
 } from '@workspace/ui/components/sidebar'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
+import { canSeeNavItem } from '@/lib/rbac-nav'
 import { Badge } from '@workspace/ui/components/badge'
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -124,6 +125,9 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
   const t = useTranslations('Console')
   const pathname = useLocalePathname() ?? ''
   const badgesQuery = trpc.dashboard.navBadges.useQuery(undefined, { staleTime: 30_000 })
+  const accessQuery = trpc.roles.myAccess.useQuery(undefined, { staleTime: 30_000 })
+  const access = accessQuery.data ?? { isOwner: true, permissions: [] as string[] }
+  const visibleItems = items.filter((item) => canSeeNavItem(item.url, access))
   const badgeValues: Record<NonNullable<ConsoleNavItemConfig['badgeKey']>, number> = {
     pendingCount: badgesQuery.data?.pendingCount ?? 0,
     inventoryAlerts: badgesQuery.data?.inventoryAlerts ?? 0,
@@ -135,7 +139,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const badge =
               item.badgeKey != null ? formatBadge(badgeValues[item.badgeKey] ?? 0) : null
             const exact = item.url === '/console/dashboard'
@@ -161,6 +165,22 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
   )
 }
 
+
+function VisibleNavGroup({ label, items }: { label: string; items: ConsoleNavItemConfig[] }) {
+  const accessQuery = trpc.roles.myAccess.useQuery(undefined, { staleTime: 30_000 })
+  const access = accessQuery.data ?? { isOwner: true, permissions: [] as string[] }
+  const visibleItems = items.filter((item) => canSeeNavItem(item.url, access))
+  if (visibleItems.length === 0) return null
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{label}</p>
+        <NavList items={visibleItems} />
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
+
 export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const t = useTranslations('Console')
   return (
@@ -180,12 +200,7 @@ export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar
       </SidebarHeader>
       <SidebarContent>
         {CONSOLE_NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.groupKey}>
-            <SidebarGroupContent>
-              <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{t(group.labelKey)}</p>
-              <NavList items={group.items} />
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <VisibleNavGroup key={group.groupKey} label={t(group.labelKey)} items={group.items} />
         ))}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">

@@ -392,7 +392,7 @@
       "importTemplates": "Import templates",
       "integrationLog": "API logs",
       "audit": "Audit log",
-      "erpAccess": "Roles & data scope",
+      "erpAccess": "Role permissions",
       "notifications": "Notifications",
       "members": "Members",
       "preferences": "Preferences",

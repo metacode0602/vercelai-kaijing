@@ -83,3 +83,4 @@
 | [shop-module14-candidates-notifications-trpc.md](./shop-module14-candidates-notifications-trpc.md) | 生效 | 模块14 候选选品·站内信·Dashboard 残余 |
 | [shop-module15-console-ops-cleanup.md](./shop-module15-console-ops-cleanup.md) | 生效 | 模块15 控制台 ops 清理 |
 | [shop-module16-real-data-final.md](./shop-module16-real-data-final.md) | 生效 | 模块16 真实数据收尾 |
+| [shop-org-rbac-phase-ab.md](./shop-org-rbac-phase-ab.md) | 生效（2026-11-10） | 组织级 RBAC 阶段 A+B：`roles` 四表、设置页、侧栏过滤与敏感写强制 |

@@ -13,6 +13,16 @@ import {
   verificationColumns,
   verificationIndexes,
 } from "./auth-columns"
+import {
+  memberRolesColumns,
+  memberRolesConstraints,
+  rolePermissionsColumns,
+  rolePermissionsConstraints,
+  roleScopesColumns,
+  roleScopesConstraints,
+  rolesColumns,
+  rolesConstraints,
+} from "./rbac-columns"
 
 /**
  * apps/web 平台管理员身份库（与租户侧 public schema 物理隔离）。
@@ -64,6 +74,36 @@ export const webInvitation = webAuthSchema.table(
   "invitation",
   invitationColumns(webOrganization, webUser),
   (table) => invitationIndexes(table)
+)
+
+
+/**
+ * 平台侧业务 RBAC（web_auth schema），与 public 同形、数据隔离。
+ * 本轮不写入平台种子或 UI；供后续 apps/web 细粒度权限复制使用。
+ * 不加入 webAuthAdapterSchema，避免 better-auth adapter 把它们当成身份模型。
+ */
+export const webRoles = webAuthSchema.table(
+  "roles",
+  rolesColumns(webOrganization),
+  (table) => rolesConstraints(table),
+)
+
+export const webRolePermissions = webAuthSchema.table(
+  "role_permissions",
+  rolePermissionsColumns(webRoles),
+  (table) => rolePermissionsConstraints(table),
+)
+
+export const webMemberRoles = webAuthSchema.table(
+  "member_roles",
+  memberRolesColumns(webOrganization, webUser, webRoles),
+  (table) => memberRolesConstraints(table),
+)
+
+export const webRoleScopes = webAuthSchema.table(
+  "role_scopes",
+  roleScopesColumns(webOrganization, webRoles),
+  (table) => roleScopesConstraints(table),
 )
 
 export const webUserRelations = relations(webUser, ({ many }) => ({

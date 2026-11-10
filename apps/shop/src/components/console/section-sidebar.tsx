@@ -37,6 +37,8 @@ import {
   SidebarMenuItem,
 } from '@workspace/ui/components/sidebar'
 import { Button } from '@workspace/ui/components/button'
+import { trpc } from '@/lib/trpc/client'
+import { canSeeNavItem } from '@/lib/rbac-nav'
 
 type SectionItem = {
   url: string
@@ -89,6 +91,8 @@ export function SectionSidebar({
 }) {
   const t = useTranslations('Console')
   const pathname = useLocalePathname() ?? ''
+  const accessQuery = trpc.roles.myAccess.useQuery(undefined, { staleTime: 30_000 })
+  const access = accessQuery.data ?? { isOwner: true, permissions: [] as string[] }
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -111,29 +115,33 @@ export function SectionSidebar({
         <p className="px-2 text-sm font-semibold">{title}</p>
       </SidebarHeader>
       <SidebarContent>
-        {groups.map((group, index) => (
-          <SidebarGroup key={group.labelKey ?? `group-${index}`}>
-            <SidebarGroupContent>
-              {group.labelKey ? (
-                <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
-                  {t(group.labelKey)}
-                </p>
-              ) : null}
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
-                      <LocaleLink href={item.url}>
-                        {getSectionIcon(item.url)}
-                        <span>{t(item.titleKey)}</span>
-                      </LocaleLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        {groups.map((group, index) => {
+          const visibleItems = group.items.filter((item) => canSeeNavItem(item.url, access))
+          if (visibleItems.length === 0) return null
+          return (
+            <SidebarGroup key={group.labelKey ?? `group-${index}`}>
+              <SidebarGroupContent>
+                {group.labelKey ? (
+                  <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
+                    {t(group.labelKey)}
+                  </p>
+                ) : null}
+                <SidebarMenu>
+                  {visibleItems.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
+                        <LocaleLink href={item.url}>
+                          {getSectionIcon(item.url)}
+                          <span>{t(item.titleKey)}</span>
+                        </LocaleLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        })}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <Button variant="ghost" size="sm" className="justify-start gap-2 px-2" asChild>

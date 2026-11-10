@@ -7,8 +7,10 @@ import { createId } from '@paralleldrive/cuid2'
 import { hashPassword } from 'better-auth/crypto'
 import { account, invitation, member, organization, user } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
+import { OWNER_ANNOTATION, isOwnerIdentity, parseInvitationRoles, serializeInvitationRoles } from '@workspace/auth'
 import { normalizeContactPhone } from '@/lib/auth/constants'
 import { formatStamp } from '@/lib/server/mappers/ops-master'
+import { bindMemberRoleCodes, ensureOrgRbac, listMemberBusinessRoles, ownerAccess, replaceMemberBusinessRoles } from '@/lib/server/dataaccess/roles'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -29,6 +31,8 @@ export type MemberDto = {
   /** 待接受邀请是否已发邮件 */
   emailSent?: boolean
   inviteStatus?: string
+  isOwner: boolean
+  businessRoles: Array<{ id: string; code: string; name: string }>
 }
 
 export async function listMembers(db: AppDatabase, organizationId: string, q?: string): Promise<MemberDto[]> {
@@ -48,17 +52,29 @@ export async function listMembers(db: AppDatabase, organizationId: string, q?: s
     .where(eq(member.organizationId, organizationId))
     .orderBy(desc(member.createdAt))
 
-  let items: MemberDto[] = rows.map((r) => ({
-    id: r.id,
-    userId: r.userId,
-    name: r.name || r.email || r.phone || r.userId,
-    email: r.email || '',
-    phone: r.phone || '',
-    role: r.role || 'member',
-    status: r.banned ? '停用' : '启用',
-    createdAt: formatStamp(r.createdAt),
-    source: 'member' as const,
-  }))
+  const roleMap = await listMemberBusinessRoles(
+    db,
+    organizationId,
+    rows.map((r) => r.userId),
+  )
+
+  let items: MemberDto[] = rows.map((r) => {
+    const owner = isOwnerIdentity(r.role)
+    const businessRoles = owner ? [] : (roleMap.get(r.userId) ?? [])
+    return {
+      id: r.id,
+      userId: r.userId,
+      name: r.name || r.email || r.phone || r.userId,
+      email: r.email || '',
+      phone: r.phone || '',
+      role: owner ? OWNER_ANNOTATION : businessRoles.map((item) => item.name).join('、') || '未分配业务角色',
+      status: r.banned ? '停用' : '启用',
+      createdAt: formatStamp(r.createdAt),
+      source: 'member' as const,
+      isOwner: owner,
+      businessRoles,
+    }
+  })
 
   const invites = await db
     .select()
@@ -69,18 +85,26 @@ export async function listMembers(db: AppDatabase, organizationId: string, q?: s
   for (const inv of invites) {
     const email = inv.email || ''
     const phone = inv.phone || ''
+    let inviteRoleLabel = inv.role || 'operator'
+    try {
+      inviteRoleLabel = parseInvitationRoles(inv.role).join('、')
+    } catch {
+      inviteRoleLabel = inv.role || 'operator'
+    }
     items.push({
       id: inv.id,
       userId: '',
       name: email || phone || inv.id,
       email,
       phone,
-      role: inv.role || 'member',
+      role: inviteRoleLabel,
       status: '启用',
       createdAt: formatStamp(inv.createdAt),
       source: 'invitation',
       emailSent: Boolean(email),
       inviteStatus: inv.status,
+      isOwner: false,
+      businessRoles: [],
     })
   }
 
@@ -121,6 +145,7 @@ export async function createInvitation(
     email?: string
     phone?: string
     role?: string
+    roles?: string[]
     inviterUserId?: string
     name?: string
     baseUrl?: string
@@ -135,7 +160,8 @@ export async function createInvitation(
   if (!email && !phone) throw new Error('请至少填写手机号或邮箱')
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('邮箱格式不正确')
   if (phone && !isValidCnMobile(phone)) throw new Error('手机号须为有效的中国大陆 11 位号码')
-  if ((input.role || '').trim() === 'owner') throw new Error('不可通过邀请设为 owner')
+  const roleCodes = input.roles && input.roles.length > 0 ? input.roles : parseInvitationRoles(input.role)
+  const storedRole = serializeInvitationRoles(roleCodes)
 
   const existingMembers = await listMembers(db as AppDatabase, organizationId)
   if (email && existingMembers.some((m) => m.source === 'member' && m.email.toLowerCase() === email)) {
@@ -164,7 +190,7 @@ export async function createInvitation(
     organizationId,
     email,
     phone,
-    role: input.role || 'member',
+    role: storedRole,
     status: 'pending',
     expiresAt: expires,
     inviterId: inviterUserId,
@@ -193,7 +219,7 @@ export async function createInvitation(
     id,
     email,
     phone,
-    role: input.role || 'member',
+    role: storedRole,
     emailSent: Boolean(email),
     note: noteParts.join('；') + '。',
     inviteUrl,
@@ -206,18 +232,25 @@ export async function createInvitation(
 export async function updateMemberRole(
   db: DbLike,
   organizationId: string,
-  input: { id: string; role: string },
+  input: { id: string; role?: string; roleCodes?: string[] },
+  access?: import('@/lib/server/dataaccess/roles').AccessSnapshot,
 ) {
-  const role = input.role.trim() || 'member'
-  if (role === 'owner') throw new Error('不可通过此接口设为 owner')
   const [row] = await db
     .select()
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.id, input.id)))
     .limit(1)
   if (!row) throw new Error('成员不存在')
-  if (row.role === 'owner') throw new Error('所有者角色不可修改')
-  await db.update(member).set({ role }).where(eq(member.id, input.id))
+  if (isOwnerIdentity(row.role)) throw new Error('所有者角色不可修改')
+  const roleCodes =
+    input.roleCodes && input.roleCodes.length > 0 ? input.roleCodes : parseInvitationRoles(input.role)
+  await replaceMemberBusinessRoles(
+    db,
+    organizationId,
+    access ?? ownerAccess(organizationId, null),
+    { userId: row.userId, roleCodes },
+    { userId: access?.userId ?? null, label: 'members.updateRole' },
+  )
   return listMembers(db as AppDatabase, organizationId)
 }
 
@@ -239,10 +272,6 @@ export async function cancelInvitation(
   organizationId: string,
   input: { id: string; actorUserId: string },
 ) {
-  const role = await getMemberRole(db as AppDatabase, organizationId, input.actorUserId)
-  if (role !== 'owner') {
-    throw new Error('仅组织所有者可撤销邀请')
-  }
   const [inv] = await db
     .select()
     .from(invitation)
@@ -282,7 +311,7 @@ async function ensureMember(
     id,
     organizationId,
     userId,
-    role: role || 'member',
+    role: isOwnerIdentity(role) ? role : 'member',
     createdAt: new Date(),
   })
   return id
@@ -311,7 +340,9 @@ export async function acceptPendingInvitationsForPhone(
       await db.update(invitation).set({ status: 'canceled' }).where(eq(invitation.id, inv.id))
       continue
     }
-    await ensureMember(db, inv.organizationId, userId, inv.role || 'member')
+    await ensureMember(db, inv.organizationId, userId, 'member')
+    await ensureOrgRbac(db, inv.organizationId)
+    await bindMemberRoleCodes(db, inv.organizationId, userId, parseInvitationRoles(inv.role))
     await db.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, inv.id))
     organizationIds.push(inv.organizationId)
   }
@@ -400,7 +431,9 @@ export async function acceptInvitationWithPassword(
     })
   }
 
-  await ensureMember(db, inv.organizationId, userId, inv.role || 'member')
+  await ensureMember(db, inv.organizationId, userId, 'member')
+  await ensureOrgRbac(db, inv.organizationId)
+  await bindMemberRoleCodes(db, inv.organizationId, userId, parseInvitationRoles(inv.role))
   await db.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, inv.id))
 
   // 同邮箱/手机的其它 pending 一并接受（幂等）

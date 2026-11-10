@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { createTRPCRouter, requirePermission, tenantProcedure } from '@/lib/server/trpc'
+import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as financeDa from '@/lib/server/dataaccess/finance'
 import * as mappingsDa from '@/lib/server/dataaccess/mappings'
 import { UI_SETTLEMENT_STATUSES } from '@/lib/server/mappers/finance'
@@ -44,13 +45,24 @@ export const financeRouter = createTRPCRouter({
       return row
     }),
 
-  updateSettlementStatus: tenantProcedure
+  updateSettlementStatus: requirePermission('finance.approve')
     .input(z.object({ id: z.string().min(1), status: z.string().min(1) }))
-    .mutation(async ({ ctx, input }) =>
-      wrap(() =>
+    .mutation(async ({ ctx, input }) => {
+      const result = await wrap(() =>
         financeDa.updateSettlementStatus(ctx.db, ctx.organizationId, input.id, input.status),
-      ),
-    ),
+      )
+      await appendAuditEvent(ctx.db, ctx.organizationId, {
+        actorUserId: ctx.user?.id,
+        actorLabel: ctx.user?.name || ctx.user?.email || ctx.user?.id,
+        action: 'settlement.confirm',
+        entityType: 'settlement',
+        entityId: input.id,
+        result: 'ok',
+        detail: `更新结算单状态为 ${input.status}`,
+        after: { status: input.status },
+      })
+      return result
+    }),
 
   listCosts: tenantProcedure.input(paginationInput).query(async ({ ctx, input }) => {
     return financeDa.listSkuCosts(ctx.db, ctx.organizationId, input)

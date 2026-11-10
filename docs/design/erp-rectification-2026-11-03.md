@@ -102,6 +102,8 @@
 
 ### 3.2 权限模型（对 [database-schema.md](./haoshiyun-erp-database-schema.md) §9.1 的修订）
 
+> 落地更名（2026-11-10）：`erp_roles` / `erp_role_permissions` / `erp_member_roles` / `erp_role_scopes` 分别落地为 `roles` / `role_permissions` / `member_roles` / `role_scopes`。租户表在 `public`，平台同形表在 `web_auth`，不在单表加标记混放。详见 [shop-org-rbac-phase-ab.md](./shop-org-rbac-phase-ab.md)。
+
 **① 动作收敛为六动作（C5）**
 
 | 中文操作 | action 码 | permission 示例 |
