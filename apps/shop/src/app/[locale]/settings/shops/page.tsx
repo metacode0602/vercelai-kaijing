@@ -4,10 +4,12 @@ import * as React from 'react'
 import { useLocale } from 'next-intl'
 import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
-import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Dialog, DialogContent } from '@workspace/ui/components/dialog'
+import { NewShopForm } from './_components/new-shop-form'
 
 function authVariant(status: string) {
   if (status === '授权失效') return 'destructive' as const
@@ -17,10 +19,10 @@ function authVariant(status: string) {
 
 export default function ShopsSettingsPage() {
   const utils = trpc.useUtils()
-  const router = useLocaleRouter()
   const locale = useLocale()
   const [page, setPage] = React.useState(1)
   const [q, setQ] = React.useState('')
+  const [addOpen, setAddOpen] = React.useState(false)
   const [authStatus, setAuthStatus] = React.useState<string | undefined>()
   const listQuery = trpc.shops.list.useQuery({
     page,
@@ -75,7 +77,7 @@ export default function ShopsSettingsPage() {
       }
       emptyText={listQuery.isLoading ? '加载中…' : '暂无店铺。新增店铺后会跳转平台授权。'}
       addLabel="新增店铺"
-      onAdd={() => router.push('/settings/shops/new')}
+      onAdd={() => setAddOpen(true)}
       columns={[
         { key: 'name', label: '店铺' },
         { key: 'platformLabel', label: '平台' },
@@ -169,6 +171,11 @@ export default function ShopsSettingsPage() {
         ))}
       </div>
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-5xl min-w-[40vw]">
+          <NewShopForm inDialog />
+        </DialogContent>
+      </Dialog>
     </UedWorkspace>
   )
 }
