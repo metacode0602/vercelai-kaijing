@@ -37,14 +37,32 @@ export type CreatePuzzleResult = {
 
 /**
  * 从图库目录随机取一张图片的绝对路径；无可用图片时返回 null
+ * 默认目录必须是静态字面量路径，让 Turbopack 只追踪该子目录，
+ * 避免把整个项目（含 public）打进 serverless 函数导致 Vercel 体积超限
  */
 export async function getRandomImagePathFromGallery(
-  galleryDir = 'public/images/blog'
+  galleryDir?: string
 ): Promise<string | null> {
-  const dir = path.join(/* turbopackIgnore: true */ process.cwd(), galleryDir)
+  if (galleryDir !== undefined) {
+    const dir = path.join(/* turbopackIgnore: true */ process.cwd(), galleryDir)
+    let entries: string[]
+    try {
+      entries = await fs.readdir(/* turbopackIgnore: true */ dir)
+    } catch {
+      return null
+    }
+    const files = entries.filter((name) =>
+      IMAGE_EXT.has(path.extname(name).toLowerCase())
+    )
+    if (files.length === 0) return null
+    const name = files[Math.floor(Math.random() * files.length)]!
+    return path.join(/* turbopackIgnore: true */ dir, name)
+  }
+
+  const dir = path.join(process.cwd(), 'public', 'images', 'blog')
   let entries: string[]
   try {
-    entries = await fs.readdir(/* turbopackIgnore: true */ dir)
+    entries = await fs.readdir(dir)
   } catch {
     return null
   }
@@ -53,7 +71,7 @@ export async function getRandomImagePathFromGallery(
   )
   if (files.length === 0) return null
   const name = files[Math.floor(Math.random() * files.length)]!
-  return path.join(/* turbopackIgnore: true */ dir, name)
+  return path.join(dir, name)
 }
 
 /** 生成默认背景图（图库无图时使用），返回 Buffer */
