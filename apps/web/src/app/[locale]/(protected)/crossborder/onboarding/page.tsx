@@ -27,12 +27,15 @@ export default function OnboardingReviewListPage() {
   const [page, setPage] = React.useState(1)
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState('submitted')
+  const [country, setCountry] = React.useState('all')
   const query = trpc.platformOnboarding.list.useQuery({
     page,
     pageSize: 20,
     q: q.trim() || undefined,
     status,
+    countryCode: country,
   })
+  const stats = trpc.platformOnboarding.stats.useQuery()
   const data = query.data
   const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / 20))
 
@@ -42,7 +45,7 @@ export default function OnboardingReviewListPage() {
         <div>
           <h2 className="text-lg font-medium">入驻审核</h2>
           <p className="text-sm text-muted-foreground">
-            审核租户主体资料；通过后租户即可绑定店铺。
+            审核租户主体资料；通过后租户即可绑定店铺并开启同步。
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -56,6 +59,20 @@ export default function OnboardingReviewListPage() {
             className="w-64"
           />
           <NativeSelect
+            value={country}
+            onChange={(event) => {
+              setCountry(event.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="all">全部国家</option>
+            {stats.data?.countries.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </NativeSelect>
+          <NativeSelect
             value={status}
             onChange={(event) => {
               setStatus(event.target.value)
@@ -68,6 +85,27 @@ export default function OnboardingReviewListPage() {
             <option value="suspended">已暂停</option>
             <option value="all">全部</option>
           </NativeSelect>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border p-3">
+          <p className="text-muted-foreground text-xs">待审核</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {stats.data?.pending ?? '—'}
+          </p>
+        </div>
+        <div className="rounded-lg border p-3">
+          <p className="text-muted-foreground text-xs">今日通过</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {stats.data?.approvedToday ?? '—'}
+          </p>
+        </div>
+        <div className="rounded-lg border p-3">
+          <p className="text-muted-foreground text-xs">今日驳回</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {stats.data?.rejectedToday ?? '—'}
+          </p>
         </div>
       </div>
 

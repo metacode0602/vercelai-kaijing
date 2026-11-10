@@ -3,6 +3,7 @@ import {
   approveOnboarding,
   disableTenant,
   getOnboardingReview,
+  getOnboardingReviewStats,
   listOnboardingReviews,
   listShopConflicts,
   listTenants,
@@ -39,6 +40,7 @@ const listInput = z.object({
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).max(100).optional(),
   status: z.string().optional(),
+  countryCode: z.string().max(8).optional(),
   q: z.string().max(120).optional(),
 })
 
@@ -46,6 +48,7 @@ export const platformOnboardingRouter = createTRPCRouter({
   list: protectedProcedure.input(listInput).query(({ input }) =>
     listOnboardingReviews(input),
   ),
+  stats: protectedProcedure.query(() => getOnboardingReviewStats()),
   get: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
     .query(async ({ input }) => {

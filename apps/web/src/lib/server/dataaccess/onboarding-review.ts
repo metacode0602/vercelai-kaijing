@@ -52,12 +52,16 @@ export async function listOnboardingReviews(input: {
   page?: number
   pageSize?: number
   status?: string
+  countryCode?: string
   q?: string
 }) {
   const { page, pageSize } = pageValues(input.page, input.pageSize)
   const filters: SQL[] = []
   if (input.status && input.status !== 'all') {
     filters.push(eq(tenantOnboardingApplications.status, input.status))
+  }
+  if (input.countryCode && input.countryCode !== 'all') {
+    filters.push(eq(tenantOnboardingApplications.countryCode, input.countryCode))
   }
   if (input.q?.trim()) {
     const value = `%${input.q.trim()}%`
@@ -134,8 +138,30 @@ export async function getOnboardingReview(id: string) {
     .where(eq(tenantOnboardingApplications.id, id))
     .limit(1)
   if (!row) return null
+  const reviewShops = await db
+    .select({
+      id: shops.id,
+      name: shops.name,
+      platform: shops.platform,
+      region: shops.marketplaceCountry,
+      status: shops.status,
+      externalShopId: shops.externalShopId,
+      health: integrationStates.health,
+      authExpiresAt: shops.authExpiresAt,
+    })
+    .from(shops)
+    .leftJoin(integrationStates, eq(integrationStates.shopId, shops.id))
+    .where(
+      and(
+        eq(shops.organizationId, row.application.organizationId),
+        isNull(shops.deletedAt),
+      ),
+    )
+    .orderBy(desc(shops.createdAt))
+    .limit(50)
   return {
     ...row,
+    shops: reviewShops,
     files: {
       license: signOnboardingFileUrl(
         row.application.licenseFileKey,
@@ -147,6 +173,35 @@ export async function getOnboardingReview(id: string) {
       agentFront: signOnboardingFileUrl(row.application.agentIdFrontKey),
       agentBack: signOnboardingFileUrl(row.application.agentIdBackKey),
     },
+  }
+}
+
+export async function getOnboardingReviewStats(): Promise<{
+  pending: number
+  approvedToday: number
+  rejectedToday: number
+  countries: string[]
+}> {
+  const dayStart = new Date()
+  dayStart.setUTCHours(0, 0, 0, 0)
+  const [statRows, countryRows] = await Promise.all([
+    db
+      .select({
+        pending: sql<number>`count(*) filter (where ${tenantOnboardingApplications.status} = 'submitted')`,
+        approvedToday: sql<number>`count(*) filter (where ${tenantOnboardingApplications.status} = 'approved' and ${tenantOnboardingApplications.reviewedAt} >= ${dayStart})`,
+        rejectedToday: sql<number>`count(*) filter (where ${tenantOnboardingApplications.status} = 'rejected' and ${tenantOnboardingApplications.reviewedAt} >= ${dayStart})`,
+      })
+      .from(tenantOnboardingApplications),
+    db
+      .selectDistinct({ countryCode: tenantOnboardingApplications.countryCode })
+      .from(tenantOnboardingApplications)
+      .orderBy(tenantOnboardingApplications.countryCode),
+  ])
+  return {
+    pending: Number(statRows[0]?.pending ?? 0),
+    approvedToday: Number(statRows[0]?.approvedToday ?? 0),
+    rejectedToday: Number(statRows[0]?.rejectedToday ?? 0),
+    countries: countryRows.map((row) => row.countryCode),
   }
 }
 

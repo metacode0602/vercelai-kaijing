@@ -12,6 +12,22 @@ const HANDLER_LABELS: Record<string, string> = {
   authorized_agent: '授权代理人办理',
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  submitted: '待审核',
+  approved: '已通过',
+  rejected: '已驳回',
+  suspended: '已暂停',
+}
+
+const SHOP_STATUS_LABELS: Record<string, string> = {
+  draft: '待授权',
+  connecting: '连接中',
+  active: '已授权',
+  error: '授权失效',
+  disabled: '已停用',
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid gap-1 border-b py-2 sm:grid-cols-[180px_1fr]">
@@ -71,7 +87,7 @@ export default function OnboardingReviewDetailPage({
     return <p className="text-sm text-muted-foreground">入驻申请不存在。</p>
   }
 
-  const { application: app, organization, files } = query.data
+  const { application: app, organization, files, shops: reviewShops } = query.data
   const pending = app.status === 'submitted'
 
   return (
@@ -90,7 +106,7 @@ export default function OnboardingReviewDetailPage({
           </p>
         </div>
         <Badge variant={pending ? 'default' : app.status === 'approved' ? 'secondary' : 'destructive'}>
-          {app.status}
+          {STATUS_LABELS[app.status] ?? app.status}
         </Badge>
       </div>
 
@@ -138,6 +154,51 @@ export default function OnboardingReviewDetailPage({
           </dl>
         </section>
       ) : null}
+
+      <section>
+        <h3 className="mb-2 font-medium">组织审核状态</h3>
+        <dl>
+          <Field label="入驻通过（entryApproved）" value={organization.entryApproved ? '是' : '否'} />
+          <Field label="实名状态" value={organization.identityStatus} />
+          <Field label="入驻状态" value={organization.merchantStatus} />
+        </dl>
+      </section>
+
+      <section>
+        <h3 className="mb-2 font-medium">关联店铺（{reviewShops.length} 家）</h3>
+        {reviewShops.length ? (
+          <div className="space-y-2">
+            {reviewShops.map((shop) => (
+              <div
+                key={shop.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+              >
+                <div>
+                  <span className="font-medium">{shop.name}</span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    {shop.platform}
+                    {shop.region ? ` · ${shop.region.toUpperCase()}` : ''}
+                    {shop.externalShopId ? ` · ${shop.externalShopId}` : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {shop.health ? (
+                    <Badge variant={shop.health === 'error' ? 'destructive' : 'secondary'}>
+                      同步 {shop.health}
+                    </Badge>
+                  ) : null}
+                  <Badge variant={shop.status === 'active' ? 'default' : 'secondary'}>
+                    {SHOP_STATUS_LABELS[shop.status] ?? shop.status}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">该租户尚未创建店铺。</p>
+        )}
+      </section>
 
       <section className="space-y-2">
         <h3 className="font-medium">审核记录</h3>
