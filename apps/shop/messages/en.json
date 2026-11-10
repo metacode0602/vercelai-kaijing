@@ -61,7 +61,7 @@
       "codePlaceholder": "Enter code",
       "sendCode": "Send Code",
       "countdown": "Resend in {seconds}s",
-      "codeSent": "No SMS channel configured; the code was written to the server log",
+      "codeSent": "Verification code sent. Please check your messages",
       "signIn": "Sign In",
       "switchToEmail": "Use email instead",
       "verifyFailed": "Verification failed, please try again",
@@ -552,6 +552,12 @@
     "common": {
       "team": "The {name} team",
       "copyright": "© {year} All rights reserved."
+    },
+    "verifyEmail": {
+      "subject": "Verify your email",
+      "title": "Hello {name},",
+      "body": "Click the button below to verify your email address and activate your account.",
+      "confirmEmail": "Verify email"
     },
     "forgotPassword": {
       "subject": "Reset your password",

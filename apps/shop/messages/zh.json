@@ -66,7 +66,7 @@
       "codePlaceholder": "请输入验证码",
       "sendCode": "发送验证码",
       "countdown": "{seconds}s 后重发",
-      "codeSent": "当前环境未配置短信通道，验证码已写入服务端日志",
+      "codeSent": "验证码已发送，请注意查收",
       "signIn": "登录",
       "switchToEmail": "使用邮箱登录",
       "welcomeBack": "欢迎回来",
@@ -570,6 +570,12 @@
     "common": {
       "team": "{name} 团队",
       "copyright": "© {year} 保留所有权利。"
+    },
+    "verifyEmail": {
+      "subject": "请验证您的邮箱",
+      "title": "您好 {name}，",
+      "body": "请点击下方按钮验证您的邮箱地址，完成账号激活。",
+      "confirmEmail": "验证邮箱"
     },
     "forgotPassword": {
       "subject": "重置密码",
