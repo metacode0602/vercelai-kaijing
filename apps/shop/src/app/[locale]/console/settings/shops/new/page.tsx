@@ -14,6 +14,13 @@ import {
 } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Spinner } from '@workspace/ui/components/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 
@@ -157,11 +164,9 @@ export default function NewShopPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>平台</Label>
-                  <select
-                    className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                  <Select
                     value={platform}
-                    onChange={(event) => {
-                      const value = event.target.value
+                    onValueChange={(value) => {
                       setPlatform(value)
                       setShopGroup(value === 'daraz' ? 'Daraz' : 'Lazada 五国')
                       const nextRegions = REGIONS_BY_PLATFORM[value] ?? []
@@ -170,26 +175,32 @@ export default function NewShopPage() {
                       }
                     }}
                   >
-                    {PLATFORMS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-9 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLATFORMS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>站点</Label>
-                  <select
-                    className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
-                    value={region}
-                    onChange={(event) => setRegion(event.target.value)}
-                  >
-                    {regions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={region} onValueChange={setRegion}>
+                    <SelectTrigger className="h-9 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {regions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>店铺名称</Label>
@@ -216,17 +227,18 @@ export default function NewShopPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>履约模式</Label>
-                  <select
-                    className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
-                    value={fulfillmentMode}
-                    onChange={(event) => setFulfillmentMode(event.target.value)}
-                  >
-                    {FULFILLMENT_MODES.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={fulfillmentMode} onValueChange={setFulfillmentMode}>
+                    <SelectTrigger className="h-9 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FULFILLMENT_MODES.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>币种</Label>

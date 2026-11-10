@@ -15,6 +15,13 @@ import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 
 const eventOptions = ['LGS 揽收', '出境干线', '清关中', '清关完成', '官方尾程派送', '已签收', '物流异常']
 
@@ -188,20 +195,24 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">关联主档</span>
-            <select
-              className="h-9 min-w-[220px] rounded-md border bg-background px-2"
-              value={carrierDraft}
-              onChange={(e) => setCarrierDraft(e.target.value)}
+            <Select
+              value={carrierDraft === '' ? '__empty__' : carrierDraft}
+              onValueChange={(value) => setCarrierDraft(value === '__empty__' ? '' : value)}
             >
-              <option value="">不指定</option>
-              {(carriersQuery.data?.items ?? [])
-                .filter((c) => c.status === '启用' || c.id === row.carrierId)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} · {c.name}
-                  </option>
-                ))}
-            </select>
+              <SelectTrigger className="h-9 min-w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__empty__">不指定</SelectItem>
+                {(carriersQuery.data?.items ?? [])
+                  .filter((c) => c.status === '启用' || c.id === row.carrierId)
+                  .map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.code} · {c.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </label>
           <Button
             size="sm"

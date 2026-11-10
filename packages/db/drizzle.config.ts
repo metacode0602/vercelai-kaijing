@@ -1,5 +1,6 @@
 import { config } from "dotenv"
 import { defineConfig } from "drizzle-kit"
+import { applyPgSslMode, resolvePgSslMode } from "./src/ssl"
 
 config({ path: "../../.env" })
 
@@ -9,39 +10,14 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is required to run Drizzle commands")
 }
 
-function isLocalhost(url: string): boolean {
-  const host = url.match(/@([^:/@?#]+)/)?.[1]?.replace(/^\[|\]$/g, "").toLowerCase()
-  return (
-    !host ||
-    host === "localhost" ||
-    host === "::1" ||
-    host === "0.0.0.0" ||
-    host.startsWith("127.")
-  )
-}
-
-function resolveSsl(url: string): boolean | "require" | "verify-full" | "allow" | "prefer" {
-  const mode = (process.env.DATABASE_SSL ?? "").trim().toLowerCase()
-  if (mode === "require" || mode === "required" || mode === "true" || mode === "1") {
-    return "verify-full"
-  }
-  if (mode === "noverify" || mode === "verify-none" || mode === "allow" || mode === "prefer") {
-    return "require"
-  }
-  if (mode === "disable" || mode === "false" || mode === "0" || mode === "no" || mode === "none") {
-    return false
-  }
-  return isLocalhost(url) ? false : "require"
-}
-
 export default defineConfig({
   // web-auth-schema 单独列入：不进 schema.ts 聚合（其 adapter 键名会覆盖 public 同名键）
   schema: ["./src/schema.ts", "./src/web-auth-schema.ts"],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
-    ssl: resolveSsl(process.env.DATABASE_URL),
+    // drizzle-kit 在提供 url 时会忽略 ssl 选项，TLS 策略必须写进连接串（见 src/ssl.ts）
+    url: applyPgSslMode(process.env.DATABASE_URL, resolvePgSslMode(process.env.DATABASE_URL)),
   },
   strict: true,
   verbose: true,
