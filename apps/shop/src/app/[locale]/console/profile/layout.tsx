@@ -9,7 +9,7 @@ export default async function ProfileLayout({ children }: { children: ReactNode 
   const t = await getTranslations('Console')
   return (
     <>
-      <SectionSidebar title={t('pages.profile')} items={PROFILE_NAV} />
+      <SectionSidebar title={t('pages.profile')} groups={[{ items: PROFILE_NAV }]} />
       <SidebarInset className="flex min-h-svh flex-1 flex-col">
         <ConsoleTopbar />
         <div className="flex-1 p-4 md:p-6">{children}</div>

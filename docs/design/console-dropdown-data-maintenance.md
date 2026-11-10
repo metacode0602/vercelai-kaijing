@@ -26,17 +26,17 @@
 | 1 | 供应商 | `suppliers`、`purchases`、`purchase-requests` 弹窗 | 采购中心 · 供应商管理 `/console/suppliers` | 统一读取供应商主档；供应商货号已接通 |
 | 2 | 内部 SKU | 库存、采购、售后、映射、库位绑定等大量弹窗 | 商品中心 · 内部SKU `/console/master-skus` | 统一读取启用 SKU 列表，停用 SKU 不再出现在新建下拉 |
 | 3 | 商品 SPU / 商品负责人 | 商品库新增弹窗 | 商品中心 · 商品库SPU `/console/master-products` | 负责人已读取组织成员；SPU 读取商品库 |
-| 4 | 店铺 | 映射、结算、售后、包裹、拣货等弹窗 | 设置 · 店铺连接 `/console/settings/shops` | 读取本组织启用店铺；按平台/站点联动过滤 |
+| 4 | 店铺 | 映射、结算、售后、包裹、拣货等弹窗 | 设置 · 店铺连接 `/settings/shops` | 读取本组织启用店铺；按平台/站点联动过滤 |
 | 5 | 平台 | 结算、映射、报表、仪表盘筛选 | 设置 · 平台基础资料（平台 Tab） | 读取启用平台，不再写死 Daraz/Lazada/TikTok |
 | 6 | 国家 / 站点 | 映射、包裹、拣货、仪表盘筛选 | 设置 · 平台基础资料（国家站点 Tab） | 按所选平台过滤站点 |
 | 7 | 币种 | 采购、结算、售后、供应商货号 | 设置 · 平台基础资料（币种 Tab） | 读取启用币种；账单币种可限制为站点币种 |
 | 8 | 仓库 | 采购申请、入库、出库、调整、包裹、拣货 | 仓库中心 · 仓库与库位 / 设置 · 平台基础资料（仓库 Tab） | 读取本组织启用仓库 |
 | 9 | 库位 | 入库、出库、调整、拣货、售后回库 | 仓库中心 · 仓库与库位（库位） | 按仓库联动过滤；只显示空闲/可操作库位 |
-| 10 | 颜色 / 尺码 | 商品 SKU 新增、SPU 规格矩阵 | 设置 · 属性字典 `/console/settings/dictionaries` | 读取字典 `product_color` / `product_size` |
+| 10 | 颜色 / 尺码 | 商品 SKU 新增、SPU 规格矩阵 | 设置 · 属性字典 `/settings/dictionaries` | 读取字典 `product_color` / `product_size` |
 | 11 | 品牌 / 品类 | 商品库新增弹窗 | 商品中心 · 属性字典（品牌/商品品类） | 品牌读字典，品类读独立品类树（见 §3 第 9 项） |
 | 12 | 履约模式 / 仓库类型 | 店铺向导、仓库新增 | 商品中心 · 属性字典（`fulfillment_mode` / `warehouse_type`） | 读取字典，避免与平台基础资料重复维护 |
-| 13 | 人员（负责人/审核人/评估人/申请人） | 商品、采购审核、AI 选品、角色权限 | 设置 · 组织成员 `/console/settings/members` + 角色权限 | 已补邀请/启停；商品负责人和角色权限人员读取启用成员 |
-| 14 | 角色 / 模块 / 操作权限 / 数据范围 | 角色权限新增弹窗 | 设置 · 角色权限 `/console/settings/erp-access` | 角色与模块可读取已有配置；操作权限和数据范围作为系统枚举 |
+| 13 | 人员（负责人/审核人/评估人/申请人） | 商品、采购审核、AI 选品、角色权限 | 设置 · 组织成员 `/settings/members` + 角色权限 | 已补邀请/启停；商品负责人和角色权限人员读取启用成员 |
+| 14 | 角色 / 模块 / 操作权限 / 数据范围 | 角色权限新增弹窗 | 设置 · 角色权限 `/settings/erp-access` | 角色与模块可读取已有配置；操作权限和数据范围作为系统枚举 |
 | 15 | 承运商 / 线路 / HS 税率 | 物流、包裹、运费测算 | 成本财务 · 承运商管理 / 箱规管理 / 运费测算 | 承运商与箱规已独立维护；线路/HS 按 `freight-estimation-design.md` 的参考数据维护 |
 
 ## 3. 缺少维护入口，已新增维护页（已确认）
@@ -174,15 +174,15 @@
 
 | 维护页 | 路径 | 维护内容 |
 |--------|------|----------|
-| 基础数据字典 | `/console/settings/dictionaries` | 采购原因/优先级、入库/出库/调整类型、售后类型、质检状态、外包装状况、平台同步状态、评论情感、品牌、颜色、尺码等 |
+| 基础数据字典 | `/settings/dictionaries` | 采购原因/优先级、入库/出库/调整类型、售后类型、质检状态、外包装状况、平台同步状态、评论情感、品牌、颜色、尺码等 |
 | 品类树 | `/console/categories` | 多级品类父子结构、排序、启停 |
 | 库区管理 | `/console/warehouse-zones` | 仓库下的独立库区、用途、启停 |
 | 承运商管理 | `/console/carriers` | 国际快递/海运/平台物流/尾程承运商、覆盖线路、启停 |
 | 箱规管理 | `/console/carton-specs` | 运输包装尺寸/毛重/每箱件数，引用包装规格字典 |
-| 导入模板 | `/console/settings/import-templates` | 导入类型、版本、字段清单、重复处理、回滚策略、启停 |
-| 平台基础资料 | `/console/settings/platform-basics` | 平台/国家站点/仓库/币种；接入状态租户只读 |
+| 导入模板 | `/settings/import-templates` | 导入类型、版本、字段清单、重复处理、回滚策略、启停 |
+| 平台基础资料 | `/settings/platform-basics` | 平台/国家站点/仓库/币种；接入状态租户只读 |
 | 商品评论 | `/console/reviews` | 情感筛选读取字典；可跳转维护自定义标签 |
-| 组织成员 | `/console/settings/members` | 邀请成员、角色、启停；人员下拉只读启用成员 |
+| 组织成员 | `/settings/members` | 邀请成员、角色、启停；人员下拉只读启用成员 |
 | 平台结算对账 | `/console/settlements` | 差异复核与确认对账受控动作、审计记录 |
 
 ## 6. 关联
@@ -196,7 +196,7 @@
 - 品类树实现：`apps/shop/src/app/[locale]/console/(ops)/categories/page.tsx`（`trpc.categories.*`；`category-store.ts` 已删除）
 - 承运商实现：`apps/shop/src/app/[locale]/console/(ops)/carriers/page.tsx`（`trpc.carriers.*`，含 `remove`；`carrier-store.ts` 已删除）
 - 库区实现：`apps/shop/src/app/[locale]/console/(ops)/warehouse-zones/page.tsx`（`trpc.wms.listZones/createZone/...`；`warehouse-zone-store.ts` 仅余 `zoneRecordId` 类型助手，主路径停用）
-- 导入模板实现：`apps/shop/src/app/[locale]/console/settings/import-templates/page.tsx`（`trpc.importTemplates.*`；`import-template-store.ts` 已删除）
+- 导入模板实现：`apps/shop/src/app/[locale]/settings/import-templates/page.tsx`（`trpc.importTemplates.*`；`import-template-store.ts` 已删除）
 - 箱规实现：`apps/shop/src/app/[locale]/console/(ops)/carton-specs/page.tsx`（`trpc.cartonSpecs.*`，含 `remove`；`carton-spec-store.ts` 已删除）
-- 组织成员实现：`apps/shop/src/app/[locale]/console/settings/members/page.tsx`（`trpc.members.*`；`member-store.ts` 已删除）
+- 组织成员实现：`apps/shop/src/app/[locale]/settings/members/page.tsx`（`trpc.members.*`；`member-store.ts` 已删除）
 - 结算受控动作：`apps/shop/src/app/[locale]/console/(ops)/settlements/page.tsx`（`trpc.finance.updateSettlementStatus`）

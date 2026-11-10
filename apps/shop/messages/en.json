@@ -398,7 +398,15 @@
       "preferences": "Preferences",
       "fxRates": "FX rates",
       "stockAlerts": "Stock alert thresholds",
-      "aftersalePolicy": "Aftersale policy"
+      "aftersalePolicy": "Aftersale policy",
+      "groups": {
+        "enterprise": "Onboarding & shops",
+        "basics": "Business config",
+        "data": "Data management",
+        "system": "System & audit",
+        "team": "Team & notifications",
+        "personal": "Personal"
+      }
     },
     "profile": {
       "account": "Account",

@@ -48,7 +48,7 @@ function consoleRedirect(
   const base =
     process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_URL || request.nextUrl.origin
   const prefix = locale && locale !== 'zh' ? `/${locale}` : ''
-  const url = new URL(`${base.replace(/\/+$/, '')}${prefix}/console/settings/shops/${shopId}`)
+  const url = new URL(`${base.replace(/\/+$/, '')}${prefix}/settings/shops/${shopId}`)
   if (query) {
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v)
   }

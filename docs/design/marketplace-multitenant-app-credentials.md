@@ -32,7 +32,7 @@
 
 ```mermaid
 flowchart LR
-  Owner[tenant_owner] -->|配置 App Key/Secret| ShopUI[控制台 /console/settings/marketplace-apps]
+  Owner[tenant_owner] -->|配置 App Key/Secret| ShopUI[控制台 /settings/marketplace-apps]
   ShopUI -->|tRPC| ShopRouter[marketplaceApps router]
   ShopRouter --> DA[dataaccess + audit]
   DA --> DB[(marketplace_app_credentials)]
@@ -62,8 +62,8 @@ flowchart LR
 
 因此：
 
-- `/console/settings/marketplace-apps` 只管理组织级应用配置。
-- `/console/settings/shops` 同时呈现店铺级授权状态，不再保留独立的“平台凭证”页面。
+- `/settings/marketplace-apps` 只管理组织级应用配置。
+- `/settings/shops` 同时呈现店铺级授权状态，不再保留独立的“平台凭证”页面。
 - `integration_credentials` 记录本次授权实际使用的 `app_credential_id`，同一店铺同一 `kind` 只保留一份有效凭证。
 - 页面不重复展示 App Secret；组织配置页只显示“已配置”，店铺页只显示授权结果与到期信息。
 
@@ -167,7 +167,7 @@ https://<对外域名>/api/marketplace/{platform}/oauth/callback/{callbackKey}
 1. 校验登录、组织、入驻状态、店铺归属（保持现有逻辑）。
 2. 计算 `region = 请求指定 || shop.region || ''`。
 3. 调用 `resolveMarketplaceAppCredential(db, { organizationId, platform, region })`。
-4. 未配置时不抛 412：返回 `/console/settings/marketplace-apps?reason=missing-app&platform=…&shopId=…`，前端跳转并在配置页展示引导。
+4. 未配置时不抛 412：返回 `/settings/marketplace-apps?reason=missing-app&platform=…&shopId=…`，前端跳转并在配置页展示引导。
 5. 生成 `state`，新增字段 `appCredentialId`。
 6. 用凭据的 `appKey` / `appSecret` 构建授权 URL。
 7. 记录 `integration_logs`，跳转平台。
@@ -255,10 +255,10 @@ interface OAuthStatePayload {
 
 ### 7.1 路由与导航
 
-- 组织应用配置页：`apps/shop/src/app/[locale]/console/settings/marketplace-apps/page.tsx`
+- 组织应用配置页：`apps/shop/src/app/[locale]/settings/marketplace-apps/page.tsx`
 - `SETTINGS_NAV` 在“店铺连接”之后仅保留“平台应用配置”（`settings.marketplaceApps`）。
-- 删除独立“平台凭证”页 `/console/settings/credentials` 及导航、图标、message、`queueReauth` 等只服务该页的代码；不保留重定向，历史 URL 直接 404。
-- 店铺授权状态并入 `/console/settings/shops` 列表与详情页。
+- 删除独立“平台凭证”页 `/settings/credentials` 及导航、图标、message、`queueReauth` 等只服务该页的代码；不保留重定向，历史 URL 直接 404。
+- 店铺授权状态并入 `/settings/shops` 列表与详情页。
 - 中英文 message 同步删除 `settings.credentials`，增加 `settings.marketplaceApps`。
 
 ### 7.2 页面结构
@@ -347,7 +347,7 @@ interface OAuthStatePayload {
 - [ ] `tenant_engineer` 可查看但无法调用写接口。
 - [ ] 同组织同平台同站点重复创建被拒绝；同 App Key 跨组织被拒绝。
 - [ ] 精确站点配置优先于通用配置；缺失通用配置时返回未配置。
-- [ ] `/console/settings/credentials` 已删除且无导航/菜单入口，历史 URL 404。
+- [ ] `/settings/credentials` 已删除且无导航/菜单入口，历史 URL 404。
 - [ ] 店铺列表/详情展示授权状态、到期与实际使用的平台应用；OAuth 回调写入 `app_credential_id`。
 - [ ] 同一店铺同一 `kind` 只有一条 `integration_credentials`。
 - [ ] `shops.beginAuthorization` 使用租户配置，未配置时提示配置页。

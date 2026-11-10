@@ -52,7 +52,7 @@ export default function SystemLogPage() {
       title="接口与操作日志"
       description="integration_logs：方法/状态/摘要（脱敏）；与同步任务通过 requestId / taskId 关联。"
       rows={rows}
-      detailHref={(row) => `/console/settings/integration-log/${encodeURIComponent(row.id)}`}
+      detailHref={(row) => `/settings/integration-log/${encodeURIComponent(row.id)}`}
       searchKeys={['requestId', 'actor', 'action', 'object', 'result', 'detail', 'shop', 'path', 'errorCode', 'syncTaskId']}
       searchPlaceholder="搜索 request id、店铺、路径或错误码"
       filters={[{ label: '结果', options: ['成功', '失败', '未连接', '排队中', '部分成功'], key: 'result' }]}
@@ -109,7 +109,7 @@ export default function SystemLogPage() {
       </UedPrototypeNotice>
       {requestIdFilter ? (
         <Button variant="outline" size="sm" asChild>
-          <LocaleLink href="/console/settings/integration-log">清除 request id 筛选</LocaleLink>
+          <LocaleLink href="/settings/integration-log">清除 request id 筛选</LocaleLink>
         </Button>
       ) : null}
       <div className="flex flex-wrap gap-2">

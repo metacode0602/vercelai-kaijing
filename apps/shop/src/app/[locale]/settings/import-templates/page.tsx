@@ -56,7 +56,7 @@ export default function ImportTemplatesPage() {
         title="导入模板"
         description="commerce_import_templates；保存即生效，不设假审批成功。"
         rows={rows}
-        detailHref={(row) => `/console/settings/import-templates/${encodeURIComponent(row.id)}`}
+        detailHref={(row) => `/settings/import-templates/${encodeURIComponent(row.id)}`}
         searchKeys={['id', 'kind', 'version', 'fields', 'status']}
         searchPlaceholder="搜索导入类型、版本或字段"
         addLabel="新增模板"

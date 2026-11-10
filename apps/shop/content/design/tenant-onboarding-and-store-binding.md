@@ -54,7 +54,7 @@
 | Daraz / Lazada OAuth 连接器 | `packages/marketplace/src/oauth/lazop.ts`、`adapters/{daraz,lazada,lazop-base}.ts` |
 | OAuth 发起与回调 | `apps/shop/src/app/api/marketplace/oauth/{authorize,callback}/route.ts` |
 | 凭证 AES-256-GCM 加密 | `packages/marketplace/src/crypto/credentials.ts` |
-| 控制台店铺连接页（原型） | `apps/shop/src/app/[locale]/console/settings/shops/page.tsx` |
+| 控制台店铺连接页（原型） | `apps/shop/src/app/[locale]/settings/shops/page.tsx` |
 | 登录 / 注册 / 找回密码 | `apps/shop/src/app/[locale]/(auth)`、`components/auth/*` |
 | 平台运营租户列表（已接 `trpc.platformOnboarding.tenants`，2026-11-08） | `apps/web/src/app/[locale]/(protected)/crossborder/tenants/page.tsx` |
 
@@ -291,7 +291,7 @@ sequenceDiagram
 | 2 | `/onboarding?step=2` | 企业/个人资料、办理方式、联系人、执照/授权书 | `onboarding.saveStep` |
 | 3 | `/onboarding?step=3` | 确认信息、勾选协议、提交 | `onboarding.submit` |
 | 4 | `/onboarding/status` | 审核中/驳回/通过；提供“添加店铺” | 只读 |
-| 5 | `/console/settings/shops/new` | 创建店铺草稿并授权 | `shops.createDraft` |
+| 5 | `/settings/shops/new` | 创建店铺草稿并授权 | `shops.createDraft` |
 | 6 | `/api/marketplace/oauth/authorize` | 跳转 Daraz/Lazada | `shops.status=connecting` |
 | 7 | `/api/marketplace/{platform}/oauth/callback` | 换码、拉店铺、落凭证 | `integration_credentials`、`shops.status=active` |
 
@@ -476,7 +476,7 @@ sequenceDiagram
     M-->>CB: externalShopId / name / region / currency
     CB->>DB: 事务：upsert integration_credentials + shops.status=active + integration_states
     CB->>DB: integration_logs(action=oauth_callback, status=success)
-    CB-->>S: 302 /{locale}/console/settings/shops/{id}?oauth=success
+    CB-->>S: 302 /{locale}/settings/shops/{id}?oauth=success
 ```
 
 回调失败统一 302 回店铺详情并带 `?oauth=error&reason=...`，**不把平台原始错误或 token 返回给浏览器**。
@@ -562,9 +562,9 @@ sequenceDiagram
 | `/[locale]/signup` | 现有 | 注册后跳 `/onboarding`（替换当前 `Routes.Onboarding`） |
 | `/[locale]/onboarding` | 新增 | 入驻向导（步骤 1–3） |
 | `/[locale]/onboarding/status` | 新增 | 审核中/驳回/通过状态页 |
-| `/[locale]/console/settings/shops` | 现有改造 | 真实店铺列表、筛选、分页、新增 |
-| `/[locale]/console/settings/shops/new` | 新增 | 新建店铺表单（也保留弹窗入口） |
-| `/[locale]/console/settings/shops/[id]` | 现有改造 | 详情、授权状态、重新授权、暂停同步 |
+| `/[locale]/settings/shops` | 现有改造 | 真实店铺列表、筛选、分页、新增 |
+| `/[locale]/settings/shops/new` | 新增 | 新建店铺表单（也保留弹窗入口） |
+| `/[locale]/settings/shops/[id]` | 现有改造 | 详情、授权状态、重新授权、暂停同步 |
 | `/api/marketplace/oauth/authorize` | 现有加固 | 增加入驻/成员/归属校验 |
 | `/api/marketplace/{platform}/oauth/callback` | 现有加固 | 增加 session/membership/重复绑定处理 |
 | `/templates/enterprise-authorization-letter.pdf` | 新增静态资源 | 企业授权书模板 PDF 下载 |
@@ -1092,7 +1092,7 @@ type ShopDto = {
 | DB | `packages/db/src/commerce-schema.ts`、`packages/db/src/auth-schema.ts`、`packages/db/drizzle/*` |
 | Onboarding UI | `apps/shop/src/app/[locale]/onboarding/*`、`apps/shop/src/components/onboarding/*` |
 | 授权书模板 | `apps/shop/public/templates/enterprise-authorization-letter.{pdf,docx}` |
-| Shops UI | `apps/shop/src/app/[locale]/console/settings/shops/*` |
+| Shops UI | `apps/shop/src/app/[locale]/settings/shops/*` |
 | tRPC | `apps/shop/src/lib/server/routers/{onboarding,shops}.ts` |
 | Dataaccess | `apps/shop/src/lib/server/dataaccess/{onboarding,shops}.ts` |
 | OAuth | `apps/shop/src/app/api/marketplace/oauth/*`、`apps/shop/src/lib/marketplace/*` |

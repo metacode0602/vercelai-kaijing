@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |----|------|
-| 文档范围 | `apps/shop` `/console` 左侧菜单（一级分组 + 二级页面）、设置区导航、页面与数据表展示路径 |
+| 文档范围 | `apps/shop` `/console` 左侧菜单（一级分组 + 二级页面）、设置区导航（`/settings/*` 独立路由）、页面与数据表展示路径 |
 | 输入 | Excel「菜单模块蓝图」（10 个一级 / 37 个二级，用户建议）× 现有 `console-nav.ts` 6 组导航 × 权威 [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) 域 A–K 表清单 |
 | 约束 | 设置页面保持现有布局与交互（SectionSidebar 垂直 Tab 替换主侧栏）；每个数据表都要有展示路径 |
 | 状态 | 设计稿（IA 定稿供 D1→D2 实施）；确认决策见 §1.2 |
@@ -26,14 +26,15 @@
 | D2 | 系统设置落位 | Excel「系统设置」4 项**全部移入设置区**（SectionSidebar 加 Tab）；主侧栏移除 `administration` 组 |
 | D3 | 页面粒度 | **按 Excel 拆独立二级路由**：采购 4 页、售后 2 页、商品 SPU/SKU 2 页、财务 2 页、发货 3 页 |
 | D4 | 域 J/K 入口 | 评论口碑（J）→ 商品中心「商品评论」；运费测算（K）→ 成本财务「运费测算」 |
-| D5 | 属性字典 | **设置区唯一入口**（`/console/settings/dictionaries` 路由）；商品中心不再保留菜单入口 |
+| D5 | 属性字典 | **设置区唯一入口**（`/settings/dictionaries` 路由）；商品中心不再保留菜单入口 |
 | D6 | 旧路由处置 | **一律删除不建 redirect**；功能不一致的合并页与拆分页**双路由并存**并标记 `[并存]`（§5.3：删 4 条、并存 5 条） |
+| D7 | 设置区独立路由 | **2026-11-10**：设置区从 `/console/settings/*` 升为与 `/console` 平级的独立路由 `/settings/*`（自带 auth/入驻门槛与 ConsoleTopbar）；SectionSidebar 由平铺 Tab 改为 **6 分组**（§2.3），旧 `/console/settings/*` 建 catch-all redirect 兜底历史通知链接 |
 
 ### 1.3 设计原则
 
 - **按业务闭环分组**（Excel 口径）：工作台 → 商品 → 刊登 → 采购 → 仓库 → 订单履约 → 售后 → 成本财务 → 报表，导航顺序即业务流顺序。
 - **每表有路径**：表 → 列表页 / 详情页 / 设置 Tab（线表随详情、配置表进设置），见 §4 全量映射。
-- **设置区保持现状**：SectionSidebar 垂直 Tab + 三种既有交互（shops 向导 / platform-basics 水平 Tab / dictionaries 左右两栏）不改；仅按 D2 增补 Tab。
+- **设置区交互保持现状**：SectionSidebar 导航（D7 后为分组渲染）+ 三种既有交互（shops 向导 / platform-basics 水平 Tab / dictionaries 左右两栏）不改；仅按 D2 增补页、按 D7 换路由前缀与分组。
 - **沿用导航数据结构**：`ConsoleNavGroupConfig` / `ConsoleNavItemConfig`（url + titleKey + badgeKey），扩展 `groupKey` 联合与图标映射即可，不改渲染层形态。
 - **旧路由处置**：功能一致的旧路径一律删除不建 redirect；功能不一致的双路由并存（§5.3），D1 原型内容复用。
 
@@ -122,30 +123,42 @@
 └────────────────────────────────────────────────────────┘
 ```
 
-### 2.3 设置区（SectionSidebar 垂直 Tab，布局与交互保持现状）
+### 2.3 设置区（`/settings/*` 独立路由，SectionSidebar 分组导航）
 
 ```text
 ┌──────────────────────┐  ┌────────────────────────────────────┐
 │ ← 返回工作台         │  │ Topbar                             │
 │ 设置                 │  ├────────────────────────────────────┤
 │                      │  │                                    │
-│  · 店铺连接        ◀ │  │  主区域（三种既有交互模式）：        │
-│  · 平台应用配置      │  │  ① 列表+分步向导   （店铺连接）      │
-│  · 平台基础资料      │  │  ② 页内水平Tab+弹窗（平台基础资料）  │
-│  · 基础数据字典      │  │  ③ 左右 master-detail（字典）        │
-│  · 数据导入   [新]   │  │                                    │
-│  · 接口日志   [新]   │  │  新增 Tab 复用现有页面内容：         │
-│  · 角色权限         │  │  ④ 批次列表+错误行 （数据导入）       │
-│  · 组织成员          │  │  ⑤ 日志表+重试     （接口日志）       │
-│  · 通知钉钉          │  │  ⑥ 角色矩阵表格    （角色权限）       │
+│ 入驻与店铺           │  │  主区域（既有交互模式）：            │
+│  · 企业信息          │  │  ① 列表+分步向导   （店铺连接）      │
+│  · 店铺连接          │  │  ② 页内水平Tab+弹窗（平台基础资料）  │
+│  · 平台应用配置      │  │  ③ 左右 master-detail（字典）        │
+│ 业务配置             │  │                                    │
+│  · 平台基础资料      │  │                                    │
+│  · 基础数据字典      │  │                                    │
+│  · 汇率配置          │  │                                    │
+│  · 库存预警阈值      │  │                                    │
+│  · 售后策略          │  │                                    │
+│ 数据管理             │  │                                    │
+│  · 数据导入          │  │                                    │
+│  · 导入模板          │  │                                    │
+│ 系统与审计           │  │                                    │
+│  · 接口日志          │  │                                    │
+│  · 角色权限          │  │                                    │
+│  · 变更审计          │  │                                    │
+│ 团队与通知           │  │                                    │
+│  · 组织成员          │  │                                    │
+│  · 通知钉钉          │  │                                    │
+│ 个人                 │  │                                    │
 │  · 偏好              │  │                                    │
 └──────────────────────┘  └────────────────────────────────────┘
 ```
 
-- 现有 8 Tab 保留；**新增**「数据导入」「接口日志」2 个 Tab（D2：主侧栏 `administration` 组的 `/console/imports`、`/console/system-log` 内容迁入，D6 旧路由删除）。
-- 「角色权限」Tab 沿用现有 `settings/erp-access`（re-export 角色矩阵）；「组织成员」负责账号启停，与角色权限合并覆盖 Excel「人员角色权限」。
-- 「平台店铺与授权」收口到「店铺连接」：店铺主档、OAuth 授权、到期与健康同页；组织级 App Key/Secret 放在「平台应用配置」。独立「平台凭证」页已删除。
-- 「基础数据字典」Tab 保留（D5）：与商品中心「商品评论」外的属性字典入口同页。
+- **D7（2026-11-10）**：设置区升为独立路由 `/settings/*`，与 `/console` 平级；自带登录 + 入驻门槛（`requireOnboardedAuth`）与 ConsoleTopbar/面包屑/Copilot 壳。console 主侧栏 footer「设置」仍为唯一入口（`/settings` 索引重定向到 `/settings/shops`）。
+- SectionSidebar 改为**分组渲染**（`SETTINGS_NAV_GROUPS`：enterprise / basics / data / system / team / personal），组小标题样式与主侧栏一致（`text-xs text-muted-foreground`）。
+- 三种既有交互模式（向导 / 水平 Tab / 左右两栏）不变；Profile 区（`/console/profile/*`）仍由扁平 SectionSidebar 渲染，不受分组改造影响。
+- 「平台店铺与授权」收口到「店铺连接」；组织级 App Key/Secret 放在「平台应用配置」。
 
 ---
 
@@ -240,20 +253,26 @@
 |---|---|---|---|---|---|
 | 经营报表 | 页内报表 Tab：**销售 / 库存 / 采购 / 利润**；按日期/平台/站点/店铺/SPU/SKU/负责人筛选、下钻到明细、导出 | report_metrics（口径元数据）+ 各域聚合视图 | 可下钻到明细 | P0/P1 | 现有 `/reports`（扩充 Tab） |
 
-### 3.10 设置区（footer 进入，布局交互保持现状，D2 增补）
+### 3.10 设置区（footer 进入，`/settings/*` 独立路由，D2 增补 + D7 分组）
 
-| 设置 Tab | 主要功能（子功能） | 核心数据表 | 来源 |
-|---|---|---|---|
-| 店铺连接 | 列表 + 分步向导（平台→站点→资料→多选仓库→唯一默认仓）、详情、停用 | shops、shop_warehouses、integration_states（同步健康） | 现有 |
-| 平台应用配置 | 组织级 App Key/App Secret、默认/独立回调、最近验证与错误 | marketplace_app_credentials | 现有 |
-| 平台基础资料 | 页内 4 Tab：平台/国家站点/仓库/币种 CRUD、启停 | commerce_platforms、commerce_countries、platform_marketplaces、commerce_currencies、commerce_warehouses | 现有 |
-| 基础数据字典 | 左右两栏字典维护（同商品中心入口） | commerce_dictionaries 系 | 现有 |
-| 数据导入 | 模板下载、上传校验、错误行报告、批次回滚（双通道 file/platform_api） | import_batches、import_rows | **新增 Tab**（迁自 /console/imports） |
-| 接口日志 | 调用流水、成功失败、错误码、重试、告警（与 audit 关联跳转） | integration_logs、audit_events | **新增 Tab**（迁自 /console/system-log） |
-| 角色权限 | 角色 CRUD、模块操作、店铺范围矩阵（现角色矩阵页） | erp_roles(_permissions)、erp_member_roles(_scopes) | 现有（主侧栏项移入） |
-| 组织成员 | 成员列表、邀请、启停 | auth member + erp_member_roles | 现有 |
-| 通知钉钉 | 告警渠道、Webhook | （占位） | 现有 |
-| 偏好 | 默认店铺/时区/币种 | — | 现有 |
+| 分组 | 设置页 | 路由 | 主要功能（子功能） | 核心数据表 | 来源 |
+|---|---|---|---|---|---|
+| 入驻与店铺 | 企业信息 | /settings/organization | 主体资料、入驻申请与审核记录、成员数（只读聚合） | organization、tenant_onboarding_applications | **新增**（2026-11-10） |
+| 入驻与店铺 | 店铺连接 | /settings/shops | 列表 + 分步向导（平台→站点→资料→多选仓库→唯一默认仓）、详情、停用 | shops、shop_warehouses、integration_states | 现有 |
+| 入驻与店铺 | 平台应用配置 | /settings/marketplace-apps | 组织级 App Key/App Secret、默认/独立回调、最近验证与错误 | marketplace_app_credentials | 现有 |
+| 业务配置 | 平台基础资料 | /settings/platform-basics | 页内 4 Tab：平台/国家站点/仓库/币种 CRUD、启停 | commerce_platforms、commerce_countries、platform_marketplaces、commerce_currencies、commerce_warehouses | 现有 |
+| 业务配置 | 基础数据字典 | /settings/dictionaries | 左右两栏字典维护 | commerce_dictionaries 系 | 现有（D5 唯一入口） |
+| 业务配置 | 汇率配置 | /settings/fx-rates | 平台币种汇率维护 | fx_rates | 现有 |
+| 业务配置 | 库存预警阈值 | /settings/stock-alerts | 库存预警阈值维护 | stock_alert_rules | 现有 |
+| 业务配置 | 售后策略 | /settings/aftersale-policy | 售后策略维护 | aftersale_policies | 现有 |
+| 数据管理 | 数据导入 | /settings/imports | 模板下载、上传校验、错误行报告、批次回滚（双通道 file/platform_api） | import_batches、import_rows | 迁自 /console/imports |
+| 数据管理 | 导入模板 | /settings/import-templates | 导入类型、版本、字段清单、重复处理、回滚策略、启停 | commerce_import_templates | 现有 |
+| 系统与审计 | 接口日志 | /settings/integration-log | 调用流水、成功失败、错误码、重试、告警（与 audit 关联跳转） | integration_logs、audit_events | 迁自 /console/system-log |
+| 系统与审计 | 角色权限 | /settings/erp-access | 角色 CRUD、模块操作、店铺范围矩阵 | erp_roles(_permissions)、erp_member_roles(_scopes) | 现有 |
+| 系统与审计 | 变更审计 | /settings/audit | 变更审计流水 | audit_events | 现有 |
+| 团队与通知 | 组织成员 | /settings/members | 成员列表、邀请、启停 | auth member + erp_member_roles | 现有 |
+| 团队与通知 | 通知钉钉 | /settings/notifications | 告警渠道、Webhook | （占位） | 现有 |
+| 个人 | 偏好 | /settings/preferences | 默认店铺/时区/币种 | — | 现有 |
 
 ---
 
@@ -422,9 +441,9 @@
 | administration/imports | → 设置·数据导入 | **删除**（功能一致，仅换壳） |
 | administration/system-log | → 设置·接口日志 | **删除**（功能一致，仅换壳） |
 | administration/access-control | → 设置·角色权限（settings/erp-access 同页 re-export） | **删除**（同页二入口合一） |
-| settings/dictionaries | → 设置区 `/console/settings/dictionaries`（唯一入口，换 settings 布局壳） | **删除**商品中心 `/console/dictionaries` 旧路由与菜单入口 |
+| settings/dictionaries | → 设置区 `/settings/dictionaries`（唯一入口，换 settings 布局壳） | **删除**商品中心 `/console/dictionaries` 旧路由与菜单入口 |
 | `groupKey` 联合类型 | `workbench`\|`products`\|`listings`\|`procurement`\|`warehouse`\|`fulfillment`\|`aftersales`\|`finance`\|`reports` | — |
-| footer settings、SETTINGS_NAV | footer 不变；SETTINGS_NAV 插入 marketplace-apps、imports、integration-log；删除 credentials | — |
+| footer settings、SETTINGS_NAV_GROUPS | footer 指向 `/settings`；设置区侧栏改为 6 分组（D7，§2.3） | — |
 | 图标映射 NAV_ICONS | 按新组补 lucide 图标（如 Boxes/Factory/Truck/BadgePercent/ChartNoAxesCombined） | — |
 
 ### 5.3 旧路由处置清单
@@ -433,10 +452,11 @@
 
 | 旧路由 | 对应新路由 |
 |---|---|
-| /console/imports | /console/settings/imports |
-| /console/system-log | /console/settings/integration-log |
-| /console/access-control | /console/settings/erp-access（原 re-export 同页） |
-| /console/settings/dictionaries | /console/settings/dictionaries（设置唯一入口；`/console/dictionaries` 已删除 404） |
+| /console/imports | /settings/imports |
+| /console/system-log | /settings/integration-log |
+| /console/access-control | /settings/erp-access（原 re-export 同页） |
+| /console/settings/dictionaries | /settings/dictionaries（设置唯一入口；`/console/dictionaries` 已删除 404） |
+| /console/settings/*（D7，2026-11-10） | /settings/*（设置区升独立路由；**建 catch-all redirect** 兜底 DB 中历史通知 href 与书签，区别于 D6 纯删除原则） |
 
 **② `[并存]` 保留（功能不一致，旧合页与新拆页同时存在，5 条）——旧路由不在菜单展示、直达到达；设计标记收敛待定：**
 
@@ -448,7 +468,7 @@
 | /console/aftersales | /console/aftersale-cancels、/console/aftersale-returns | 取消退款+退货质检合页 vs 2 拆页 |
 | /console/finance | /console/settlements、/console/profits | 财务中心（结算+利润）合页 vs 2 拆页 |
 
-**③ 不变（URL 原样，仅分组改挂，10+ 条）**：dashboard / pending / candidates / master-products / suppliers / mappings / warehouse / inventory / inventory-ledger / listings / orders / order-exceptions / costs / reports；设置区现有 8 Tab 路径均不变。
+**③ 不变（URL 原样，仅分组改挂，10+ 条）**：dashboard / pending / candidates / master-products / suppliers / mappings / warehouse / inventory / inventory-ledger / listings / orders / order-exceptions / costs / reports；设置区各 Tab 内容不变（D7 仅换路由前缀 `/settings/*` 并分组）。
 
 ---
 
@@ -456,7 +476,7 @@
 
 1. **D1 原型页复用**：33 个二级页中 24+ 已有 D1 原型；拆分页（采购 4、售后 2、发货 3、财务 2、SKU）从现单页拆 Tab 为路由，UedWorkspace 状态按页切分；`[并存]` 5 条旧合页原样保留（不在新菜单挂载）。
 2. **导航先行**：`console-nav.ts` 分组/类型扩展 + `console-sidebar.tsx` 图标 + i18n titleKey 是最高优先级改造，可独立验收（菜单与路由一一对应、badge 通）。
-3. **设置区**：仅增 2 Tab（数据导入/接口日志），布局交互零改动；`(ops)/access-control` 删除后，`settings/erp-access` 由 re-export 改为正向持有页面实现（源组件上提共享）。
+3. **设置区**：D7（2026-11-10）升为 `/settings/*` 独立路由 + 6 分组侧栏；`(ops)/access-control` 删除后，`settings/erp-access` 由 re-export 改为正向持有页面实现（源组件上提共享）。
 4. **验收标准**：① 菜单结构与本文 §2 逐项一致；② §4 表清单抽查每表可从菜单到达；③ 删除的 4 条旧路由不可访问（404），并存的 5 条旧路由与新拆页同时可用且菜单不展示旧入口；④ 设置区三交互模式（向导/水平Tab/左右栏）不回归；⑤ 权限用例（杨洁/仓库/外部IT/蔡值只读）按各页权限列验证。
 5. **不改**：Profile 区、Copilot/知识执行入口（crossborder UED 既有决议）、落地页营销导航。
 

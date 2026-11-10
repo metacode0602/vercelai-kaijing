@@ -76,7 +76,7 @@
 | 能力 | 分组 | 路由 |
 | --- | --- | --- |
 | F22 海运柜次 | 仓库中心 | `/console/ocean-containers` |
-| F33 汇率 | 设置 | `/console/settings/fx-rates` |
+| F33 汇率 | 设置 | `/settings/fx-rates` |
 | F32 成本版本 | 成本财务（成本页/工作台） | `/console/costs` + workbench 保存 |
 | F20 动销率 | 报表 | `/console/reports/sell-through` |
 | F21 滞销断货 | 报表 | `/console/reports/stock-risk` |

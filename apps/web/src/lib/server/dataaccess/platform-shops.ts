@@ -308,7 +308,7 @@ export async function disablePlatformShop(input: {
         ? `店铺「${shop.name}」已被平台停用：${note}`
         : `店铺「${shop.name}」已被平台停用，请联系平台运营核实。`,
       body: note ?? '',
-      href: '/console/settings/shops',
+      href: '/settings/shops',
       sourceType: 'platform_shop_ops',
       sourceId: shop.id,
     })
@@ -373,7 +373,7 @@ export async function restorePlatformShop(input: {
       title: '店铺已恢复，请重新授权',
       summary: `店铺「${shop.name}」已由平台恢复，请前往店铺连接页重新完成授权。`,
       body: '',
-      href: '/console/settings/shops',
+      href: '/settings/shops',
       sourceType: 'platform_shop_ops',
       sourceId: shop.id,
     })

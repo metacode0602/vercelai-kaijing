@@ -6,5 +6,5 @@ export default async function SettingsIndexPage({
   params: Promise<{ locale: string }>
 }) {
   const { locale } = await params
-  localeRedirect({ href: '/console/settings/shops', locale })
+  localeRedirect({ href: '/settings/shops', locale })
 }

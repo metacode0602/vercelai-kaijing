@@ -143,7 +143,7 @@ export default function SyncTasksPage() {
               </Button>
               <Button variant="ghost" size="sm" asChild>
                 <LocaleLink
-                  href={`/console/settings/integration-log?requestId=${encodeURIComponent(row.requestId)}`}
+                  href={`/settings/integration-log?requestId=${encodeURIComponent(row.requestId)}`}
                 >
                   接口日志 · {row.requestId}
                 </LocaleLink>

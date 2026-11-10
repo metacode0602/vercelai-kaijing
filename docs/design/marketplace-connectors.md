@@ -43,7 +43,7 @@ Optional per-app callback: `…/{callbackKey}`
 1. `GET /api/marketplace/oauth/authorize?platform=daraz&shopId=…&locale=zh`  
    → resolve tenant app credentials, CSRF state (includes `appCredentialId`), redirect to platform authorize URL
 2. Platform redirects to `/api/marketplace/{platform}/oauth/callback?code=…&state=…`  
-   → verify state, load tenant credentials, exchange token, encrypt payload, upsert `integration_credentials`, set shop `status=active`, redirect to `/{locale}/console/settings/shops/{id}`
+   → verify state, load tenant credentials, exchange token, encrypt payload, upsert `integration_credentials`, set shop `status=active`, redirect to `/{locale}/settings/shops/{id}`
 
 ## DB enrichment
 

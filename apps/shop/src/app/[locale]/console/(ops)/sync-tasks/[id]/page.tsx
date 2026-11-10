@@ -87,7 +87,7 @@ export default function SyncTaskDetailPage({ params }: { params: Promise<{ id: s
             </Button>
             <Button size="sm" variant="outline" asChild>
               <LocaleLink
-                href={`/console/settings/integration-log?requestId=${encodeURIComponent(task.requestId)}`}
+                href={`/settings/integration-log?requestId=${encodeURIComponent(task.requestId)}`}
               >
                 接口日志
               </LocaleLink>

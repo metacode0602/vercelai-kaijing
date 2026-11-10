@@ -161,7 +161,7 @@ export default function StockAlertsSettingsPage() {
     <>
       {editor}
       <ConsoleBreadcrumbRegistration
-        items={[{ label: '设置', href: '/console/settings' }, { label: '库存预警阈值', href: '/console/settings/stock-alerts' }]}
+        items={[{ label: '设置', href: '/settings' }, { label: '库存预警阈值', href: '/settings/stock-alerts' }]}
       />
       <UedWorkspace
         title="库存预警阈值"

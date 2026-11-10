@@ -133,7 +133,7 @@ export default function NewShopPage() {
               Key 与 App Secret，否则无法跳转平台授权。
             </p>
             <Button asChild variant="outline" size="sm">
-              <LocaleLink href="/console/settings/marketplace-apps">前往配置</LocaleLink>
+              <LocaleLink href="/settings/marketplace-apps">前往配置</LocaleLink>
             </Button>
           </AlertDescription>
         </Alert>
@@ -254,7 +254,7 @@ export default function NewShopPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Button asChild variant="ghost">
-                  <LocaleLink href="/console/settings/shops">返回店铺列表</LocaleLink>
+                  <LocaleLink href="/settings/shops">返回店铺列表</LocaleLink>
                 </Button>
                 <Button type="submit" disabled={busy || !canBind}>
                   {busy ? <Spinner className="size-4" /> : null}

@@ -34,7 +34,7 @@ export default function IntegrationLogDetailPage({ params }: { params: Promise<{
   if (query.isLoading) {
     return (
       <DetailPageHeader
-        backHref="/console/settings/integration-log"
+        backHref="/settings/integration-log"
         title="加载中…"
         description="读取 integration_logs…"
       />
@@ -43,7 +43,7 @@ export default function IntegrationLogDetailPage({ params }: { params: Promise<{
   if (!log) {
     return (
       <DetailPageHeader
-        backHref="/console/settings/integration-log"
+        backHref="/settings/integration-log"
         title="未找到接口日志"
         description={`日志 ${id} 不存在或不属于当前组织。`}
       />
@@ -54,12 +54,12 @@ export default function IntegrationLogDetailPage({ params }: { params: Promise<{
     <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbRegistration
         items={[
-          { label: '接口与操作日志', href: '/console/settings/integration-log' },
+          { label: '接口与操作日志', href: '/settings/integration-log' },
           { label: log.requestId || log.id },
         ]}
       />
       <DetailPageHeader
-        backHref="/console/settings/integration-log"
+        backHref="/settings/integration-log"
         title={log.action}
         description={`${log.method} ${log.path} · ${log.shop}`}
         badges={

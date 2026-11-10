@@ -97,17 +97,17 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
   })
 
   if (query.isLoading) {
-    return <DetailPageHeader backHref="/console/settings/shops" title="加载中…" description="读取店铺…" />
+    return <DetailPageHeader backHref="/settings/shops" title="加载中…" description="读取店铺…" />
   }
   if (!row) {
-    return <DetailPageHeader backHref="/console/settings/shops" title="未找到店铺" description={`店铺 ${id} 不存在。`} />
+    return <DetailPageHeader backHref="/settings/shops" title="未找到店铺" description={`店铺 ${id} 不存在。`} />
   }
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <ConsoleBreadcrumbRegistration items={[{ label: '店铺连接', href: '/console/settings/shops' }, { label: row.name }]} />
+      <ConsoleBreadcrumbRegistration items={[{ label: '店铺连接', href: '/settings/shops' }, { label: row.name }]} />
       <DetailPageHeader
-        backHref="/console/settings/shops"
+        backHref="/settings/shops"
         title={row.name}
         description={`${row.platformLabel} · ${row.region} · ${row.externalShopId}`}
         badges={
@@ -189,7 +189,7 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
             当前状态「{row.authStatus}」。点击「去平台授权」跳转平台 OAuth，回调成功后才写入凭证。
             {row.lastError ? ` ${row.lastError}` : ''}{' '}
             <LocaleLink
-              href="/console/settings/marketplace-apps"
+              href="/settings/marketplace-apps"
               className="font-medium underline underline-offset-2"
             >
               检查平台应用配置
@@ -215,7 +215,7 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
             label: '平台应用',
             value: row.appCredentialId ? (
               <LocaleLink
-                href="/console/settings/marketplace-apps"
+                href="/settings/marketplace-apps"
                 className="underline underline-offset-2"
               >
                 {row.appCredentialLabel}

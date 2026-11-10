@@ -10,7 +10,7 @@ export default function AccessRoleDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="space-y-4">
       <DetailPageHeader
-        backHref="/console/settings/erp-access"
+        backHref="/settings/erp-access"
         title={`角色 ${id}`}
         description="细粒度 ERP 角色详情待权限服务。"
       />

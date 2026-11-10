@@ -119,7 +119,7 @@ export const shopsRouter = createTRPCRouter({
           shopId: shop.id,
         })
         return {
-          url: `/console/settings/marketplace-apps?${configParams.toString()}`,
+          url: `/settings/marketplace-apps?${configParams.toString()}`,
           missingConfig: true,
         }
       }

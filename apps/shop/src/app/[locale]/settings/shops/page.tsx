@@ -58,7 +58,7 @@ export default function ShopsSettingsPage() {
       title="店铺连接"
       description="shops + integration_*。授权走真实平台 OAuth，状态来自数据库。"
       rows={rows}
-      detailHref={(row) => `/console/settings/shops/${encodeURIComponent(row.id)}`}
+      detailHref={(row) => `/settings/shops/${encodeURIComponent(row.id)}`}
       searchKeys={['id', 'name', 'platformLabel', 'region', 'externalShopId', 'sellerId', 'shopGroup', 'fulfillmentMode', 'authStatus', 'appCredentialLabel', 'lastError', 'owner']}
       searchPlaceholder="搜索店铺、卖家 ID、分组或平台店铺 ID"
       search={q}
@@ -75,7 +75,7 @@ export default function ShopsSettingsPage() {
       }
       emptyText={listQuery.isLoading ? '加载中…' : '暂无店铺。新增店铺后会跳转平台授权。'}
       addLabel="新增店铺"
-      onAdd={() => router.push('/console/settings/shops/new')}
+      onAdd={() => router.push('/settings/shops/new')}
       columns={[
         { key: 'name', label: '店铺' },
         { key: 'platformLabel', label: '平台' },
@@ -95,7 +95,7 @@ export default function ShopsSettingsPage() {
           render: (row) =>
             row.appCredentialId ? (
               <LocaleLink
-                href="/console/settings/marketplace-apps"
+                href="/settings/marketplace-apps"
                 className="underline-offset-2 hover:underline"
               >
                 {row.appCredentialLabel}

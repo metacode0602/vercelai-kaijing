@@ -90,13 +90,13 @@ export default function AftersalePolicySettingsPage() {
     <>
       <ConsoleBreadcrumbRegistration
         items={[
-          { label: '设置', href: '/console/settings' },
-          { label: '售后策略', href: '/console/settings/aftersale-policy' },
+          { label: '设置', href: '/settings' },
+          { label: '售后策略', href: '/settings/aftersale-policy' },
         ]}
       />
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
-          backHref="/console/settings"
+          backHref="/settings"
           title="售后策略"
           description="按店铺分别设置未发货占库释放与店铺退款。占库释放只有手动/自动；退款另有等待天数，且仅在平台提供同意退款接口时可选自动。"
           badges={<Badge variant="outline">PostgreSQL</Badge>}

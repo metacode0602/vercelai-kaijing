@@ -1,6 +1,6 @@
 # 平台 OAuth 租户配置手册（Daraz / Lazada / TikTok Shop）
 
-> 适用：租户在 `/console/settings/shops/new` 新增或重连店铺时，需要配置自己的开放平台应用。
+> 适用：租户在 `/settings/shops/new` 新增或重连店铺时，需要配置自己的开放平台应用。
 > 应用凭据由 **租户在控制台自助维护**，不再写入部署环境变量。
 >
 > 相关设计：[Marketplace 多租户应用凭据](../../../../docs/design/marketplace-multitenant-app-credentials.md)
@@ -11,7 +11,7 @@
 2. 打开 **设置 → 平台应用配置**：
 
    ```text
-   /console/settings/marketplace-apps
+   /settings/marketplace-apps
    ```
 
 3. 选择平台与站点，填写平台开放后台的 **App Key** / **App Secret**。
@@ -142,7 +142,7 @@ WHERE shop_id = '<店铺ID>';
 | 内容 | 位置 |
 | --- | --- |
 | 设计文档 | `docs/design/marketplace-multitenant-app-credentials.md` |
-| 配置页 | `apps/shop/src/app/[locale]/console/settings/marketplace-apps/page.tsx` |
+| 配置页 | `apps/shop/src/app/[locale]/settings/marketplace-apps/page.tsx` |
 | 配置 tRPC | `apps/shop/src/lib/server/routers/marketplace-apps.ts` |
 | 授权 tRPC | `apps/shop/src/lib/server/routers/shops.ts` |
 | Authorize / Callback 路由 | `apps/shop/src/app/api/marketplace/{authorize,[platform]/oauth/callback}/route.ts` |

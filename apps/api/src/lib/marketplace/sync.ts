@@ -315,7 +315,7 @@ async function markAuthFailure(
     title: `店铺 ${shop.name} 授权失效`,
     summary: "平台令牌刷新或调用失败，请前往店铺连接重新授权。",
     body: message.slice(0, 1000),
-    href: `/console/settings/shops/${shop.id}`,
+    href: `/settings/shops/${shop.id}`,
     sourceType: "shop_auth",
     sourceId: shop.id,
   })

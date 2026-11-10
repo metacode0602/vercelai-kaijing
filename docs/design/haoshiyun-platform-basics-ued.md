@@ -33,8 +33,8 @@
 
 ## 5. 页面实现
 
-- `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx`
-- `apps/shop/src/app/[locale]/console/settings/dictionaries/page.tsx`
+- `apps/shop/src/app/[locale]/settings/platform-basics/page.tsx`
+- `apps/shop/src/app/[locale]/settings/dictionaries/page.tsx`
 - 示例资料：`apps/shop/src/lib/crossborder/platform-basics-data.ts`
 - 设置导航：`apps/shop/src/lib/console-nav.ts`
 - 当前平台基础资料页展示公司仓库及可供店铺选择的多选关系；店铺创建/编辑中的仓库选择流程留待后续页面 UED 阶段接入。

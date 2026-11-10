@@ -151,7 +151,7 @@ export default function OnboardingStatusPage() {
             ) : null}
             {state?.bindingAllowed ? (
               <Button asChild>
-                <LocaleLink href="/console/settings/shops/new">新增店铺</LocaleLink>
+                <LocaleLink href="/settings/shops/new">新增店铺</LocaleLink>
               </Button>
             ) : null}
             {status === 'submitted' || status === 'approved' ? (
@@ -160,7 +160,7 @@ export default function OnboardingStatusPage() {
               </Button>
             ) : null}
             <Button asChild variant="ghost">
-              <LocaleLink href="/console/settings/shops">店铺管理</LocaleLink>
+              <LocaleLink href="/settings/shops">店铺管理</LocaleLink>
             </Button>
           </div>
         </CardContent>

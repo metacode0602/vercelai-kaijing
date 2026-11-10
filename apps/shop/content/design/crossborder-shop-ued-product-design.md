@@ -146,7 +146,7 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 | 8 | 成本计算 | `/console/costs` | `Calculator` | 到仓成本 / 税项 / 定价 |
 | 9 | 财务中心 | `/console/finance` | `Wallet` | 营收成本利润粗览；与成本页分离 |
 | — | ─── divider ─── | | | |
-| 底 | 设置 | `/console/settings`（及子路径） | `Settings` | **pinned footer**；同时 Topbar 齿轮进入 |
+| 底 | 设置 | `/settings`（及子路径） | `Settings` | **pinned footer**；同时 Topbar 齿轮进入 |
 
 **不要**放进主侧栏：需求总览、实施路线图、Profile、独立 AI 助手页、历史部署类入口（过渡期隐藏导航、URL 暂留）。
 
@@ -158,11 +158,11 @@ Open Mercato 是**布局参考 + 后续数据/交互 enrichment 来源**，不�
 
 | Tab | 路由建议 | 内容 |
 |-----|----------|------|
-| 店铺连接 | `/console/settings/shops` | 店铺列表、平台、区域、授权状态/到期、最近同步、错误信息；授权与重连同页 |
-| 平台应用配置 | `/console/settings/marketplace-apps` | 组织级 App Key / App Secret、回调地址（不明文展示密钥） |
-| 通知 / 钉钉 | `/console/settings/notifications` | Webhook、钉钉机器人、告警开关 |
-| 组织成员 | `/console/settings/members` | Better Auth org 成员与角色（只读+邀请，深度权限可后置） |
-| 偏好 | `/console/settings/preferences` | 默认店铺、默认时区/币种展示、表格密度等 |
+| 店铺连接 | `/settings/shops` | 店铺列表、平台、区域、授权状态/到期、最近同步、错误信息；授权与重连同页 |
+| 平台应用配置 | `/settings/marketplace-apps` | 组织级 App Key / App Secret、回调地址（不明文展示密钥） |
+| 通知 / 钉钉 | `/settings/notifications` | Webhook、钉钉机器人、告警开关 |
+| 组织成员 | `/settings/members` | Better Auth org 成员与角色（只读+邀请，深度权限可后置） |
+| 偏好 | `/settings/preferences` | 默认店铺、默认时区/币种展示、表格密度等 |
 
 Settings 页头提供「← 返回工作台」回到上一业务路由（或 dashboard）。
 
@@ -543,7 +543,7 @@ apps/shop/app/.../（示意 · App Router）
 | 与 Demo 差异 | Demo 独立「AI 助手」页**不进入主侧栏**；不绑定 TokenHub/hy3 品牌；实现可接任意 LLM 网关，接口可替换。离线规则引擎作 P2 兜底 |
 | MVP | CopilotKit UI 壳 + mock；与首批 UI 壳同批即可实现，仍不接业务 tRPC |
 
-### 5.10 Settings · 店铺与连接健康 `/console/settings/shops`
+### 5.10 Settings · 店铺与连接健康 `/settings/shops`
 
 | 项 | 内容 |
 |----|------|
@@ -619,7 +619,7 @@ apps/shop/app/.../（示意 · App Router）
 | `/crossborder/costs` | `/console/costs` | 换壳 + LK 税项 UI；结算粗览迁出 |
 | （无） | `/console/finance` | **新建** |
 | （无独立助手页） | 全局 CopilotKit（无路由） | **新建壳层能力**；不建 `/console/assistant` |
-| （无） | `/console/settings/*` | **新建** `settings/layout.tsx` + 各 Tab `page.tsx`（垂直 Tab 模式） |
+| （无） | `/settings/*` | **新建** `settings/layout.tsx` + 各 Tab `page.tsx`（垂直 Tab 模式） |
 | （无） | `/console/profile` | **新建** `profile/layout.tsx` + Tab `page.tsx` |
 | `/console/server/*` 等历史业务导航 | 移出默认侧栏 | **已确认**：隐藏导航、URL 暂留 |
 

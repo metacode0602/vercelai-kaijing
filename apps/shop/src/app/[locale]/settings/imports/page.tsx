@@ -28,7 +28,7 @@ export default function ImportsPage() {
         ]}
       >
         <Button size="sm" variant="outline" asChild>
-          <LocaleLink href="/console/settings/import-templates">打开导入模板</LocaleLink>
+          <LocaleLink href="/settings/import-templates">打开导入模板</LocaleLink>
         </Button>
       </UedWorkspace>
     </div>

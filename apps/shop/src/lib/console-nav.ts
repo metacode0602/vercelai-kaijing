@@ -205,32 +205,109 @@ export const COEXIST_NAV: ConsoleNavItemConfig[] = [
 ]
 
 export const CONSOLE_FOOTER_NAV: ConsoleNavItemConfig[] = [
-  { url: '/console/settings', titleKey: 'nav.settings' },
+  { url: '/settings', titleKey: 'nav.settings' },
 ]
 
-export const SETTINGS_NAV = [
-  { url: '/console/settings/organization', titleKey: 'settings.organization' as const },
-  { url: '/console/settings/shops', titleKey: 'settings.shops' as const },
-  { url: '/console/settings/marketplace-apps', titleKey: 'settings.marketplaceApps' as const },
-  { url: '/console/settings/platform-basics', titleKey: 'settings.platformBasics' as const },
-  { url: '/console/settings/fx-rates', titleKey: 'settings.fxRates' as const },
-  { url: '/console/settings/stock-alerts', titleKey: 'settings.stockAlerts' as const },
-  { url: '/console/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy' as const },
-  { url: '/console/settings/dictionaries', titleKey: 'settings.dictionaries' as const },
-  { url: '/console/settings/imports', titleKey: 'settings.imports' as const },
-  { url: '/console/settings/import-templates', titleKey: 'settings.importTemplates' as const },
-  { url: '/console/settings/integration-log', titleKey: 'settings.integrationLog' as const },
-  { url: '/console/settings/erp-access', titleKey: 'settings.erpAccess' as const },
-  { url: '/console/settings/audit', titleKey: 'settings.audit' as const },
-  { url: '/console/settings/members', titleKey: 'settings.members' as const },
-  { url: '/console/settings/notifications', titleKey: 'settings.notifications' as const },
-  { url: '/console/settings/preferences', titleKey: 'settings.preferences' as const },
-] as const
+export type SettingsNavTitleKey =
+  | 'settings.organization'
+  | 'settings.shops'
+  | 'settings.marketplaceApps'
+  | 'settings.platformBasics'
+  | 'settings.fxRates'
+  | 'settings.stockAlerts'
+  | 'settings.aftersalePolicy'
+  | 'settings.dictionaries'
+  | 'settings.imports'
+  | 'settings.importTemplates'
+  | 'settings.integrationLog'
+  | 'settings.erpAccess'
+  | 'settings.audit'
+  | 'settings.members'
+  | 'settings.notifications'
+  | 'settings.preferences'
 
-export const PROFILE_NAV = [
-  { url: '/console/profile/account', titleKey: 'profile.account' as const },
-  { url: '/console/profile/preferences', titleKey: 'profile.preferences' as const },
-] as const
+export type SettingsNavGroupLabelKey =
+  | 'settings.groups.enterprise'
+  | 'settings.groups.basics'
+  | 'settings.groups.data'
+  | 'settings.groups.system'
+  | 'settings.groups.team'
+  | 'settings.groups.personal'
+
+export type SettingsNavItemConfig = {
+  url: string
+  titleKey: SettingsNavTitleKey
+}
+
+export type SettingsNavGroupConfig = {
+  groupKey: 'enterprise' | 'basics' | 'data' | 'system' | 'team' | 'personal'
+  labelKey: SettingsNavGroupLabelKey
+  items: SettingsNavItemConfig[]
+}
+
+/**
+ * 设置区 /settings/* 左侧菜单分组（风格与 console 主侧栏一致）。
+ * @see docs/design/haoshiyun-erp-console-menu-ia.md §2.3
+ */
+export const SETTINGS_NAV_GROUPS: SettingsNavGroupConfig[] = [
+  {
+    groupKey: 'enterprise',
+    labelKey: 'settings.groups.enterprise',
+    items: [
+      { url: '/settings/organization', titleKey: 'settings.organization' },
+      { url: '/settings/shops', titleKey: 'settings.shops' },
+      { url: '/settings/marketplace-apps', titleKey: 'settings.marketplaceApps' },
+    ],
+  },
+  {
+    groupKey: 'basics',
+    labelKey: 'settings.groups.basics',
+    items: [
+      { url: '/settings/platform-basics', titleKey: 'settings.platformBasics' },
+      { url: '/settings/dictionaries', titleKey: 'settings.dictionaries' },
+      { url: '/settings/fx-rates', titleKey: 'settings.fxRates' },
+      { url: '/settings/stock-alerts', titleKey: 'settings.stockAlerts' },
+      { url: '/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy' },
+    ],
+  },
+  {
+    groupKey: 'data',
+    labelKey: 'settings.groups.data',
+    items: [
+      { url: '/settings/imports', titleKey: 'settings.imports' },
+      { url: '/settings/import-templates', titleKey: 'settings.importTemplates' },
+    ],
+  },
+  {
+    groupKey: 'system',
+    labelKey: 'settings.groups.system',
+    items: [
+      { url: '/settings/integration-log', titleKey: 'settings.integrationLog' },
+      { url: '/settings/erp-access', titleKey: 'settings.erpAccess' },
+      { url: '/settings/audit', titleKey: 'settings.audit' },
+    ],
+  },
+  {
+    groupKey: 'team',
+    labelKey: 'settings.groups.team',
+    items: [
+      { url: '/settings/members', titleKey: 'settings.members' },
+      { url: '/settings/notifications', titleKey: 'settings.notifications' },
+    ],
+  },
+  {
+    groupKey: 'personal',
+    labelKey: 'settings.groups.personal',
+    items: [{ url: '/settings/preferences', titleKey: 'settings.preferences' }],
+  },
+]
+
+export type ProfileNavTitleKey = 'profile.account' | 'profile.preferences'
+
+export const PROFILE_NAV: { url: string; titleKey: ProfileNavTitleKey }[] = [
+  { url: '/console/profile/account', titleKey: 'profile.account' },
+  { url: '/console/profile/preferences', titleKey: 'profile.preferences' },
+]
 
 export function getAllConsoleNavItems(): ConsoleNavItemConfig[] {
   return [
@@ -246,7 +323,7 @@ export function findBestMatchingNavItem(pathname: string): ConsoleNavItemConfig 
 }
 
 export function getConsolePageTitleKey(pathname: string): string {
-  if (pathname.startsWith('/console/settings')) return 'pages.settings'
+  if (pathname === '/settings' || pathname.startsWith('/settings/')) return 'pages.settings'
   if (pathname.startsWith('/console/profile')) return 'pages.profile'
   const item = findBestMatchingNavItem(pathname)
   if (!item) return 'pages.dashboard'

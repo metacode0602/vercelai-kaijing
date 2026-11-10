@@ -191,7 +191,7 @@ UED 已扩展至 D1 原型层；目标 ERP 功能与 D0-D3 成熟度追踪见 [�
 
 | 路由 | 原型内容 |
 |---|---|
-| `/console/settings/shops` | 平台→站点→店铺信息→多选仓库→唯一默认出库仓向导 |
+| `/settings/shops` | 平台→站点→店铺信息→多选仓库→唯一默认出库仓向导 |
 | `/console/master-products` | SPU 列表、SKU 规格、创建 SPU、规格详情选择 |
 | `/console/suppliers` | 供应商/SKU 采购映射新增 |
 | `/console/mappings` | Seller SKU 映射新增及异常状态 |
@@ -203,7 +203,7 @@ UED 已扩展至 D1 原型层；目标 ERP 功能与 D0-D3 成熟度追踪见 [�
 | `/console/imports` | 模板入口、批次列表、错误行提示、导入草稿 |
 | `/console/system-log` | 接口/操作日志及重试动作提示 |
 | `/console/access-control` | 角色和范围矩阵、新建角色表单 |
-| `/console/settings/erp-access` | 设置区角色与数据范围入口 |
+| `/settings/erp-access` | 设置区角色与数据范围入口 |
 | `/console/dashboard` | 日期/平台/站点过滤、状态提示、指标到报表入口 |
 | `/console/orders/[id]` | 库存节点待确认、映射检查、履约/包裹/售后入口 |
 | `/console/order-exceptions` | 未映射/停用 SKU 阻断队列、映射修复及重试识别状态演示 |

@@ -15,7 +15,7 @@
 | `stock_adjustments` 审批/过账写 `stock_adjust` 流水 | — |
 | 库位绑定 `commerce_bin_bindings` + 履历 `bin_binding_history`（`wms.listBinBindings`） | — |
 | `inventory_pools` 查询/CRUD/店铺分配（`wms.*InventoryPool*`） | 独立库存池管理页 |
-| **库存预警 `stock_alerts`（阈值/静音/重算，见 §3.5）**：设置页 `/console/settings/stock-alerts` + `/console/inventory` 预警列表（`wms.listInventoryAlerts`） | — |
+| **库存预警 `stock_alerts`（阈值/静音/重算，见 §3.5）**：设置页 `/settings/stock-alerts` + `/console/inventory` 预警列表（`wms.listInventoryAlerts`） | — |
 | seed `db:seed:commerce-wms`（库区/绑定/库存池） | — |
 | 库区页 → 见 module9（`commerce_warehouse_zones`） | — |
 
@@ -92,7 +92,7 @@ pnpm --filter shop dev
 **读路径**：
 
 - `/console/inventory` 预警列表：`wms.listInventoryAlerts`（`listInventoryAlerts`）——按 variant GROUP BY 的 SQL 聚合（available / ageDays / alert）+ LEFT JOIN `stock_alerts` 取阈值与 muted；关键词、告警过滤、排序、分页全部下推 SQL，Node 只持有当前页。
-- 设置页 `/console/settings/stock-alerts`（侧栏 `settings.stockAlerts`）：`trpc.stockAlerts.list / get / upsert / setMuted / delete / meta`——阈值维护、静音/解除、删除重算行（删除后下次重算按缺省阈值重建）。
+- 设置页 `/settings/stock-alerts`（侧栏 `settings.stockAlerts`）：`trpc.stockAlerts.list / get / upsert / setMuted / delete / meta`——阈值维护、静音/解除、删除重算行（删除后下次重算按缺省阈值重建）。
 
 ## 4. tRPC 过程
 

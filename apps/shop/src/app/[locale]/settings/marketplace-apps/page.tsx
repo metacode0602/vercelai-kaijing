@@ -295,7 +295,7 @@ export default function MarketplaceAppsSettingsPage() {
             </Button>
           ) : null}
           <Button variant="outline" asChild>
-            <LocaleLink href="/console/settings/shops">返回店铺连接</LocaleLink>
+            <LocaleLink href="/settings/shops">返回店铺连接</LocaleLink>
           </Button>
         </div>
       </div>
@@ -317,7 +317,7 @@ export default function MarketplaceAppsSettingsPage() {
             点击「添加应用」保存后，返回店铺重新点击「去平台授权」。
             {missingApp.shopId ? (
               <LocaleLink
-                href={`/console/settings/shops/${missingApp.shopId}`}
+                href={`/settings/shops/${missingApp.shopId}`}
                 className="ml-1 font-medium underline underline-offset-2"
               >
                 返回店铺

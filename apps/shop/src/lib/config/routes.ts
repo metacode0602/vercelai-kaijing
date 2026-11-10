@@ -34,14 +34,7 @@ export enum Routes {
   UsageList = '/console/usage-list',
   // dashboard routes
   Dashboard = '/console/dashboard',
-  Settings = '/console/settings',
-  SettingsProfile = '/settings/profile',
-  SettingsBilling = '/settings/billing',
-  SettingsSecurity = '/settings/security',
-  SettingsNotifications = '/settings/notifications',
-  SettingsPlatforms = '/settings/platforms',
-  SettingsInvite = '/settings/invite',
-  SettingsLogout = '/settings/logout',
+  Settings = '/settings',
 }
 
 /**

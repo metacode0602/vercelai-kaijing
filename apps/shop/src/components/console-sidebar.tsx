@@ -102,8 +102,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/console/shipments': <Truck className="size-4" />,
   '/console/aftersales': <Undo2 className="size-4" />,
   '/console/finance': <Wallet className="size-4" />,
-  '/console/settings/platform-basics': <Settings className="size-4" />,
-  '/console/settings': <Settings className="size-4" />,
+  '/settings': <Settings className="size-4" />,
 }
 
 function getNavIcon(url: string) {

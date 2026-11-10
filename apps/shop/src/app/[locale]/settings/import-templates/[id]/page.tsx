@@ -59,12 +59,12 @@ export default function ImportTemplateDetailPage({ params }: { params: Promise<{
   })
 
   if (query.isLoading) {
-    return <DetailPageHeader backHref="/console/settings/import-templates" title="加载中…" description="读取模板…" />
+    return <DetailPageHeader backHref="/settings/import-templates" title="加载中…" description="读取模板…" />
   }
   if (!row) {
     return (
       <DetailPageHeader
-        backHref="/console/settings/import-templates"
+        backHref="/settings/import-templates"
         title="未找到模板"
         description={`模板 ${id} 不存在。`}
       />
@@ -74,10 +74,10 @@ export default function ImportTemplateDetailPage({ params }: { params: Promise<{
   return (
     <div className="flex w-full flex-col gap-4">
       <ConsoleBreadcrumbRegistration
-        items={[{ label: '导入模板', href: '/console/settings/import-templates' }, { label: row.kind }]}
+        items={[{ label: '导入模板', href: '/settings/import-templates' }, { label: row.kind }]}
       />
       <DetailPageHeader
-        backHref="/console/settings/import-templates"
+        backHref="/settings/import-templates"
         title={row.kind}
         description={`${row.version} · ${row.status}`}
         badges={<Badge variant={row.status === '启用' ? 'secondary' : 'outline'}>{row.status}</Badge>}
