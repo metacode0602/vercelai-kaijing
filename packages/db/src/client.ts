@@ -1,6 +1,7 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
-import { Pool, type PoolConfig } from "pg"
+import { Pool } from "pg"
 import { schema, type AppDbSchema } from "./schema"
+import { applyPgSslMode, resolvePgSslMode } from "./ssl"
 import { webAuthAdapterSchema } from "./web-auth-schema"
 
 export type NodePgClientConfig = {
@@ -26,45 +27,6 @@ export type NodePgClient = {
   pool: Pool
 }
 
-function extractHost(connectionString: string): string | undefined {
-  const match = connectionString.match(/@([^:/@?#]+)/)
-  return match?.[1]
-}
-
-function isLocalhost(host: string | undefined): boolean {
-  if (!host) return false
-  const normalized = host.replace(/^\[|\]$/g, "").toLowerCase()
-  return (
-    normalized === "localhost" ||
-    normalized === "::1" ||
-    normalized === "0.0.0.0" ||
-    normalized.startsWith("127.")
-  )
-}
-
-function resolveSsl(connectionString: string): PoolConfig["ssl"] {
-  const mode = (process.env.DATABASE_SSL ?? "").trim().toLowerCase()
-
-  if (mode === "require" || mode === "required" || mode === "true" || mode === "1" || mode === "yes") {
-    return { rejectUnauthorized: true }
-  }
-  if (
-    mode === "noverify" ||
-    mode === "verify-none" ||
-    mode === "allow" ||
-    mode === "prefer"
-  ) {
-    return { rejectUnauthorized: false }
-  }
-  if (mode === "disable" || mode === "false" || mode === "0" || mode === "no" || mode === "none") {
-    return false
-  }
-
-  const host = extractHost(connectionString)
-  if (isLocalhost(host)) return false
-  return { rejectUnauthorized: false }
-}
-
 function resolvePoolMax(config: NodePgClientConfig): number {
   if (config.max != null) return config.max
   const raw = process.env.DATABASE_POOL_MAX
@@ -81,9 +43,10 @@ export function createPgClient(config: NodePgClientConfig = {}): NodePgClient {
     throw new Error("DATABASE_URL is missing.")
   }
 
+  // 连接串内的 sslmode 会覆盖程序化 ssl 配置且语义随 pg 版本漂移（require 被当作
+  // verify-full，自签证书链即失败），统一改写为 DATABASE_SSL/自动策略解析出的模式。
   const pool = new Pool({
-    connectionString,
-    ssl: resolveSsl(connectionString),
+    connectionString: applyPgSslMode(connectionString, resolvePgSslMode(connectionString)),
     max: resolvePoolMax(config),
   })
 
