@@ -274,7 +274,7 @@ export default function MarketplaceAppsSettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -492,7 +492,7 @@ export default function MarketplaceAppsSettingsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl min-w-[35vw]">
           <form className="grid gap-4" onSubmit={submitForm}>
             <DialogHeader>
               <DialogTitle>{editingId ? '修改应用' : '添加应用'}</DialogTitle>
@@ -628,7 +628,7 @@ export default function MarketplaceAppsSettingsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-5xl min-w-[35vw]">
           {detailRow ? (
             <>
               <DialogHeader>
@@ -731,7 +731,7 @@ export default function MarketplaceAppsSettingsPage() {
       </Dialog>
 
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-5xl min-w-[35vw] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>如何获取平台应用凭据</DialogTitle>
             <DialogDescription>
