@@ -219,7 +219,7 @@ Excel"待IT确认"35 项全部留白，复用评估中以下项直接影响 sche
 | 阶段口径 | `docs/design/crossborder-mvp-overview.md` §6 |
 | Schema | `packages/db/src/commerce-schema.ts`（19 张业务表）、迁移 `packages/db/drizzle/0005–0007`（历史编号；2026-11-08 重生成为 `0000`/`0001`/`0002`） |
 | tRPC | `apps/web/src/lib/server/routers/index.ts`（仅 apiKeys） |
-| 页面数据源 | ~~`apps/shop/src/lib/crossborder/{mock-data.ts, erp-ued-data.ts, platform-basics-data.ts}`~~ **2026-11-08**：主路径为 tRPC；残留 `erp-ued-data.ts` / `platform-basics-data.ts` 为示例常量，`mock-data.ts` 已删 |
+| 页面数据源 | ~~`apps/shop/src/lib/crossborder/{mock-data.ts, erp-ued-data.ts, platform-basics-data.ts}`~~ **2026-11-08**：主路径为 tRPC；**2026-11-10**：`platform-basics-data.ts` 已删，平台基础资料改走 tRPC + 双层表（见 [haoshiyun-platform-basics-ued.md §7](./haoshiyun-platform-basics-ued.md#7-双层模型与初始化2026-11-10-已实现)）；残留 `erp-ued-data.ts` 为示例常量，`mock-data.ts` 已删 |
 | 真实业务写 | `apps/shop/src/lib/marketplace/persist-credentials.ts`、OAuth route |
 | 连接器 | `packages/marketplace/src/{adapters,signing,oauth,workers}/`、`apps/shop/src/workers/marketplace-sync.ts`（persist stub） |
 | 认证/权限 | `packages/auth/src/{permissions,realm-organization}.ts`、`packages/db/src/auth-schema.ts` |

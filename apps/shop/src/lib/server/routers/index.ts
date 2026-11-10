@@ -36,6 +36,7 @@ import { reportsRouter } from './reports'
 import { fxRatesRouter } from './fx-rates'
 import { integrationLogsRouter } from './integration-logs'
 import { stockAlertsRouter } from './stock-alerts'
+import { platformBasicsRouter } from './platform-basics'
 
 export * from '@/lib/server/trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -78,6 +79,7 @@ export const appRouter = router({
   fxRates: fxRatesRouter,
   integrationLogs: integrationLogsRouter,
   stockAlerts: stockAlertsRouter,
+  platformBasics: platformBasicsRouter,
 })
 
 export type AppRouter = typeof appRouter

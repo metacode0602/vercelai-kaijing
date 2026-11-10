@@ -21,6 +21,7 @@ import {
   tenantOnboardingApplications,
   type OnboardingStatus,
 } from '@workspace/db'
+import { initializePlatformBasicsForOrganization } from '@workspace/db/platform-basics'
 import { db } from '@/lib/db'
 import { signOnboardingFileUrl } from '@/lib/server/onboarding-file'
 
@@ -256,6 +257,10 @@ async function reviewApplication(input: {
       )
       .where(eq(organization.id, application.organizationId))
 
+    const platformBasics = input.approve
+      ? await initializePlatformBasicsForOrganization(tx, application.organizationId)
+      : { inserted: 0 }
+
     await tx.insert(auditEvents).values({
       organizationId: application.organizationId,
       actorUserId: input.reviewerId,
@@ -267,6 +272,7 @@ async function reviewApplication(input: {
         status: nextStatus,
         version: application.version,
         reviewNote: input.note?.trim() || null,
+        platformBasicsInitialized: platformBasics.inserted,
       },
       result: 'success',
     })

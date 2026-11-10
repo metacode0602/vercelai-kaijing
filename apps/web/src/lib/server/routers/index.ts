@@ -2,6 +2,7 @@ import { router } from './trpc'
 import { apiKeysRouter } from './apiKeys'
 import { platformOnboardingRouter } from './platformOnboarding'
 import { platformOpsRouter } from './platformOps'
+import { platformBasicsRouter } from './platformBasics'
 import { platformShopsRouter } from './platformShops'
 import { platformUsersRouter } from './platformUsers'
 
@@ -12,6 +13,7 @@ export const appRouter = router({
   apiKeys: apiKeysRouter,
   platformOnboarding: platformOnboardingRouter,
   platformOps: platformOpsRouter,
+  platformBasics: platformBasicsRouter,
   platformShops: platformShopsRouter,
   platformUsers: platformUsersRouter,
 })

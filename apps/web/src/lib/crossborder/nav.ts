@@ -7,4 +7,5 @@ export const CROSSBORDER_NAV = [
   { href: '/crossborder/shop-conflicts', label: '店铺冲突' },
   { href: '/crossborder/sync-health', label: '同步健康' },
   { href: '/crossborder/pending-actions', label: '待审动作' },
+  { href: '/crossborder/platform-basics', label: '基础资料' },
 ] as const

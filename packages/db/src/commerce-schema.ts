@@ -1964,6 +1964,88 @@ export const platformCategories = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// platform_basics_catalog / commerce_platform_basics — 平台基础资料（F02）
+//   平台目录（全局）由平台管理员维护，是初始化数据的一部分；企业入驻审核通过时
+//   按目录复制到组织副本，组织内用户只对自己的副本做 CRUD。
+//   kind 判别 platform / country / currency 三类，列按类可空，避免三套同构表。
+//   @see docs/design/haoshiyun-platform-basics-ued.md §7
+// ---------------------------------------------------------------------------
+
+export const platformBasicKinds = ["platform", "country", "currency"] as const
+export type PlatformBasicKind = (typeof platformBasicKinds)[number]
+
+export const platformBasicStatuses = ["active", "inactive"] as const
+export type PlatformBasicStatus = (typeof platformBasicStatuses)[number]
+
+export const platformApiReadyStates = ["Connected", "Configuration required", "Planned"] as const
+export type PlatformApiReadyState = (typeof platformApiReadyStates)[number]
+
+const platformBasicColumns = {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  kind: varchar("kind", { length: 16 }).$type<PlatformBasicKind>().notNull(),
+  code: varchar("code", { length: 32 }).notNull(),
+  name: text("name").notNull(),
+  status: varchar("status", { length: 16 }).$type<PlatformBasicStatus>().notNull().default("active"),
+  description: text("description").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  /** country：区域名 */
+  region: varchar("region", { length: 64 }),
+  /** country：IANA 时区 */
+  timezone: varchar("timezone", { length: 64 }),
+  /** country：默认币种代码 */
+  defaultCurrency: varchar("default_currency", { length: 16 }),
+  /** currency：货币符号 */
+  symbol: varchar("symbol", { length: 16 }),
+  /** currency：小数位 0–4 */
+  decimals: integer("decimals"),
+  /** platform：覆盖站点的国家代码 */
+  countries: jsonb("countries").$type<string[]>().notNull().default([]),
+  /** platform：接入状态 */
+  apiReady: varchar("api_ready", { length: 32 }).$type<PlatformApiReadyState>(),
+  ...timestamps,
+}
+
+export const platformBasicsCatalog = pgTable(
+  "platform_basics_catalog",
+  platformBasicColumns,
+  (t) => [
+    uniqueIndex("platform_basics_catalog_kind_code_uidx").on(t.kind, t.code),
+    index("platform_basics_catalog_kind_status_idx").on(t.kind, t.status),
+    check("platform_basics_catalog_kind_check", sql`${t.kind} in ('platform', 'country', 'currency')`),
+    check("platform_basics_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+    check(
+      "platform_basics_catalog_decimals_check",
+      sql`${t.decimals} is null or (${t.decimals} >= 0 and ${t.decimals} <= 4)`,
+    ),
+  ],
+)
+
+export const commercePlatformBasics = pgTable(
+  "commerce_platform_basics",
+  {
+    ...platformBasicColumns,
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    /** 平台目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformBasicsCatalog.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    uniqueIndex("commerce_platform_basics_org_kind_code_uidx").on(t.organizationId, t.kind, t.code),
+    index("commerce_platform_basics_org_kind_idx").on(t.organizationId, t.kind),
+    index("commerce_platform_basics_org_status_idx").on(t.organizationId, t.status),
+    check("commerce_platform_basics_kind_check", sql`${t.kind} in ('platform', 'country', 'currency')`),
+    check("commerce_platform_basics_status_check", sql`${t.status} in ('active', 'inactive')`),
+    check(
+      "commerce_platform_basics_decimals_check",
+      sql`${t.decimals} is null or (${t.decimals} >= 0 and ${t.decimals} <= 4)`,
+    ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // fx_rates — ADD（F33；platform + ccy + effective date + source）
 // ---------------------------------------------------------------------------
 
@@ -3512,6 +3594,8 @@ export type FeeTemplateVersionRow = typeof feeTemplateVersions.$inferSelect
 export type AuditEvent = typeof auditEvents.$inferSelect
 export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
+export type PlatformBasicsCatalogRow = typeof platformBasicsCatalog.$inferSelect
+export type CommercePlatformBasicRow = typeof commercePlatformBasics.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect
 export type FxRate = typeof fxRates.$inferSelect
