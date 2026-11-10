@@ -11,6 +11,13 @@ import {
 } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 
 const PLATFORMS = [
   {
@@ -89,17 +96,18 @@ function GuideBody({ baseUrl }: { baseUrl: string }) {
       <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="space-y-2">
           <Label>平台</Label>
-          <select
-            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-            value={platform}
-            onChange={(event) => setPlatform(event.target.value as Platform)}
-          >
-            {PLATFORMS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          <Select value={platform} onValueChange={(value) => setPlatform(value as Platform)}>
+            <SelectTrigger className="h-9 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PLATFORMS.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>独立回调标识（可选）</Label>

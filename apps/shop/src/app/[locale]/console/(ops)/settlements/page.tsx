@@ -30,6 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@workspace/ui/components/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 
 const PAGE_SIZE = 20
 
@@ -222,19 +229,22 @@ export default function SettlementsPage() {
             导入账单
           </Button>
           {metaQuery.data?.settlementSync?.canSync ? (
-            <select
-              className="h-8 rounded-md border bg-background px-2 text-sm"
-              value={syncShopId}
-              onChange={(e) => setSyncShopId(e.target.value)}
-              aria-label="同步店铺"
+            <Select
+              value={syncShopId === '' ? '__empty__' : syncShopId}
+              onValueChange={(value) => setSyncShopId(value === '__empty__' ? '' : value)}
             >
-              <option value="">全部已授权店铺</option>
-              {(metaQuery.data.settlementSync.shops.filter((s) => s.hasCredential) ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}（{s.platform}）
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-8" aria-label="同步店铺">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__empty__">全部已授权店铺</SelectItem>
+                {(metaQuery.data.settlementSync.shops.filter((s) => s.hasCredential) ?? []).map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}（{s.platform}）
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : null}
           <Button
             size="sm"

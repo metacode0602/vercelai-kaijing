@@ -15,6 +15,13 @@ import {
 } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Separator } from '@workspace/ui/components/separator'
 import { Spinner } from '@workspace/ui/components/spinner'
 import { cn } from '@workspace/ui/lib/utils'
@@ -456,17 +463,21 @@ export function OnboardingWizard() {
               </div>
               <div className="max-w-sm space-y-2">
                 <Label>国家 / 地区</Label>
-                <select
-                  className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                <Select
                   value={form.countryCode}
-                  onChange={(event) => update('countryCode', event.target.value)}
+                  onValueChange={(value) => update('countryCode', value)}
                 >
-                  {COUNTRIES.map((country) => (
-                    <option key={country.value} value={country.value}>
-                      {country.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((country) => (
+                      <SelectItem key={country.value} value={country.value}>
+                        {country.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <p className="text-xs text-muted-foreground">
                 提交入驻即表示你确认所填信息真实有效，并同意平台进行资质审核。
@@ -513,17 +524,21 @@ export function OnboardingWizard() {
                   />
                   <div className="space-y-2">
                     <Label>国家 / 地区</Label>
-                    <select
-                      className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                    <Select
                       value={form.countryCode}
-                      onChange={(event) => update('countryCode', event.target.value)}
+                      onValueChange={(value) => update('countryCode', value)}
                     >
-                      {COUNTRIES.map((country) => (
-                        <option key={country.value} value={country.value}>
-                          {country.label}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="h-9 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRIES.map((country) => (
+                          <SelectItem key={country.value} value={country.value}>
+                            {country.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <FileField

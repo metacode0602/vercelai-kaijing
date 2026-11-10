@@ -10,6 +10,13 @@ import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 
 export default function OceanContainerDetailPage() {
@@ -185,21 +192,25 @@ export default function OceanContainerDetailPage() {
         <div className="rounded-lg border p-4 space-y-3">
           <h3 className="text-sm font-medium">承运商</h3>
           <div className="flex flex-wrap items-end gap-2">
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">选择承运商</span>
-              <select
-                className="flex h-9 w-64 rounded-md border border-input bg-transparent px-3 text-sm"
-                value={carrierDraft}
-                onChange={(e) => setCarrierDraft(e.target.value)}
-              >
-                <option value="">不指定</option>
-                {(carriersQuery.data?.items ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} · {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+             <label className="space-y-1 text-sm">
+               <span className="text-muted-foreground">选择承运商</span>
+               <Select
+                 value={carrierDraft === '' ? '__empty__' : carrierDraft}
+                 onValueChange={(value) => setCarrierDraft(value === '__empty__' ? '' : value)}
+               >
+                 <SelectTrigger className="h-9 w-64">
+                   <SelectValue />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="__empty__">不指定</SelectItem>
+                   {(carriersQuery.data?.items ?? []).map((c) => (
+                     <SelectItem key={c.id} value={c.id}>
+                       {c.code} · {c.name}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             </label>
             <Button
               size="sm"
               variant="outline"
@@ -293,30 +304,34 @@ export default function OceanContainerDetailPage() {
               value={leadRef}
               onChange={(e) => setLeadRef(e.target.value)}
             />
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">箱规</span>
-              <select
-                className="flex h-9 w-48 rounded-md border border-input bg-transparent px-3 text-sm"
-                value={boxCartonSpec}
-                onChange={(e) => {
-                  const code = e.target.value
-                  setBoxCartonSpec(code)
-                  const spec = (cartonSpecsQuery.data?.items ?? []).find((s) => s.code === code)
-                  if (spec) {
-                    const cbm = (spec.lengthCm * spec.widthCm * spec.heightCm) / 1_000_000
-                    setBoxCbm(cbm > 0 ? String(Number(cbm.toFixed(4))) : '')
-                    setBoxWeight(spec.grossWeightKg > 0 ? String(spec.grossWeightKg) : '')
-                  }
-                }}
-              >
-                <option value="">不引用箱规</option>
-                {(cartonSpecsQuery.data?.items ?? []).map((s) => (
-                  <option key={s.id} value={s.code}>
-                    {s.code} · {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+             <label className="space-y-1 text-sm">
+               <span className="text-muted-foreground">箱规</span>
+               <Select
+                 value={boxCartonSpec === '' ? '__empty__' : boxCartonSpec}
+                 onValueChange={(code) => {
+                   const nextCode = code === '__empty__' ? '' : code
+                   setBoxCartonSpec(nextCode)
+                   const spec = (cartonSpecsQuery.data?.items ?? []).find((s) => s.code === nextCode)
+                   if (spec) {
+                     const cbm = (spec.lengthCm * spec.widthCm * spec.heightCm) / 1_000_000
+                     setBoxCbm(cbm > 0 ? String(Number(cbm.toFixed(4))) : '')
+                     setBoxWeight(spec.grossWeightKg > 0 ? String(spec.grossWeightKg) : '')
+                   }
+                 }}
+               >
+                 <SelectTrigger className="h-9 w-48">
+                   <SelectValue />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="__empty__">不引用箱规</SelectItem>
+                   {(cartonSpecsQuery.data?.items ?? []).map((s) => (
+                     <SelectItem key={s.id} value={s.code}>
+                       {s.code} · {s.name}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             </label>
             <Input
               className="w-28"
               placeholder="CBM"

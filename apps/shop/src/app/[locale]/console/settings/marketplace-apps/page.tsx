@@ -26,6 +26,13 @@ import {
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -497,12 +504,11 @@ export default function MarketplaceAppsSettingsPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>平台</Label>
-                <select
-                  className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                <Select
                   value={form.platform}
                   disabled={busy}
-                  onChange={(event) => {
-                    const platform = event.target.value as Platform
+                  onValueChange={(value) => {
+                    const platform = value as Platform
                     const nextRegions = REGIONS_BY_PLATFORM[platform]
                     setForm((current) => ({
                       ...current,
@@ -513,30 +519,42 @@ export default function MarketplaceAppsSettingsPage() {
                     }))
                   }}
                 >
-                  {PLATFORMS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLATFORMS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
                 <Label>站点</Label>
-                <select
-                  className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
-                  value={form.region}
+                <Select
+                  value={form.region === '' ? '__empty__' : form.region}
                   disabled={busy}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, region: event.target.value }))
+                  onValueChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      region: value === '__empty__' ? '' : value,
+                    }))
                   }
                 >
-                  {regions.map((item) => (
-                    <option key={item.value || 'all'} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regions.map((item) => (
+                      <SelectItem key={item.value || '__empty__'} value={item.value || '__empty__'}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
