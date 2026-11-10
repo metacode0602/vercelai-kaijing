@@ -51,9 +51,11 @@
 | --- | --- | --- |
 | [marketplace-oauth-admin-setup.md](../../apps/shop/content/guide/marketplace-oauth-admin-setup.md) | **生效** | 租户级平台应用配置：控制台录入 App Key/Secret、回调地址登记、OAuth 验证与排错；部署侧仅保留加密密钥与对外域名 |
 
-### `apps/web` — 平台运营后台
+### `apps/web` — 平台运营后台（`apps/web/content/design/`）
 
-当前无独立设计文档；租户/店铺审核、同步健康、待审抽检见总览中的模块边界。
+| 文档 | 状态 | 定位 |
+| --- | --- | --- |
+| [platform-ops-review-and-management.md](../../apps/web/content/design/platform-ops-review-and-management.md) | **生效（2026-11-10）** | 入驻审核闭环补齐（统计/国家筛选/关联店铺）、店铺管理（停用/恢复）、用户管理（封禁/解封）；页面路由、tRPC 与风控动作语义 |
 
 ## 3. 撰写约定
 

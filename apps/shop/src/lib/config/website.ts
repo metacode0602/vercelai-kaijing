@@ -23,14 +23,14 @@ export const websiteConfig = {
     defaultLoginRedirect: '/console/dashboard',
   },
   auth: {
-    enableEmailVerification: false,
+    enableEmailVerification: true,
     requireEmailVerification: false,
-    emailSuffix: 'gpurun.cn',
+    emailSuffix: 'rungpu.cn',
     cookieDomain: '',
     cookiePrefix: 'shop',
     trustedOrigins:
       process.env.NODE_ENV === 'production'
-        ? ['https://www.gpurun.cn']
+        ? ['https://shop.rungpu.cn']
         : [process.env.NEXT_PUBLIC_URL].filter((v): v is string => Boolean(v)),
   },
   mail: {
