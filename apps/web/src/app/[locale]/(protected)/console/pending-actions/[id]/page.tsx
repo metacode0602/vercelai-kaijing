@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { DetailBackButton } from '@/components/console/detail-back-button'
 import { DetailField, DetailSection } from '@/components/console/detail-section'
 import { PageDataLoading } from '@/components/shared/data-table'
 import { formatOpsTime } from '@/lib/console/format-time'
@@ -51,13 +52,8 @@ export default function PendingActionDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-muted-foreground">
-          <LocaleLink className="underline" href="/console/pending-actions">
-            待审动作
-          </LocaleLink>{' '}
-          / 动作详情
-        </p>
+      <div className="space-y-1">
+        <DetailBackButton href="/console/pending-actions" />
         <h2 className="text-lg font-medium">{row.title}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Badge variant="outline">{KIND_LABELS[row.kind] ?? row.kind}</Badge>

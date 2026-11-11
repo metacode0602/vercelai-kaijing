@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { DetailBackButton } from '@/components/console/detail-back-button'
 import { DetailField, DetailSection } from '@/components/console/detail-section'
 import { ConfirmReasonDialog } from '@/components/shared/confirm-reason-dialog'
 import {
@@ -94,13 +95,8 @@ export default function ShopConflictDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-muted-foreground">
-          <LocaleLink className="underline" href="/console/shop-conflicts">
-            店铺冲突
-          </LocaleLink>{' '}
-          / 冲突详情
-        </p>
+      <div className="space-y-1">
+        <DetailBackButton href="/console/shop-conflicts" />
         <h2 className="text-lg font-medium">
           {conflict.platform} / {conflict.externalShopId}
         </h2>
