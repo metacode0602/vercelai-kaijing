@@ -42,13 +42,17 @@ cp .env.example .env          # 根目录：DATABASE_URL / BETTER_AUTH_SECRET �
 # DATABASE_URL=postgres://postgres:postgres@localhost:5432/studio
 docker compose up -d          # 本地 Postgres
 pnpm --filter @workspace/db db:migrate
-# 可选：种子演示组织 + 样例 SPU/SKU
+# 可选：仅沙箱演示组织的种子（默认 org_shop_dev_demo / slug=shop-dev-demo）。
+# 手工执行、可重复（幂等）；禁止写入生产或已入驻真实租户；不会在入驻审核或部署流水线自动执行。
 pnpm --filter @workspace/db db:seed:commerce-products
 pnpm --filter @workspace/db db:seed:commerce-purchase
 pnpm --filter @workspace/db db:seed:commerce-orders
 pnpm --filter @workspace/db db:seed:commerce-logistics
 pnpm --filter @workspace/db db:seed:commerce-aftersales
 pnpm --filter @workspace/db db:seed:commerce-ocean
+pnpm --filter @workspace/db db:seed:commerce-finance   # 含标明「未调真实平台」的部分失败同步任务
+pnpm --filter @workspace/db db:seed:commerce-dashboard # 近 7/30/90 天订单时间序列与出库流水（诚实写库）
+# 不要用「增量同步」或 OAuth 回调假装平台成功来写演示订单。
 # 开发无登录时，把种子组织写入环境（与 seed 默认一致）
 # SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 pnpm --filter shop dev
@@ -88,7 +92,7 @@ pnpm --filter shop dev
 | 表 | `orders` / `order_lines` / `inventory_*` / `stock_outbounds*`（基表 `0000`） |
 | 控制台页 | `orders` / `picking` / `stock-outbounds` |
 
-**已接库**：人工增量同步（平台 stub）/ 导入 upsert、确认占库、创建出库单、拣货推进、出库过账写 `order_ship` 流水。订单/出库主路径 localStorage 已停用。
+**已接库**：人工增量同步与导入 upsert（真实平台 OAuth / OpenAPI 仍为边界）、确认占库、创建出库单、拣货推进、出库过账写 `order_ship` 流水。订单/出库主路径 localStorage 已停用。演示订单请用 `db:seed:commerce-dashboard` 诚实写库，不要靠同步成功回执填充仪表盘。
 
 **Q07 默认**：`paid`/`ready_to_ship` 自动占库 + 人工补锁；扣减在出库过账。可用 `ORDER_RESERVE_MODE=manual_only` 关闭自动锁。
 
@@ -103,7 +107,7 @@ pnpm --filter shop dev
 
 **已接库**：包裹列表/详情、从订单创建、追加轨迹（强制 source）、stub 同步写 attempt、LGS/JSB 交接批次建批/加包/提交/关闭。`shipment-store` 主路径 localStorage 已停用。
 
-**仍 mock / stub**：真实平台 OpenAPI 中订单·刊登·评论与物流轨迹等拉取/回写（结算拉取仅 Lazop 已实现：`finance.syncSettlementsFromPlatform` → `apps/api` → `syncSettlementsForShop`，能力探针 `settlementSync`）。费用模板 / 售后 / 海运柜次 / WMS 非订单出库等 ERP 自有路径已接 DB（见模块5–8 设计文档）。
+**仍为边界**：真实平台 OpenAPI 中订单·刊登·评论与物流轨迹等拉取/回写（结算拉取仅 Lazop 已实现：`finance.syncSettlementsFromPlatform` → `apps/api` → `syncSettlementsForShop`，能力探针 `settlementSync`）。费用模板 / 售后 / 海运柜次 / WMS 非订单出库等 ERP 自有路径已接 DB（见模块5–8 设计文档）。
 
 ### 模块5 · 费用模板（进口税 / 平台费）
 

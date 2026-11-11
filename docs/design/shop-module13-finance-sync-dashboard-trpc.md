@@ -15,7 +15,7 @@
 | `sku_costs` + `ocean.saveCost`；测算强制 `fxRates` + 费用模板 | — |
 | 订单/SKU 利润：`listProfits` / `getProfit` / `profitKpis` | 候选选品 |
 | 运费：`commerce_freight_rate_cards` + `ocean_freight` 模板 + ocean packing（`listFreight`） | 完整独立运费引擎（见 freight-estimation-design） |
-| Dashboard KPI/待办/趋势/库存汇总 | 部分图表系列仍可能示意 |
+| Dashboard KPI/待办/趋势/库存汇总（筛选日期/平台/站点/店铺；金额按币种，跨币种不合计；毛利/净利与 finance.overview 同公式并受窗口约束） | 成本与订单若币种不同，与 finance.overview 一样暂不自动折算 |
 | 采购申请明细 `preferredForSku` 自动带价/交期 | 售后 #43 |
 
 ## 架构
@@ -60,10 +60,12 @@ console/dashboard
 ```bash
 docker compose up -d
 pnpm --filter @workspace/db db:migrate
+# 仅沙箱演示组织，手工执行，幂等。不要用增量同步写演示订单。
 pnpm --filter @workspace/db db:seed:commerce-products
 pnpm --filter @workspace/db db:seed:commerce-orders
 pnpm --filter @workspace/db db:seed:commerce-fee-templates   # 可选，运费模板
-pnpm --filter @workspace/db db:seed:commerce-finance
+pnpm --filter @workspace/db db:seed:commerce-finance         # 含「未调真实平台」部分失败同步任务
+pnpm --filter @workspace/db db:seed:commerce-dashboard       # 近 7/30/90 天订单时间序列
 # SHOP_DEV_ORGANIZATION_ID=org_shop_dev_demo
 pnpm --filter shop dev
 ```

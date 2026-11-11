@@ -1,9 +1,10 @@
 /**
  * 种子：店铺 + 映射 + 库存余额 + 演示订单（依赖商品种子）。
  *
- * 用法（仓库根，需 DATABASE_URL）：
+ * 用法（仓库根，需 DATABASE_URL；仅演示组织，手工执行，幂等）：
  *   pnpm --filter @workspace/db db:seed:commerce-products
  *   pnpm --filter @workspace/db db:seed:commerce-orders
+ *   # 近 7/30/90 天订单时间序列请再跑 db:seed:commerce-dashboard（不要用增量同步假装平台成功）
  *
  * 环境变量：
  *   SHOP_DEV_ORGANIZATION_ID  可选，默认 org_shop_dev_demo
@@ -143,7 +144,9 @@ async function main() {
       }
     }
 
-    console.log('\nDone. 控制台可点「增量同步」写入演示订单，或调用 order.syncIncremental。')
+    console.log('\nDone. 已确保演示店铺 / 映射 / 库存余额（未调用平台同步）。')
+    console.log('  若需仪表盘近 7/30/90 天订单时间序列，请再跑：')
+    console.log('    pnpm --filter @workspace/db db:seed:commerce-dashboard')
     console.log(`  SHOP_DEV_ORGANIZATION_ID=${ORG_ID}`)
     console.log(`  shopId=${shop.id}`)
   } finally {

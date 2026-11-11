@@ -1,14 +1,16 @@
 /**
  * Dashboard KPI / 趋势（模块13）。
  * 从 orders / inventory_balances / purchase / reverse / sync 聚合；缺省为 0，不用固定 mock 销售额。
+ * 金额按订单币种展示，跨币种不合计；毛利/净利与 finance.overview 同一公式，并受同一筛选窗口约束。
  */
-import { and, count, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, count, eq, gte, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import {
   inventoryBalances,
   inventoryMovements,
   mappingExceptions,
   orderLines,
   orders,
+  organization,
   pendingActions,
   productVariants,
   products,
@@ -24,30 +26,79 @@ import { money } from '@/lib/server/mappers/finance'
 import { toUiSyncStatus } from '@/lib/server/mappers/sync'
 import { balanceStats } from '@/lib/server/dataaccess/wms'
 import { orderExceptionStats } from '@/lib/server/dataaccess/order-exceptions'
+import { feesByOrderId, latestCostByVariant } from '@/lib/server/dataaccess/finance'
+import {
+  addDays,
+  currencyModeOf,
+  dateKey,
+  isDemoOrganization,
+  normalizeFilterToken,
+  profitFromComponents,
+  resolveDashboardWindow,
+  startOfLocalDay,
+  REFUND_PENDING_FULFILLMENT_STATUSES,
+  REFUND_PENDING_PLATFORM_STATUSES,
+  type DashboardFilterInput,
+  type DashboardTrendRange,
+  type DashboardWindow,
+} from '@/lib/console/dashboard-query'
 
-export type DashboardTrendRange = 7 | 30 | 90
+export type { DashboardTrendRange, DashboardFilterInput }
 
-export type DashboardKpiDto = {
-  range: DashboardTrendRange
+export type DashboardCurrencyTotals = {
+  currency: string
   revenue: number
   orders: number
   units: number
   aov: number
-  prevRevenue: number
+  cost: number
+  fees: number
+  grossProfit: number
+  netProfit: number
+  grossMargin: number | null
+  netMargin: number | null
+}
+
+export type DashboardKpiDto = {
+  range: DashboardTrendRange
+  dateFrom: string
+  dateTo: string
+  dayCount: number
+  revenue: number | null
+  orders: number
+  units: number
+  aov: number | null
+  prevRevenue: number | null
   prevOrders: number
   prevUnits: number
-  prevAov: number
-  currency: string
+  prevAov: number | null
+  currency: string | null
+  currencyMode: 'single' | 'mixed' | 'empty'
+  currencies: string[]
+  cost: number | null
+  fees: number | null
+  grossProfit: number | null
+  netProfit: number | null
+  grossMargin: number | null
+  netMargin: number | null
+  prevGrossProfit: number | null
+  prevNetProfit: number | null
+  byCurrency: DashboardCurrencyTotals[]
 }
 
 export type DashboardTrendPoint = {
   date: string
-  revenue: number
+  revenue: number | null
   orders: number
   units: number
-  aov: number
-  profit: number
+  aov: number | null
+  grossProfit: number | null
+  netProfit: number | null
+  grossMargin: number | null
+  netMargin: number | null
   refundRate: number
+  currency: string | null
+  currencyMode: 'single' | 'mixed' | 'empty'
 }
 
 export type DashboardTodoDto = {
@@ -59,175 +110,338 @@ export type DashboardTodoDto = {
   syncFail: number
 }
 
-function startOfDay(d: Date): Date {
-  const x = new Date(d)
-  x.setHours(0, 0, 0, 0)
-  return x
+type OrderAggRow = {
+  id: string
+  placedAt: Date | null
+  totalAmount: string | number | null
+  currency: string
+  isCancelPending: boolean | null
+  shopId: string
+  platform: string | null
+  site: string | null
 }
 
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d)
-  x.setDate(x.getDate() + n)
-  return x
+type LineAggRow = {
+  orderId: string
+  qty: number | null
+  variantId: string | null
 }
 
-function dateKey(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-async function aggregateWindow(
-  db: AppDatabase,
+function orderConditions(
   organizationId: string,
+  input: DashboardFilterInput,
   from: Date,
   to: Date,
-): Promise<{ revenue: number; orders: number; units: number; currency: string }> {
-  const [orderRow] = await db
-    .select({
-      revenue: sql<string>`coalesce(sum(${orders.totalAmount}), 0)`,
-      orders: count(),
-      currency: sql<string>`coalesce(min(${orders.currency}), 'LKR')`,
-    })
-    .from(orders)
-    .where(
-      and(
-        eq(orders.organizationId, organizationId),
-        gte(orders.placedAt, from),
-        lt(orders.placedAt, to),
-      ),
-    )
-
-  const orderIds = await db
-    .select({ id: orders.id })
-    .from(orders)
-    .where(
-      and(
-        eq(orders.organizationId, organizationId),
-        gte(orders.placedAt, from),
-        lt(orders.placedAt, to),
-      ),
-    )
-
-  let units = 0
-  if (orderIds.length > 0) {
-    const ids = orderIds.map((o) => o.id)
-    const [unitRow] = await db
-      .select({ units: sql<number>`coalesce(sum(${orderLines.qty}), 0)` })
-      .from(orderLines)
-      .where(and(eq(orderLines.organizationId, organizationId), inArray(orderLines.orderId, ids)))
-    units = Number(unitRow?.units ?? 0)
+): SQL[] {
+  const conditions: SQL[] = [
+    eq(orders.organizationId, organizationId),
+    gte(orders.placedAt, from),
+    lt(orders.placedAt, to),
+  ]
+  const shopId = normalizeFilterToken(input.shopId)
+  const platform = normalizeFilterToken(input.platform)
+  const site = normalizeFilterToken(input.site)
+  if (shopId) conditions.push(eq(orders.shopId, shopId))
+  if (platform) conditions.push(eq(shops.platform, platform))
+  if (site) {
+    conditions.push(or(eq(shops.marketplaceCountry, site), eq(shops.region, site))!)
   }
-
-  return {
-    revenue: money(orderRow?.revenue),
-    orders: Number(orderRow?.orders ?? 0),
-    units,
-    currency: orderRow?.currency || 'LKR',
-  }
+  return conditions
 }
 
-export async function getDashboardKpis(
+async function loadFilteredOrders(
   db: AppDatabase,
   organizationId: string,
-  range: DashboardTrendRange,
-): Promise<DashboardKpiDto> {
-  const today = startOfDay(new Date())
-  const to = addDays(today, 1)
-  const from = addDays(to, -range)
-  const prevTo = from
-  const prevFrom = addDays(prevTo, -range)
-
-  const cur = await aggregateWindow(db, organizationId, from, to)
-  const prev = await aggregateWindow(db, organizationId, prevFrom, prevTo)
-
-  return {
-    range,
-    revenue: cur.revenue,
-    orders: cur.orders,
-    units: cur.units,
-    aov: cur.orders > 0 ? Math.round(cur.revenue / cur.orders) : 0,
-    prevRevenue: prev.revenue,
-    prevOrders: prev.orders,
-    prevUnits: prev.units,
-    prevAov: prev.orders > 0 ? Math.round(prev.revenue / prev.orders) : 0,
-    currency: cur.currency || 'LKR',
-  }
-}
-
-export async function getDashboardTrends(
-  db: AppDatabase,
-  organizationId: string,
-  range: DashboardTrendRange,
-): Promise<DashboardTrendPoint[]> {
-  const today = startOfDay(new Date())
-  const to = addDays(today, 1)
-  const from = addDays(to, -range)
-
+  input: DashboardFilterInput,
+  from: Date,
+  to: Date,
+): Promise<{ orders: OrderAggRow[]; lines: LineAggRow[] }> {
   const orderRows = await db
     .select({
+      id: orders.id,
       placedAt: orders.placedAt,
       totalAmount: orders.totalAmount,
-      id: orders.id,
+      currency: orders.currency,
       isCancelPending: orders.isCancelPending,
+      shopId: orders.shopId,
+      platform: shops.platform,
+      site: sql<string>`coalesce(${shops.marketplaceCountry}, ${shops.region}, '')`,
     })
     .from(orders)
-    .where(
-      and(
-        eq(orders.organizationId, organizationId),
-        gte(orders.placedAt, from),
-        lt(orders.placedAt, to),
-      ),
-    )
+    .innerJoin(shops, eq(orders.shopId, shops.id))
+    .where(and(...orderConditions(organizationId, input, from, to)))
 
   const ids = orderRows.map((o) => o.id)
   const lineRows =
     ids.length === 0
       ? []
       : await db
-          .select({ orderId: orderLines.orderId, qty: orderLines.qty })
+          .select({
+            orderId: orderLines.orderId,
+            qty: orderLines.qty,
+            variantId: orderLines.variantId,
+          })
           .from(orderLines)
           .where(and(eq(orderLines.organizationId, organizationId), inArray(orderLines.orderId, ids)))
 
+  return { orders: orderRows, lines: lineRows }
+}
+
+async function profitMaps(
+  db: AppDatabase,
+  organizationId: string,
+  lines: LineAggRow[],
+  orderIds: string[],
+) {
+  const variantIds = [...new Set(lines.map((l) => l.variantId).filter((v): v is string => Boolean(v)))]
+  const costMap =
+    variantIds.length > 0 ? await latestCostByVariant(db, organizationId, variantIds) : new Map<string, number>()
+  const feeMap = await feesByOrderId(db, organizationId, orderIds)
+  return { costMap, feeMap }
+}
+
+function lineCost(
+  lines: LineAggRow[],
+  orderId: string,
+  costMap: Map<string, number>,
+): number {
+  let cost = 0
+  for (const line of lines) {
+    if (line.orderId !== orderId) continue
+    const qty = line.qty ?? 0
+    const unit = line.variantId ? costMap.get(line.variantId) ?? 0 : 0
+    cost += qty * unit
+  }
+  return cost
+}
+
+function feeTotal(
+  feeMap: Map<string, { fees: Record<string, number>; settled: boolean }>,
+  orderId: string,
+): number {
+  const entry = feeMap.get(orderId)
+  if (!entry) return 0
+  return Object.values(entry.fees).reduce((sum, n) => sum + n, 0)
+}
+
+function emptyCurrencyTotals(currency: string): DashboardCurrencyTotals {
+  return {
+    currency,
+    revenue: 0,
+    orders: 0,
+    units: 0,
+    aov: 0,
+    cost: 0,
+    fees: 0,
+    grossProfit: 0,
+    netProfit: 0,
+    grossMargin: null,
+    netMargin: null,
+  }
+}
+
+function finalizeCurrencyTotals(row: DashboardCurrencyTotals): DashboardCurrencyTotals {
+  const profit = profitFromComponents(row.revenue, row.cost, row.fees)
+  row.aov = row.orders > 0 ? Math.round(row.revenue / row.orders) : 0
+  row.grossProfit = profit.grossProfit
+  row.netProfit = profit.netProfit
+  row.grossMargin = profit.grossMargin
+  row.netMargin = profit.netMargin
+  return row
+}
+
+function aggregateByCurrency(
+  orderRows: OrderAggRow[],
+  lines: LineAggRow[],
+  costMap: Map<string, number>,
+  feeMap: Map<string, { fees: Record<string, number>; settled: boolean }>,
+): DashboardCurrencyTotals[] {
   const unitsByOrder = new Map<string, number>()
-  for (const line of lineRows) {
+  for (const line of lines) {
+    unitsByOrder.set(line.orderId, (unitsByOrder.get(line.orderId) ?? 0) + (line.qty ?? 0))
+  }
+  const buckets = new Map<string, DashboardCurrencyTotals>()
+  for (const order of orderRows) {
+    const currency = (order.currency || '').trim().toUpperCase() || 'UNK'
+    const bucket = buckets.get(currency) ?? emptyCurrencyTotals(currency)
+    bucket.revenue += money(order.totalAmount)
+    bucket.orders += 1
+    bucket.units += unitsByOrder.get(order.id) ?? 0
+    bucket.cost += lineCost(lines, order.id, costMap)
+    bucket.fees += feeTotal(feeMap, order.id)
+    buckets.set(currency, bucket)
+  }
+  return [...buckets.values()].map(finalizeCurrencyTotals).sort((a, b) => a.currency.localeCompare(b.currency))
+}
+
+function kpiFromTotals(
+  window: DashboardWindow,
+  current: DashboardCurrencyTotals[],
+  previous: DashboardCurrencyTotals[],
+  currentOrderCount: number,
+  currentUnits: number,
+  prevOrderCount: number,
+  prevUnits: number,
+): DashboardKpiDto {
+  const mode = currencyModeOf(current.map((r) => r.currency))
+  const prevMode = currencyModeOf(previous.map((r) => r.currency))
+  const single = mode.currencyMode === 'single' ? current[0] : null
+  const prevSingle =
+    prevMode.currencyMode === 'single' && prevMode.currency === mode.currency ? previous[0] : null
+
+  return {
+    range: window.range,
+    dateFrom: window.dateFrom,
+    dateTo: window.dateTo,
+    dayCount: window.dayCount,
+    revenue: single ? single.revenue : null,
+    orders: currentOrderCount,
+    units: currentUnits,
+    aov: single ? single.aov : null,
+    prevRevenue: prevSingle ? prevSingle.revenue : null,
+    prevOrders: prevOrderCount,
+    prevUnits: prevUnits,
+    prevAov: prevSingle ? prevSingle.aov : null,
+    currency: mode.currency,
+    currencyMode: mode.currencyMode,
+    currencies: mode.currencies,
+    cost: single ? single.cost : null,
+    fees: single ? single.fees : null,
+    grossProfit: single ? single.grossProfit : null,
+    netProfit: single ? single.netProfit : null,
+    grossMargin: single ? single.grossMargin : null,
+    netMargin: single ? single.netMargin : null,
+    prevGrossProfit: prevSingle ? prevSingle.grossProfit : null,
+    prevNetProfit: prevSingle ? prevSingle.netProfit : null,
+    byCurrency: current,
+  }
+}
+
+export async function getDashboardKpis(
+  db: AppDatabase,
+  organizationId: string,
+  input: DashboardFilterInput = {},
+): Promise<DashboardKpiDto> {
+  const window = resolveDashboardWindow(input)
+  const dayCount = window.dayCount
+  const prevTo = window.from
+  const prevFrom = addDays(prevTo, -dayCount)
+
+  const current = await loadFilteredOrders(db, organizationId, input, window.from, window.to)
+  const previous = await loadFilteredOrders(db, organizationId, input, prevFrom, prevTo)
+
+  const currentMaps = await profitMaps(
+    db,
+    organizationId,
+    current.lines,
+    current.orders.map((o) => o.id),
+  )
+  const prevMaps = await profitMaps(
+    db,
+    organizationId,
+    previous.lines,
+    previous.orders.map((o) => o.id),
+  )
+
+  const currentTotals = aggregateByCurrency(current.orders, current.lines, currentMaps.costMap, currentMaps.feeMap)
+  const prevTotals = aggregateByCurrency(previous.orders, previous.lines, prevMaps.costMap, prevMaps.feeMap)
+
+  const currentUnits = current.lines.reduce((s, l) => s + (l.qty ?? 0), 0)
+  const prevUnits = previous.lines.reduce((s, l) => s + (l.qty ?? 0), 0)
+
+  return kpiFromTotals(
+    window,
+    currentTotals,
+    prevTotals,
+    current.orders.length,
+    currentUnits,
+    previous.orders.length,
+    prevUnits,
+  )
+}
+
+export async function getDashboardTrends(
+  db: AppDatabase,
+  organizationId: string,
+  input: DashboardFilterInput = {},
+): Promise<DashboardTrendPoint[]> {
+  const window = resolveDashboardWindow(input)
+  const loaded = await loadFilteredOrders(db, organizationId, input, window.from, window.to)
+  const maps = await profitMaps(
+    db,
+    organizationId,
+    loaded.lines,
+    loaded.orders.map((o) => o.id),
+  )
+  const overallMode = currencyModeOf(loaded.orders.map((o) => o.currency))
+
+  const unitsByOrder = new Map<string, number>()
+  for (const line of loaded.lines) {
     unitsByOrder.set(line.orderId, (unitsByOrder.get(line.orderId) ?? 0) + (line.qty ?? 0))
   }
 
-  const buckets = new Map<string, DashboardTrendPoint>()
-  for (let i = 0; i < range; i++) {
-    const d = addDays(from, i)
-    const key = dateKey(d)
+  type DayBucket = {
+    revenue: number
+    orders: number
+    units: number
+    cost: number
+    fees: number
+    cancels: number
+    currencies: Set<string>
+  }
+  const buckets = new Map<string, DayBucket>()
+  for (let i = 0; i < window.dayCount; i++) {
+    const key = dateKey(addDays(window.from, i))
     buckets.set(key, {
-      date: key,
       revenue: 0,
       orders: 0,
       units: 0,
-      aov: 0,
-      profit: 0,
-      refundRate: 0,
+      cost: 0,
+      fees: 0,
+      cancels: 0,
+      currencies: new Set(),
     })
   }
 
-  const cancelByDay = new Map<string, number>()
-  for (const order of orderRows) {
+  for (const order of loaded.orders) {
     if (!order.placedAt) continue
-    const key = dateKey(startOfDay(order.placedAt))
+    const key = dateKey(startOfLocalDay(order.placedAt))
     const bucket = buckets.get(key)
     if (!bucket) continue
     bucket.revenue += money(order.totalAmount)
     bucket.orders += 1
     bucket.units += unitsByOrder.get(order.id) ?? 0
-    if (order.isCancelPending) cancelByDay.set(key, (cancelByDay.get(key) ?? 0) + 1)
+    bucket.cost += lineCost(loaded.lines, order.id, maps.costMap)
+    bucket.fees += feeTotal(maps.feeMap, order.id)
+    if (order.isCancelPending) bucket.cancels += 1
+    const currency = (order.currency || '').trim().toUpperCase()
+    if (currency) bucket.currencies.add(currency)
   }
 
+  const points: DashboardTrendPoint[] = []
   for (const [key, bucket] of buckets) {
-    bucket.aov = bucket.orders > 0 ? Math.round(bucket.revenue / bucket.orders) : 0
-    bucket.profit = bucket.revenue
-    const cancels = cancelByDay.get(key) ?? 0
-    bucket.refundRate = bucket.orders > 0 ? Number(((cancels / bucket.orders) * 100).toFixed(1)) : 0
+    const dayMode =
+      overallMode.currencyMode === 'mixed'
+        ? currencyModeOf([...bucket.currencies])
+        : overallMode
+    const moneyOk = dayMode.currencyMode !== 'mixed'
+    const profit = profitFromComponents(bucket.revenue, bucket.cost, bucket.fees)
+    points.push({
+      date: key,
+      revenue: moneyOk ? bucket.revenue : null,
+      orders: bucket.orders,
+      units: bucket.units,
+      aov: moneyOk && bucket.orders > 0 ? Math.round(bucket.revenue / bucket.orders) : moneyOk ? 0 : null,
+      grossProfit: moneyOk ? profit.grossProfit : null,
+      netProfit: moneyOk ? profit.netProfit : null,
+      grossMargin: moneyOk ? profit.grossMargin : null,
+      netMargin: moneyOk ? profit.netMargin : null,
+      refundRate: bucket.orders > 0 ? Number(((bucket.cancels / bucket.orders) * 100).toFixed(1)) : 0,
+      currency: moneyOk ? dayMode.currency : null,
+      currencyMode: overallMode.currencyMode,
+    })
   }
-
-  return [...buckets.values()]
+  return points
 }
 
 export async function getDashboardTodos(
@@ -262,8 +476,10 @@ export async function getDashboardTodos(
     .where(
       and(
         eq(reverseOrders.organizationId, organizationId),
-        sql`coalesce(${reverseOrders.platformStatus}, '') in ('pending', 'open', 'PROCESSING', 'REQUESTED', 'WAIT_SELLER')
-            or coalesce(${reverseOrders.fulfillmentStatus}, '') in ('pending', 'open', 'processing')`,
+        or(
+          inArray(reverseOrders.platformStatus, [...REFUND_PENDING_PLATFORM_STATUSES]),
+          inArray(reverseOrders.fulfillmentStatus, [...REFUND_PENDING_FULFILLMENT_STATUSES]),
+        ),
       ),
     )
 
@@ -322,12 +538,13 @@ export async function getDashboardInventorySummary(db: AppDatabase, organization
   }
 }
 
-
 export type DashboardPlatformMixItem = {
   platform: string
-  revenue: number
+  currency: string
+  revenue: number | null
   share: number
   orders: number
+  shareBasis: 'revenue' | 'orders'
 }
 
 export type DashboardAlertDto = {
@@ -337,48 +554,53 @@ export type DashboardAlertDto = {
   count: number
 }
 
-/** 按店铺 platform + marketplaceCountry 聚合销售额占比；无订单 → 空数组 */
+/** 按店铺 platform + 站点 + 币种聚合；跨币种用订单量占比，不把不同币种销售额相加。 */
 export async function getDashboardPlatformMix(
   db: AppDatabase,
   organizationId: string,
-  range: DashboardTrendRange,
+  input: DashboardFilterInput = {},
 ): Promise<DashboardPlatformMixItem[]> {
-  const today = startOfDay(new Date())
-  const to = addDays(today, 1)
-  const from = addDays(to, -range)
-
+  const window = resolveDashboardWindow(input)
   const rows = await db
     .select({
       platform: shops.platform,
       country: shops.marketplaceCountry,
+      currency: orders.currency,
       revenue: sql<string>`coalesce(sum(${orders.totalAmount}), 0)`,
       orders: count(),
     })
     .from(orders)
     .innerJoin(shops, eq(orders.shopId, shops.id))
-    .where(
-      and(
-        eq(orders.organizationId, organizationId),
-        gte(orders.placedAt, from),
-        lt(orders.placedAt, to),
-      ),
-    )
-    .groupBy(shops.platform, shops.marketplaceCountry)
+    .where(and(...orderConditions(organizationId, input, window.from, window.to)))
+    .groupBy(shops.platform, shops.marketplaceCountry, orders.currency)
 
   const items = rows.map((r) => {
     const platform = `${(r.platform || 'unknown').toUpperCase()}${r.country ? ` ${r.country}` : ''}`
+    const currency = (r.currency || '').trim().toUpperCase()
     return {
-      platform,
+      platform: currency ? `${platform} · ${currency}` : platform,
+      currency,
       revenue: money(r.revenue),
       orders: Number(r.orders ?? 0),
       share: 0,
+      shareBasis: 'revenue' as 'revenue' | 'orders',
     }
   })
-  const total = items.reduce((s, i) => s + i.revenue, 0)
-  for (const item of items) {
-    item.share = total > 0 ? Number(((item.revenue / total) * 100).toFixed(1)) : 0
+  const mode = currencyModeOf(items.map((i) => i.currency))
+  if (mode.currencyMode === 'mixed') {
+    const totalOrders = items.reduce((s, i) => s + i.orders, 0)
+    for (const item of items) {
+      item.share = totalOrders > 0 ? Number(((item.orders / totalOrders) * 100).toFixed(1)) : 0
+      item.shareBasis = 'orders'
+    }
+  } else {
+    const total = items.reduce((s, i) => s + (i.revenue ?? 0), 0)
+    for (const item of items) {
+      item.share = total > 0 ? Number((((item.revenue ?? 0) / total) * 100).toFixed(1)) : 0
+      item.shareBasis = 'revenue'
+    }
   }
-  items.sort((a, b) => b.revenue - a.revenue)
+  items.sort((a, b) => b.share - a.share || b.orders - a.orders)
   return items
 }
 
@@ -504,7 +726,6 @@ export async function getCostCalcSeed(
   }
 }
 
-
 export type DashboardInventoryCategoryDto = {
   category: string
   stock: number
@@ -532,7 +753,7 @@ export async function getDashboardInventoryByCategory(
     .where(eq(inventoryBalances.organizationId, organizationId))
     .groupBy(sql`coalesce(nullif(${products.categoryHint}, ''), '未分类')`)
 
-  const since = addDays(startOfDay(new Date()), -30)
+  const since = addDays(startOfLocalDay(new Date()), -30)
   const outflowRows = await db
     .select({
       category: sql<string>`coalesce(nullif(${products.categoryHint}, ''), '未分类')`,
@@ -567,7 +788,6 @@ export async function getDashboardInventoryByCategory(
   return items.filter((i) => i.stock > 0 || i.turnoverDays > 0)
 }
 
-
 export type NavBadgesDto = {
   pendingCount: number
   inventoryAlerts: number
@@ -591,5 +811,71 @@ export async function getNavBadges(db: AppDatabase, organizationId: string): Pro
     inventoryAlerts: bal.lowStock ?? 0,
     approvalPending: todos.pendingPurchase,
     orderExceptions: ex.open ?? ex.total ?? 0,
+  }
+}
+
+export type DashboardFilterOptionDto = {
+  platforms: Array<{ value: string; label: string }>
+  sites: Array<{ value: string; label: string }>
+  shops: Array<{ id: string; name: string; platform: string; site: string; currency: string }>
+}
+
+/** 筛选下拉从本组织店铺主档读取，不写死平台/站点。 */
+export async function getDashboardFilterOptions(
+  db: AppDatabase,
+  organizationId: string,
+): Promise<DashboardFilterOptionDto> {
+  const rows = await db
+    .select({
+      id: shops.id,
+      name: shops.name,
+      platform: shops.platform,
+      region: shops.region,
+      marketplaceCountry: shops.marketplaceCountry,
+      currency: shops.currency,
+    })
+    .from(shops)
+    .where(and(eq(shops.organizationId, organizationId), isNull(shops.deletedAt)))
+    .orderBy(shops.name)
+
+  const platforms = new Map<string, string>()
+  const sites = new Map<string, string>()
+  const shopOptions = rows.map((row) => {
+    const platform = row.platform || 'unknown'
+    const site = row.marketplaceCountry || row.region || ''
+    if (!platforms.has(platform)) platforms.set(platform, platform.toUpperCase())
+    if (site && !sites.has(site)) sites.set(site, site)
+    return {
+      id: row.id,
+      name: row.name,
+      platform,
+      site,
+      currency: row.currency,
+    }
+  })
+  return {
+    platforms: [...platforms.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label)),
+    sites: [...sites.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label)),
+    shops: shopOptions,
+  }
+}
+
+export type DashboardMetaDto = {
+  isDemoTenant: boolean
+  organizationId: string
+}
+
+export async function getDashboardMeta(
+  db: AppDatabase,
+  organizationId: string,
+): Promise<DashboardMetaDto> {
+  const [org] = await db
+    .select({ id: organization.id, slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1)
+  return {
+    isDemoTenant: isDemoOrganization({ id: org?.id ?? organizationId, slug: org?.slug }),
+    organizationId,
   }
 }

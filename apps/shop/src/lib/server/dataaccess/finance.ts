@@ -382,7 +382,7 @@ export async function listProfits(
   return listOrderProfits(db, organizationId, { page, pageSize, q: input.q })
 }
 
-async function latestCostByVariant(
+export async function latestCostByVariant(
   db: AppDatabase,
   organizationId: string,
   variantIds?: string[],
@@ -406,7 +406,7 @@ async function latestCostByVariant(
   return map
 }
 
-async function feesByOrderId(
+export async function feesByOrderId(
   db: AppDatabase,
   organizationId: string,
   orderIds?: string[],

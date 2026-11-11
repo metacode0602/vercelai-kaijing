@@ -27,20 +27,22 @@ import type { DashboardTrendRange } from '@/lib/console/dashboard-types'
 export type DashboardChartPoint = {
   day: string
   orders: number
-  revenue: number
+  revenue: number | null
   units: number
-  aov: number
+  aov: number | null
   refundRate: number
-  grossProfit: number
-  grossMargin: number
-  netProfit: number
-  netMargin: number
+  grossProfit: number | null
+  grossMargin: number | null
+  netProfit: number | null
+  netMargin: number | null
 }
 
 export type PlatformMixItem = {
   platform: string
   share: number
-  revenue?: number
+  revenue?: number | null
+  shareBasis?: 'revenue' | 'orders'
+  currency?: string
 }
 
 export type InventoryCategoryPoint = {
@@ -105,30 +107,34 @@ export function DashboardRangeToggle({
   )
 }
 
-const salesChartConfig = {
-  revenue: {
-    label: '销售额 (LKR)',
-    color: 'var(--chart-1)',
-  },
-  orders: {
-    label: '订单量',
-    color: 'var(--chart-2)',
-  },
-  units: {
-    label: '销量 (件)',
-    color: 'var(--chart-3)',
-  },
-} satisfies ChartConfig
+function salesChartConfig(currency?: string | null): ChartConfig {
+  return {
+    revenue: {
+      label: currency ? `销售额 (${currency})` : '销售额',
+      color: 'var(--chart-1)',
+    },
+    orders: {
+      label: '订单量',
+      color: 'var(--chart-2)',
+    },
+    units: {
+      label: '销量 (件)',
+      color: 'var(--chart-3)',
+    },
+  }
+}
 
 export function SalesTrendChart({
   range,
   data,
+  currency,
 }: {
   range: DashboardTrendRange
   data?: DashboardChartPoint[]
+  currency?: string | null
 }) {
   const points = data ?? []
-  const hasSignal = points.some((p) => p.revenue > 0 || p.orders > 0 || p.units > 0)
+  const hasSignal = points.some((p) => (p.revenue ?? 0) > 0 || p.orders > 0 || p.units > 0)
   if (!hasSignal) {
     return <ChartEmpty label="暂无销售趋势数据" />
   }
@@ -136,7 +142,7 @@ export function SalesTrendChart({
   return (
     <div className="h-[280px] min-h-[280px] w-full">
       <ChartContainer
-        config={salesChartConfig}
+        config={salesChartConfig(currency)}
         className={cn(CHART_BOX_CLASS, 'min-h-[280px]')}
         initialDimension={{ width: 720, height: 280 }}
       >
@@ -214,34 +220,40 @@ export function SalesTrendChart({
   )
 }
 
-const profitChartConfig = {
-  grossProfit: {
-    label: '毛利额 (LKR)',
-    color: 'var(--chart-1)',
-  },
-  netProfit: {
-    label: '净利额 (LKR)',
-    color: 'var(--chart-2)',
-  },
-  grossMargin: {
-    label: '毛利率 (%)',
-    color: 'var(--chart-4)',
-  },
-  netMargin: {
-    label: '净利率 (%)',
-    color: 'var(--chart-5)',
-  },
-} satisfies ChartConfig
+function profitChartConfig(currency?: string | null): ChartConfig {
+  return {
+    grossProfit: {
+      label: currency ? `毛利额 (${currency})` : '毛利额',
+      color: 'var(--chart-1)',
+    },
+    netProfit: {
+      label: currency ? `净利额 (${currency})` : '净利额',
+      color: 'var(--chart-2)',
+    },
+    grossMargin: {
+      label: '毛利率 (%)',
+      color: 'var(--chart-4)',
+    },
+    netMargin: {
+      label: '净利率 (%)',
+      color: 'var(--chart-5)',
+    },
+  }
+}
 
 export function ProfitTrendChart({
   range,
   data,
+  currency,
 }: {
   range: DashboardTrendRange
   data?: DashboardChartPoint[]
+  currency?: string | null
 }) {
   const points = data ?? []
-  const hasSignal = points.some((p) => p.grossProfit !== 0 || p.netProfit !== 0 || p.revenue > 0)
+  const hasSignal = points.some(
+    (p) => (p.grossProfit ?? 0) !== 0 || (p.netProfit ?? 0) !== 0 || (p.revenue ?? 0) > 0,
+  )
   if (!hasSignal) {
     return <ChartEmpty label="暂无利润数据" />
   }
@@ -249,7 +261,7 @@ export function ProfitTrendChart({
   return (
     <div className="h-[260px] min-h-[260px] w-full">
       <ChartContainer
-        config={profitChartConfig}
+        config={profitChartConfig(currency)}
         className={cn(CHART_BOX_CLASS, 'min-h-[260px]')}
         initialDimension={{ width: 560, height: 260 }}
       >
@@ -413,26 +425,30 @@ export function RefundRateChart({
   )
 }
 
-const aovChartConfig = {
-  orders: {
-    label: '订单量',
-    color: 'var(--chart-2)',
-  },
-  aov: {
-    label: '客单价 (LKR)',
-    color: 'var(--chart-4)',
-  },
-} satisfies ChartConfig
+function aovChartConfig(currency?: string | null): ChartConfig {
+  return {
+    orders: {
+      label: '订单量',
+      color: 'var(--chart-2)',
+    },
+    aov: {
+      label: currency ? `客单价 (${currency})` : '客单价',
+      color: 'var(--chart-4)',
+    },
+  }
+}
 
 export function AovOrdersChart({
   range,
   data,
+  currency,
 }: {
   range: DashboardTrendRange
   data?: DashboardChartPoint[]
+  currency?: string | null
 }) {
   const points = data ?? []
-  const hasSignal = points.some((p) => p.orders > 0 || p.aov > 0)
+  const hasSignal = points.some((p) => p.orders > 0 || (p.aov ?? 0) > 0)
   if (!hasSignal) {
     return <ChartEmpty label="暂无客单价 / 订单数据" />
   }
@@ -440,7 +456,7 @@ export function AovOrdersChart({
   return (
     <div className="h-[260px] min-h-[260px] w-full">
       <ChartContainer
-        config={aovChartConfig}
+        config={aovChartConfig(currency)}
         className={cn(CHART_BOX_CLASS, 'min-h-[260px]')}
         initialDimension={{ width: 720, height: 260 }}
       >
@@ -660,7 +676,11 @@ export function PlatformMixCard({ data }: { data?: PlatformMixItem[] }) {
           <Progress value={item.share} className="h-2" />
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">按订单店铺 platform / 站点聚合销售额占比。</p>
+      <p className="text-xs text-muted-foreground">
+        {items.some((i) => i.shareBasis === 'orders')
+          ? '存在多种币种，占比按订单量计算，不把不同币种销售额相加。'
+          : '按订单店铺 platform / 站点聚合销售额占比（同一币种）。'}
+      </p>
     </div>
   )
 }
