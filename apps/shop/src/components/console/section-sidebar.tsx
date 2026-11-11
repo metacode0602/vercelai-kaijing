@@ -1,27 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import {
-  ArrowLeft,
-  Banknote,
-  Bell,
-  Building2,
-  Circle,
-  FileSpreadsheet,
-  KeyRound,
-  PackageSearch,
-  ScrollText,
-  History,
-  Settings,
-  ShieldCheck,
-  SlidersHorizontal,
-  Store,
-  Tags,
-  Upload,
-  User,
-  Users,
-  AlertTriangle,
-} from 'lucide-react'
+import { ArrowLeft, PackageSearch } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
 import type { ProfileNavTitleKey, SettingsNavGroupLabelKey, SettingsNavTitleKey } from '@/lib/console-nav'
@@ -43,35 +24,12 @@ import { canSeeNavItem } from '@/lib/rbac-nav'
 type SectionItem = {
   url: string
   titleKey: SettingsNavTitleKey | ProfileNavTitleKey
+  icon: LucideIcon
 }
 
 type SectionGroup = {
   labelKey?: SettingsNavGroupLabelKey
   items: readonly SectionItem[]
-}
-
-const SECTION_ICONS: Record<string, React.ReactNode> = {
-  '/settings/organization': <Building2 className="size-4" />,
-  '/settings/shops': <Store className="size-4" />,
-  '/settings/marketplace-apps': <KeyRound className="size-4" />,
-  '/settings/platform-basics': <SlidersHorizontal className="size-4" />,
-  '/settings/fx-rates': <Banknote className="size-4" />,
-  '/settings/stock-alerts': <AlertTriangle className="size-4" />,
-  '/settings/dictionaries': <Tags className="size-4" />,
-  '/settings/imports': <Upload className="size-4" />,
-  '/settings/import-templates': <FileSpreadsheet className="size-4" />,
-  '/settings/integration-log': <ScrollText className="size-4" />,
-  '/settings/erp-access': <ShieldCheck className="size-4" />,
-  '/settings/audit': <History className="size-4" />,
-  '/settings/members': <Users className="size-4" />,
-  '/settings/notifications': <Bell className="size-4" />,
-  '/settings/preferences': <Settings className="size-4" />,
-  '/console/profile/account': <User className="size-4" />,
-  '/console/profile/preferences': <Settings className="size-4" />,
-}
-
-function getSectionIcon(url: string) {
-  return SECTION_ICONS[url] ?? <Circle className="size-4" />
 }
 
 function isActive(pathname: string, href: string) {
@@ -131,7 +89,7 @@ export function SectionSidebar({
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                         <LocaleLink href={item.url}>
-                          {getSectionIcon(item.url)}
+                          <item.icon className="size-4" />
                           <span>{t(item.titleKey)}</span>
                         </LocaleLink>
                       </SidebarMenuButton>

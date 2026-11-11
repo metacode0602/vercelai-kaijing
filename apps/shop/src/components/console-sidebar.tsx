@@ -1,38 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import {
-  ArrowDownToLine,
-  BadgeCheck,
-  ArrowUpFromLine,
-  Boxes,
-  Calculator,
-  Circle,
-  ClipboardCheck,
-  ClipboardList,
-  Container,
-  CreditCard,
-  FileText,
-  FolderTree,
-  LayoutDashboard,
-  Map,
-  Package,
-  PackageOpen,
-  PackageSearch,
-  Percent,
-  RefreshCw,
-  Scale,
-  Settings,
-  ShoppingCart,
-  Sparkles,
-  Star,
-  Tags,
-  Truck,
-  TrendingUp,
-  Undo2,
-  Warehouse,
-  Wallet,
-} from 'lucide-react'
+import { PackageSearch } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   CONSOLE_FOOTER_NAV,
@@ -55,60 +24,6 @@ import {
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
 import { canSeeNavItem } from '@/lib/rbac-nav'
 import { Badge } from '@workspace/ui/components/badge'
-
-const NAV_ICONS: Record<string, React.ReactNode> = {
-  '/console/dashboard': <LayoutDashboard className="size-4" />,
-  '/console/pending': <ClipboardList className="size-4" />,
-  '/console/candidates': <Sparkles className="size-4" />,
-  '/console/master-products': <Package className="size-4" />,
-  '/console/categories': <FolderTree className="size-4" />,
-  '/console/brands': <BadgeCheck className="size-4" />,
-  '/console/master-skus': <Tags className="size-4" />,
-  '/console/supplier-skus': <PackageSearch className="size-4" />,
-  '/console/reviews': <Star className="size-4" />,
-  '/console/listings': <Package className="size-4" />,
-  '/console/mappings': <PackageSearch className="size-4" />,
-  '/console/sync-tasks': <RefreshCw className="size-4" />,
-  '/console/purchase-requests': <FileText className="size-4" />,
-  '/console/purchase-approvals': <ClipboardCheck className="size-4" />,
-  '/console/purchase-orders': <ShoppingCart className="size-4" />,
-  '/console/purchase-receipts': <ArrowDownToLine className="size-4" />,
-  '/console/suppliers': <Package className="size-4" />,
-  '/console/inventory-balances': <Boxes className="size-4" />,
-  '/console/warehouse': <Warehouse className="size-4" />,
-  '/console/warehouse-zones': <Map className="size-4" />,
-  '/console/stock-inbounds': <ArrowDownToLine className="size-4" />,
-  '/console/stock-outbounds': <ArrowUpFromLine className="size-4" />,
-  '/console/inventory-ledger': <Warehouse className="size-4" />,
-  '/console/stock-adjustments': <Scale className="size-4" />,
-  '/console/inventory': <Warehouse className="size-4" />,
-  '/console/orders': <ShoppingCart className="size-4" />,
-  '/console/order-exceptions': <ShoppingCart className="size-4" />,
-  '/console/picking': <ClipboardCheck className="size-4" />,
-  '/console/logistics-lgs': <Truck className="size-4" />,
-  '/console/logistics-jsb': <Truck className="size-4" />,
-  '/console/aftersale-cancels': <Undo2 className="size-4" />,
-  '/console/aftersale-returns': <Undo2 className="size-4" />,
-  '/console/costs': <Calculator className="size-4" />,
-  '/console/fee-templates': <Percent className="size-4" />,
-  '/console/settlements': <Wallet className="size-4" />,
-  '/console/profits': <TrendingUp className="size-4" />,
-  '/console/carriers': <Truck className="size-4" />,
-  '/console/carton-specs': <PackageOpen className="size-4" />,
-  '/console/freight-rate-cards': <CreditCard className="size-4" />,
-  '/console/freight': <Container className="size-4" />,
-  '/console/reports': <LayoutDashboard className="size-4" />,
-  '/console/products': <Package className="size-4" />,
-  '/console/purchases': <ShoppingCart className="size-4" />,
-  '/console/shipments': <Truck className="size-4" />,
-  '/console/aftersales': <Undo2 className="size-4" />,
-  '/console/finance': <Wallet className="size-4" />,
-  '/settings': <Settings className="size-4" />,
-}
-
-function getNavIcon(url: string) {
-  return NAV_ICONS[url] ?? <Circle className="size-4" />
-}
 
 function formatBadge(n: number) {
   if (n <= 0) return null
@@ -151,7 +66,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
                   isActive={isActive(pathname, item.url, exact)}
                 >
                   <LocaleLink href={item.url}>
-                    {getNavIcon(item.url)}
+                    <item.icon className="size-4" />
                     <span>{t(item.titleKey)}</span>
                   </LocaleLink>
                 </SidebarMenuButton>
