@@ -31,12 +31,14 @@
     "db:seed:commerce-candidates": "tsx src/scripts/seed-commerce-candidates.ts",
     "db:seed:commerce-console-ops": "tsx src/scripts/seed-commerce-console-ops.ts",
     "db:seed:commerce-carton-specs": "tsx src/scripts/seed-commerce-carton-specs.ts",
-    "db:seed:dictionaries": "tsx src/scripts/seed-dictionaries.ts"
+    "db:seed:dictionaries": "tsx src/scripts/seed-dictionaries.ts",
+    "db:seed:platform-basics": "tsx src/scripts/seed-platform-basics.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",
     "drizzle-orm": "^0.45.2",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
@@ -57,6 +59,9 @@
     },
     "./schema": {
       "default": "./src/schema.ts"
+    },
+    "./platform-basics": {
+      "default": "./src/platform-basics.ts"
     },
     "./merchant-purchase-price-sync": {
       "default": "./src/merchant-purchase-price-sync.ts"

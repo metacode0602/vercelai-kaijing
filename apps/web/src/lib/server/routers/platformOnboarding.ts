@@ -5,12 +5,26 @@ import {
   getOnboardingReview,
   getOnboardingReviewStats,
   listOnboardingReviews,
-  listShopConflicts,
   listTenants,
   rejectOnboarding,
-  resolveShopConflict,
 } from '@/lib/server/dataaccess/onboarding-review'
+import {
+  getTenant,
+  listPlatformAuditEvents,
+  listTenantAppCredentials,
+  listTenantMembers,
+  resolveActorNames,
+} from '@/lib/server/dataaccess/platform-details'
+import {
+  approveShopBindingTransfer,
+  getShopBindingConflict,
+  listShopBindingConflicts,
+  resolveShopConflictLegacyRejected,
+  reviewShopBindingAppeal,
+  upholdShopBindingConflict,
+} from '@workspace/db'
 import { sendEmail } from '@/lib/mail'
+import { db } from '@/lib/db'
 import { createTRPCRouter, protectedProcedure } from './trpc'
 
 async function notifyReviewByEmail(input: {
@@ -88,7 +102,46 @@ export const platformOnboardingRouter = createTRPCRouter({
       })
       return result
     }),
-  listConflicts: protectedProcedure.query(() => listShopConflicts()),
+  listConflicts: protectedProcedure
+    .input(
+      listInput.omit({ status: true, countryCode: true }).extend({
+        organizationId: z.string().min(1).optional(),
+        shopId: z.string().min(1).optional(),
+        platform: z.string().max(32).optional(),
+        externalShopId: z.string().max(128).optional(),
+      }),
+    )
+    .query(({ input }) =>
+      listShopBindingConflicts(db, {
+        page: input.page,
+        pageSize: input.pageSize,
+        organizationId: input.organizationId,
+        shopId: input.shopId,
+        platform: input.platform,
+        externalShopId: input.externalShopId,
+      }),
+    ),
+  getConflict: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const row = await getShopBindingConflict(db, input.id)
+      if (!row) throw new Error('冲突单不存在')
+      const actors = await resolveActorNames([
+        row.initiatorUserId,
+        row.reviewedByUserId,
+        row.appealedByUserId,
+        row.appealReviewedByUserId,
+      ])
+      return {
+        ...row,
+        initiator: row.initiatorUserId ? actors.get(row.initiatorUserId) ?? null : null,
+        reviewer: row.reviewedByUserId ? actors.get(row.reviewedByUserId) ?? null : null,
+        appellant: row.appealedByUserId ? actors.get(row.appealedByUserId) ?? null : null,
+        appealReviewer: row.appealReviewedByUserId
+          ? actors.get(row.appealReviewedByUserId) ?? null
+          : null,
+      }
+    }),
   resolveConflict: protectedProcedure
     .input(
       z.object({
@@ -97,17 +150,92 @@ export const platformOnboardingRouter = createTRPCRouter({
         targetOrganizationId: z.string().optional(),
       }),
     )
+    .mutation(() => resolveShopConflictLegacyRejected()),
+  upholdConflict: protectedProcedure
+    .input(
+      z.object({
+        conflictId: z.string().min(1),
+        reason: z.string().max(1000).optional(),
+      }),
+    )
     .mutation(({ ctx, input }) =>
-      resolveShopConflict({
-        shopId: input.shopId,
-        action: input.action,
-        targetOrganizationId: input.targetOrganizationId,
+      upholdShopBindingConflict(db, {
+        conflictId: input.conflictId,
         reviewerId: ctx.user.id,
+        reason: input.reason,
       }),
     ),
+  approveTransfer: protectedProcedure
+    .input(
+      z.object({
+        conflictId: z.string().min(1),
+        reason: z.string().min(1).max(1000),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      approveShopBindingTransfer(db, {
+        conflictId: input.conflictId,
+        reviewerId: ctx.user.id,
+        reason: input.reason,
+      }),
+    ),
+  reviewAppeal: protectedProcedure
+    .input(
+      z.object({
+        conflictId: z.string().min(1),
+        decision: z.enum(['accept', 'reject']),
+        reason: z.string().min(1).max(1000),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      reviewShopBindingAppeal(db, {
+        conflictId: input.conflictId,
+        reviewerId: ctx.user.id,
+        decision: input.decision,
+        reason: input.reason,
+      }),
+    ),
+
   tenants: protectedProcedure
     .input(listInput.omit({ status: true }))
     .query(({ input }) => listTenants(input)),
+  getTenant: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const row = await getTenant(input.id)
+      if (!row) throw new Error('租户不存在')
+      return row
+    }),
+  listTenantMembers: protectedProcedure
+    .input(
+      z.object({
+        organizationId: z.string().min(1),
+        page: z.number().int().min(1).optional(),
+        pageSize: z.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .query(({ input }) => listTenantMembers(input)),
+  listTenantCredentials: protectedProcedure
+    .input(
+      z.object({
+        organizationId: z.string().min(1),
+        page: z.number().int().min(1).optional(),
+        pageSize: z.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .query(({ input }) => listTenantAppCredentials(input)),
+  listAuditEvents: protectedProcedure
+    .input(
+      z.object({
+        organizationId: z.string().min(1).optional(),
+        entityType: z.string().max(32).optional(),
+        entityId: z.string().min(1).optional(),
+        actorUserId: z.string().min(1).optional(),
+        page: z.number().int().min(1).optional(),
+        pageSize: z.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .query(({ input }) => listPlatformAuditEvents(input)),
   disableTenant: protectedProcedure
     .input(z.object({ organizationId: z.string().min(1) }))
     .mutation(({ ctx, input }) =>

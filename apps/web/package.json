@@ -4,11 +4,12 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack --port 30051",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/lib/server/*.test.ts src/lib/pagination/*.test.ts src/lib/navigation/*.test.ts"
   },
   "dependencies": {
     "@bprogress/next": "^3.2.12",
@@ -66,7 +67,9 @@
     "react-dom": "19.2.5",
     "react-hook-form": "^7.71.1",
     "react-icons": "^5.5.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "superjson": "^2.2.6",
     "tailwind-merge": "^3.5.0",

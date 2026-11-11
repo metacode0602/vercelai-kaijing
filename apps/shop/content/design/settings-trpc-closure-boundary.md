@@ -2,11 +2,11 @@
 
 ## 本轮已接
 
-- `/console/settings/fx-rates` → `fxRates` → `fx_rates`（组织隔离；软停用；审计）
-- `/console/settings/integration-log` → `integrationLogs` → `integration_logs`（shops join；payload 脱敏；重试仅关联真实 `sync_tasks`）
-- `/console/settings/import-templates/[id]` → `importTemplates.update`（启用/停用/字段校验 + 审计）
-- `/console/settings/members` → `invite` 用 `tenantProcedure`；`cancelInvitation` 仅 owner；**不发邮件**
-- `/console/settings/platform-basics` → 只读参考 + 跳转 `/console/warehouse`（无假保存）
+- `/settings/fx-rates` → `fxRates` → `fx_rates`（组织隔离；软停用；审计）
+- `/settings/integration-log` → `integrationLogs` → `integration_logs`（shops join；payload 脱敏；重试仅关联真实 `sync_tasks`）
+- `/settings/import-templates/[id]` → `importTemplates.update`（启用/停用/字段校验 + 审计）
+- `/settings/members` → `invite` 用 `tenantProcedure`；`cancelInvitation` 仅 owner；**不发邮件**
+- `/settings/platform-basics` → 只读参考 + 跳转 `/console/warehouse`（无假保存）
 
 ## 明确不做 / 诚实边界
 

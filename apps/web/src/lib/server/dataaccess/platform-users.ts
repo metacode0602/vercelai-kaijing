@@ -1,4 +1,15 @@
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm'
 import {
   auditEvents,
   consoleNotifications,
@@ -10,6 +21,7 @@ import {
   user,
 } from '@workspace/db'
 import { db } from '@/lib/db'
+import { pageValues } from '@/lib/server/dataaccess/pagination'
 
 /**
  * 平台运营用户管理（apps/web，租户侧 public.users）。
@@ -30,12 +42,6 @@ export type PlatformUserListItem = {
   banExpires: Date | null
   createdAt: Date
   memberships: { organizationName: string; role: string }[]
-}
-
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
 }
 
 export async function listPlatformUsers(input: {
@@ -103,13 +109,19 @@ export async function listPlatformUsers(input: {
     membershipsByUser.set(row.userId, list)
   }
 
+  // 不要在 sql`` 里内嵌 ${member}/${organization} 再 join：单表外层查询下
+  // drizzle 会去掉列前缀，member/organization 同名 id 列导致 ambiguous 报错。
   const [summaryRow] = await db
     .select({
       total: count(),
       banned: sql<number>`count(*) filter (where ${user.banned} = true)`,
-      tenantMembers: sql<number>`(select count(distinct ${member.userId}) from ${member} inner join ${organization} on ${organization.id} = ${member.organizationId} where ${organization.orgType} = 'tenant')`,
     })
     .from(user)
+  const [tenantMembersRow] = await db
+    .select({ tenantMembers: countDistinct(member.userId) })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(organization.orgType, 'tenant'))
 
   const items: PlatformUserListItem[] = rows.map((row) => ({
     ...row,
@@ -125,7 +137,7 @@ export async function listPlatformUsers(input: {
     summary: {
       total: Number(summaryRow?.total ?? 0),
       banned: Number(summaryRow?.banned ?? 0),
-      tenantMembers: Number(summaryRow?.tenantMembers ?? 0),
+      tenantMembers: Number(tenantMembersRow?.tenantMembers ?? 0),
     },
   }
 }
@@ -162,6 +174,7 @@ export async function getPlatformUser(id: string) {
       identityStatus: organization.identityStatus,
       merchantStatus: organization.merchantStatus,
       joinedAt: member.createdAt,
+      applicationId: tenantOnboardingApplications.id,
       applicationStatus: tenantOnboardingApplications.status,
       applicationVersion: tenantOnboardingApplications.version,
       shopCount: sql<number>`(select count(*) from ${shops} where ${shops.organizationId} = ${organization.id} and ${shops.deletedAt} is null)`,
@@ -257,7 +270,7 @@ export async function banPlatformUser(input: {
           title: '成员账号已被平台封禁',
           summary: `成员「${target.name || target.email}」已被平台封禁：${input.reason.trim()}`,
           body: input.reason.trim(),
-          href: '/console/settings/members',
+          href: '/settings/members',
           sourceType: 'platform_user_ops',
           sourceId: target.id,
         })),
@@ -323,7 +336,7 @@ export async function unbanPlatformUser(input: {
           title: '成员账号已解封',
           summary: `成员「${target.name || target.email}」已由平台恢复，可重新登录。`,
           body: '',
-          href: '/console/settings/members',
+          href: '/settings/members',
           sourceType: 'platform_user_ops',
           sourceId: target.id,
         })),

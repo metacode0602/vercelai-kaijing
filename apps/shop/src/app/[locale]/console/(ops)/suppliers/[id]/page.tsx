@@ -401,7 +401,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           ]}
           onClose={() => setEditOpen(false)}
           onSave={(values) => {
-            updateMutation.mutate({
+            return updateMutation.mutateAsync({
               id: supplier.id,
               name: values.name || supplier.name,
               contact: values.contact ?? '',
@@ -450,7 +450,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           ]}
           onClose={() => setAddSkuOpen(false)}
           onSave={(values) => {
-            createSkuMutation.mutate({
+            return createSkuMutation.mutateAsync({
               sku: values.sku || '',
               supplierId: supplier.id,
               factoryCode: values.factoryCode || '',
@@ -539,7 +539,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           ]}
           onClose={() => setEditSku(null)}
           onSave={(values) => {
-            updateSkuMutation.mutate({
+            return updateSkuMutation.mutateAsync({
               id: editSku.id,
               factoryCode: values.factoryCode || editSku.factoryCode,
               price: Number(values.price || 0),

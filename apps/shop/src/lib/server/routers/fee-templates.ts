@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { createTRPCRouter, requirePermission, tenantProcedure } from '@/lib/server/trpc'
+import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as feeDa from '@/lib/server/dataaccess/fee-templates'
 
 const paginationInput = z.object({
@@ -140,7 +141,7 @@ export const feeTemplatesRouter = createTRPCRouter({
       ),
     ),
 
-  publish: tenantProcedure
+  publish: requirePermission('finance.approve')
     .input(
       z.object({
         versionId: z.string().min(1),
@@ -148,17 +149,28 @@ export const feeTemplatesRouter = createTRPCRouter({
         reviewNote: z.string().optional(),
       }),
     )
-    .mutation(async ({ ctx, input }) =>
-      wrap(() =>
+    .mutation(async ({ ctx, input }) => {
+      const result = await wrap(() =>
         feeDa.publishFeeTemplateVersion(
           ctx.db,
           ctx.organizationId,
           input.versionId,
-          input.actor,
+          input.actor || ctx.user?.name || ctx.user?.email || undefined,
           input.reviewNote,
         ),
-      ),
-    ),
+      )
+      await appendAuditEvent(ctx.db, ctx.organizationId, {
+        actorUserId: ctx.user?.id,
+        actorLabel: ctx.user?.name || ctx.user?.email || ctx.user?.id,
+        action: 'fee_template.publish',
+        entityType: 'fee_template_version',
+        entityId: input.versionId,
+        result: 'ok',
+        detail: '发布费用模板版本',
+        after: { versionId: input.versionId, reviewNote: input.reviewNote },
+      })
+      return result
+    }),
 
   reject: tenantProcedure
     .input(

@@ -130,7 +130,7 @@ erDiagram
 
 ## 4.2 UED 实现边界（本轮）
 
-基础设置页面 `apps/shop/src/app/[locale]/console/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口（**快照时点口径；2026-11-08 主路径已接 tRPC，见 §1 更新注**）。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
+基础设置页面 `apps/shop/src/app/[locale]/settings/platform-basics/page.tsx` 与 `.../dictionaries/page.tsx`，以及 ERP 模块原型已进入 Console 路由。页面范围与交互索引见 [`haoshiyun-erp-ued-catalog.md` §12](./haoshiyun-erp-ued-catalog.md#12-当前可操作原型路由)。新原型都使用客户端示例数据；刷新后恢复初始值，不调用 tRPC、DB 或真实平台接口（**快照时点口径；2026-11-08 主路径已接 tRPC，见 §1 更新注**）。生产持久化、数据库级分页、审计、多租户隔离和权限仍是后续工作。
 
 ### 4.3 其余页面 UED 规格
 

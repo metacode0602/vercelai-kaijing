@@ -1,5 +1,9 @@
 import { LazopHttpClient, type LazopFamily } from "../clients/lazop-http"
 import type { MarketplaceConnector, MarketplaceConnectorConfig } from "./types"
+import {
+  buildCreateProductPayload,
+  buildUpdateProductPayload,
+} from "./listing-payload"
 import type {
   DomainBrand,
   DomainCancelOrderInput,
@@ -274,13 +278,8 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
   }
 
   async createListing(input: DomainListingInput): Promise<DomainListingResult> {
-    const payload = {
-      ...input.payload,
-      name: input.title,
-      primary_category: input.categoryExternalId,
-      price: input.priceAmount,
-      currency: input.priceCurrency,
-    }
+    // 官方结构 { Request: { Product: {…} } }，见 lazada-products-api.md §6.1 / daraz-products-api.md §4.1。
+    const payload = buildCreateProductPayload(input)
     const json = await this.http.call<Json>({
       method: "POST",
       path: "/product/create",
@@ -289,7 +288,9 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     const data = asRecord(json.data ?? json)
     return {
       externalId: String(data.item_id ?? data.product_id ?? ""),
-      status: mapListingStatus(String(data.status ?? "submitted")),
+      status: mapListingStatus(
+        String(data.item_status ?? data.status ?? "submitted")
+      ),
       raw: data,
     }
   }
@@ -298,14 +299,7 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     externalId: string,
     input: Partial<DomainListingInput>
   ): Promise<DomainListingResult> {
-    const payload = {
-      ...input.payload,
-      item_id: externalId,
-      name: input.title,
-      primary_category: input.categoryExternalId,
-      price: input.priceAmount,
-      currency: input.priceCurrency,
-    }
+    const payload = buildUpdateProductPayload(externalId, input)
     const json = await this.http.call<Json>({
       method: "POST",
       path: "/product/update",
@@ -314,7 +308,9 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
     const data = asRecord(json.data ?? json)
     return {
       externalId: String(data.item_id ?? externalId),
-      status: mapListingStatus(String(data.status ?? "submitted")),
+      status: mapListingStatus(
+        String(data.item_status ?? data.status ?? "submitted")
+      ),
       raw: data,
     }
   }

@@ -170,6 +170,7 @@
       "orderExceptions": "Order exceptions",
       "shipments": "Packages & shipping",
       "inventory": "Inventory",
+      "inventoryPools": "Inventory pools",
       "inventoryOverview": "Inventory overview",
       "costs": "Costs",
       "feeTemplates": "Fee templates",
@@ -179,7 +180,6 @@
       "productCenter": "Product center",
       "masterSkus": "Internal SKUs",
       "supplierSkus": "Supplier SKUs",
-      "dictionaries": "Attribute dictionaries",
       "reviews": "Product reviews",
       "listingCenter": "Listing center",
       "syncTasks": "Publish & sync tasks",
@@ -335,6 +335,7 @@
       "orderExceptions": "Order exceptions",
       "shipments": "Packages & shipping",
       "inventory": "Inventory",
+      "inventoryPools": "Inventory pools",
       "inventoryOverview": "Inventory overview",
       "costs": "Costs",
       "feeTemplates": "Fee templates",
@@ -384,6 +385,7 @@
     "avatarMenu": "Account",
     "backToWorkbench": "Back to workbench",
     "settings": {
+      "organization": "Enterprise profile",
       "shops": "Shops",
       "marketplaceApps": "Marketplace apps",
       "platformBasics": "Platform basics",
@@ -392,13 +394,21 @@
       "importTemplates": "Import templates",
       "integrationLog": "API logs",
       "audit": "Audit log",
-      "erpAccess": "Roles & data scope",
+      "erpAccess": "Role permissions",
       "notifications": "Notifications",
       "members": "Members",
       "preferences": "Preferences",
       "fxRates": "FX rates",
       "stockAlerts": "Stock alert thresholds",
-      "aftersalePolicy": "Aftersale policy"
+      "aftersalePolicy": "Aftersale policy",
+      "groups": {
+        "enterprise": "Onboarding & shops",
+        "basics": "Business config",
+        "data": "Data management",
+        "system": "System & audit",
+        "team": "Team & notifications",
+        "personal": "Personal"
+      }
     },
     "profile": {
       "account": "Account",

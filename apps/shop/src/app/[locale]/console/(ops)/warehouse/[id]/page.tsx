@@ -408,7 +408,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
             ]}
             onClose={() => setEditOpen(false)}
             onSave={(values) => {
-              updateWarehouse.mutate({
+              return updateWarehouse.mutateAsync({
                 id: warehouse.id,
                 name: values.name || warehouse.name,
                 address: values.address || '',
@@ -437,7 +437,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
             ]}
             onClose={() => setBinAddOpen(false)}
             onSave={(values) => {
-              createBinMut.mutate({
+              return createBinMut.mutateAsync({
                 warehouseCode: warehouse.code,
                 code: values.code,
                 zoneCode: values.zoneCode || undefined,
@@ -480,7 +480,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
             ]}
             onClose={() => setBinEdit(null)}
             onSave={(values) => {
-              updateBin.mutate({
+              return updateBin.mutateAsync({
                 id: binEdit.id,
                 name: values.name || binEdit.name,
                 zoneCode: values.zoneCode || '',
@@ -512,7 +512,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
             ]}
             onClose={() => setZoneAddOpen(false)}
             onSave={(values) => {
-              createZoneMut.mutate({
+              return createZoneMut.mutateAsync({
                 warehouseCode: warehouse.code,
                 code: values.code,
                 name: values.name || undefined,
@@ -542,7 +542,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
             ]}
             onClose={() => setZoneEdit(null)}
             onSave={(values) => {
-              updateZoneMut.mutate({
+              return updateZoneMut.mutateAsync({
                 id: zoneEdit.id,
                 name: values.name || zoneEdit.name,
                 purpose: values.purpose || '',
@@ -805,7 +805,7 @@ export default function WarehouseDetailPage({ params }: { params: Promise<{ id: 
           ]}
           onClose={() => setEditOpen(false)}
           onSave={(values) => {
-            updateBin.mutate({
+            return updateBin.mutateAsync({
               id: bin.id,
               name: values.name || bin.name,
               zoneCode: values.zoneCode || '',

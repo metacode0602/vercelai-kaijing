@@ -19,7 +19,7 @@
 | [haoshiyun-erp-gap-analysis-and-remediation.md](haoshiyun-erp-gap-analysis-and-remediation.md) | **初步设计，待业务/IT确认** | 好时运 ERP 需求 Excel（9 张表）覆盖分析、当前仓库证据、目标模型与分阶段整改方案 |
 | [haoshiyun-erp-open-mercato-reuse-plan.md](haoshiyun-erp-open-mercato-reuse-plan.md) | **调研结论，待业务/IT确认** | 好时运 ERP 需求 × Open Shop 现状 × Open Mercato 复用评估：推荐「概念参考 + 自研 Drizzle schema」，含差距表、三类复用建议与 S1–S7 优先级 |
 | [haoshiyun-erp-database-schema.md](haoshiyun-erp-database-schema.md) | **设计稿，待业务/IT确认后 db:generate** | 好时运 ERP 完整数据库表结构（约 75 表）：平台主数据、商品供应商、Seller SKU 映射、采购互审、共享库存流水（借鉴 OM wms）、订单履约 LGS/JSB、售后、成本汇率利润、RBAC/审计/导入、评论口碑（product_reviews / 分析 / HTML 报告快照）、运费测算（freight_estimates 快照 + 货代报价/牌价/HS 税率版本，对齐 freight-estimation-design）；含现有表迁移与业务不变量 |
-| [haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md) | **UED 初版，待评审** | 平台/国家站点/仓库/币种主数据及可复用基础字典交互与数据库落地边界 |
+| [haoshiyun-platform-basics-ued.md](haoshiyun-platform-basics-ued.md) | **UED 初版；平台/国家站点/币种双层 CRUD 已实现（2026-11-10，见 §7）** | 平台/国家站点/仓库/币种主数据及可复用基础字典交互与数据库落地边界；§7 记录 `platform_basics_catalog` 全局目录 + `commerce_platform_basics` 组织副本的 2 表模型、审核通过时幂等初始化与组织内隔离 CRUD |
 | [haoshiyun-erp-ued-catalog.md](haoshiyun-erp-ued-catalog.md) | **D1 UED 原型，部分交互待深化** | 好时运 ERP 页面 IA 与交互状态：店铺多仓、商品、供应商、采购、库存、订单履约、售后、报表、导入、日志和权限 |
 | [haoshiyun-erp-target-function-matrix.md](haoshiyun-erp-target-function-matrix.md) | **目标功能基线，D1 原型** | 按 P0/P1 域追踪 D0 规格、D1 原型、D2 业务接入、D3 验收上线及后端依赖/验收证据 |
 | [haoshiyun-erp-console-menu-ia.md](haoshiyun-erp-console-menu-ia.md) | **IA 设计稿** | 控制台左侧菜单合并稿（Excel 菜单蓝图 × 现有导航）：9 组 35 页线框、功能明细、域 A–K 全表展示路径、设置区 Tab 与旧路由迁移 |
@@ -83,3 +83,4 @@
 | [shop-module14-candidates-notifications-trpc.md](./shop-module14-candidates-notifications-trpc.md) | 生效 | 模块14 候选选品·站内信·Dashboard 残余 |
 | [shop-module15-console-ops-cleanup.md](./shop-module15-console-ops-cleanup.md) | 生效 | 模块15 控制台 ops 清理 |
 | [shop-module16-real-data-final.md](./shop-module16-real-data-final.md) | 生效 | 模块16 真实数据收尾 |
+| [shop-org-rbac-phase-ab.md](./shop-org-rbac-phase-ab.md) | 生效（2026-11-10） | 组织级 RBAC 阶段 A+B：`roles` 四表、设置页、侧栏过滤与敏感写强制 |

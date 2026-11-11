@@ -163,6 +163,7 @@ export const logisticsRouter = createTRPCRouter({
         carrierId: z.string().nullable().optional(),
         trackingSummary: z.string().optional(),
         shipmentIds: z.array(z.string()).optional(),
+        fee: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>
@@ -205,6 +206,7 @@ export const logisticsRouter = createTRPCRouter({
         carrier: z.string().optional(),
         carrierId: z.string().nullable().optional(),
         exception: z.string().optional(),
+        fee: z.string().optional(),
         status: z.string().optional(),
       }),
     )

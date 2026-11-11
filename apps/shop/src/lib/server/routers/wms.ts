@@ -221,6 +221,10 @@ export const wmsRouter = createTRPCRouter({
       )
     }),
 
+  listShopPoolAssignments: tenantProcedure.query(async ({ ctx }) =>
+    inventoryPoolsDa.listShopPoolAssignments(ctx.db, ctx.organizationId),
+  ),
+
   assignShopInventoryPool: tenantProcedure
     .input(
       z.object({

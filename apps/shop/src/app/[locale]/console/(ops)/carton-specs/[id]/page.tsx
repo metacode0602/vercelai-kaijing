@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { DetailFieldGrid, DetailPageHeader } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
@@ -22,7 +21,6 @@ import { Button } from '@workspace/ui/components/button'
 
 export default function CartonSpecDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const router = useRouter()
   const utils = trpc.useUtils()
   const query = trpc.cartonSpecs.get.useQuery({ id })
   const meta = trpc.cartonSpecs.meta.useQuery()
@@ -44,8 +42,8 @@ export default function CartonSpecDetailPage({ params }: { params: Promise<{ id:
   })
   const removeMutation = trpc.cartonSpecs.remove.useMutation({
     onSuccess: async () => {
-      await utils.cartonSpecs.list.invalidate()
-      router.push('/console/carton-specs')
+      await Promise.all([utils.cartonSpecs.get.invalidate({ id }), utils.cartonSpecs.list.invalidate()])
+      setNotice('箱规已停用（未物理删除）。')
     },
     onError: (e) => setNotice(e.message),
   })
@@ -84,7 +82,7 @@ export default function CartonSpecDetailPage({ params }: { params: Promise<{ id:
               </Button>
             )}
             <Button size="sm" variant="destructive" onClick={() => setConfirmDelete(true)}>
-              删除
+              停用并归档
             </Button>
           </div>
         }
@@ -171,9 +169,9 @@ export default function CartonSpecDetailPage({ params }: { params: Promise<{ id:
       <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除箱规 {row.code}？</AlertDialogTitle>
+            <AlertDialogTitle>停用箱规 {row.code}？</AlertDialogTitle>
             <AlertDialogDescription>
-              物理删除主档。若已被海运装箱行引用将被拒绝（此时请改用「停用」）。
+              将软停用该箱规，不会物理删除；已被海运装箱行引用时同样只改状态。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -184,7 +182,7 @@ export default function CartonSpecDetailPage({ params }: { params: Promise<{ id:
                 removeMutation.mutate({ id: row.id })
               }}
             >
-              确认删除
+              确认停用
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -5,12 +5,14 @@
 
 ## 范围
 
-| 已接 PostgreSQL | 仍缺口 / 边界（非本模块） |
+| 已接 PostgreSQL / 平台链路 | 仍缺口 / 边界（非本模块） |
 | --- | --- |
-| `shops` 下拉（mappings/listings meta；`trpc.shops`） | 真实平台刊登 / 上下架 OpenAPI（`listings.requestPlatformSync` **stub**） |
+| `shops` 下拉（mappings/listings meta；`trpc.shops`） | TikTok 刊登写（`createListing` 简化 payload，待联调）；平台无商品 activate 端点 |
 | `seller_sku_mappings` 列表/详情/绑定/解绑/确认 | （已迁模块12）供应商货号 / 履约异常 |
 | `mapping_exceptions` 列表 KPI + resolve/ignore（mappings 主路径） | — |
-| `listings` 列表/详情/新建/编辑/本地上下架/加映射行 | — |
+| `listings` 列表/详情/新建/编辑/上下架/加映射行 | — |
+| **平台写闭环**：`listings.publish` / `setShelf`(下架) → 同步任务 `resource=listing_write` → `connector.createListing/updateListing/deactivateListing` → 回执回写 | — |
+| **待审链路**：候选通过 / `listings.submitForReview` → `listing_submit` 待审 → `pending.confirm` 创建/放行本地刊登 | — |
 | seed `db:seed:commerce-listings`（依赖 products） | — |
 | 内部 SKU 详情注入真实刊登+映射 related | — |
 
@@ -41,11 +43,46 @@ console/mappings | listings
 | 异常 status | 开放/已修复/已忽略（阻断扣库=open+blocks） | open/resolved/ignored |
 | 异常 reason | 未映射/冲突/停用 SKU/重复 Seller SKU | unmapped/conflict/disabled_variant/duplicate_seller_sku |
 
-## 平台同步 stub
+**平台回执兼容值**（`mappers/listings` 读侧归一，写侧透传不误归 draft）：
+`submitted/reviewing → 待审`；`rejected → 失败`；`paused/suspended/archived/sold_out → 下架`；publishState `synced → 已发布`。
+apps/api 读同步用 `toLocalListingStatus`（`@workspace/marketplace`）归一平台状态，`publishState` 统一写 `published`。
 
-`listings.requestPlatformSync` **明确返回** `{ stub: true, ok: false, message }`，只把本地 `publishState` 置为「待同步」并写入说明性 `lastError`。**不要**把它当成已打通的 Daraz/Lazada/TikTok OpenAPI。
+## 平台同步（读 / 写）
 
-本地上下架：`listings.setShelf` 只改 `listings.status`（在售↔下架）。
+### 读同步
+
+`listings.requestPlatformSync` → 同步任务 type=`刊登同步` → apps/api `resource=listings` →
+`sync-listings` upsert（状态归一 + `mergeListingPayload` 本地键优先 + seller_sku_mappings 反查回填
+`externalItemId`/`primaryVariantId`），成功清 `lastError`，失败写 `publishState=同步失败`。
+
+### 平台写（`resource=listing_write`）
+
+| 入口 | 同步任务 target | connector | 回执回写 |
+| --- | --- | --- | --- |
+| `listings.publish`（详情页「发布到平台 / 更新到平台」） | `listing:<id>` | 无 item_id → `createListing`；有 → `updateListing` | item_id、status、publishState=published、submittedAt/liveAt、映射行 itemId |
+| `listings.setShelf(onShelf=false)` | `listing:<id>#deactivate` | `deactivateListing`（Daraz/Lazada `/product/deactivate`） | status=offline、lastError 清空 |
+| `listings.setShelf(onShelf=true)` | — | **不调平台**（平台无 activate 端点） | 仅本地 status=live，文案如实说明 |
+
+执行体：`apps/api/src/lib/marketplace/listing-write.ts`（`runListingWrite`）——解析 target → 载 listing/shop/映射行 →
+组装官方 `Request.Product` payload（`buildListingInput`）→ connector → 成功/失败均回写 listings +
+`sync_tasks` + `integration_logs`；**成功以平台 item_id（create）/ 明确状态（update/deactivate）为准，不以 HTTP 200 为准**。
+
+### 待审链路（listing_submit）
+
+```mermaid
+flowchart LR
+  A[候选通过 acceptCandidate<br/>或 listings.submitForReview] --> B[pending_actions kind=listing_submit]
+  B -->|缺字段| C[补全 pending.complete<br/>店铺/SKU/售价/类目ID]
+  C --> D[pending.confirm]
+  D -->|mode=create| E[创建本地刊登 草稿]
+  D -->|mode=link| F[刊登保持待审/待同步]
+  E --> G[详情页 发布到平台]
+  F --> G
+  G --> H[listing_write 任务 → 平台 item_id]
+```
+
+- `mode=create`（候选自动生成）：payload 缺店铺/SKU/Seller SKU/标题/售价时 `confirm` 报错并列出缺失字段，先 `pending.complete` 补全。
+- `mode=link`（`listings.submitForReview` 生成）：confirm 只放行；拒绝会把关联刊登回退 draft/unpublished。
 
 ## 本地环境
 
@@ -68,17 +105,31 @@ pnpm --filter shop dev
 
 ### `listings`
 
-`list` / `stats` / `meta` / `get` / `create` / `update` / `setShelf` / `addMappingLine` / `requestPlatformSync`（stub）
+`list` / `stats` / `meta` / `get` / `create` / `update` / `setShelf` / `publish` / `submitForReview` / `addMappingLine` / `requestPlatformSync`（读同步）
+
+### `pending`（模块16，与本模块联动）
+
+`list` / `stats` / `get` / `confirm` / `reject` / `complete`（补全 listing_submit payload）
+
+写操作（create/update/setShelf/publish/submitForReview/requestPlatformSync、pending confirm/reject/complete）
+均落 `appendAuditEvent`（entityType=listing / pending_action）。
 
 ## 关键文件
 
 | 文件 | 说明 |
 | --- | --- |
-| `apps/shop/src/lib/server/routers/listings.ts` | 刊登 tRPC |
+| `apps/shop/src/lib/server/routers/listings.ts` | 刊登 tRPC（含 publish / submitForReview + 审计） |
 | `apps/shop/src/lib/server/routers/mappings.ts` | 映射 / 异常 tRPC |
-| `apps/shop/src/lib/server/dataaccess/listings.ts` | 刊登 DB |
+| `apps/shop/src/lib/server/routers/pending.ts` | 待审 tRPC（confirm/reject/complete + 审计） |
+| `apps/shop/src/lib/server/dataaccess/listings.ts` | 刊登 DB（publishListing / setListingShelfStatus / submitForReview） |
+| `apps/shop/src/lib/server/dataaccess/pending.ts` | 待审 DB（listing_submit confirm 创建刊登 / 补全） |
 | `apps/shop/src/lib/server/dataaccess/mappings.ts` | 映射 / 异常 DB |
-| `apps/shop/src/lib/server/mappers/listings.ts` | 中文状态映射 |
+| `apps/shop/src/lib/server/mappers/listings.ts` | 中文状态映射（含平台回执兼容值） |
+| `apps/shop/src/lib/server/marketplace/api-client.ts` | `publish/status → listing_write` 资源映射 |
+| `apps/api/src/lib/marketplace/listing-write.ts` | 平台写执行体（runListingWrite） |
+| `apps/api/src/lib/marketplace/listing-merge.ts` | 读同步 payload 合并 / liveAt 纯函数 |
+| `packages/marketplace/src/adapters/listing-payload.ts` | 官方 `Request.Product` payload 组装 |
+| `packages/marketplace/src/mappers/listing-status.ts` | 平台状态 → 本地五态归一 |
 | `packages/db/src/scripts/seed-commerce-listings.ts` | 演示种子 |
 | `apps/shop/src/lib/crossborder/listing-store.ts` | 主路径停用；类型保留 |
 | `apps/shop/src/lib/crossborder/mapping-store.ts` | **已删除**（2026-11-08） |
@@ -86,4 +137,5 @@ pnpm --filter shop dev
 
 ## 本 PR 不做
 
-合并售后 #43；真实平台 OpenAPI；供应商门户 / `supplier-skus` 新表；改左侧菜单；财务成本 / 候选选品接库。
+合并售后 #43；TikTok 刊登写联调（payload 简化，见 `packages/marketplace/src/adapters/tiktok.ts`）；
+OAuth 换票/回调；供应商门户 / `supplier-skus` 新表；改左侧菜单；财务成本 / 候选选品接库。

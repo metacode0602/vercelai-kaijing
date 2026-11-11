@@ -103,7 +103,10 @@ export async function consumeOAuthNonce(nonce: string): Promise<boolean> {
   }
 }
 
-export function decodeOAuthState(state: string): OAuthStatePayload | null {
+export function decodeOAuthState(
+  state: string,
+  options?: { ignoreExp?: boolean },
+): OAuthStatePayload | null {
   const [body, sig] = state.split('.')
   if (!body || !sig) return null
   const expected = sign(body)
@@ -112,7 +115,7 @@ export function decodeOAuthState(state: string): OAuthStatePayload | null {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null
   try {
     const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as OAuthStatePayload
-    if (!parsed.exp || parsed.exp < Date.now()) return null
+    if (!options?.ignoreExp && (!parsed.exp || parsed.exp < Date.now())) return null
     return parsed
   } catch {
     return null

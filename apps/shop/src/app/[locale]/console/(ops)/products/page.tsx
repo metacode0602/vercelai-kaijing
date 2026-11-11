@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@workspace/ui/components/table'
-import { labelStatus, labeledOptions } from '@/lib/console/labels'
+import { labelStatus } from '@/lib/console/labels'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { trpc } from '@/lib/trpc/client'
 
@@ -28,6 +28,15 @@ function listingVariant(status: string) {
   return 'outline' as const
 }
 
+/** 刊登状态筛选：值为 DB 状态（SQL EXISTS 过滤），标签为中文。 */
+const LISTING_FILTER_OPTIONS = [
+  { value: 'draft', label: '草稿' },
+  { value: 'pending_review', label: '待审' },
+  { value: 'live', label: '在售' },
+  { value: 'failed', label: '失败' },
+  { value: 'offline', label: '下架' },
+]
+
 const PAGE_SIZE = 20
 
 export default function ProductsPage() {
@@ -36,6 +45,7 @@ export default function ProductsPage() {
   const [platform, setPlatform] = React.useState('all')
   const [page, setPage] = React.useState(1)
 
+  const metaQuery = trpc.listings.meta.useQuery()
   const listQuery = trpc.products.listCatalog.useQuery({
     page,
     pageSize: PAGE_SIZE,
@@ -45,8 +55,9 @@ export default function ProductsPage() {
   })
   const rows = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
-  const listings = [...new Set(rows.map((r) => r.listing).filter(Boolean))]
-  const platforms = [...new Set(rows.map((r) => r.platform).filter((p) => p && p !== '—'))]
+  const platformOptions = [
+    ...new Set((metaQuery.data?.shops ?? []).map((s) => s.platform).filter(Boolean)),
+  ].map((v) => ({ value: v, label: v }))
 
   return (
     <div className="space-y-4">
@@ -57,7 +68,8 @@ export default function ProductsPage() {
       <Alert>
         <AlertTitle>主路径已接库</AlertTitle>
         <AlertDescription>
-          列表读 products / product_variants / listings（`products.listCatalog`）。
+          列表读 products / product_variants / listings（`products.listCatalog`），刊登状态 / 平台筛选为
+          SQL 级 EXISTS 过滤（分页与 total 准确）。
         </AlertDescription>
       </Alert>
       <ConsoleFilterBar
@@ -65,8 +77,8 @@ export default function ProductsPage() {
         onKeywordChange={(v) => { setKeyword(v); setPage(1) }}
         keywordPlaceholder="SKU / 标题 / SPU"
         filters={[
-          { id: 'listing', label: '刊登状态', value: listing, onChange: (v) => { setListing(v); setPage(1) }, options: labeledOptions(listings) },
-          { id: 'platform', label: '平台', value: platform, onChange: (v) => { setPlatform(v); setPage(1) }, options: platforms.map((v) => ({ value: v, label: v })) },
+          { id: 'listing', label: '刊登状态', value: listing, onChange: (v) => { setListing(v); setPage(1) }, options: LISTING_FILTER_OPTIONS },
+          { id: 'platform', label: '平台', value: platform, onChange: (v) => { setPlatform(v); setPage(1) }, options: platformOptions },
         ]}
       />
       <ConsoleListSection title="商品列表" description={`共 ${total} 条`} pagination={{ page, pageSize: PAGE_SIZE, total, onPageChange: setPage }}>

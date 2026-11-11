@@ -5,13 +5,23 @@ import {
   type MarketplacePlatform,
 } from '@workspace/marketplace'
 import {
+  findOccupyingShop,
+  finalizeExpiredTransferAppeals,
+  markConflictClosedAfterReauth,
+  recordCrossTenantBindingConflict,
+  recordShopIdentityUnavailable,
+} from '@workspace/db'
+import {
   integrationCredentials,
   integrationLogs,
   integrationStates,
   shops,
 } from '@workspace/db/schema'
 import { db } from '@/lib/db'
-import { ShopBindingConflictError } from '@/lib/marketplace/errors'
+import {
+  ShopBindingConflictError,
+  ShopIdentityUnavailableError,
+} from '@/lib/marketplace/errors'
 
 function metaBoolean(meta: unknown, key: string): boolean {
   if (!meta || typeof meta !== 'object') return false
@@ -27,10 +37,8 @@ export async function persistOAuthCredentials(input: {
   externalShopId?: string
   region?: string
   shopMeta?: Record<string, unknown>
+  actorUserId?: string
 }) {
-  const payloadEncrypted = encryptCredentialPayload(input.tokens)
-  const expiresAt = input.tokens.expiresAt ? new Date(input.tokens.expiresAt) : null
-
   const result = await db.transaction(async (tx) => {
     const [currentShop] = await tx
       .select()
@@ -44,74 +52,52 @@ export async function persistOAuthCredentials(input: {
       .limit(1)
     if (!currentShop) throw new Error('店铺不存在')
 
-    let targetShop = currentShop
+    await finalizeExpiredTransferAppeals(tx)
 
-    if (input.externalShopId) {
-      const [crossTenant] = await tx
-        .select({ id: shops.id, organizationId: shops.organizationId })
-        .from(shops)
-        .where(
-          and(
-            eq(shops.platform, input.platform),
-            eq(shops.externalShopId, input.externalShopId),
-            ne(shops.organizationId, input.organizationId),
-            isNull(shops.deletedAt),
-          ),
-        )
-        .limit(1)
-      if (crossTenant) {
-        const message = '该平台店铺已绑定到其他租户，请联系平台运营处理'
-        await tx
-          .update(shops)
-          .set({
-            status: 'error',
-            meta: {
-              ...(currentShop.meta ?? {}),
-              lastError: message,
-            },
-            updatedAt: new Date(),
-          })
-          .where(eq(shops.id, currentShop.id))
-        await tx
-          .insert(integrationStates)
-          .values({
-            shopId: currentShop.id,
-            health: 'error',
-            lastError: 'shop_already_bound_other_org',
-          })
-          .onConflictDoUpdate({
-            target: integrationStates.shopId,
-            set: { health: 'error', lastError: 'shop_already_bound_other_org' },
-          })
-        await tx.insert(integrationLogs).values({
-          shopId: currentShop.id,
-          direction: 'in',
-          action: 'oauth_callback',
-          status: 'error',
-          message: 'cross-tenant shop binding conflict',
-          payloadSummary: JSON.stringify({ platform: input.platform }),
-        })
-        return {
-          conflict: true as const,
-          message,
-        }
-      }
-
-      const [sameTenant] = await tx
-        .select()
-        .from(shops)
-        .where(
-          and(
-            eq(shops.organizationId, input.organizationId),
-            eq(shops.platform, input.platform),
-            eq(shops.externalShopId, input.externalShopId),
-            ne(shops.id, input.shopId),
-            isNull(shops.deletedAt),
-          ),
-        )
-        .limit(1)
-      if (sameTenant) targetShop = sameTenant
+    const externalShopId = input.externalShopId?.trim()
+    if (!externalShopId) {
+      const message = await recordShopIdentityUnavailable(tx, {
+        shop: currentShop,
+        platform: input.platform,
+        actorUserId: input.actorUserId,
+      })
+      return { kind: 'identity_unavailable' as const, message }
     }
+
+    const occupant = await findOccupyingShop(tx, {
+      platform: input.platform,
+      externalShopId,
+      excludeOrganizationId: input.organizationId,
+    })
+    if (occupant) {
+      const { message } = await recordCrossTenantBindingConflict(tx, {
+        challengerShop: currentShop,
+        occupantShop: occupant,
+        platform: input.platform,
+        externalShopId,
+        actorUserId: input.actorUserId,
+      })
+      return { kind: 'conflict' as const, message }
+    }
+
+    const payloadEncrypted = encryptCredentialPayload(input.tokens)
+    const expiresAt = input.tokens.expiresAt ? new Date(input.tokens.expiresAt) : null
+
+    let targetShop = currentShop
+    const [sameTenant] = await tx
+      .select()
+      .from(shops)
+      .where(
+        and(
+          eq(shops.organizationId, input.organizationId),
+          eq(shops.platform, input.platform),
+          eq(shops.externalShopId, externalShopId),
+          ne(shops.id, input.shopId),
+          isNull(shops.deletedAt),
+        ),
+      )
+      .limit(1)
+    if (sameTenant) targetShop = sameTenant
 
     const [existingCredential] = await tx
       .select({ id: integrationCredentials.id })
@@ -154,7 +140,7 @@ export async function persistOAuthCredentials(input: {
       .update(shops)
       .set({
         status: 'active',
-        externalShopId: input.externalShopId ?? targetShop.externalShopId,
+        externalShopId,
         region: input.region ?? targetShop.region,
         authExpiresAt: expiresAt,
         meta: {
@@ -162,6 +148,7 @@ export async function persistOAuthCredentials(input: {
           ...(input.shopMeta ?? {}),
           syncPaused,
           lastError: null,
+          transferReauthAllowed: false,
         },
         updatedAt: new Date(),
       })
@@ -202,17 +189,28 @@ export async function persistOAuthCredentials(input: {
       payloadSummary: JSON.stringify({
         platform: input.platform,
         duplicate: targetShop.id !== currentShop.id,
-        externalShopId: input.externalShopId ?? null,
+        externalShopId,
       }),
     })
 
+    await markConflictClosedAfterReauth(tx, {
+      platform: input.platform,
+      externalShopId,
+      organizationId: input.organizationId,
+      shopId: targetShop.id,
+      actorUserId: input.actorUserId,
+    })
+
     return {
-      conflict: false as const,
+      kind: 'ok' as const,
       shopId: targetShop.id,
       duplicate: targetShop.id !== currentShop.id,
     }
   })
 
-  if (result.conflict) throw new ShopBindingConflictError(result.message)
+  if (result.kind === 'conflict') throw new ShopBindingConflictError(result.message)
+  if (result.kind === 'identity_unavailable') {
+    throw new ShopIdentityUnavailableError(result.message)
+  }
   return result
 }

@@ -12,6 +12,7 @@ export type MarketplaceSyncResource =
   | 'listings'
   | 'settlements'
   | 'ship_batch'
+  | 'listing_write'
   | 'all'
 
 export interface TriggerMarketplaceSyncInput {
@@ -128,6 +129,9 @@ export function resourceForSyncTaskType(type: string): MarketplaceSyncResource {
     case 'reviews':
       return 'reviews'
     case 'publish':
+    case 'status':
+      // 刊登平台写：create / update / deactivate（apps/api resource=listing_write）
+      return 'listing_write'
     case 'listings':
       return 'listings'
     case 'logistics':

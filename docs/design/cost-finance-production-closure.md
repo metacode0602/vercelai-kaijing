@@ -49,7 +49,7 @@
 
 | 路由 | 用途 |
 | --- | --- |
-| `/console/settings/fx-rates` | 组织汇率 `fx_rates`；测算强制选用有效汇率；`sku_costs.fx_rate_id` FK |
+| `/settings/fx-rates` | 组织汇率 `fx_rates`；测算强制选用有效汇率；`sku_costs.fx_rate_id` FK |
 
 `/console/finance` 已重定向至 `settlements`，不再并存菜单入口。
 

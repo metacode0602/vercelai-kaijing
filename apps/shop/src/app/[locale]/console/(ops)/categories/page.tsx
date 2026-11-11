@@ -116,9 +116,9 @@ export default function CategoriesPage() {
           note: values.note || '',
         }
         if (dialog.mode === 'edit' && dialog.row) {
-          updateMutation.mutate({ id: dialog.row.id, ...payload })
+          return updateMutation.mutateAsync({ id: dialog.row.id, ...payload })
         } else {
-          createMutation.mutate(payload)
+          return createMutation.mutateAsync(payload)
         }
       }}
     />

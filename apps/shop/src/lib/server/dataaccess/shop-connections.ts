@@ -11,7 +11,13 @@ import {
   marketplaceAppCredentials,
   shops,
 } from '@workspace/db/schema'
-import type { AppDatabase } from '@workspace/db'
+import {
+  getShopBindingView,
+  unbindShopBindingSlot,
+  appealShopBindingTransfer,
+  type AppDatabase,
+  type ShopBindingView,
+} from '@workspace/db'
 import {
   formatStamp,
   toDbFulfillmentMode,
@@ -59,6 +65,7 @@ export type ShopConnectionDto = {
   appCredentialLabel: string
   owner: string
   hasCredential: boolean
+  bindingConflict?: ShopBindingView | null
 }
 
 function healthLabel(health: string | null | undefined, lastError: string | null | undefined) {
@@ -97,7 +104,8 @@ function mapShop(
   const syncPaused =
     metaFlag(shop.meta, 'syncPaused') ||
     state?.health === 'paused' ||
-    shop.status === 'disabled'
+    shop.status === 'disabled' ||
+    shop.status === 'unbound'
   return {
     id: shop.id,
     name: shop.name,
@@ -136,7 +144,7 @@ function authStatusFilter(status: string): SQL | undefined {
       )
     case '授权失效':
       return or(
-        inArray(shops.status, ['error', 'disabled']),
+        inArray(shops.status, ['error', 'disabled', 'unbound']),
         and(eq(shops.status, 'active'), lt(shops.authExpiresAt, now)),
       )
     case '连接中':
@@ -243,7 +251,7 @@ export async function listShopConnections(
       total: count(),
       authorized: sql<number>`count(*) filter (where ${shops.status} = 'active' and (${shops.authExpiresAt} is null or ${shops.authExpiresAt} > now()))`,
       pending: sql<number>`count(*) filter (where ${shops.status} in ('draft', 'connecting', 'pending'))`,
-      expired: sql<number>`count(*) filter (where ${shops.status} in ('error', 'disabled') or (${shops.status} = 'active' and ${shops.authExpiresAt} <= now()))`,
+      expired: sql<number>`count(*) filter (where ${shops.status} in ('error', 'disabled', 'unbound') or (${shops.status} = 'active' and ${shops.authExpiresAt} <= now()))`,
       paused: sql<number>`count(*) filter (where coalesce((${shops.meta} ->> 'syncPaused')::boolean, false) or ${integrationStates.health} = 'paused')`,
     })
     .from(shops)
@@ -307,7 +315,13 @@ export async function getShopConnection(db: AppDatabase, organizationId: string,
           .limit(1)
       )[0]
     : undefined
-  return mapShop(shop, state, cred, app)
+  return {
+    ...mapShop(shop, state, cred, app),
+    bindingConflict: await getShopBindingView(db, {
+      shopId: shop.id,
+      organizationId,
+    }),
+  }
 }
 
 export async function createShopDraft(
@@ -525,6 +539,34 @@ export async function disableShop(
     .set({ status: 'disabled', meta, updatedAt: new Date() })
     .where(eq(shops.id, shop.id))
   return getShopConnection(db as AppDatabase, organizationId, shop.id)
+}
+
+export async function unbindShop(
+  db: AppDatabase,
+  organizationId: string,
+  input: { id: string; reason?: string; actorUserId: string },
+) {
+  await unbindShopBindingSlot(db, {
+    shopId: input.id,
+    organizationId,
+    actorUserId: input.actorUserId,
+    reason: input.reason,
+  })
+  return getShopConnection(db, organizationId, input.id)
+}
+
+export async function appealShopTransfer(
+  db: AppDatabase,
+  organizationId: string,
+  input: { id: string; content: string; actorUserId: string },
+) {
+  await appealShopBindingTransfer(db, {
+    shopId: input.id,
+    organizationId,
+    actorUserId: input.actorUserId,
+    content: input.content,
+  })
+  return getShopConnection(db, organizationId, input.id)
 }
 
 export function countShopKpi(rows: ShopConnectionDto[]) {

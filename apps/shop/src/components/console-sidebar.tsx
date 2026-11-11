@@ -1,38 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import {
-  ArrowDownToLine,
-  BadgeCheck,
-  ArrowUpFromLine,
-  Boxes,
-  Calculator,
-  Circle,
-  ClipboardCheck,
-  ClipboardList,
-  Container,
-  CreditCard,
-  FileText,
-  FolderTree,
-  LayoutDashboard,
-  Map,
-  Package,
-  PackageOpen,
-  PackageSearch,
-  Percent,
-  RefreshCw,
-  Scale,
-  Settings,
-  ShoppingCart,
-  Sparkles,
-  Star,
-  Tags,
-  Truck,
-  TrendingUp,
-  Undo2,
-  Warehouse,
-  Wallet,
-} from 'lucide-react'
+import { PackageSearch } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   CONSOLE_FOOTER_NAV,
@@ -53,63 +22,9 @@ import {
   SidebarMenuItem,
 } from '@workspace/ui/components/sidebar'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
+import { canSeeNavItem } from '@/lib/rbac-nav'
 import { Badge } from '@workspace/ui/components/badge'
-
-const NAV_ICONS: Record<string, React.ReactNode> = {
-  '/console/dashboard': <LayoutDashboard className="size-4" />,
-  '/console/pending': <ClipboardList className="size-4" />,
-  '/console/candidates': <Sparkles className="size-4" />,
-  '/console/master-products': <Package className="size-4" />,
-  '/console/categories': <FolderTree className="size-4" />,
-  '/console/brands': <BadgeCheck className="size-4" />,
-  '/console/master-skus': <Tags className="size-4" />,
-  '/console/supplier-skus': <PackageSearch className="size-4" />,
-  '/console/dictionaries': <Tags className="size-4" />,
-  '/console/reviews': <Star className="size-4" />,
-  '/console/listings': <Package className="size-4" />,
-  '/console/mappings': <PackageSearch className="size-4" />,
-  '/console/sync-tasks': <RefreshCw className="size-4" />,
-  '/console/purchase-requests': <FileText className="size-4" />,
-  '/console/purchase-approvals': <ClipboardCheck className="size-4" />,
-  '/console/purchase-orders': <ShoppingCart className="size-4" />,
-  '/console/purchase-receipts': <ArrowDownToLine className="size-4" />,
-  '/console/suppliers': <Package className="size-4" />,
-  '/console/inventory-balances': <Boxes className="size-4" />,
-  '/console/warehouse': <Warehouse className="size-4" />,
-  '/console/warehouse-zones': <Map className="size-4" />,
-  '/console/stock-inbounds': <ArrowDownToLine className="size-4" />,
-  '/console/stock-outbounds': <ArrowUpFromLine className="size-4" />,
-  '/console/inventory-ledger': <Warehouse className="size-4" />,
-  '/console/stock-adjustments': <Scale className="size-4" />,
-  '/console/inventory': <Warehouse className="size-4" />,
-  '/console/orders': <ShoppingCart className="size-4" />,
-  '/console/order-exceptions': <ShoppingCart className="size-4" />,
-  '/console/picking': <ClipboardCheck className="size-4" />,
-  '/console/logistics-lgs': <Truck className="size-4" />,
-  '/console/logistics-jsb': <Truck className="size-4" />,
-  '/console/aftersale-cancels': <Undo2 className="size-4" />,
-  '/console/aftersale-returns': <Undo2 className="size-4" />,
-  '/console/costs': <Calculator className="size-4" />,
-  '/console/fee-templates': <Percent className="size-4" />,
-  '/console/settlements': <Wallet className="size-4" />,
-  '/console/profits': <TrendingUp className="size-4" />,
-  '/console/carriers': <Truck className="size-4" />,
-  '/console/carton-specs': <PackageOpen className="size-4" />,
-  '/console/freight-rate-cards': <CreditCard className="size-4" />,
-  '/console/freight': <Container className="size-4" />,
-  '/console/reports': <LayoutDashboard className="size-4" />,
-  '/console/products': <Package className="size-4" />,
-  '/console/purchases': <ShoppingCart className="size-4" />,
-  '/console/shipments': <Truck className="size-4" />,
-  '/console/aftersales': <Undo2 className="size-4" />,
-  '/console/finance': <Wallet className="size-4" />,
-  '/console/settings/platform-basics': <Settings className="size-4" />,
-  '/console/settings': <Settings className="size-4" />,
-}
-
-function getNavIcon(url: string) {
-  return NAV_ICONS[url] ?? <Circle className="size-4" />
-}
+import { NavIcon } from '@/components/console/nav-icon'
 
 function formatBadge(n: number) {
   if (n <= 0) return null
@@ -126,6 +41,9 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
   const t = useTranslations('Console')
   const pathname = useLocalePathname() ?? ''
   const badgesQuery = trpc.dashboard.navBadges.useQuery(undefined, { staleTime: 30_000 })
+  const accessQuery = trpc.roles.myAccess.useQuery(undefined, { staleTime: 30_000 })
+  const access = accessQuery.data ?? { isOwner: true, permissions: [] as string[] }
+  const visibleItems = items.filter((item) => canSeeNavItem(item.url, access))
   const badgeValues: Record<NonNullable<ConsoleNavItemConfig['badgeKey']>, number> = {
     pendingCount: badgesQuery.data?.pendingCount ?? 0,
     inventoryAlerts: badgesQuery.data?.inventoryAlerts ?? 0,
@@ -137,7 +55,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const badge =
               item.badgeKey != null ? formatBadge(badgeValues[item.badgeKey] ?? 0) : null
             const exact = item.url === '/console/dashboard'
@@ -149,7 +67,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
                   isActive={isActive(pathname, item.url, exact)}
                 >
                   <LocaleLink href={item.url}>
-                    {getNavIcon(item.url)}
+                    <NavIcon name={item.icon} className="size-4" />
                     <span>{t(item.titleKey)}</span>
                   </LocaleLink>
                 </SidebarMenuButton>
@@ -158,6 +76,22 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
             )
           })}
         </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
+
+
+function VisibleNavGroup({ label, items }: { label: string; items: ConsoleNavItemConfig[] }) {
+  const accessQuery = trpc.roles.myAccess.useQuery(undefined, { staleTime: 30_000 })
+  const access = accessQuery.data ?? { isOwner: true, permissions: [] as string[] }
+  const visibleItems = items.filter((item) => canSeeNavItem(item.url, access))
+  if (visibleItems.length === 0) return null
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{label}</p>
+        <NavList items={visibleItems} />
       </SidebarGroupContent>
     </SidebarGroup>
   )
@@ -182,12 +116,7 @@ export function ConsoleSidebar({ ...props }: React.ComponentProps<typeof Sidebar
       </SidebarHeader>
       <SidebarContent>
         {CONSOLE_NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.groupKey}>
-            <SidebarGroupContent>
-              <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{t(group.labelKey)}</p>
-              <NavList items={group.items} />
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <VisibleNavGroup key={group.groupKey} label={t(group.labelKey)} items={group.items} />
         ))}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">

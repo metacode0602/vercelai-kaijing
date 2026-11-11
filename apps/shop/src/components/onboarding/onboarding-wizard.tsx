@@ -299,7 +299,7 @@ export function OnboardingWizard() {
   })
   const submit = trpc.onboarding.submit.useMutation({
     onSuccess: () => {
-      router.push(bindNow ? '/console/settings/shops/new' : '/onboarding/status')
+      router.push(bindNow ? '/settings/shops/new' : '/onboarding/status')
     },
     onError: (mutationError) => setError(mutationError.message),
   })

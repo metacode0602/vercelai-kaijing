@@ -43,7 +43,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
       <DetailPageHeader
         backHref="/console/shipments"
         title="未找到包裹"
-        description={`包裹 ${id} 不存在。可先执行物流种子或从订单创建包裹。`}
+        description={`包裹 ${id} 不存在。可到「包裹与物流」从订单创建包裹。`}
       />
     )
   }
@@ -121,9 +121,13 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
           value: `包裹 ${row.externalPackageId} · ${row.shop}`,
         }}
         impacts={[
-          '当前为 stub：仅写一条 fulfillment_attempts 记录，不调用平台',
-          '真实轨迹同步需待 connector 联调',
+          '将经 apps/api 调用平台物流轨迹接口（Lazop /logistic/order/trace）',
+          '成功后写入 tracking_events（来源=接口）；没有授权或接口失败时会如实报错，不会本地造轨迹',
         ]}
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: 'Lazop /logistic/order/trace',
+        }}
         confirmLabel="同步轨迹"
         pending={syncMutation.isPending}
         onConfirm={() => {

@@ -1,6 +1,6 @@
 /**
  * 站内信 console_notifications（模块14）。
- * org + user；同步任务 / 订单异常可写系统通知，不自动外传。
+ * org + user；同步任务 / 订单异常可写系统通知。新建系统通知时，若组织启用了钉钉则异步外发（失败不回滚业务）。
  */
 import { and, count, desc, eq, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
@@ -16,6 +16,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { scheduleDingTalkIfEnabled } from '@/lib/server/dataaccess/organization-settings'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -195,5 +196,12 @@ export async function ensureSystemNotification(
     )
     .limit(1)
   if (existing) return mapRow(existing)
-  return createNotification(db, organizationId, input)
+  const created = await createNotification(db, organizationId, input)
+  const summary = created.summary || created.body || ''
+  scheduleDingTalkIfEnabled(
+    db,
+    organizationId,
+    `【好市云】${created.title}${summary ? `\n${summary}` : ''}`,
+  )
+  return created
 }

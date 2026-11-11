@@ -4,3 +4,10 @@ export class ShopBindingConflictError extends Error {
     this.name = 'ShopBindingConflictError'
   }
 }
+
+export class ShopIdentityUnavailableError extends Error {
+  constructor(message = '无法识别平台店铺身份，已拒绝保存授权，请重试') {
+    super(message)
+    this.name = 'ShopIdentityUnavailableError'
+  }
+}

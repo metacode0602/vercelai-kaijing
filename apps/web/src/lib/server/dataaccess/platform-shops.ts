@@ -5,10 +5,12 @@ import {
   integrationCredentials,
   integrationLogs,
   integrationStates,
+  inventoryPools,
   organization,
   shops,
 } from '@workspace/db'
 import { db } from '@/lib/db'
+import { pageValues } from '@/lib/server/dataaccess/pagination'
 
 /**
  * 平台运营店铺管理（apps/web）。
@@ -34,12 +36,6 @@ export type PlatformShopListItem = {
   syncPaused: boolean
 }
 
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
-}
-
 function syncPausedFlag(meta: unknown, health: string | null, status: string) {
   if (status === 'disabled') return true
   if (health === 'paused') return true
@@ -55,9 +51,13 @@ export async function listPlatformShops(input: {
   q?: string
   platform?: string
   status?: string
+  organizationId?: string
 }) {
   const { page, pageSize } = pageValues(input.page, input.pageSize)
   const filters = [isNull(shops.deletedAt)]
+  if (input.organizationId) {
+    filters.push(eq(shops.organizationId, input.organizationId))
+  }
   if (input.platform && input.platform !== 'all') {
     filters.push(eq(shops.platform, input.platform))
   }
@@ -170,14 +170,22 @@ export async function getPlatformShop(id: string) {
       organizationName: organization.name,
       organizationEntryApproved: organization.entryApproved,
       organizationStatus: organization.status,
+      inventoryPoolName: inventoryPools.name,
       health: integrationStates.health,
       lastError: integrationStates.lastError,
       lastOrdersSyncAt: integrationStates.lastOrdersSyncAt,
       lastInventorySyncAt: integrationStates.lastInventorySyncAt,
+      lastProductsSyncAt: integrationStates.lastProductsSyncAt,
+      lastListingsSyncAt: integrationStates.lastListingsSyncAt,
+      lastLogisticsSyncAt: integrationStates.lastLogisticsSyncAt,
+      lastReviewsSyncAt: integrationStates.lastReviewsSyncAt,
+      lastReverseSyncAt: integrationStates.lastReverseSyncAt,
+      lastSettlementsSyncAt: integrationStates.lastSettlementsSyncAt,
     })
     .from(shops)
     .innerJoin(organization, eq(organization.id, shops.organizationId))
     .leftJoin(integrationStates, eq(integrationStates.shopId, shops.id))
+    .leftJoin(inventoryPools, eq(inventoryPools.id, shops.inventoryPoolId))
     .where(and(eq(shops.id, id), isNull(shops.deletedAt)))
     .limit(1)
   if (!row) return null
@@ -193,20 +201,6 @@ export async function getPlatformShop(id: string) {
     .where(eq(integrationCredentials.shopId, row.shop.id))
     .limit(1)
 
-  const logs = await db
-    .select({
-      id: integrationLogs.id,
-      action: integrationLogs.action,
-      direction: integrationLogs.direction,
-      status: integrationLogs.status,
-      message: integrationLogs.message,
-      createdAt: integrationLogs.createdAt,
-    })
-    .from(integrationLogs)
-    .where(eq(integrationLogs.shopId, row.shop.id))
-    .orderBy(desc(integrationLogs.createdAt))
-    .limit(20)
-
   return {
     shop: {
       id: row.shop.id,
@@ -214,6 +208,10 @@ export async function getPlatformShop(id: string) {
       platform: row.shop.platform,
       region: row.shop.marketplaceCountry,
       currency: row.shop.currency,
+      timezone: row.shop.timezone,
+      sellerName: row.shop.sellerName,
+      inventoryPoolId: row.shop.inventoryPoolId,
+      inventoryPoolName: row.inventoryPoolName,
       externalShopId: row.shop.externalShopId,
       sellerId: row.shop.sellerId,
       shopGroup: row.shop.shopGroup,
@@ -235,6 +233,12 @@ export async function getPlatformShop(id: string) {
     lastError: row.lastError,
     lastOrdersSyncAt: row.lastOrdersSyncAt,
     lastInventorySyncAt: row.lastInventorySyncAt,
+    lastProductsSyncAt: row.lastProductsSyncAt,
+    lastListingsSyncAt: row.lastListingsSyncAt,
+    lastLogisticsSyncAt: row.lastLogisticsSyncAt,
+    lastReviewsSyncAt: row.lastReviewsSyncAt,
+    lastReverseSyncAt: row.lastReverseSyncAt,
+    lastSettlementsSyncAt: row.lastSettlementsSyncAt,
     credential: credential
       ? {
           kind: credential.kind,
@@ -243,7 +247,6 @@ export async function getPlatformShop(id: string) {
         }
       : null,
     syncPaused: syncPausedFlag(row.shop.meta, row.health, row.shop.status),
-    logs,
   }
 }
 
@@ -308,7 +311,7 @@ export async function disablePlatformShop(input: {
         ? `店铺「${shop.name}」已被平台停用：${note}`
         : `店铺「${shop.name}」已被平台停用，请联系平台运营核实。`,
       body: note ?? '',
-      href: '/console/settings/shops',
+      href: '/settings/shops',
       sourceType: 'platform_shop_ops',
       sourceId: shop.id,
     })
@@ -373,7 +376,7 @@ export async function restorePlatformShop(input: {
       title: '店铺已恢复，请重新授权',
       summary: `店铺「${shop.name}」已由平台恢复，请前往店铺连接页重新完成授权。`,
       body: '',
-      href: '/console/settings/shops',
+      href: '/settings/shops',
       sourceType: 'platform_shop_ops',
       sourceId: shop.id,
     })

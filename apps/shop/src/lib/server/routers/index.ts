@@ -26,6 +26,7 @@ import { dictionariesRouter } from './dictionaries'
 import { importTemplatesRouter } from './import-templates'
 import { auditRouter } from './audit'
 import { membersRouter } from './members'
+import { organizationRouter } from './organization'
 import { shopsRouter } from './shops'
 import { marketplaceAppsRouter } from './marketplace-apps'
 import { onboardingRouter } from './onboarding'
@@ -35,6 +36,9 @@ import { reportsRouter } from './reports'
 import { fxRatesRouter } from './fx-rates'
 import { integrationLogsRouter } from './integration-logs'
 import { stockAlertsRouter } from './stock-alerts'
+import { rolesRouter } from './roles'
+import { platformBasicsRouter } from './platform-basics'
+import { complianceRouter } from './compliance'
 
 export * from '@/lib/server/trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -67,6 +71,7 @@ export const appRouter = router({
   importTemplates: importTemplatesRouter,
   audit: auditRouter,
   members: membersRouter,
+  organization: organizationRouter,
   shops: shopsRouter,
   marketplaceApps: marketplaceAppsRouter,
   onboarding: onboardingRouter,
@@ -76,6 +81,9 @@ export const appRouter = router({
   fxRates: fxRatesRouter,
   integrationLogs: integrationLogsRouter,
   stockAlerts: stockAlertsRouter,
+  roles: rolesRouter,
+  platformBasics: platformBasicsRouter,
+  compliance: complianceRouter,
 })
 
 export type AppRouter = typeof appRouter

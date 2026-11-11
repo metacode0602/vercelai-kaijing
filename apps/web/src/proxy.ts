@@ -3,10 +3,11 @@ import createIntlMiddleware from 'next-intl/middleware'
 import { NextResponse, type NextRequest } from 'next/server'
 import { websiteConfig } from '@/lib/config/website'
 import { routing } from '@/lib/i18n/routing'
+import { mapLegacyPlatformPath } from '@/lib/navigation/legacy-paths'
 
 const handleI18nRouting = createIntlMiddleware(routing)
 
-const PROTECTED_PREFIXES = ['/settings', '/crossborder']
+const PROTECTED_PREFIXES = ['/settings', '/console', '/crossborder']
 
 function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some(
@@ -25,6 +26,12 @@ function stripLocale(pathname: string) {
 
 export function proxy(request: NextRequest) {
   const { locale, pathname } = stripLocale(request.nextUrl.pathname)
+  const mapped = mapLegacyPlatformPath(pathname)
+  if (mapped) {
+    const url = request.nextUrl.clone()
+    url.pathname = locale ? `/${locale}${mapped}` : mapped
+    return NextResponse.redirect(url)
+  }
 
   if (
     isProtectedPath(pathname) &&

@@ -33,7 +33,7 @@ import { organization } from "./auth-schema"
 export const commercePlatforms = ["daraz", "lazada", "shopee", "tiktok_shop"] as const
 export type CommercePlatform = (typeof commercePlatforms)[number]
 
-export const shopStatuses = ["draft", "connecting", "active", "error", "disabled"] as const
+export const shopStatuses = ["draft", "connecting", "active", "error", "disabled", "unbound"] as const
 export type ShopStatus = (typeof shopStatuses)[number]
 
 export const fulfillmentModes = ["fbm", "fbp", "hybrid"] as const
@@ -318,6 +318,61 @@ export const shops = pgTable(
 )
 
 /**
+ * G8 跨租户店铺绑定冲突单。
+ * 同一家店的冲突键为 platform + external_shop_id（不含站点/国家）。
+ * 裁决与申诉状态以本表为准，不再靠 error 店铺推断。
+ */
+export const shopBindingConflicts = pgTable(
+  "shop_binding_conflicts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    externalShopId: text("external_shop_id").notNull(),
+    challengerShopId: text("challenger_shop_id")
+      .notNull()
+      .references(() => shops.id),
+    challengerOrganizationId: text("challenger_organization_id")
+      .notNull()
+      .references(() => organization.id),
+    occupantShopId: text("occupant_shop_id")
+      .notNull()
+      .references(() => shops.id),
+    occupantOrganizationId: text("occupant_organization_id")
+      .notNull()
+      .references(() => organization.id),
+    initiatorUserId: text("initiator_user_id"),
+    status: varchar("status", { length: 64 }).notNull().default("pending"),
+    reviewedByUserId: text("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewReason: text("review_reason"),
+    appealDeadlineAt: timestamp("appeal_deadline_at", { withTimezone: true }),
+    appealContent: text("appeal_content"),
+    appealedAt: timestamp("appealed_at", { withTimezone: true }),
+    appealedByUserId: text("appealed_by_user_id"),
+    appealReviewedByUserId: text("appeal_reviewed_by_user_id"),
+    appealReviewedAt: timestamp("appeal_reviewed_at", { withTimezone: true }),
+    appealReviewReason: text("appeal_review_reason"),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("shop_binding_conflicts_status_created_idx").on(t.status, t.createdAt),
+    index("shop_binding_conflicts_platform_ext_idx").on(t.platform, t.externalShopId),
+    index("shop_binding_conflicts_challenger_org_idx").on(t.challengerOrganizationId),
+    index("shop_binding_conflicts_occupant_org_idx").on(t.occupantOrganizationId),
+    index("shop_binding_conflicts_challenger_shop_idx").on(t.challengerShopId),
+    index("shop_binding_conflicts_occupant_shop_idx").on(t.occupantShopId),
+    check(
+      "shop_binding_conflicts_status_check",
+      sql`${t.status} in ('pending', 'upheld', 'transfer_approved_pending_appeal', 'appealed_pending_review', 'released_pending_reauth', 'closed')`,
+    ),
+  ],
+)
+
+/**
  * 租户级 Marketplace 应用凭据。
  * region='' 表示该平台通用配置；精确站点优先。
  * App Secret 以 AES-256-GCM 密文保存，接口不得返回明文。
@@ -534,6 +589,8 @@ export const products = pgTable(
     categoryHint: text("category_hint"),
     material: text("material"),
     style: text("style"),
+    /** 海关 HS 编码（规范化，如 8516.31）；未填则不做合规校验。 */
+    hsCode: varchar("hs_code", { length: 32 }),
     ownerUserId: text("owner_user_id"),
     images: jsonb("images").$type<Array<Record<string, unknown>>>().default([]),
     /** SPU 级默认尺寸（可被变体覆盖）。 */
@@ -549,6 +606,7 @@ export const products = pgTable(
     index("products_org_idx").on(t.organizationId),
     uniqueIndex("products_org_spu_uidx").on(t.organizationId, t.spuCode),
     index("products_org_brand_idx").on(t.organizationId, t.brandId),
+    index("products_org_hs_idx").on(t.organizationId, t.hsCode),
   ],
 )
 
@@ -572,6 +630,8 @@ export const productVariants = pgTable(
     /** 内部 SKU 码，如 HSY000001001。 */
     skuCode: varchar("sku_code", { length: 32 }),
     barcode: varchar("barcode", { length: 128 }),
+    /** SKU 级 HS 覆盖；空则沿用 SPU。 */
+    hsCode: varchar("hs_code", { length: 32 }),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
@@ -585,6 +645,88 @@ export const productVariants = pgTable(
     index("product_variants_product_idx").on(t.productId),
     uniqueIndex("product_variants_org_sku_uidx").on(t.organizationId, t.sku),
     uniqueIndex("product_variants_org_sku_code_uidx").on(t.organizationId, t.skuCode),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// compliance_hs_rules / product_compliance_certs — 组织级 HS/SLSI 清单与商品证书
+// ---------------------------------------------------------------------------
+
+export const complianceHsRuleStatuses = ["enabled", "disabled"] as const
+export type ComplianceHsRuleStatus = (typeof complianceHsRuleStatuses)[number]
+
+export const complianceHsRuleSources = ["manual", "import"] as const
+export type ComplianceHsRuleSource = (typeof complianceHsRuleSources)[number]
+
+export const productComplianceCertStatuses = ["enabled", "disabled"] as const
+export type ProductComplianceCertStatus = (typeof productComplianceCertStatuses)[number]
+
+export const complianceHsRules = pgTable(
+  "compliance_hs_rules",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    /** 规范化 HS，如 8516.31 */
+    hsCode: varchar("hs_code", { length: 32 }).notNull(),
+    description: text("description"),
+    slsiRequired: boolean("slsi_required").notNull().default(false),
+    certName: text("cert_name"),
+    blockCreate: boolean("block_create").notNull().default(false),
+    source: varchar("source", { length: 16 }).notNull().default("manual"),
+    validFrom: timestamp("valid_from", { withTimezone: true }),
+    validTo: timestamp("valid_to", { withTimezone: true }),
+    status: varchar("status", { length: 16 }).notNull().default("enabled"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("compliance_hs_rules_org_hs_uidx").on(t.organizationId, t.hsCode),
+    index("compliance_hs_rules_org_status_idx").on(t.organizationId, t.status),
+    check(
+      "compliance_hs_rules_status_check",
+      sql`${t.status} in ('enabled', 'disabled')`,
+    ),
+    check(
+      "compliance_hs_rules_source_check",
+      sql`${t.source} in ('manual', 'import')`,
+    ),
+  ],
+)
+
+export const productComplianceCerts = pgTable(
+  "product_compliance_certs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    variantId: text("variant_id").references(() => productVariants.id),
+    certNumber: varchar("cert_number", { length: 128 }).notNull(),
+    certName: text("cert_name"),
+    hsCode: varchar("hs_code", { length: 32 }),
+    fileName: text("file_name"),
+    fileUrl: text("file_url"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    status: varchar("status", { length: 16 }).notNull().default("enabled"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("product_compliance_certs_org_idx").on(t.organizationId),
+    index("product_compliance_certs_product_idx").on(t.organizationId, t.productId),
+    check(
+      "product_compliance_certs_status_check",
+      sql`${t.status} in ('enabled', 'disabled')`,
+    ),
   ],
 )
 
@@ -1564,6 +1706,97 @@ export const reverseOrderItems = pgTable(
   ],
 )
 
+// ---------------------------------------------------------------------------
+// attribution_reason_maps / attribution_overrides — 差评与退货原因归类
+// ---------------------------------------------------------------------------
+
+export const attributionCategories = [
+  "quality",
+  "size",
+  "logistics",
+  "description",
+  "other",
+] as const
+export type AttributionCategory = (typeof attributionCategories)[number]
+
+export const attributionMapMatchTypes = ["reason_code", "keyword"] as const
+export type AttributionMapMatchType = (typeof attributionMapMatchTypes)[number]
+
+export const attributionSubjectTypes = ["review", "reverse_item"] as const
+export type AttributionSubjectType = (typeof attributionSubjectTypes)[number]
+
+export const attributionReasonMaps = pgTable(
+  "attribution_reason_maps",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    matchType: varchar("match_type", { length: 16 }).notNull(),
+    pattern: text("pattern").notNull(),
+    category: varchar("category", { length: 16 }).notNull(),
+    notes: text("notes"),
+    status: varchar("status", { length: 16 }).notNull().default("enabled"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("attribution_reason_maps_org_pattern_uidx").on(
+      t.organizationId,
+      t.matchType,
+      t.pattern,
+    ),
+    index("attribution_reason_maps_org_idx").on(t.organizationId, t.status),
+    check(
+      "attribution_reason_maps_type_check",
+      sql`${t.matchType} in ('reason_code', 'keyword')`,
+    ),
+    check(
+      "attribution_reason_maps_category_check",
+      sql`${t.category} in ('quality', 'size', 'logistics', 'description', 'other')`,
+    ),
+    check(
+      "attribution_reason_maps_status_check",
+      sql`${t.status} in ('enabled', 'disabled')`,
+    ),
+  ],
+)
+
+export const attributionOverrides = pgTable(
+  "attribution_overrides",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    subjectType: varchar("subject_type", { length: 16 }).notNull(),
+    subjectId: text("subject_id").notNull(),
+    category: varchar("category", { length: 16 }).notNull(),
+    note: text("note"),
+    overriddenBy: text("overridden_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("attribution_overrides_org_subject_uidx").on(
+      t.organizationId,
+      t.subjectType,
+      t.subjectId,
+    ),
+    index("attribution_overrides_org_idx").on(t.organizationId),
+    check(
+      "attribution_overrides_subject_check",
+      sql`${t.subjectType} in ('review', 'reverse_item')`,
+    ),
+    check(
+      "attribution_overrides_category_check",
+      sql`${t.category} in ('quality', 'size', 'logistics', 'description', 'other')`,
+    ),
+  ],
+)
+
 export const reverseQcRecords = pgTable(
   "reverse_qc_records",
   {
@@ -1960,6 +2193,88 @@ export const platformCategories = pgTable(
   (t) => [
     index("platform_categories_org_idx").on(t.organizationId),
     uniqueIndex("platform_categories_shop_ext_uidx").on(t.shopId, t.externalId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// platform_basics_catalog / commerce_platform_basics — 平台基础资料（F02）
+//   平台目录（全局）由平台管理员维护，是初始化数据的一部分；企业入驻审核通过时
+//   按目录复制到组织副本，组织内用户只对自己的副本做 CRUD。
+//   kind 判别 platform / country / currency 三类，列按类可空，避免三套同构表。
+//   @see docs/design/haoshiyun-platform-basics-ued.md §7
+// ---------------------------------------------------------------------------
+
+export const platformBasicKinds = ["platform", "country", "currency"] as const
+export type PlatformBasicKind = (typeof platformBasicKinds)[number]
+
+export const platformBasicStatuses = ["active", "inactive"] as const
+export type PlatformBasicStatus = (typeof platformBasicStatuses)[number]
+
+export const platformApiReadyStates = ["Connected", "Configuration required", "Planned"] as const
+export type PlatformApiReadyState = (typeof platformApiReadyStates)[number]
+
+const platformBasicColumns = {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  kind: varchar("kind", { length: 16 }).$type<PlatformBasicKind>().notNull(),
+  code: varchar("code", { length: 32 }).notNull(),
+  name: text("name").notNull(),
+  status: varchar("status", { length: 16 }).$type<PlatformBasicStatus>().notNull().default("active"),
+  description: text("description").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  /** country：区域名 */
+  region: varchar("region", { length: 64 }),
+  /** country：IANA 时区 */
+  timezone: varchar("timezone", { length: 64 }),
+  /** country：默认币种代码 */
+  defaultCurrency: varchar("default_currency", { length: 16 }),
+  /** currency：货币符号 */
+  symbol: varchar("symbol", { length: 16 }),
+  /** currency：小数位 0–4 */
+  decimals: integer("decimals"),
+  /** platform：覆盖站点的国家代码 */
+  countries: jsonb("countries").$type<string[]>().notNull().default([]),
+  /** platform：接入状态 */
+  apiReady: varchar("api_ready", { length: 32 }).$type<PlatformApiReadyState>(),
+  ...timestamps,
+}
+
+export const platformBasicsCatalog = pgTable(
+  "platform_basics_catalog",
+  platformBasicColumns,
+  (t) => [
+    uniqueIndex("platform_basics_catalog_kind_code_uidx").on(t.kind, t.code),
+    index("platform_basics_catalog_kind_status_idx").on(t.kind, t.status),
+    check("platform_basics_catalog_kind_check", sql`${t.kind} in ('platform', 'country', 'currency')`),
+    check("platform_basics_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+    check(
+      "platform_basics_catalog_decimals_check",
+      sql`${t.decimals} is null or (${t.decimals} >= 0 and ${t.decimals} <= 4)`,
+    ),
+  ],
+)
+
+export const commercePlatformBasics = pgTable(
+  "commerce_platform_basics",
+  {
+    ...platformBasicColumns,
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    /** 平台目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformBasicsCatalog.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    uniqueIndex("commerce_platform_basics_org_kind_code_uidx").on(t.organizationId, t.kind, t.code),
+    index("commerce_platform_basics_org_kind_idx").on(t.organizationId, t.kind),
+    index("commerce_platform_basics_org_status_idx").on(t.organizationId, t.status),
+    check("commerce_platform_basics_kind_check", sql`${t.kind} in ('platform', 'country', 'currency')`),
+    check("commerce_platform_basics_status_check", sql`${t.status} in ('active', 'inactive')`),
+    check(
+      "commerce_platform_basics_decimals_check",
+      sql`${t.decimals} is null or (${t.decimals} >= 0 and ${t.decimals} <= 4)`,
+    ),
   ],
 )
 
@@ -2987,6 +3302,37 @@ export const inventoryPools = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// organization_settings — 组织级偏好与通知配置（每组织一行）
+// ---------------------------------------------------------------------------
+
+export const tableDensities = ["comfortable", "compact"] as const
+export type TableDensity = (typeof tableDensities)[number]
+
+export const organizationSettings = pgTable(
+  "organization_settings",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organization.id),
+    defaultShopId: text("default_shop_id").references(() => shops.id, {
+      onDelete: "set null",
+    }),
+    timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
+    displayCurrency: varchar("display_currency", { length: 16 }).notNull().default("USD"),
+    tableDensity: varchar("table_density", { length: 16 }).notNull().default("comfortable"),
+    dingtalkEnabled: boolean("dingtalk_enabled").notNull().default(false),
+    dingtalkWebhookEncrypted: text("dingtalk_webhook_encrypted"),
+    ...timestamps,
+  },
+  (t) => [
+    check(
+      "organization_settings_density_check",
+      sql`${t.tableDensity} in ('comfortable', 'compact')`,
+    ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // commerce_bin_bindings / bin_binding_history — 库位-SKU 绑定当前态与审计
 // ---------------------------------------------------------------------------
 
@@ -3495,10 +3841,15 @@ export type TrackingEvent = typeof trackingEvents.$inferSelect
 export type FulfillmentAttempt = typeof fulfillmentAttempts.$inferSelect
 export type FulfillmentBatch = typeof fulfillmentBatches.$inferSelect
 export type FulfillmentBatchPackage = typeof fulfillmentBatchPackages.$inferSelect
+export type OrganizationSettingsRow = typeof organizationSettings.$inferSelect
 export type InventoryReservation = typeof inventoryReservations.$inferSelect
 export type InventoryMovement = typeof inventoryMovements.$inferSelect
 export type ReverseOrder = typeof reverseOrders.$inferSelect
 export type ReverseOrderItem = typeof reverseOrderItems.$inferSelect
+export type ComplianceHsRule = typeof complianceHsRules.$inferSelect
+export type ProductComplianceCert = typeof productComplianceCerts.$inferSelect
+export type AttributionReasonMap = typeof attributionReasonMaps.$inferSelect
+export type AttributionOverride = typeof attributionOverrides.$inferSelect
 export type ReverseQcRecord = typeof reverseQcRecords.$inferSelect
 export type ReverseOrderEvent = typeof reverseOrderEvents.$inferSelect
 export type Refund = typeof refunds.$inferSelect
@@ -3512,6 +3863,8 @@ export type FeeTemplateVersionRow = typeof feeTemplateVersions.$inferSelect
 export type AuditEvent = typeof auditEvents.$inferSelect
 export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
+export type PlatformBasicsCatalogRow = typeof platformBasicsCatalog.$inferSelect
+export type CommercePlatformBasicRow = typeof commercePlatformBasics.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect
 export type FxRate = typeof fxRates.$inferSelect

@@ -42,11 +42,13 @@ export default function CandidateDetailPage({ params }: CandidateDetailPageProps
     onSuccess: async (row) => {
       setNotice(
         row.productSpu
-          ? `已通过并关联/创建 SPU ${row.productSpu}`
-          : '已通过审核',
+          ? `已通过并关联/创建 SPU ${row.productSpu}；已生成「刊登提交」待审单，请到待审队列补全后确认`
+          : '已通过审核；已生成「刊登提交」待审单，请到待审队列补全后确认',
       )
       await utils.candidates.get.invalidate({ id })
       await utils.candidates.list.invalidate()
+      await utils.pending.list.invalidate()
+      await utils.dashboard.navBadges.invalidate()
     },
     onError: (e) => setNotice(e.message),
   })
@@ -96,7 +98,8 @@ export default function CandidateDetailPage({ params }: CandidateDetailPageProps
       <Alert>
         <AlertTitle>库内候选 · 非爬虫结果</AlertTitle>
         <AlertDescription>
-          本页读写 product_candidates。通过可创建 SPU 草稿或关联已有商品；拒绝必须填写理由。不会触发平台刊登或采购。
+          本页读写 product_candidates。通过可创建 SPU 草稿或关联已有商品，并自动生成「刊登提交」待审单（补全店铺 / SKU /
+          售价后确认创建本地刊登）；拒绝必须填写理由。不会直接推送平台刊登。
         </AlertDescription>
       </Alert>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}

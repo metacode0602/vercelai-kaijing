@@ -10,6 +10,7 @@ import { Toaster, toast } from 'sonner'
 import type { AppRouter } from '@/lib/server/routers'
 import { trpc } from '@/lib/trpc/client'
 import { trpcLinks } from '@/lib/trpc/links'
+import { getClientErrorMessage } from '@/lib/trpc/error-message'
 
 function makeQueryClient() {
   return new QueryClient({
@@ -33,9 +34,12 @@ function getQueryClient() {
 export function Providers({ children }: PropsWithChildren) {
   const defaultMode = websiteConfig.metadata.mode.defaultMode
   const queryClient = getQueryClient()
-  queryClient.getQueryCache().config.onError = (error) => {
-    if (error instanceof Error && error.message) toast.error(error.message)
+  const toastTrpcError = (error: unknown) => {
+    const message = getClientErrorMessage(error)
+    if (message) toast.error(message)
   }
+  queryClient.getQueryCache().config.onError = toastTrpcError
+  queryClient.getMutationCache().config.onError = toastTrpcError
 
   const [trpcClient] = useState(() =>
     createTRPCClient<AppRouter>({

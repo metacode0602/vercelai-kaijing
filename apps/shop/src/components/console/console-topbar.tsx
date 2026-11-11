@@ -27,7 +27,7 @@ function resolveTitle(
   pathname: string,
   t: ReturnType<typeof useTranslations<'Console'>>,
 ): string {
-  if (pathname.startsWith('/console/settings')) return t('pages.settings')
+  if (pathname === '/settings' || pathname.startsWith('/settings/')) return t('pages.settings')
   if (pathname.startsWith('/console/profile')) return t('pages.profile')
   const item = findBestMatchingNavItem(pathname)
   if (!item) return t('pages.dashboard')

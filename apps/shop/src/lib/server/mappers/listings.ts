@@ -28,13 +28,24 @@ const LISTING_DB_TO_UI: Record<string, UiListingStatus> = {
   draft: '草稿',
   pending_review: '待审',
   pending: '待审',
+  /** 平台回执 submitted / QC 中 → 待审。 */
+  submitted: '待审',
+  reviewing: '待审',
   live: '在售',
   active: '在售',
   failed: '失败',
   error: '失败',
+  /** 平台拒绝 → 失败（可在详情查看 lastError）。 */
+  rejected: '失败',
   offline: '下架',
   delisted: '下架',
   inactive: '下架',
+  /** 平台暂停 / 下架中间态 → 下架。 */
+  paused: '下架',
+  suspended: '下架',
+  /** 归档 / 售罄 → 下架。 */
+  archived: '下架',
+  sold_out: '下架',
 }
 
 const PUBLISH_UI_TO_DB: Record<UiListingPublishState, string> = {
@@ -47,6 +58,8 @@ const PUBLISH_DB_TO_UI: Record<string, UiListingPublishState> = {
   unpublished: '未发布',
   pending_sync: '待同步',
   published: '已发布',
+  /** 读同步回写的兼容值 → 已发布。 */
+  synced: '已发布',
   sync_failed: '同步失败',
   failed: '同步失败',
 }
@@ -95,6 +108,8 @@ const EX_KIND_DB_TO_UI: Record<string, UiMappingExceptionKind> = {
 
 export function toDbListingStatus(ui: string): string {
   if (ui in LISTING_UI_TO_DB) return LISTING_UI_TO_DB[ui as UiListingStatus]
+  // 透传已知 DB 值（含平台回执兼容值），避免筛选/回写被误归一到 draft。
+  if (ui in LISTING_DB_TO_UI) return ui
   if (Object.values(LISTING_UI_TO_DB).includes(ui)) return ui
   return 'draft'
 }
@@ -105,6 +120,7 @@ export function toUiListingStatus(db: string | null | undefined): UiListingStatu
 
 export function toDbPublishState(ui: string): string {
   if (ui in PUBLISH_UI_TO_DB) return PUBLISH_UI_TO_DB[ui as UiListingPublishState]
+  if (ui in PUBLISH_DB_TO_UI) return ui
   if (Object.values(PUBLISH_UI_TO_DB).includes(ui)) return ui
   return 'unpublished'
 }

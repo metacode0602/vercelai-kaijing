@@ -1,5 +1,15 @@
+import { createId } from "@paralleldrive/cuid2"
 import { relations } from "drizzle-orm"
-import { pgSchema, type AnyPgColumn } from "drizzle-orm/pg-core"
+import {
+  boolean,
+  index,
+  jsonb,
+  pgSchema,
+  text,
+  timestamp,
+  varchar,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core"
 import {
   accountColumns,
   accountIndexes,
@@ -13,6 +23,16 @@ import {
   verificationColumns,
   verificationIndexes,
 } from "./auth-columns"
+import {
+  memberRolesColumns,
+  memberRolesConstraints,
+  rolePermissionsColumns,
+  rolePermissionsConstraints,
+  roleScopesColumns,
+  roleScopesConstraints,
+  rolesColumns,
+  rolesConstraints,
+} from "./rbac-columns"
 
 /**
  * apps/web 平台管理员身份库（与租户侧 public schema 物理隔离）。
@@ -66,9 +86,82 @@ export const webInvitation = webAuthSchema.table(
   (table) => invitationIndexes(table)
 )
 
+/**
+ * 平台侧业务 RBAC（web_auth schema），与 public 同形、数据隔离。
+ * 本轮不写入平台种子或 UI；供后续 apps/web 细粒度权限复制使用。
+ * 不加入 webAuthAdapterSchema，避免 better-auth adapter 把它们当成身份模型。
+ */
+export const webRoles = webAuthSchema.table(
+  "roles",
+  rolesColumns(webOrganization),
+  (table) => rolesConstraints(table),
+)
+
+export const webRolePermissions = webAuthSchema.table(
+  "role_permissions",
+  rolePermissionsColumns(webRoles),
+  (table) => rolePermissionsConstraints(table),
+)
+
+export const webMemberRoles = webAuthSchema.table(
+  "member_roles",
+  memberRolesColumns(webOrganization, webUser, webRoles),
+  (table) => memberRolesConstraints(table),
+)
+
+export const webRoleScopes = webAuthSchema.table(
+  "role_scopes",
+  roleScopesColumns(webOrganization, webRoles),
+  (table) => roleScopesConstraints(table),
+)
+
+export type WebSiteMessageLinkRecord = {
+  label: string
+  href: string
+  external?: boolean
+}
+
+/**
+ * 平台管理员站内信（web_auth 独立 schema）。
+ *
+ * 不能复用 public.user_site_message：其 userId 外键指向 public.users，
+ * 平台管理员只存在于 web_auth.users。
+ */
+export const webUserSiteMessage = webAuthSchema.table(
+  "user_site_message",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => webUser.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    summary: text("summary").notNull(),
+    content: text("content").notNull(),
+    category: varchar("category", { length: 32 }),
+    links: jsonb("links").$type<WebSiteMessageLinkRecord[]>().notNull().default([]),
+    read: boolean("read").notNull().default(false),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("web_user_site_message_user_created_idx").on(table.userId, table.createdAt),
+    index("web_user_site_message_user_read_idx").on(table.userId, table.read),
+  ]
+)
+
+export type WebUserSiteMessage = typeof webUserSiteMessage.$inferSelect
+export type NewWebUserSiteMessage = typeof webUserSiteMessage.$inferInsert
+
 export const webUserRelations = relations(webUser, ({ many }) => ({
   sessions: many(webSession),
   accounts: many(webAccount),
+  siteMessages: many(webUserSiteMessage),
 }))
 
 export const webSessionRelations = relations(webSession, ({ one }) => ({

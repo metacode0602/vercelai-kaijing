@@ -1,6 +1,8 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import { createTRPCRouter, publicProcedure, tenantProcedure } from '@/lib/server/trpc'
+import { DEFAULT_INVITE_ROLE_CODE } from '@workspace/auth'
+import { createTRPCRouter, publicProcedure, requirePermission, tenantProcedure } from '@/lib/server/trpc'
+import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as membersDa from '@/lib/server/dataaccess/members'
 import { sendEmail } from '@/lib/mail'
 import { normalizeContactPhone } from '@/lib/auth/constants'
@@ -34,13 +36,14 @@ export const membersRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => membersDa.listMembers(ctx.db, ctx.organizationId, input?.q)),
 
   /** 写入 invitation pending；有邮箱则真实发信。 */
-  invite: tenantProcedure
+  invite: requirePermission('settings.configure')
     .input(
       z
         .object({
           email: z.string().optional(),
           phone: z.string().optional(),
           role: z.string().optional(),
+          roles: z.array(z.string()).optional(),
           name: z.string().optional(),
           locale: z.enum(['zh', 'en']).optional(),
         })
@@ -50,8 +53,9 @@ export const membersRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const inviterUserId = requireUserId(ctx)
-      if (input.role === 'owner') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: '不可通过邀请设为 owner' })
+      const roleCodes = input.roles?.length ? input.roles : input.role ? [input.role] : [DEFAULT_INVITE_ROLE_CODE]
+      if (roleCodes.some((code) => code === 'owner' || code === 'tenant_owner')) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '不可通过邀请设为组织所有者' })
       }
       const phone = (input.phone || '').trim() ? normalizeContactPhone(input.phone || '') : undefined
       const email = (input.email || '').trim().toLowerCase() || undefined
@@ -59,7 +63,8 @@ export const membersRouter = createTRPCRouter({
         membersDa.createInvitation(ctx.db, ctx.organizationId, {
           email,
           phone,
-          role: input.role,
+          role: roleCodes[0],
+          roles: roleCodes,
           name: input.name,
           inviterUserId,
           baseUrl: resolveBaseUrl(ctx.headers),
@@ -96,6 +101,17 @@ export const membersRouter = createTRPCRouter({
         }
       }
 
+      await appendAuditEvent(ctx.db, ctx.organizationId, {
+        actorUserId: inviterUserId,
+        actorLabel: ctx.user?.name || ctx.user?.email || inviterUserId,
+        action: 'members.invite',
+        entityType: 'invitation',
+        entityId: created.id,
+        result: 'ok',
+        detail: created.note,
+        after: { email: created.email, phone: created.phone, role: created.role },
+      })
+
       return {
         ...created,
         emailSent,
@@ -107,24 +123,49 @@ export const membersRouter = createTRPCRouter({
       }
     }),
 
-  updateRole: tenantProcedure
-    .input(z.object({ id: z.string().min(1), role: z.string().min(1) }))
+  updateRole: requirePermission('settings.configure')
+    .input(
+      z.object({
+        id: z.string().min(1),
+        role: z.string().optional(),
+        roleCodes: z.array(z.string()).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       requireUserId(ctx)
-      if (input.role === 'owner') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: '不可通过此接口设为 owner' })
-      }
-      return wrap(() => membersDa.updateMemberRole(ctx.db, ctx.organizationId, input))
+      const result = await wrap(() => membersDa.updateMemberRole(ctx.db, ctx.organizationId, input, ctx.access))
+      await appendAuditEvent(ctx.db, ctx.organizationId, {
+        actorUserId: ctx.user?.id,
+        actorLabel: ctx.user?.name || ctx.user?.email || ctx.user?.id,
+        action: 'members.updateRole',
+        entityType: 'member',
+        entityId: input.id,
+        result: 'ok',
+        detail: '更新成员业务角色',
+        after: { roleCodes: input.roleCodes ?? (input.role ? [input.role] : []) },
+      })
+      return result
     }),
 
   /** 仅 owner：pending → canceled */
-  cancelInvitation: tenantProcedure
+  cancelInvitation: requirePermission('settings.configure')
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const actorUserId = requireUserId(ctx)
-      return wrap(() =>
+      const result = await wrap(() =>
         membersDa.cancelInvitation(ctx.db, ctx.organizationId, { id: input.id, actorUserId }),
       )
+      await appendAuditEvent(ctx.db, ctx.organizationId, {
+        actorUserId,
+        actorLabel: ctx.user?.name || ctx.user?.email || actorUserId,
+        action: 'members.cancelInvitation',
+        entityType: 'invitation',
+        entityId: result.id,
+        result: 'ok',
+        detail: result.note,
+        after: { email: result.email, phone: result.phone, status: result.status },
+      })
+      return result
     }),
 
   /** 公开：查看邀请详情（接受页） */

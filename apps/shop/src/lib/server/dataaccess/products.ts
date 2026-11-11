@@ -1,7 +1,8 @@
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, exists, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { listings, productVariants, products, shops } from '@workspace/db/schema'
 import { resolveBrandForProduct } from '@/lib/server/dataaccess/brands'
+import { assertHsCompliance, normalizeHsCode } from '@/lib/server/dataaccess/compliance'
 import type { AppDatabase } from '@workspace/db'
 import {
   imagesToUrls,
@@ -12,11 +13,20 @@ import {
   toUiStatus,
   type UiProductStatus,
 } from '@/lib/server/mappers/products'
+import { toDbListingStatus } from '@/lib/server/mappers/listings'
 import {
   normalizePage,
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
+
+function variantUniqueMessages(code: string) {
+  return {
+    product_variants_org_sku_uidx: `内部 SKU ${code} 已存在`,
+    product_variants_org_sku_code_uidx: `内部 SKU 编码 ${code} 已存在`,
+  }
+}
 
 export type ProductListItem = {
   id: string
@@ -28,6 +38,7 @@ export type ProductListItem = {
   owner: string
   material: string
   style: string
+  hsCode: string
   status: UiProductStatus
   skuCount: number
   coverImage?: string
@@ -48,6 +59,7 @@ export type VariantDto = {
   heightMm: number
   status: UiProductStatus
   remark: string
+  hsCode: string
   coverImage?: string
   images: string[]
 }
@@ -77,12 +89,13 @@ export type CreateProductInput = {
   status?: UiProductStatus
   coverImage?: string
   images?: string[]
+  hsCode?: string
 }
 
 export type UpdateProductInput = Partial<
   Pick<
     CreateProductInput,
-    'name' | 'brand' | 'category' | 'owner' | 'material' | 'style' | 'status' | 'coverImage' | 'images'
+    'name' | 'brand' | 'category' | 'owner' | 'material' | 'style' | 'status' | 'coverImage' | 'images' | 'hsCode'
   >
 > & {
   brandId?: string | null
@@ -102,6 +115,7 @@ export type CreateVariantInput = {
   remark?: string
   coverImage?: string
   images?: string[]
+  hsCode?: string
 }
 
 export type UpdateVariantInput = Partial<
@@ -119,6 +133,7 @@ export type UpdateVariantInput = Partial<
     | 'remark'
     | 'coverImage'
     | 'images'
+    | 'hsCode'
   >
 >
 
@@ -146,6 +161,7 @@ function mapVariantRow(row: typeof productVariants.$inferSelect): VariantDto {
     heightMm: row.heightMm ?? 0,
     status: toUiStatus(row.status),
     remark: typeof attrs.remark === 'string' ? attrs.remark : '',
+    hsCode: row.hsCode ?? '',
     coverImage: typeof attrs.coverImage === 'string' ? attrs.coverImage : images[0],
     images,
   }
@@ -195,6 +211,7 @@ function productSearchClause(q: string | undefined): SQL | undefined {
     ilike(products.categoryHint, pattern),
     ilike(products.material, pattern),
     ilike(products.style, pattern),
+    ilike(products.hsCode, pattern),
   )
 }
 
@@ -228,6 +245,7 @@ export async function listProducts(
       categoryHint: products.categoryHint,
       material: products.material,
       style: products.style,
+      hsCode: products.hsCode,
       status: products.status,
       images: products.images,
       payload: products.payload,
@@ -256,6 +274,7 @@ export async function listProducts(
       owner: payload.ownerName ?? '',
       material: row.material ?? '',
       style: row.style ?? '',
+      hsCode: row.hsCode ?? '',
       status: toUiStatus(row.status),
       skuCount: Number(row.skuCount ?? 0),
       coverImage: coverFromImages(images),
@@ -308,6 +327,7 @@ export async function getProductBySpu(
     owner: payload.ownerName ?? '',
     material: row.material ?? '',
     style: row.style ?? '',
+    hsCode: row.hsCode ?? '',
     status: toUiStatus(row.status),
     skuCount: variantDtos.length,
     coverImage: coverFromImages(images),
@@ -336,22 +356,31 @@ export async function createProduct(
       throw new Error('请选择品牌（请先在「品牌」主档维护并启用）')
     }
 
-    await tx.insert(products).values({
-      id,
-      organizationId,
-      spuCode,
-      title: input.name.trim(),
-      status: toDbStatus(input.status, 'draft'),
-      source: 'manual',
-      brand: resolved.brandName,
-      brandId: resolved.brandId,
-      categoryHint: input.category.trim(),
-      material: input.material.trim(),
-      style: input.style.trim(),
-      ownerUserId: ownerUserId ?? null,
-      images: imageRefs,
-      payload: { ownerName: input.owner.trim() },
-    })
+    const hsCode = normalizeHsCode(input.hsCode) || null
+    await assertHsCompliance(tx, organizationId, { hsCode })
+
+    await withUniqueGuard(
+      () =>
+        tx.insert(products).values({
+          id,
+          organizationId,
+          spuCode,
+          title: input.name.trim(),
+          status: toDbStatus(input.status, 'draft'),
+          source: 'manual',
+          brand: resolved.brandName,
+          brandId: resolved.brandId,
+          categoryHint: input.category.trim(),
+          material: input.material.trim(),
+          style: input.style.trim(),
+          hsCode,
+          ownerUserId: ownerUserId ?? null,
+          images: imageRefs,
+          payload: { ownerName: input.owner.trim() },
+        }),
+      { products_org_spu_uidx: `SPU 编码 ${spuCode} 已存在，请重试` },
+      `SPU 编码 ${spuCode} 已存在，请重试`,
+    )
 
     const detail = await getProductBySpu(tx, organizationId, spuCode)
     if (!detail) throw new Error('创建 SPU 后读取失败')
@@ -406,6 +435,13 @@ export async function updateProduct(
       }
     }
 
+    const hsCode =
+      patch.hsCode !== undefined ? normalizeHsCode(patch.hsCode) || null : existing.hsCode
+    await assertHsCompliance(tx, organizationId, {
+      hsCode,
+      productId: existing.id,
+    })
+
     await tx
       .update(products)
       .set({
@@ -415,6 +451,7 @@ export async function updateProduct(
         categoryHint: patch.category?.trim() ?? existing.categoryHint,
         material: patch.material?.trim() ?? existing.material,
         style: patch.style?.trim() ?? existing.style,
+        hsCode,
         status: patch.status ? toDbStatus(patch.status) : existing.status,
         images: nextImages ?? existing.images,
         payload: {
@@ -487,28 +524,41 @@ export async function createVariant(
     const code = await nextVariantCode(tx, organizationId, product.id, product.spuCode)
     const id = createId()
     const images = input.images ?? []
+    const hsCode = input.hsCode !== undefined ? normalizeHsCode(input.hsCode) || null : null
+    if (input.hsCode !== undefined && input.hsCode.trim()) {
+      await assertHsCompliance(tx, organizationId, {
+        hsCode,
+        productId: product.id,
+      })
+    }
 
-    await tx.insert(productVariants).values({
-      id,
-      organizationId,
-      productId: product.id,
-      sku: code,
-      skuCode: code,
-      barcode: input.barcode?.trim() || null,
-      status: toDbStatus(input.status, 'draft'),
-      weightGrams: Math.round(Number(input.weight) || 0),
-      lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
-      widthMm: Math.round(Number(input.widthMm) || 0) || null,
-      heightMm: Math.round(Number(input.heightMm) || 0) || null,
-      attrs: {
-        color: input.color.trim(),
-        size: input.size.trim(),
-        pack: input.pack.trim(),
-        remark: input.remark?.trim() || undefined,
-        coverImage: input.coverImage,
-        images,
-      },
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(productVariants).values({
+          id,
+          organizationId,
+          productId: product.id,
+          sku: code,
+          skuCode: code,
+          barcode: input.barcode?.trim() || null,
+          hsCode,
+          status: toDbStatus(input.status, 'draft'),
+          weightGrams: Math.round(Number(input.weight) || 0),
+          lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
+          widthMm: Math.round(Number(input.widthMm) || 0) || null,
+          heightMm: Math.round(Number(input.heightMm) || 0) || null,
+          attrs: {
+            color: input.color.trim(),
+            size: input.size.trim(),
+            pack: input.pack.trim(),
+            remark: input.remark?.trim() || undefined,
+            coverImage: input.coverImage,
+            images,
+          },
+        }),
+      variantUniqueMessages(code),
+      `内部 SKU ${code} 已存在`,
+    )
 
     const [row] = await tx
       .select()
@@ -531,6 +581,7 @@ export type BatchCreateVariantsInput = {
   lengthMm?: number
   widthMm?: number
   heightMm?: number
+  hsCode?: string
 }
 
 export type BatchCreateVariantsResult = {
@@ -566,6 +617,14 @@ export async function batchCreateVariants(
       .limit(1)
     if (!product || !product.spuCode) return null
 
+    const hsCode = input.hsCode !== undefined ? normalizeHsCode(input.hsCode) || null : null
+    if (input.hsCode !== undefined && input.hsCode.trim()) {
+      await assertHsCompliance(tx, organizationId, {
+        hsCode,
+        productId: product.id,
+      })
+    }
+
     const existingCombos = await listVariantComboKeys(tx, organizationId, product.id)
     const created: VariantDto[] = []
     let skippedCount = 0
@@ -583,25 +642,31 @@ export async function batchCreateVariants(
 
           const code = await nextVariantCode(tx, organizationId, product.id, product.spuCode)
           const id = createId()
-          await tx.insert(productVariants).values({
-            id,
-            organizationId,
-            productId: product.id,
-            sku: code,
-            skuCode: code,
-            barcode: input.barcode?.trim() || null,
-            status: toDbStatus(input.status, 'draft'),
-            weightGrams: Math.round(Number(input.weight) || 0),
-            lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
-            widthMm: Math.round(Number(input.widthMm) || 0) || null,
-            heightMm: Math.round(Number(input.heightMm) || 0) || null,
-            attrs: {
-              color,
-              size,
-              pack,
-              images: [],
-            },
-          })
+          await withUniqueGuard(
+            () =>
+              tx.insert(productVariants).values({
+                id,
+                organizationId,
+                productId: product.id,
+                sku: code,
+                skuCode: code,
+                barcode: input.barcode?.trim() || null,
+                hsCode,
+                status: toDbStatus(input.status, 'draft'),
+                weightGrams: Math.round(Number(input.weight) || 0),
+                lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
+                widthMm: Math.round(Number(input.widthMm) || 0) || null,
+                heightMm: Math.round(Number(input.heightMm) || 0) || null,
+                attrs: {
+                  color,
+                  size,
+                  pack,
+                  images: [],
+                },
+              }),
+            variantUniqueMessages(code),
+            `内部 SKU ${code} 已存在`,
+          )
 
           existingCombos.set(comboKey, code)
           const [row] = await tx
@@ -657,6 +722,14 @@ export async function updateVariant(
       .limit(1)
     if (!existing) return null
 
+    if (patch.hsCode !== undefined && patch.hsCode.trim()) {
+      await assertHsCompliance(tx, organizationId, {
+        hsCode: normalizeHsCode(patch.hsCode),
+        productId: product.id,
+        variantId: existing.id,
+      })
+    }
+
     const attrs = readVariantAttrs(existing.attrs)
     const nextAttrs = {
       ...attrs,
@@ -693,6 +766,8 @@ export async function updateVariant(
       .update(productVariants)
       .set({
         barcode: patch.barcode !== undefined ? patch.barcode.trim() || null : existing.barcode,
+        hsCode:
+          patch.hsCode !== undefined ? normalizeHsCode(patch.hsCode) || null : existing.hsCode,
         status: patch.status ? toDbStatus(patch.status) : existing.status,
         weightGrams:
           patch.weight !== undefined ? Math.round(Number(patch.weight) || 0) : existing.weightGrams,
@@ -917,6 +992,60 @@ export async function listCatalogRows(
     )
     if (search) conditions.push(search)
   }
+  // 刊登状态 / 平台 / 店铺筛选进 SQL（EXISTS 关联本 SKU 的刊登），保证分页与 total 正确。
+  const listingStatus = input.listing?.trim()
+  if (listingStatus && listingStatus !== 'all') {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(listings)
+          .where(
+            and(
+              eq(listings.organizationId, organizationId),
+              eq(listings.primaryVariantId, productVariants.id),
+              eq(listings.status, toDbListingStatus(listingStatus)),
+            ),
+          ),
+      ),
+    )
+  }
+  const platform = input.platform?.trim()
+  if (platform && platform !== 'all') {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(listings)
+          .innerJoin(shops, eq(shops.id, listings.shopId))
+          .where(
+            and(
+              eq(listings.organizationId, organizationId),
+              eq(listings.primaryVariantId, productVariants.id),
+              eq(shops.platform, platform),
+              isNull(shops.deletedAt),
+            ),
+          ),
+      ),
+    )
+  }
+  const shopFilter = input.shopId?.trim()
+  if (shopFilter && shopFilter !== 'all') {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(listings)
+          .where(
+            and(
+              eq(listings.organizationId, organizationId),
+              eq(listings.primaryVariantId, productVariants.id),
+              eq(listings.shopId, shopFilter),
+            ),
+          ),
+      ),
+    )
+  }
   const where = and(...conditions)
 
   const [totalRow] = await db
@@ -950,6 +1079,7 @@ export async function listCatalogRows(
           .where(
             and(eq(listings.organizationId, organizationId), inArray(listings.primaryVariantId, variantIds)),
           )
+          .orderBy(desc(listings.updatedAt))
 
   const byVariant = new Map<string, typeof listingRows>()
   for (const row of listingRows) {
@@ -960,7 +1090,7 @@ export async function listCatalogRows(
     byVariant.set(vid, list)
   }
 
-  let items: CatalogRowDto[] = rows.map(({ variant, product }) => {
+  const items: CatalogRowDto[] = rows.map(({ variant, product }) => {
     const mapped = mapVariantRow(variant)
     const ls = byVariant.get(variant.id) ?? []
     const primary = ls[0]
@@ -984,16 +1114,6 @@ export async function listCatalogRows(
       lastError: (primary?.listing.lastError as string | null) ?? null,
     }
   })
-
-  if (input.listing && input.listing !== 'all') {
-    items = items.filter((r) => r.listing === input.listing)
-  }
-  if (input.platform && input.platform !== 'all') {
-    items = items.filter((r) => r.platform === input.platform)
-  }
-  if (input.shopId && input.shopId !== 'all') {
-    items = items.filter((r) => r.shop === input.shopId)
-  }
 
   return { items, total, page, pageSize }
 }

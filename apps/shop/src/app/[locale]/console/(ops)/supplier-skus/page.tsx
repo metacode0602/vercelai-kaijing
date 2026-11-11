@@ -85,7 +85,7 @@ export default function SupplierSkusPage() {
       onClose={() => setOpen(false)}
       onSave={(values) => {
         const supplier = supplierByName.get(values.supplier || '')
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           sku: values.sku || skuOptions[0] || '',
           supplierId: supplier?.id,
           supplierName: values.supplier || undefined,

@@ -54,7 +54,7 @@ export const websiteConfig = {
     enableAffonsoAffiliate: false,
   },
   routes: {
-    defaultLoginRedirect: Routes.Settings,
+    defaultLoginRedirect: Routes.Console,
   },
   analytics: {
     enableVercelAnalytics: false,

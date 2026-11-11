@@ -142,6 +142,12 @@ export default function MasterProductsPage() {
           options: ownerOptions.length > 0 ? ownerOptions : ['当前用户'],
           required: true,
         },
+        {
+          key: 'hsCode',
+          label: 'HS 编码',
+          placeholder: '如 8516.31',
+          helper: '选填。未填则不做合规校验。若该 HS 属于强制认证且阻断建档，请先保存商品并上传有效证书后再填写。',
+        },
         { key: 'launchDate', label: '计划上市日期', type: 'date' },
         {
           key: 'description',
@@ -156,22 +162,18 @@ export default function MasterProductsPage() {
         const brandName = values.brand || brandOptions[0] || ''
         const brandId = brandIdByName[brandName]
         if (!brandId) {
-          setNotice('请先在「品牌」主档新增并启用品牌后再创建商品')
-          return
+          throw new Error('请先在「品牌」主档新增并启用品牌后再创建商品')
         }
         if (!categoryOptions.includes(values.category || '')) {
-          setNotice('请选择有效的多级分类')
-          return
+          throw new Error('请选择有效的多级分类')
         }
         if (!styleOptions.some((option) => option.value === (values.style || ''))) {
-          setNotice('请选择字典中的款式/版型（product_style）')
-          return
+          throw new Error('请选择字典中的款式/版型（product_style）')
         }
         if (!materialOptions.some((option) => option.value === (values.material || ''))) {
-          setNotice('请选择字典中的材质（product_material）')
-          return
+          throw new Error('请选择字典中的材质（product_material）')
         }
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           name: values.name || '新商品',
           brandId,
           brand: brandName,
@@ -180,6 +182,7 @@ export default function MasterProductsPage() {
           material: values.material,
           style: values.style,
           status: '待确认',
+          hsCode: values.hsCode || undefined,
         })
       }}
       saveLabel={createMutation.isPending ? '保存中…' : '创建 SPU'}
@@ -241,7 +244,7 @@ export default function MasterProductsPage() {
           <AlertTitle>已接库 · 模块 1</AlertTitle>
           <AlertDescription>
             SPU / 内部 SKU 主路径走 tRPC → dataaccess → products / product_variants。款式/材质字典键：
-            product_style / product_material（/console/dictionaries）。
+            product_style / product_material（/settings/dictionaries）。
           </AlertDescription>
         </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

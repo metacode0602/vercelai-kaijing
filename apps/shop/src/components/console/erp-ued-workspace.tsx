@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@workspace/ui/components/select'
 import { Checkbox } from '@workspace/ui/components/checkbox'
+import { getClientErrorMessage } from '@/lib/trpc/error-message'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { ConsoleListSection, ConsoleTableEmpty } from '@/components/console/list'
@@ -447,11 +448,15 @@ export function UedDialog(props: {
   description: string
   fields: UedDialogField[]
   onClose: () => void
-  onSave: (values: Record<string, string>) => void
+  onSave: (values: Record<string, string>) => void | Promise<unknown>
   saveLabel?: string
   initialValues?: Record<string, string>
+  error?: string
   children?: React.ReactNode
 }) {
+  const [submitError, setSubmitError] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+  const formError = (props.error ?? submitError).trim()
   const [values, setValues] = React.useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     for (const field of props.fields) {
@@ -517,7 +522,17 @@ export function UedDialog(props: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose() }} onKeyDown={(event) => { if (event.key === 'Escape') props.onClose() }}>
       <section role="dialog" aria-modal="true" aria-labelledby="ued-dialog-title" className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-background shadow-lg">
         <header className="border-b p-5"><h2 id="ued-dialog-title" className="font-semibold">{props.title}</h2><p className="mt-1 text-sm text-muted-foreground">{props.description}</p></header>
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => { event.preventDefault(); if (!missing) props.onSave(values) }}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => {
+          event.preventDefault()
+          if (missing || saving) return
+          setSubmitError('')
+          setSaving(true)
+          void Promise.resolve(props.onSave(values))
+            .catch((cause: unknown) => {
+              setSubmitError(getClientErrorMessage(cause))
+            })
+            .finally(() => setSaving(false))
+        }}>
           <div className="grid gap-4 overflow-y-auto p-5 sm:grid-cols-2">
             {props.fields.map((field) => {
               const key = field.key ?? field.label
@@ -570,8 +585,10 @@ export function UedDialog(props: {
             {props.children ? <div className="flex flex-col gap-4 sm:col-span-2">{props.children}</div> : null}
           </div>
           <footer className="flex flex-col-reverse gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">带 <span className="text-destructive">*</span> 为必填字段</p>
-            <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={props.onClose}>取消</Button><Button type="submit" disabled={missing}><Check data-icon="inline-start" />{props.saveLabel ?? '保存'}</Button></div>
+            <div className="min-w-0 flex-1">
+              {formError ? <p role="alert" className="text-sm text-destructive">{formError}</p> : <p className="text-xs text-muted-foreground">带 <span className="text-destructive">*</span> 为必填字段</p>}
+            </div>
+            <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={props.onClose}>取消</Button><Button type="submit" disabled={missing || saving}><Check data-icon="inline-start" />{saving && !(props.saveLabel ?? '').includes('保存中') ? '保存中…' : (props.saveLabel ?? '保存')}</Button></div>
           </footer>
         </form>
       </section>

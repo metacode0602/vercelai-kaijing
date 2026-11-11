@@ -12,6 +12,7 @@ import {
   toUiActiveStatus,
   type UiActiveStatus,
 } from '@/lib/server/mappers/ops-master'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -76,6 +77,22 @@ export async function getCategory(db: AppDatabase, organizationId: string, id: s
   return row ? mapRow(row) : null
 }
 
+
+async function assertCategoryCodeAvailable(
+  db: DbLike,
+  organizationId: string,
+  code: string,
+  exceptId?: string,
+) {
+  const rows = await db
+    .select({ id: commerceCategories.id })
+    .from(commerceCategories)
+    .where(and(eq(commerceCategories.organizationId, organizationId), eq(commerceCategories.code, code)))
+    .limit(2)
+  const dup = rows.find((row) => row.id !== exceptId)
+  if (dup) throw new Error(`品类编码 ${code} 已存在`)
+}
+
 export async function createCategory(
   db: DbLike,
   organizationId: string,
@@ -91,26 +108,34 @@ export async function createCategory(
   },
 ) {
   const code = input.code.trim().toUpperCase() || 'CATEGORY'
+  const name = input.name.trim()
+  if (!name) throw new Error('品类名称不能为空')
   const id = createId()
   const now = new Date()
   if (input.parentId) {
     const parent = await getCategory(db as AppDatabase, organizationId, input.parentId)
     if (!parent) throw new Error('上级品类不存在')
   }
-  await db.insert(commerceCategories).values({
-    id,
-    organizationId,
-    code,
-    name: input.name.trim() || '未命名品类',
-    parentId: input.parentId || null,
-    sort: input.sort ?? 10,
-    status: toDbActiveStatus(input.status),
-    note: input.note?.trim() || '',
-    coverImage: input.coverImage,
-    screenshots: input.screenshots ?? [],
-    createdAt: now,
-    updatedAt: now,
-  })
+  await assertCategoryCodeAvailable(db, organizationId, code)
+  await withUniqueGuard(
+    () =>
+      db.insert(commerceCategories).values({
+        id,
+        organizationId,
+        code,
+        name,
+        parentId: input.parentId || null,
+        sort: input.sort ?? 10,
+        status: toDbActiveStatus(input.status),
+        note: input.note?.trim() || '',
+        coverImage: input.coverImage,
+        screenshots: input.screenshots ?? [],
+        createdAt: now,
+        updatedAt: now,
+      }),
+    { commerce_categories_org_code_uidx: `品类编码 ${code} 已存在` },
+    `品类编码 ${code} 已存在`,
+  )
   return getCategory(db as AppDatabase, organizationId, id)
 }
 
@@ -136,20 +161,31 @@ export async function updateCategory(
     const parent = await getCategory(db as AppDatabase, organizationId, input.parentId)
     if (!parent) throw new Error('上级品类不存在')
   }
-  await db
-    .update(commerceCategories)
-    .set({
-      name: input.name?.trim() ?? existing.name,
-      code: input.code?.trim().toUpperCase() ?? existing.code,
-      parentId: input.parentId === undefined ? existing.parentId : input.parentId,
-      sort: input.sort ?? existing.sort,
-      status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
-      note: input.note ?? existing.note,
-      coverImage: input.coverImage === undefined ? existing.coverImage : input.coverImage,
-      screenshots: input.screenshots ?? existing.screenshots ?? [],
-      updatedAt: new Date(),
-    })
-    .where(and(eq(commerceCategories.organizationId, organizationId), eq(commerceCategories.id, input.id)))
+  const nextName = input.name?.trim() ?? existing.name
+  if (!nextName) throw new Error('品类名称不能为空')
+  const nextCode = input.code?.trim().toUpperCase() ?? existing.code
+  if (nextCode !== existing.code) {
+    await assertCategoryCodeAvailable(db, organizationId, nextCode, input.id)
+  }
+  await withUniqueGuard(
+    () =>
+      db
+        .update(commerceCategories)
+        .set({
+          name: nextName,
+          code: nextCode,
+          parentId: input.parentId === undefined ? existing.parentId : input.parentId,
+          sort: input.sort ?? existing.sort,
+          status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
+          note: input.note ?? existing.note,
+          coverImage: input.coverImage === undefined ? existing.coverImage : input.coverImage,
+          screenshots: input.screenshots ?? existing.screenshots ?? [],
+          updatedAt: new Date(),
+        })
+        .where(and(eq(commerceCategories.organizationId, organizationId), eq(commerceCategories.id, input.id))),
+    { commerce_categories_org_code_uidx: `品类编码 ${nextCode} 已存在` },
+    `品类编码 ${nextCode} 已存在`,
+  )
   return getCategory(db as AppDatabase, organizationId, input.id)
 }
 

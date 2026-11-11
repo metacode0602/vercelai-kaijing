@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { DetailFieldGrid, DetailPageHeader } from '@/components/console/detail'
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
@@ -22,7 +21,6 @@ import { Button } from '@workspace/ui/components/button'
 
 export default function CarrierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
-  const router = useRouter()
   const utils = trpc.useUtils()
   const query = trpc.carriers.get.useQuery({ id })
   const meta = trpc.carriers.meta.useQuery()
@@ -44,8 +42,8 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
   })
   const removeMutation = trpc.carriers.remove.useMutation({
     onSuccess: async () => {
-      await utils.carriers.list.invalidate()
-      router.push('/console/carriers')
+      await Promise.all([utils.carriers.get.invalidate({ id }), utils.carriers.list.invalidate()])
+      setNotice('承运商已停用（未物理删除）。')
     },
     onError: (e) => setNotice(e.message),
   })
@@ -80,7 +78,7 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
               </Button>
             )}
             <Button size="sm" variant="destructive" onClick={() => setConfirmDelete(true)}>
-              删除
+              停用并归档
             </Button>
           </div>
         }
@@ -167,9 +165,9 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
       <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除承运商 {row.code}？</AlertDialogTitle>
+            <AlertDialogTitle>停用承运商 {row.code}？</AlertDialogTitle>
             <AlertDialogDescription>
-              物理删除主档。若已被海运柜次 / 履约批次 / 运价卡引用将被拒绝（此时请改用「停用」）。
+              将软停用该承运商，不会物理删除；已被海运柜次 / 履约批次 / 运价卡引用时同样只改状态。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -180,7 +178,7 @@ export default function CarrierDetailPage({ params }: { params: Promise<{ id: st
                 removeMutation.mutate({ id: row.id })
               }}
             >
-              确认删除
+              确认停用
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,6 +1,6 @@
 # Marketplace `.env` checklist
 
-Platform App Key / App Secret are tenant-owned and stored in `marketplace_app_credentials`. Configure them in the console at `/console/settings/marketplace-apps`. See `apps/shop/content/guide/marketplace-oauth-admin-setup.md` for the full runbook.
+Platform App Key / App Secret are tenant-owned and stored in `marketplace_app_credentials`. Configure them in the console at `/settings/marketplace-apps`. See `apps/shop/content/guide/marketplace-oauth-admin-setup.md` for the full runbook.
 
 ## Required for OAuth Connect
 
@@ -14,11 +14,11 @@ No `*_APP_KEY` / `*_APP_SECRET` / `*_CALLBACK_URL` environment variables are rea
 
 ## Tenant app setup
 
-1. Open `/console/settings/marketplace-apps` as `tenant_owner`.
+1. Open `/settings/marketplace-apps` as `tenant_owner`.
 2. Add the platform + region (e.g. `daraz` + `LK`; use “全部站点” for a `region=''` fallback).
 3. Paste the App Key / App Secret from the partner console.
 4. Register the displayed callback URL exactly in the partner console.
-5. Authorize a shop from `/console/settings/shops`.
+5. Authorize a shop from `/settings/shops`.
 
 Optional per-app callback: `/api/marketplace/{platform}/oauth/callback/{callbackKey}`.
 
@@ -26,8 +26,8 @@ Optional per-app callback: `/api/marketplace/{platform}/oauth/callback/{callback
 
 1. Seed shops: `packages/db/seeds/commerce-daraz-lk-shop.sql` (replace `:organization_id`).
    Canonical Daraz LK shop id: `b5ofcwj2mzauov29y08m0q99`.
-2. Add `daraz` + `LK` credentials in `/console/settings/marketplace-apps`.
-3. Visit `/console/settings/shops/b5ofcwj2mzauov29y08m0q99` → 重连 OAuth.
+2. Add `daraz` + `LK` credentials in `/settings/marketplace-apps`.
+3. Visit `/settings/shops/b5ofcwj2mzauov29y08m0q99` → 重连 OAuth.
 4. After callback, tokens land in `integration_credentials` (AES-GCM); app verification lands in `marketplace_app_credentials.last_verified_at`.
 
 ## Sync worker (optional)

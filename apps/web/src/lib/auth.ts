@@ -1,4 +1,4 @@
-import { sharedAuthOptions } from '@workspace/auth'
+import { normalizeContactPhone, sharedAuthOptions } from '@workspace/auth'
 import { webAuthAdapterSchema } from '@workspace/db'
 import { consumeAndValidateToken } from '@workspace/sms-captcha/server'
 import { getSmsOtpValidityMinutes, sendTencentSms } from '@workspace/redis'
@@ -11,6 +11,9 @@ import { sendEmail } from './mail'
 import { routing } from './i18n/routing'
 import { webAuthDb } from './db'
 import { platformAdminGate } from './auth/platform-admin'
+import { websiteConfig } from '@/lib/config/website'
+import { acceptPendingPlatformInvitationsForPhone } from '@/lib/server/dataaccess/platform-invitations'
+import { isValidCnMobile } from '@/lib/server/dataaccess/platform-invitation-rules'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -73,6 +76,7 @@ export const auth = betterAuth({
     ...(sharedAuthOptions.plugins ?? []),
     platformAdminGate,
     phoneNumber({
+      phoneNumberValidator: (phone) => isValidCnMobile(phone),
       sendOTP: async ({ phoneNumber, code }, request) => {
         // 校验拼图验证码令牌，通过后才真正下发短信，避免验证码被绕过
         const captchaToken = request?.headers?.get('x-temp-captcha-token')
@@ -91,6 +95,28 @@ export const auth = betterAuth({
         if (isProd) {
           // 生产环境下才发送短信
           await sendSmsCodeByTecent(phoneNumber, code)
+        }
+      },
+      signUpOnVerification: {
+        getTempEmail: (phone) => {
+          const normalized = normalizeContactPhone(phone)
+          return `${normalized}@${websiteConfig.auth.emailSuffix}`
+        },
+        getTempName: (phone) => normalizeContactPhone(phone),
+      },
+      callbackOnVerification: async ({ phoneNumber: phone, user }) => {
+        try {
+          const result = await acceptPendingPlatformInvitationsForPhone(
+            user.id,
+            normalizeContactPhone(phone),
+          )
+          if (result.accepted > 0) {
+            console.info(
+              `[auth] phone invite auto-bind: user=${user.id} orgs=${result.organizationIds.join(',')}`,
+            )
+          }
+        } catch (error) {
+          console.error('[auth] phone invite auto-bind failed:', error)
         }
       },
     }),

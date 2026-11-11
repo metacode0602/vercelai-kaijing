@@ -1,6 +1,6 @@
 # 租户入驻、店铺创建与 Daraz/Lazada OAuth 绑定
 
-> 状态：设计稿（待评审）；**2026-11-08 更新**：§2.2 差距表 G1–G7 已按当前实现标注，G8 部分完成
+> 状态：设计稿；**2026-11-08 更新**：§2.2 差距表 G1–G7 已按当前实现标注；**2026-11-11 更新**：G8 / D9 / Q4 跨租户绑定裁决政策已确认并实现，见 [shop-binding-conflicts.md](./shop-binding-conflicts.md)
 > 范围：`apps/shop` 租户入驻、组织创建、首店/多店创建、Daraz + Lazada OAuth 绑定与重新授权
 > 参考实现：`openroute-cloud/apps/merchant` 的 onboarding（主体类型 → 认证资料 → 创建 organization + member + setActiveOrganization）
 > 关联文档：[crossborder-mvp-overview.md](../../../../docs/design/crossborder-mvp-overview.md)、[marketplace-connectors.md](../../../../docs/design/marketplace-connectors.md)、[crossborder-database-design.md](../../../../docs/design/crossborder-database-design.md)
@@ -54,7 +54,7 @@
 | Daraz / Lazada OAuth 连接器 | `packages/marketplace/src/oauth/lazop.ts`、`adapters/{daraz,lazada,lazop-base}.ts` |
 | OAuth 发起与回调 | `apps/shop/src/app/api/marketplace/oauth/{authorize,callback}/route.ts` |
 | 凭证 AES-256-GCM 加密 | `packages/marketplace/src/crypto/credentials.ts` |
-| 控制台店铺连接页（原型） | `apps/shop/src/app/[locale]/console/settings/shops/page.tsx` |
+| 控制台店铺连接页（原型） | `apps/shop/src/app/[locale]/settings/shops/page.tsx` |
 | 登录 / 注册 / 找回密码 | `apps/shop/src/app/[locale]/(auth)`、`components/auth/*` |
 | 平台运营租户列表（已接 `trpc.platformOnboarding.tenants`，2026-11-08） | `apps/web/src/app/[locale]/(protected)/crossborder/tenants/page.tsx` |
 
@@ -69,7 +69,7 @@
 | G5 ✅（已修） | ~~OAuth 回调只校验签名 state~~ | — | 回调已 `auth.api.getSession` + `resolveOrganizationContext` 校验组织归属并比对 `state.organizationId` |
 | G6 ✅（已修） | ~~授权入口没有 UI 串联~~ | — | 列表/新建/详情页均已接 `trpc.shops.*`（含 `beginAuthorization`） |
 | G7 ✅（已修） | ~~平台运营审核为 mock~~ | — | `trpc.platformOnboarding.{tenants,approve,reject,disableTenant}`，tenants 页已接 |
-| G8 🟡（部分） | 平台账号重复绑定无策略 | 违反唯一索引或跨租户串店 | DB 已有 `shops_org_platform_ext_uidx`（org+platform+external_shop_id）；**跨租户冲突/合并的产品策略仍待定义** |
+| G8 ✅（已确认） | 跨租户重复绑定裁决 | 同一平台店同时只允许一个租户在用 | 已实现：冲突键为 platform + external_shop_id（不含站点）；后到先拒绝并写 `shop_binding_conflicts`；默认维持原绑定；转移须运营批准并进入申诉窗口（`SHOP_BINDING_TRANSFER_APPEAL_DAYS`）；历史数据不迁移。详见 [shop-binding-conflicts.md](./shop-binding-conflicts.md) |
 
 ---
 
@@ -85,7 +85,7 @@
 | D6 | 每个店铺独立 OAuth，一次授权一个店铺 | 多店铺 = 多次授权；不假设一次授权返回多店 |
 | D7 | 唯一性：`(organization_id, platform, external_shop_id)` | 复用现有唯一索引；草稿期 `external_shop_id` 为 NULL 可多条 |
 | D8 | 同租户重复绑定 → 复用已存在店铺并刷新凭证 | 新草稿标记为重复并跳转已有店铺，避免产生僵尸店 |
-| D9 | 跨租户重复绑定 → 拒绝并转平台运营处理 | 不自动转移归属，保护租户数据隔离 |
+| D9 | 跨租户重复绑定 → 拒绝并转平台运营处理（**已确认**） | 不自动转移归属；默认维持原绑定；转移须平台运营批准并填写原因，原租户可申诉 |
 | D10 | 凭证只在服务端解密使用 | 前端只看到 `····last4` 掩码与到期时间 |
 | D11 | 默认 `SHOP_BINDING_REQUIRES_APPROVAL=false` | 如需“审核通过后才能绑定”，改为 `true` 即可，无需改流程 |
 | D12 | MVP 只开放 Daraz、Lazada | TikTok/Shopee 在枚举中保留但 UI 隐藏 |
@@ -291,7 +291,7 @@ sequenceDiagram
 | 2 | `/onboarding?step=2` | 企业/个人资料、办理方式、联系人、执照/授权书 | `onboarding.saveStep` |
 | 3 | `/onboarding?step=3` | 确认信息、勾选协议、提交 | `onboarding.submit` |
 | 4 | `/onboarding/status` | 审核中/驳回/通过；提供“添加店铺” | 只读 |
-| 5 | `/console/settings/shops/new` | 创建店铺草稿并授权 | `shops.createDraft` |
+| 5 | `/settings/shops/new` | 创建店铺草稿并授权 | `shops.createDraft` |
 | 6 | `/api/marketplace/oauth/authorize` | 跳转 Daraz/Lazada | `shops.status=connecting` |
 | 7 | `/api/marketplace/{platform}/oauth/callback` | 换码、拉店铺、落凭证 | `integration_credentials`、`shops.status=active` |
 
@@ -476,7 +476,7 @@ sequenceDiagram
     M-->>CB: externalShopId / name / region / currency
     CB->>DB: 事务：upsert integration_credentials + shops.status=active + integration_states
     CB->>DB: integration_logs(action=oauth_callback, status=success)
-    CB-->>S: 302 /{locale}/console/settings/shops/{id}?oauth=success
+    CB-->>S: 302 /{locale}/settings/shops/{id}?oauth=success
 ```
 
 回调失败统一 302 回店铺详情并带 `?oauth=error&reason=...`，**不把平台原始错误或 token 返回给浏览器**。
@@ -505,12 +505,16 @@ sequenceDiagram
     └─ 未命中：当前草稿回填 externalShopId 并置 active
 ```
 
-**跨租户重复**
+**跨租户重复（已确认）**
 
-- 不修改其他租户数据，不泄露对方租户名称。
+- 冲突键：`platform + external_shop_id`（`getShop()` 得到的 ID；Lazop 优先 `seller_id`）。不含站点/国家；Lazada 多国店不算多家。
+- 不修改占用方数据，不保存后来者 token，不向后来者展示对方租户名称。
+- 将识别到的 `externalShopId` 写回后来者草稿，并创建 `shop_binding_conflicts` 冲突单；拿不到平台店铺 ID 时拒绝落凭证，不跳过冲突检查。
 - 当前草稿置 `error`，`integration_states.last_error='shop_already_bound_other_org'`。
-- 页面提示：`该平台店铺已被其他账号绑定，请联系平台运营核实`。
-- `apps/web` 增加冲突处理入口，仅平台运营可解绑/转移（P1）。
+- 页面提示：`该平台店铺已被其他账号绑定，请联系平台运营处理`。
+- 平台运营在 `/crossborder/shop-conflicts` 读取冲突单：默认「维持原绑定」关闭后来者草稿；「批准转移」必须填写原因。批准后进入申诉窗口（`SHOP_BINDING_TRANSFER_APPEAL_DAYS`，默认 3 天，0 表示立即释放）；原租户可申诉，申诉则暂停释放并交运营复审。
+- 转移生效时占用方店铺置 `unbound`、停止同步、保留历史，不加 `deleted_at`，不改 `organization_id`；后来者自行重新授权。普通停用仍占名额，正式解绑才释放名额。
+- 不自动通知原租户。旧的 `resolveShopConflict` 改写 `organization_id` 路径已停用。
 
 ### 9.7 重新授权
 
@@ -524,8 +528,9 @@ sequenceDiagram
 | 动作 | MVP | 行为 |
 | --- | --- | --- |
 | 暂停同步 | ✅ | `integration_states.health='paused'`，不发平台写请求 |
-| 停用店铺 | ✅ | `shops.status=disabled`，保留凭证与历史数据 |
-| 解绑（删凭证） | P1 | 删除 `integration_credentials`，`external_shop_id` 保留，状态回 `draft` |
+| 停用店铺 | ✅ | `shops.status=disabled`，保留凭证与历史数据；**仍占用绑定名额** |
+| 解绑授权（删凭证） | ✅ | 删除 `integration_credentials`，`external_shop_id` 保留，状态回 `draft`；不等于正式解绑 |
+| 正式解绑 | ✅ | `shops.status=unbound`，停止同步、保留历史对账数据，不加 `deleted_at`，释放名额 |
 
 ### 9.9 刷新失败
 
@@ -562,9 +567,9 @@ sequenceDiagram
 | `/[locale]/signup` | 现有 | 注册后跳 `/onboarding`（替换当前 `Routes.Onboarding`） |
 | `/[locale]/onboarding` | 新增 | 入驻向导（步骤 1–3） |
 | `/[locale]/onboarding/status` | 新增 | 审核中/驳回/通过状态页 |
-| `/[locale]/console/settings/shops` | 现有改造 | 真实店铺列表、筛选、分页、新增 |
-| `/[locale]/console/settings/shops/new` | 新增 | 新建店铺表单（也保留弹窗入口） |
-| `/[locale]/console/settings/shops/[id]` | 现有改造 | 详情、授权状态、重新授权、暂停同步 |
+| `/[locale]/settings/shops` | 现有改造 | 真实店铺列表、筛选、分页、新增 |
+| `/[locale]/settings/shops/new` | 新增 | 新建店铺表单（也保留弹窗入口） |
+| `/[locale]/settings/shops/[id]` | 现有改造 | 详情、授权状态、重新授权、暂停同步 |
 | `/api/marketplace/oauth/authorize` | 现有加固 | 增加入驻/成员/归属校验 |
 | `/api/marketplace/{platform}/oauth/callback` | 现有加固 | 增加 session/membership/重复绑定处理 |
 | `/templates/enterprise-authorization-letter.pdf` | 新增静态资源 | 企业授权书模板 PDF 下载 |
@@ -884,8 +889,10 @@ sequenceDiagram
 | `shops.updateDraft` | mutation | `{ id, ... }` | `ShopDto` | 仅 `draft/error` 可改 |
 | `shops.beginAuthorization` | mutation | `{ id, mode? }` | `{ url }` | 可选：返回 authorize URL，前端跳转 |
 | `shops.setSyncPaused` | mutation | `{ id, paused }` | `ShopDto` | 暂停/恢复同步 |
-| `shops.disable` | mutation | `{ id }` | `ShopDto` | `tenant_owner` 或平台运营 |
-| `shops.removeCredential` | mutation | `{ id }` | `ShopDto` | P1 解绑 |
+| `shops.disable` | mutation | `{ id }` | `ShopDto` | 普通停用，仍占用绑定名额 |
+| `shops.removeCredential` | mutation | `{ id }` | `ShopDto` | 删除凭证，不等于正式解绑 |
+| `shops.unbind` | mutation | `{ id, reason? }` | `ShopDto` | 正式解绑并释放名额，历史数据保留 |
+| `shops.appealBindingTransfer` | mutation | `{ id, content }` | `ShopDto` | 占用方在申诉窗口内申诉 |
 
 `ShopDto` 不含明文 token：
 
@@ -918,7 +925,11 @@ type ShopDto = {
 | `get` | query | 申请详情 + 关联店铺 + 执照签名 URL |
 | `approve` | mutation | 写 organization 审核字段 + 站内信 |
 | `reject` | mutation | 写 `review_note`，状态回 `rejected` |
-| `resolveShopConflict` | mutation | 处理跨租户重复绑定 |
+| `listConflicts` | query | 读取 `shop_binding_conflicts` 冲突单 |
+| `upholdConflict` | mutation | 维持原绑定并关闭后来者草稿 |
+| `approveTransfer` | mutation | 批准转移（必须填写原因；随后进入申诉窗口或立即释放） |
+| `reviewAppeal` | mutation | 复审原租户申诉（接受=维持原绑定，驳回=释放名额） |
+| `resolveConflict` | mutation | 已停用旧的 disable/reassign 路径 |
 
 ### 12.4 REST：OAuth
 
@@ -1025,7 +1036,7 @@ type ShopDto = {
 - [ ] 回调 state 被篡改/过期时拒绝并提示重新授权。
 - [ ] 回调时用户不属于 state 组织时拒绝。
 - [ ] 同租户重复绑定不产生重复店铺，跳转已有店铺。
-- [ ] 跨租户重复绑定被拒绝，平台运营可处理。
+- [x] 跨租户重复绑定被拒绝，写入冲突单；平台运营可维持原绑定或批准转移，原租户可在窗口内申诉，正式解绑可释放名额。
 - [ ] 授权失效后“重新授权”恢复 `active`，历史数据不丢。
 - [ ] 暂停同步后 worker 不再拉取/写入该店。
 
@@ -1063,7 +1074,7 @@ type ShopDto = {
 | Q1 | 是否要求审核通过后才能绑定店铺？ | 否（`SHOP_BINDING_REQUIRES_APPROVAL=false`），审核只控制同步 |
 | Q2 | 企业注册号是否跨租户唯一？ | 是，按 `country_code + registration_no` 唯一 |
 | Q3 | 个人卖家是否允许？ | 允许，`subject_type='individual'` |
-| Q4 | 同一平台账号跨租户冲突如何裁决？ | 平台运营人工核实后转移/解绑 |
+| Q4 | 同一平台账号跨租户冲突如何裁决？ | **已确认**：默认维持原绑定；转移须平台运营批准并填写原因；原租户可在 `SHOP_BINDING_TRANSFER_APPEAL_DAYS` 窗口内申诉；历史数据不迁移 |
 | Q5 | Lazada 五国是否合并为一个店铺组？ | 每个国家独立店铺，`shop_group` 聚合展示 |
 | Q6 | 停用店铺是否保留凭证？ | MVP 保留，仅停止同步；P1 提供解绑 |
 | Q7 | 入驻申请是否需要短信/邮箱验证？ | MVP 复用已登录账号，不额外验证；P1 可加联系人验证 |
@@ -1092,7 +1103,7 @@ type ShopDto = {
 | DB | `packages/db/src/commerce-schema.ts`、`packages/db/src/auth-schema.ts`、`packages/db/drizzle/*` |
 | Onboarding UI | `apps/shop/src/app/[locale]/onboarding/*`、`apps/shop/src/components/onboarding/*` |
 | 授权书模板 | `apps/shop/public/templates/enterprise-authorization-letter.{pdf,docx}` |
-| Shops UI | `apps/shop/src/app/[locale]/console/settings/shops/*` |
+| Shops UI | `apps/shop/src/app/[locale]/settings/shops/*` |
 | tRPC | `apps/shop/src/lib/server/routers/{onboarding,shops}.ts` |
 | Dataaccess | `apps/shop/src/lib/server/dataaccess/{onboarding,shops}.ts` |
 | OAuth | `apps/shop/src/app/api/marketplace/oauth/*`、`apps/shop/src/lib/marketplace/*` |

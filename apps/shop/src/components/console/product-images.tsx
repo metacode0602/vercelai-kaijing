@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { getClientErrorMessage } from "@/lib/trpc/error-message"
 import {
   Image as ImageIcon,
   ImagePlus,
@@ -294,7 +295,7 @@ export function ProductImageEditor({
     try {
       await onChange(next)
     } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : "保存图片失败")
+      setSaveError(getClientErrorMessage(cause, "保存图片失败"))
       setDraft(initial)
     } finally {
       setSaving(false)

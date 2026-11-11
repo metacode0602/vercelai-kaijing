@@ -119,7 +119,7 @@ export const shopsRouter = createTRPCRouter({
           shopId: shop.id,
         })
         return {
-          url: `/console/settings/marketplace-apps?${configParams.toString()}`,
+          url: `/settings/marketplace-apps?${configParams.toString()}`,
           missingConfig: true,
         }
       }
@@ -159,4 +159,40 @@ export const shopsRouter = createTRPCRouter({
   disable: tenantAdminProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => wrap(() => shopsDa.disableShop(ctx.db, ctx.organizationId, input))),
+  unbind: tenantProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        reason: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
+      const actorUserId = ctx.user.id
+      return wrap(() =>
+        shopsDa.unbindShop(ctx.db, ctx.organizationId, {
+          id: input.id,
+          reason: input.reason,
+          actorUserId,
+        }),
+      )
+    }),
+  appealBindingTransfer: tenantProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        content: z.string().min(1).max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED', message: '请先登录' })
+      const actorUserId = ctx.user.id
+      return wrap(() =>
+        shopsDa.appealShopTransfer(ctx.db, ctx.organizationId, {
+          id: input.id,
+          content: input.content,
+          actorUserId,
+        }),
+      )
+    }),
 })

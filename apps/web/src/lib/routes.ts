@@ -1,5 +1,3 @@
-import { websiteConfig } from "./config/website"
-
 /**
  * The routes for the application
  */
@@ -28,6 +26,7 @@ export enum Routes {
   Register = '/register',
   AuthError = '/auth/error',
   ForgotPassword = '/auth/forgot-password',
+  AcceptInvite = '/auth/accept-invite',
   ResetPassword = '/auth/reset-password',
   Welcome = '/auth/welcome',
   UsageList = '/dashboard/usage-list',
@@ -42,11 +41,36 @@ export enum Routes {
   SettingsInvite = '/settings/invite',
   SettingsLogout = '/settings/logout',
 
-  // crossborder ops (P0)
-  Crossborder = '/crossborder',
-  CrossborderTenants = '/crossborder/tenants',
-  CrossborderSyncHealth = '/crossborder/sync-health',
-  CrossborderPendingActions = '/crossborder/pending-actions',
+  // platform console (formerly /crossborder)
+  Console = '/console',
+  ConsoleTenants = '/console/tenants',
+  ConsoleOnboarding = '/console/onboarding',
+  ConsoleShops = '/console/shops',
+  ConsoleUsers = '/console/users',
+  ConsoleInvitations = '/console/invitations',
+  ConsoleShopConflicts = '/console/shop-conflicts',
+  ConsoleAuthExceptions = '/console/auth-exceptions',
+  ConsoleSyncHealth = '/console/sync-health',
+  ConsolePendingActions = '/console/pending-actions',
+  SettingsPlatformConfig = '/settings/platform-config',
+  SettingsAuditLogs = '/settings/audit-logs',
+  SettingsAnnouncements = '/settings/announcements',
+  SettingsRoles = '/settings/roles',
+
+  // backward-compatible aliases
+  Crossborder = Console,
+  CrossborderTenants = ConsoleTenants,
+  CrossborderOnboarding = ConsoleOnboarding,
+  CrossborderShops = ConsoleShops,
+  CrossborderUsers = ConsoleUsers,
+  CrossborderShopConflicts = ConsoleShopConflicts,
+  CrossborderAuthExceptions = ConsoleAuthExceptions,
+  CrossborderSyncHealth = ConsoleSyncHealth,
+  CrossborderPendingActions = ConsolePendingActions,
+  CrossborderPlatformConfig = SettingsPlatformConfig,
+  CrossborderAuditLogs = SettingsAuditLogs,
+  CrossborderAnnouncements = SettingsAnnouncements,
+  CrossborderRoles = SettingsRoles,
 }
 
 /**

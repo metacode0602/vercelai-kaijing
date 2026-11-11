@@ -5,6 +5,7 @@ import {
   runMarketplaceSync,
   type MarketplaceSyncResource,
 } from "../lib/marketplace/sync"
+import { runListingWrite } from "../lib/marketplace/listing-write"
 import { findSyncTask } from "../lib/marketplace/sync-tasks"
 
 const sync = new Hono()
@@ -16,6 +17,7 @@ const resources: MarketplaceSyncResource[] = [
   "listings",
   "settlements",
   "ship_batch",
+  "listing_write",
   "all",
 ]
 
@@ -56,6 +58,9 @@ sync.post("/marketplace", async (c) => {
     requestId?: string
     wait?: boolean
     batchId?: string
+    /** resource=listing_write 时：`listing:<id>[#action]`；缺省取 sync task target。 */
+    target?: string
+    action?: "publish" | "update" | "deactivate"
   }
   const resource = (body.resource ?? "orders") as MarketplaceSyncResource
   if (!resources.includes(resource)) {
@@ -95,6 +100,40 @@ sync.post("/marketplace", async (c) => {
     // Bind to the task's org (and shop when the task is shop-scoped).
     organizationId = task.organizationId
     if (task.shopId) shopId = task.shopId
+  }
+
+  // 刊登平台写入（publish / update / deactivate）：单条执行，不走 shop 轮询。
+  if (resource === "listing_write") {
+    if (!syncTaskId && !organizationId) {
+      return c.json(
+        { ok: false, error: "listing_write_requires_sync_task_or_organization" },
+        400
+      )
+    }
+    const writeOptions = {
+      syncTaskId,
+      organizationId,
+      shopId,
+      requestId: body.requestId,
+      target: body.target,
+      action: body.action,
+    }
+    if (body.wait === false) {
+      void runListingWrite(writeOptions).catch((error) => {
+        console.error("[internal-sync] listing_write async failed", error)
+      })
+      return c.json({ ok: true, accepted: true, resource }, 202)
+    }
+    try {
+      const result = await runListingWrite(writeOptions)
+      return c.json(
+        { ok: result.ok, resource, error: result.error, result },
+        result.ok ? 200 : 502
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return c.json({ ok: false, resource, error: message }, 500)
+    }
   }
 
   const options = {

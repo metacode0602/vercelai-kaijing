@@ -101,15 +101,13 @@ export default function MasterSkusPage() {
         const product =
           products.find((item) => `${item.spu} · ${item.name}` === values.spu) ?? products[0]
         if (!product) {
-          setOpen(false)
-          setNotice('请先创建 SPU 再生成 SKU。')
-          return
+          throw new Error('请先创建 SPU 再生成 SKU。')
         }
         const parsed = parseCreateInternalSkuValues(values, {
           defaultPack:
             (typeof packOptions[0] === 'string' ? packOptions[0] : packOptions[0]?.value) || '单件',
         })
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           spu: product.spu,
           ...parsed,
         })
@@ -174,7 +172,7 @@ export default function MasterSkusPage() {
         <Alert>
           <AlertTitle>已接库 · 内部 SKU</AlertTitle>
           <AlertDescription>
-            本页 KPI 中标注「页」的为当前页统计；总数见分页。Seller SKU / 刊登映射仍为 stub。
+            本页 KPI 中标注「页」的为当前页统计；总数见分页。Seller SKU 映射与刊登请分别前往对应页面维护。
           </AlertDescription>
         </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

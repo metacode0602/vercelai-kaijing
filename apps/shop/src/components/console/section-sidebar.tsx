@@ -1,28 +1,10 @@
 'use client'
 
-import * as React from 'react'
-import {
-  ArrowLeft,
-  Banknote,
-  Bell,
-  Circle,
-  FileSpreadsheet,
-  KeyRound,
-  PackageSearch,
-  ScrollText,
-  History,
-  Settings,
-  ShieldCheck,
-  SlidersHorizontal,
-  Store,
-  Tags,
-  Upload,
-  User,
-  Users,
-  AlertTriangle,
-} from 'lucide-react'
+import { ArrowLeft, PackageSearch } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
+import type { ProfileNavTitleKey, SettingsNavGroupLabelKey, SettingsNavTitleKey } from '@/lib/console-nav'
+import { NavIcon, type NavIconName } from '@/components/console/nav-icon'
 import {
   Sidebar,
   SidebarContent,
@@ -35,31 +17,18 @@ import {
   SidebarMenuItem,
 } from '@workspace/ui/components/sidebar'
 import { Button } from '@workspace/ui/components/button'
+import { trpc } from '@/lib/trpc/client'
+import { canSeeNavItem } from '@/lib/rbac-nav'
 
-type SectionItem = { url: string; titleKey: string }
-
-const SECTION_ICONS: Record<string, React.ReactNode> = {
-  '/console/settings/shops': <Store className="size-4" />,
-  '/console/settings/marketplace-apps': <KeyRound className="size-4" />,
-  '/console/settings/platform-basics': <SlidersHorizontal className="size-4" />,
-  '/console/settings/fx-rates': <Banknote className="size-4" />,
-  '/console/settings/stock-alerts': <AlertTriangle className="size-4" />,
-  '/console/dictionaries': <Tags className="size-4" />,
-  '/console/settings/dictionaries': <Tags className="size-4" />,
-  '/console/settings/imports': <Upload className="size-4" />,
-  '/console/settings/import-templates': <FileSpreadsheet className="size-4" />,
-  '/console/settings/integration-log': <ScrollText className="size-4" />,
-  '/console/settings/erp-access': <ShieldCheck className="size-4" />,
-  '/console/settings/audit': <History className="size-4" />,
-  '/console/settings/members': <Users className="size-4" />,
-  '/console/settings/notifications': <Bell className="size-4" />,
-  '/console/settings/preferences': <Settings className="size-4" />,
-  '/console/profile/account': <User className="size-4" />,
-  '/console/profile/preferences': <Settings className="size-4" />,
+type SectionItem = {
+  url: string
+  titleKey: SettingsNavTitleKey | ProfileNavTitleKey
+  icon: NavIconName
 }
 
-function getSectionIcon(url: string) {
-  return SECTION_ICONS[url] ?? <Circle className="size-4" />
+type SectionGroup = {
+  labelKey?: SettingsNavGroupLabelKey
+  items: readonly SectionItem[]
 }
 
 function isActive(pathname: string, href: string) {
@@ -69,16 +38,18 @@ function isActive(pathname: string, href: string) {
 export function SectionSidebar({
   title,
   backHref = '/console/dashboard',
-  items,
+  groups,
   showBrand = false,
 }: {
   title: string
   backHref?: string
-  items: readonly SectionItem[]
+  groups: readonly SectionGroup[]
   showBrand?: boolean
 }) {
   const t = useTranslations('Console')
   const pathname = useLocalePathname() ?? ''
+  const accessQuery = trpc.roles.myAccess.useQuery(undefined, { staleTime: 30_000 })
+  const access = accessQuery.data ?? { isOwner: true, permissions: [] as string[] }
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -101,22 +72,33 @@ export function SectionSidebar({
         <p className="px-2 text-sm font-semibold">{title}</p>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
-                    <LocaleLink href={item.url}>
-                      {getSectionIcon(item.url)}
-                      <span>{t(item.titleKey as 'settings.shops' | 'settings.marketplaceApps' | 'settings.platformBasics' | 'settings.fxRates' | 'settings.stockAlerts' | 'settings.dictionaries' | 'settings.imports' | 'settings.importTemplates' | 'settings.integrationLog' | 'settings.erpAccess' | 'settings.audit' | 'settings.notifications' | 'settings.members' | 'settings.preferences' | 'profile.account' | 'profile.preferences')}</span>
-                    </LocaleLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {groups.map((group, index) => {
+          const visibleItems = group.items.filter((item) => canSeeNavItem(item.url, access))
+          if (visibleItems.length === 0) return null
+          return (
+            <SidebarGroup key={group.labelKey ?? `group-${index}`}>
+              <SidebarGroupContent>
+                {group.labelKey ? (
+                  <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
+                    {t(group.labelKey)}
+                  </p>
+                ) : null}
+                <SidebarMenu>
+                  {visibleItems.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
+                        <LocaleLink href={item.url}>
+                          <NavIcon name={item.icon} className="size-4" />
+                          <span>{t(item.titleKey)}</span>
+                        </LocaleLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        })}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <Button variant="ghost" size="sm" className="justify-start gap-2 px-2" asChild>

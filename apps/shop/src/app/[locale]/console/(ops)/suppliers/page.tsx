@@ -54,7 +54,7 @@ export default function SuppliersPage() {
       ]}
       onClose={() => setOpen(false)}
       onSave={(values) => {
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           name: values.name ?? '',
           contact: values.contact ?? '',
           phone: values.phone ?? '',

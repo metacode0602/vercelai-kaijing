@@ -1015,11 +1015,13 @@ Daraz 投影口径：
 
 ## 9. 域 I：系统、权限、审计、导入（F03/F18/F19，S1/S5）
 
-### 9.1 `erp_roles` + `erp_role_permissions` + `role_scopes` — 业务 RBAC（叠加 better-auth）
+### 9.1 `roles` + `role_permissions` + `member_roles` + `role_scopes` — 业务 RBAC（叠加 better-auth）
+
+落地表名去掉 `erp_` 前缀（`erp_roles` → `roles`，`erp_role_permissions` → `role_permissions`，`erp_member_roles` → `member_roles`，`erp_role_scopes` → `role_scopes`），与 `member` / `invitation` / `audit_events` 同一命名惯例。列工厂在 `packages/db/src/rbac-columns.ts`：租户数据在 `public`，平台侧同形表在 `web_auth`（不混表、不加 realm/app 标记）。权限引擎（六动作、多角色并集、范围判断）在 `@workspace/auth`。shop 阶段 A+B 已建表并接入设置页与敏感写接口；`apps/web` UI 与业务 router 全面换权为后续阶段。
 
 better-auth org/member 不动；业务权限独立：
 
-#### `erp_roles`
+#### `roles`（设计稿曾用名 `erp_roles`）
 
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
@@ -1031,7 +1033,7 @@ better-auth org/member 不动；业务权限独立：
 | status | varchar(16) | |
 | **UNIQUE** | | `(organization_id, code)` |
 
-#### `erp_role_permissions`
+#### `role_permissions`（设计稿曾用名 `erp_role_permissions`）
 
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
@@ -1040,11 +1042,11 @@ better-auth org/member 不动；业务权限独立：
 | permission | varchar(64) | `product.read` / `product.write` / `purchase.submit` / `purchase.approve` / `inventory.adjust` / `order.ship` / `finance.read` / `report.export` / `settings.manage` / `it.impersonate` … |
 | **UNIQUE** | | `(role_id, permission)` |
 
-#### `erp_member_roles`（成员↔角色，M2N）
+#### `member_roles`（成员↔角色，M2N；设计稿曾用名 `erp_member_roles`）
 
 `(organization_id, user_id, role_id)` UNIQUE。蔡值=仅 `viewer`；外部 IT=`it_tech`（可停用技术账号，R11）。
 
-#### `erp_role_scopes` — 数据范围（Q23，2026-11-03 C5 修订）
+#### `role_scopes` — 数据范围（Q23，2026-11-03 C5 修订；设计稿曾用名 `erp_role_scopes`）
 
 | 列 | 类型 | 说明 |
 | --- | --- | --- |

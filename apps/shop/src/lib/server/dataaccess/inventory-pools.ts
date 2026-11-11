@@ -1,8 +1,8 @@
 /**
  * inventory_pools — 共享库存池 dataaccess。
- * 池挂在仓库上，店铺通过 shops.inventory_pool_id 加入；当前不提供独立管理页。
+ * 池挂在仓库上，店铺通过 shops.inventory_pool_id 加入。
  */
-import { and, asc, count, eq, ilike, inArray, or, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, ilike, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { commerceWarehouses, inventoryPools, shops } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
@@ -12,6 +12,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -197,15 +198,20 @@ export async function createInventoryPool(
       .limit(1)
     if (dup) throw new Error(`库存池编码 ${code} 已存在`)
     const id = createId()
-    await tx.insert(inventoryPools).values({
-      id,
-      organizationId,
-      code,
-      name,
-      warehouseId: warehouse.id,
-      status: toDbPoolStatus(input.status),
-      note: input.note?.trim() || null,
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(inventoryPools).values({
+          id,
+          organizationId,
+          code,
+          name,
+          warehouseId: warehouse.id,
+          status: toDbPoolStatus(input.status),
+          note: input.note?.trim() || null,
+        }),
+      { inventory_pools_org_code_uidx: `库存池编码 ${code} 已存在` },
+      `库存池编码 ${code} 已存在`,
+    )
     return (await getInventoryPool(tx, organizationId, id))!
   })
 }
@@ -275,3 +281,41 @@ export async function assignShopInventoryPool(
       .where(eq(shops.id, shop.id))
   })
 }
+
+export type ShopPoolAssignmentDto = {
+  shopId: string
+  shopName: string
+  platform: string
+  poolId: string | null
+  poolCode: string | null
+  poolName: string | null
+}
+
+/** 组织内店铺及其当前加入的库存池，供控制台分配。 */
+export async function listShopPoolAssignments(
+  db: AppDatabase,
+  organizationId: string,
+): Promise<ShopPoolAssignmentDto[]> {
+  const rows = await db
+    .select({
+      shopId: shops.id,
+      shopName: shops.name,
+      platform: shops.platform,
+      poolId: shops.inventoryPoolId,
+      poolCode: inventoryPools.code,
+      poolName: inventoryPools.name,
+    })
+    .from(shops)
+    .leftJoin(inventoryPools, eq(inventoryPools.id, shops.inventoryPoolId))
+    .where(and(eq(shops.organizationId, organizationId), isNull(shops.deletedAt)))
+    .orderBy(asc(shops.name))
+  return rows.map((row) => ({
+    shopId: row.shopId,
+    shopName: row.shopName,
+    platform: row.platform,
+    poolId: row.poolId,
+    poolCode: row.poolCode,
+    poolName: row.poolName,
+  }))
+}
+

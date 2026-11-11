@@ -10,15 +10,15 @@
 | `/console/reviews` → `product_reviews` + `product_review_media`（列表/详情/回复状态） | 平台卖家回复 API（仅 `stub_queued`，禁止假成功） |
 | `/console/carriers` → `commerce_carriers`；运费页继续 `fee_templates` + `ocean_shipments` | 承运商实时报价 API |
 | `/console/(ops)/categories` → `commerce_categories` | `platform_categories` 平台类目树同步 |
-| `/console/dictionaries` → `commerce_dictionaries` | — |
-| `/console/settings/import-templates` → `commerce_import_templates` | 导入批处理作业 / 回滚流水 |
-| `/console/settings/audit` → `audit_events` | — |
-| `/console/settings/members` → better-auth `member` + `invitation` | 真实邀请邮件发送 |
-| `/console/settings/shops` + credentials → `shops` / `integration_*` | OAuth / connector 真实授权 |
+| `/settings/dictionaries` → `commerce_dictionaries` | — |
+| `/settings/import-templates` → `commerce_import_templates` | 导入批处理作业 / 回滚流水 |
+| `/settings/audit` → `audit_events` | — |
+| `/settings/members` → better-auth `member` + `invitation` | 真实邀请邮件发送 |
+| `/settings/shops` + credentials → `shops` / `integration_*` | OAuth / connector 真实授权 |
 | Dashboard 分类库存 / 周转 → `inventory_balances` + `inventory_movements`（空→空态） | 在途按柜次补齐（可选） |
 | `/console/reports` 平台销售占比 ← `dashboard.platformMix` | 完整报表口径（汇率/费用分摊） |
-| `/console/settings/erp-access` 去掉 DEMO 角色行 | 细粒度 RBAC / 店铺 scope |
-| `/console/settings/imports` 去掉 DEMO 批次 | 导入流水表 |
+| `/settings/erp-access` 去掉 DEMO 角色行 | 细粒度 RBAC / 店铺 scope |
+| `/settings/imports` 去掉 DEMO 批次 | 导入流水表 |
 
 ## 架构
 
