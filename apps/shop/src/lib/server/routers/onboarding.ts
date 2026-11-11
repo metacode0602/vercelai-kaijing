@@ -62,7 +62,7 @@ const saveStepInput = z.object({
 
 export const onboardingRouter = createTRPCRouter({
   getState: userProcedure.query(async ({ ctx }) =>
-    onboardingDa.getOnboardingState(ctx.db, ctx.user.id),
+    onboardingDa.getOnboardingState(ctx.db, ctx.user.id, ctx.organizationId),
   ),
 
   start: userProcedure
@@ -86,16 +86,13 @@ export const onboardingRouter = createTRPCRouter({
           subjectType: input.subjectType,
           countryCode: input.countryCode.toUpperCase(),
           nameHint: input.nameHint,
+          organizationId: ctx.organizationId,
         }),
       )
-      try {
-        await auth.api.setActiveOrganization({
-          headers: ctx.headers,
-          body: { organizationId: result.organizationId },
-        })
-      } catch {
-        // 组织成员关系已写入，context 会按成员关系兜底解析。
-      }
+      await auth.api.setActiveOrganization({
+        headers: ctx.headers,
+        body: { organizationId: result.organizationId },
+      })
       return result
     }),
 

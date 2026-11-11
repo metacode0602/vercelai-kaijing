@@ -6,7 +6,7 @@ import { routing } from '@/lib/i18n/routing'
 
 const handleI18nRouting = createIntlMiddleware(routing)
 
-const PROTECTED_PREFIXES = ['/console', '/settings', '/onboarding']
+const PROTECTED_PREFIXES = ['/console', '/settings', '/onboarding', '/select-org']
 
 function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some(

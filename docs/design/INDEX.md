@@ -37,6 +37,7 @@
 | 文档 | 状态 | 定位 |
 | --- | --- | --- |
 | [tenant-onboarding-and-store-binding.md](../../apps/shop/content/design/tenant-onboarding-and-store-binding.md) | **设计稿，待评审（2026-11-08：G1–G7 已修，G8 部分）** | 租户入驻向导、主体审核、组织创建、首店/多店创建、Daraz/Lazada OAuth 绑定与重新授权；含状态机、权限、接口、线框图和实施计划；§2.2 差距表已按实现标注 |
+| [multi-organization-ued.md](../../apps/shop/content/design/multi-organization-ued.md) | **已确认并完成 P0（2026-11-11；Q1/Q2/Q3/Q5/Q8 已定，Q4/Q6/Q7 按推荐实现）** | 一个手机号/邮箱属于多个组织时的登录入口、组织选择页、Topbar 切换器、按组织入驻门槛、邀请确认与多标签页同步；含服务端契约、验收标准与决策记录 |
 | [crossborder-shop-ued-product-design.md](../../apps/shop/content/design/crossborder-shop-ued-product-design.md) | **生效** | 租户端 IA、动态 Skill execution/OKF 知识复核与 Desktop 商业闭环 UED |
 | [cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md) | **生效（已接 `trpc.costs.*`，2026-11-08）** | 斯里兰卡成本计算工作台：先交互 UED 再接业务；空运 DDP / LCL / FCL 成本情景、税项与建议售价 |
 | [fee-templates-ued.md](../../apps/shop/content/design/fee-templates-ued.md) | **UED 初版，已接库** | 费用模板（import_tax / platform_fee / ocean_freight）：履约两级、优先级解析、tRPC 列表/详情（localStorage 主路径停用）；成本测算按平台+国家+履约+asOf 命中版本并快照；未命中由 `blockReasons` 阻断 |

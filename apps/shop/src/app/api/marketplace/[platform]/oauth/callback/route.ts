@@ -26,6 +26,7 @@ import {
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resolveOrganizationContext } from '@/lib/server/context'
+import { LAST_ORGANIZATION_COOKIE } from '@/lib/organization/constants'
 import {
   getOnboardingState,
   isShopBindingAllowed,
@@ -143,6 +144,7 @@ export async function GET(
   const { organizationId, organizationRole } = await resolveOrganizationContext({
     userId: session.user.id,
     activeOrganizationId,
+    lastOrganizationId: request.cookies.get(LAST_ORGANIZATION_COOKIE)?.value ?? null,
   })
   if (
     organizationId !== state.organizationId ||

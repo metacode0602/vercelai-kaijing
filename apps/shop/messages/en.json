@@ -125,6 +125,47 @@
       "resetFailed": "Reset failed, the link may have expired"
     }
   },
+  "OrgSelect": {
+    "title": "Choose an organization",
+    "description": "You belong to more than one organization. Pick the workspace to enter. Switching resets business detail pages to the dashboard.",
+    "loading": "Loading organizations…",
+    "current": "Current",
+    "lastUsed": "Last used",
+    "enter": "Enter",
+    "reenter": "Return",
+    "suspendedHint": "This organization is suspended. Choose another organization or contact platform operations.",
+    "switchFailed": "Failed to switch organization",
+    "acceptFailed": "Failed to accept invitation",
+    "accepted": "Joined {name}",
+    "declined": "Invitation dismissed",
+    "role": {
+      "owner": "Owner",
+      "member": "Member"
+    },
+    "status": {
+      "approved": "Verified",
+      "submitted": "Under review",
+      "rejected": "Rejected",
+      "draft": "Profile incomplete",
+      "notStarted": "Not started",
+      "suspended": "Suspended"
+    },
+    "organizations": {
+      "title": "My organizations",
+      "description": "Current and recently used organizations are shown first. Suspended organizations cannot be entered.",
+      "empty": "You have not joined any organization yet",
+      "startOnboarding": "Start onboarding",
+      "createdAt": "Created {date}"
+    },
+    "invitations": {
+      "title": "Pending invitations",
+      "description": "You join only after accepting. Dismissing an invitation does not affect your existing organizations.",
+      "invitedBy": "Invited by {name}",
+      "expires": "Expires {date}",
+      "accept": "Accept",
+      "decline": "Dismiss"
+    }
+  },
   "Console": {
     "brand": "Open Shop",
     "productSwitcher": "GPUs",

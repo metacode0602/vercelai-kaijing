@@ -1,11 +1,18 @@
 /**
  * better-auth member + invitation（模块15）。
- * 支持手机号邀请（登录 OTP 自动绑定组织）与邮箱邀请（发信 → 设密码 → 重新登录）。
+ * 手机号/邮箱邀请都进入待确认列表，由用户显式选择接受，避免登录时静默加入多个组织。
  */
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { hashPassword } from 'better-auth/crypto'
-import { account, invitation, member, organization, user } from '@workspace/db/schema'
+import {
+  account,
+  invitation,
+  member,
+  organization,
+  tenantOnboardingApplications,
+  user,
+} from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import { OWNER_ANNOTATION, isOwnerIdentity, parseInvitationRoles, serializeInvitationRoles } from '@workspace/auth'
 import { normalizeContactPhone } from '@/lib/auth/constants'
@@ -211,7 +218,7 @@ export async function createInvitation(
   const inviteUrl = email && base ? `${base}/${locale}/auth/accept-invite?id=${encodeURIComponent(id)}` : undefined
 
   const noteParts: string[] = ['已写入 invitation（pending）']
-  if (phone) noteParts.push(`手机号 ${phone} 登录后将自动加入组织`)
+  if (phone) noteParts.push(`手机号 ${phone} 登录后需在邀请中心确认加入`)
   if (email) noteParts.push(`将向 ${email} 发送邀请邮件`)
   else noteParts.push('未填写邮箱，不发送邮件')
 
@@ -317,36 +324,199 @@ async function ensureMember(
   return id
 }
 
-/**
- * 手机号 OTP 验证成功后：接受该手机号下所有未过期 pending 邀请并加入对应组织。
- */
-export async function acceptPendingInvitationsForPhone(
-  db: DbLike,
-  userId: string,
-  phoneRaw: string,
-): Promise<{ accepted: number; organizationIds: string[] }> {
-  const phone = normalizeContactPhone(phoneRaw)
-  if (!phone || !isValidCnMobile(phone)) return { accepted: 0, organizationIds: [] }
+export type PendingInvitationDto = {
+  id: string
+  organizationId: string
+  organizationName: string
+  organizationStatus: string
+  role: string
+  roleLabel: string
+  email: string | null
+  phone: string | null
+  inviterName: string
+  expiresAt: string
+  expiresAtIso: string
+  createdAt: string
+  canAccept: boolean
+}
 
-  const now = new Date()
-  const pending = await db
+function invitationRoleLabel(role: string | null): string {
+  try {
+    return parseInvitationRoles(role).join('、')
+  } catch {
+    return role || 'member'
+  }
+}
+
+async function loadInvitationUser(db: DbLike, userId: string) {
+  const [currentUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
+  return currentUser ?? null
+}
+
+function invitationMatchesUser(
+  inv: { email: string | null; phone: string | null },
+  currentUser: { email: string | null; phoneNumber: string | null },
+) {
+  const email = (inv.email || '').trim().toLowerCase()
+  const phone = normalizeContactPhone(inv.phone || '')
+  const userEmail = (currentUser.email || '').trim().toLowerCase()
+  const userPhone = normalizeContactPhone(currentUser.phoneNumber || '')
+  return Boolean((email && userEmail && email === userEmail) || (phone && userPhone && phone === userPhone))
+}
+
+/** 当前账号（邮箱或手机号命中）的 pending 邀请，供 /select-org 邀请中心展示。 */
+export async function listPendingInvitationsForUser(
+  db: AppDatabase,
+  userId: string,
+): Promise<PendingInvitationDto[]> {
+  const currentUser = await loadInvitationUser(db, userId)
+  if (!currentUser) return []
+  const email = (currentUser.email || '').trim().toLowerCase()
+  const phone = normalizeContactPhone(currentUser.phoneNumber || '')
+  const matches = []
+  if (email) matches.push(eq(invitation.email, email))
+  if (phone) matches.push(eq(invitation.phone, phone))
+  if (matches.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      organizationName: organization.name,
+      organizationStatus: organization.status,
+      role: invitation.role,
+      email: invitation.email,
+      phone: invitation.phone,
+      inviterId: invitation.inviterId,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt,
+    })
+    .from(invitation)
+    .innerJoin(organization, eq(invitation.organizationId, organization.id))
+    .where(
+      and(
+        eq(invitation.status, 'pending'),
+        eq(organization.orgType, 'tenant'),
+        gt(invitation.expiresAt, new Date()),
+        matches.length === 1 && matches[0] ? matches[0] : or(...matches),
+      ),
+    )
+    .orderBy(desc(invitation.createdAt))
+
+  const inviterIds = [...new Set(rows.map((row) => row.inviterId))]
+  const inviters = inviterIds.length
+    ? await db
+        .select({ id: user.id, name: user.name, email: user.email })
+        .from(user)
+        .where(inArray(user.id, inviterIds))
+    : []
+  const inviterMap = new Map(inviters.map((row) => [row.id, row.name || row.email || '']))
+
+  return rows.map((row) => ({
+    id: row.id,
+    organizationId: row.organizationId,
+    organizationName: row.organizationName,
+    organizationStatus: row.organizationStatus,
+    role: row.role || 'member',
+    roleLabel: invitationRoleLabel(row.role),
+    email: row.email,
+    phone: row.phone,
+    inviterName: inviterMap.get(row.inviterId) || '组织管理员',
+    expiresAt: formatStamp(row.expiresAt),
+    expiresAtIso: row.expiresAt.toISOString(),
+    createdAt: formatStamp(row.createdAt),
+    canAccept: row.organizationStatus === 'active',
+  }))
+}
+
+export async function countPendingInvitationsForUser(db: AppDatabase, userId: string): Promise<number> {
+  const rows = await listPendingInvitationsForUser(db, userId)
+  return rows.length
+}
+
+export type AcceptInvitationForUserResult = {
+  organizationId: string
+  organizationName: string
+  organizationStatus: string
+  entryApproved: boolean
+  onboardingStatus: string
+}
+
+/** 接受指定邀请；只处理当前 invitationId，不再连带接受同手机号的其它邀请。 */
+export async function acceptInvitationForUser(
+  db: AppDatabase,
+  input: { userId: string; invitationId: string },
+): Promise<AcceptInvitationForUserResult> {
+  return db.transaction(async (tx) => {
+    const currentUser = await loadInvitationUser(tx, input.userId)
+    if (!currentUser) throw new Error('用户不存在')
+
+    const [inv] = await tx
+      .select()
+      .from(invitation)
+      .where(eq(invitation.id, input.invitationId))
+      .limit(1)
+    if (!inv) throw new Error('邀请不存在或链接无效')
+    if (inv.status !== 'pending') throw new Error(`邀请状态为 ${inv.status}，无法接受`)
+    if (inv.expiresAt.getTime() < Date.now()) throw new Error('邀请已过期')
+    if (!invitationMatchesUser(inv, currentUser)) {
+      throw new Error('该邀请不属于当前账号，请使用被邀请的手机号或邮箱登录')
+    }
+
+    await ensureMember(tx, inv.organizationId, input.userId, 'member')
+    await ensureOrgRbac(tx, inv.organizationId)
+    await bindMemberRoleCodes(
+      tx,
+      inv.organizationId,
+      input.userId,
+      parseInvitationRoles(inv.role),
+    )
+    await tx.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, inv.id))
+
+    const [org] = await tx
+      .select({
+        name: organization.name,
+        status: organization.status,
+        entryApproved: organization.entryApproved,
+      })
+      .from(organization)
+      .where(eq(organization.id, inv.organizationId))
+      .limit(1)
+    const [application] = await tx
+      .select({ status: tenantOnboardingApplications.status })
+      .from(tenantOnboardingApplications)
+      .where(eq(tenantOnboardingApplications.organizationId, inv.organizationId))
+      .limit(1)
+
+    return {
+      organizationId: inv.organizationId,
+      organizationName: org?.name || inv.organizationId,
+      organizationStatus: org?.status || 'active',
+      entryApproved: org?.entryApproved ?? false,
+      onboardingStatus: application?.status ?? 'not_started',
+    }
+  })
+}
+
+/** 忽略指定邀请：仅 pending 且属于当前账号的邀请可操作。 */
+export async function declineInvitationForUser(
+  db: AppDatabase,
+  input: { userId: string; invitationId: string },
+): Promise<{ id: string; status: 'canceled' }> {
+  const currentUser = await loadInvitationUser(db, input.userId)
+  if (!currentUser) throw new Error('用户不存在')
+  const [inv] = await db
     .select()
     .from(invitation)
-    .where(and(eq(invitation.status, 'pending'), eq(invitation.phone, phone)))
-
-  const organizationIds: string[] = []
-  for (const inv of pending) {
-    if (inv.expiresAt && inv.expiresAt.getTime() < now.getTime()) {
-      await db.update(invitation).set({ status: 'canceled' }).where(eq(invitation.id, inv.id))
-      continue
-    }
-    await ensureMember(db, inv.organizationId, userId, 'member')
-    await ensureOrgRbac(db, inv.organizationId)
-    await bindMemberRoleCodes(db, inv.organizationId, userId, parseInvitationRoles(inv.role))
-    await db.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, inv.id))
-    organizationIds.push(inv.organizationId)
+    .where(eq(invitation.id, input.invitationId))
+    .limit(1)
+  if (!inv) throw new Error('邀请不存在或链接无效')
+  if (inv.status !== 'pending') throw new Error(`邀请状态为 ${inv.status}，无法忽略`)
+  if (!invitationMatchesUser(inv, currentUser)) {
+    throw new Error('该邀请不属于当前账号')
   }
-  return { accepted: organizationIds.length, organizationIds }
+  await db.update(invitation).set({ status: 'canceled' }).where(eq(invitation.id, inv.id))
+  return { id: inv.id, status: 'canceled' }
 }
 
 export async function getInvitationPublic(db: AppDatabase, id: string) {
@@ -385,7 +555,7 @@ export async function acceptInvitationWithPassword(
     throw new Error('邀请已过期')
   }
   const email = (inv.email || '').trim().toLowerCase()
-  if (!email) throw new Error('该邀请未绑定邮箱，请使用手机号登录自动加入组织')
+  if (!email) throw new Error('该邀请未绑定邮箱，请登录后在邀请中心确认加入')
 
   const [existingUser] = await db.select().from(user).where(eq(user.email, email)).limit(1)
   let userId = existingUser?.id
@@ -435,11 +605,6 @@ export async function acceptInvitationWithPassword(
   await ensureOrgRbac(db, inv.organizationId)
   await bindMemberRoleCodes(db, inv.organizationId, userId, parseInvitationRoles(inv.role))
   await db.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, inv.id))
-
-  // 同邮箱/手机的其它 pending 一并接受（幂等）
-  if (inv.phone) {
-    await acceptPendingInvitationsForPhone(db, userId, inv.phone)
-  }
 
   const [org] = await db.select().from(organization).where(eq(organization.id, inv.organizationId)).limit(1)
 

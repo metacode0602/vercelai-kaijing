@@ -143,6 +143,47 @@
       "resetFailed": "重置失败，链接可能已失效"
     }
   },
+  "OrgSelect": {
+    "title": "选择组织",
+    "description": "你已加入多个组织，选择要进入的工作台。切换后业务详情页会回到仪表盘。",
+    "loading": "正在加载组织…",
+    "current": "当前",
+    "lastUsed": "上次使用",
+    "enter": "进入",
+    "reenter": "返回",
+    "suspendedHint": "当前组织已暂停，请选择其他组织或联系平台运营。",
+    "switchFailed": "切换组织失败",
+    "acceptFailed": "接受邀请失败",
+    "accepted": "已加入 {name}",
+    "declined": "已忽略邀请",
+    "role": {
+      "owner": "所有者",
+      "member": "成员"
+    },
+    "status": {
+      "approved": "已认证",
+      "submitted": "审核中",
+      "rejected": "已驳回",
+      "draft": "资料待完善",
+      "notStarted": "未开始入驻",
+      "suspended": "已暂停"
+    },
+    "organizations": {
+      "title": "我的组织",
+      "description": "最近使用和当前组织优先展示，暂停的组织无法进入。",
+      "empty": "你还没有加入任何组织",
+      "startOnboarding": "开始入驻",
+      "createdAt": "创建于 {date}"
+    },
+    "invitations": {
+      "title": "待确认邀请",
+      "description": "接受后才会加入组织；忽略不会影响你已有的组织。",
+      "invitedBy": "邀请人：{name}",
+      "expires": "有效期至 {date}",
+      "accept": "接受邀请",
+      "decline": "忽略"
+    }
+  },
   "Console": {
     "brand": "Open Shop",
     "productSwitcher": "产品",
