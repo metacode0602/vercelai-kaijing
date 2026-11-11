@@ -109,6 +109,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
       { url: '/console/reviews', titleKey: 'nav.reviews' },
+      { url: '/console/compliance-hs-slsi', titleKey: 'nav.complianceHsSlsi' },
     ],
   },
   {
@@ -188,6 +189,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/reports', titleKey: 'nav.reports' },
       { url: '/console/reports/sell-through', titleKey: 'nav.sellThrough' },
       { url: '/console/reports/stock-risk', titleKey: 'nav.stockRisk' },
+      { url: '/console/reports/attribution', titleKey: 'nav.attribution' },
     ],
   },
 ]

@@ -34,31 +34,6 @@ export type StockRiskRow = {
   flag: '滞销' | '断货风险' | '正常' | '新品观察'
 }
 
-export type AttributionRow = {
-  id: string
-  sku: string
-  name: string
-  badReviews: number
-  returns: number
-  reasons: {
-    quality: number
-    size: number
-    logistics: number
-    description: number
-    other: number
-  }
-}
-
-export type HsSlsiRow = {
-  id: string
-  hsCode: string
-  description: string
-  slsiRequired: boolean
-  certName: string
-  blockListing: boolean
-  source: string
-}
-
 export type CsInboxMessage = {
   id: string
   shop: string
@@ -198,62 +173,7 @@ export function daysOfCover(available: number, inbound: number, dailySales: numb
   return Number(((available + inbound) / dailySales).toFixed(1))
 }
 
-export const ATTRIBUTION_SEED: AttributionRow[] = [
-  {
-    id: 'ATT-1',
-    sku: 'HDY-220',
-    name: '高速吹风机',
-    badReviews: 18,
-    returns: 11,
-    reasons: { quality: 7, size: 1, logistics: 4, description: 4, other: 2 },
-  },
-  {
-    id: 'ATT-2',
-    sku: 'TEE-001',
-    name: '速干 Polo',
-    badReviews: 9,
-    returns: 6,
-    reasons: { quality: 2, size: 5, logistics: 1, description: 1, other: 0 },
-  },
-  {
-    id: 'ATT-3',
-    sku: 'BAG-088',
-    name: '旅行收纳包',
-    badReviews: 4,
-    returns: 3,
-    reasons: { quality: 1, size: 0, logistics: 2, description: 0, other: 1 },
-  },
-]
 
-export const HS_SLSI_SEED: HsSlsiRow[] = [
-  {
-    id: 'HS-1',
-    hsCode: '8516.31',
-    description: '电吹风 / 干发器',
-    slsiRequired: true,
-    certName: 'SLSI 电热器具强制认证',
-    blockListing: true,
-    source: 'mock-import',
-  },
-  {
-    id: 'HS-2',
-    hsCode: '6109.10',
-    description: '棉制 T 恤',
-    slsiRequired: false,
-    certName: '—',
-    blockListing: false,
-    source: 'manual',
-  },
-  {
-    id: 'HS-3',
-    hsCode: '8509.40',
-    description: '食品研磨机',
-    slsiRequired: true,
-    certName: 'SLSI 家电强制认证',
-    blockListing: true,
-    source: 'mock-import',
-  },
-]
 
 export const CS_INBOX_SEED: CsInboxMessage[] = [
   {

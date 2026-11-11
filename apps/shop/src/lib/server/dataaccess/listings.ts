@@ -31,6 +31,7 @@ import {
 } from '@/lib/server/dataaccess/pagination'
 import * as mappingsDa from '@/lib/server/dataaccess/mappings'
 import * as syncDa from '@/lib/server/dataaccess/sync'
+import { assertHsCompliance } from '@/lib/server/dataaccess/compliance'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -653,6 +654,36 @@ export async function setListingShelfStatus(
   id: string,
   onShelf: boolean,
 ): Promise<ListingDto> {
+  if (onShelf) {
+    const current = await getListing(db, organizationId, id)
+    if (!current) throw new Error('刊登不存在')
+    const [product] = await db
+      .select({ id: products.id, hsCode: products.hsCode })
+      .from(products)
+      .where(and(eq(products.id, current.productId), eq(products.organizationId, organizationId)))
+      .limit(1)
+    let hsCode = product?.hsCode ?? null
+    let variantId: string | null = current.primaryVariantId || null
+    if (current.primaryVariantId) {
+      const [variant] = await db
+        .select({ id: productVariants.id, hsCode: productVariants.hsCode })
+        .from(productVariants)
+        .where(
+          and(
+            eq(productVariants.id, current.primaryVariantId),
+            eq(productVariants.organizationId, organizationId),
+          ),
+        )
+        .limit(1)
+      if (variant?.hsCode) hsCode = variant.hsCode
+      variantId = variant?.id ?? variantId
+    }
+    await assertHsCompliance(db, organizationId, {
+      hsCode,
+      productId: product?.id ?? current.productId,
+      variantId,
+    })
+  }
   return updateListing(db, organizationId, id, {
     status: onShelf ? '在售' : '下架',
   })

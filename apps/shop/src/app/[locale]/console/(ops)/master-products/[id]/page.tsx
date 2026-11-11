@@ -21,6 +21,7 @@ import type { UiProductStatus } from '@/lib/server/mappers/products'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
 import {
   Table,
   TableBody,
@@ -46,6 +47,7 @@ type VariantRow = {
   barcode: string
   weight: number
   status: UiProductStatus
+  hsCode: string
 }
 
 export default function MasterProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +81,8 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const [editVariant, setEditVariant] = React.useState<VariantRow | null>(null)
   const [statusTarget, setStatusTarget] = React.useState<VariantRow | null>(null)
   const [notice, setNotice] = React.useState('')
+  const [certOpen, setCertOpen] = React.useState(false)
+  const [certFile, setCertFile] = React.useState<{ name: string; url: string } | null>(null)
 
   const utils = trpc.useUtils()
   const brandsMetaQuery = trpc.brands.meta.useQuery()
@@ -110,6 +114,10 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const colorTitles = dictMap.product_color?.valueTitles ?? {}
   const sizeTitles = dictMap.product_size?.valueTitles ?? {}
   const productQuery = trpc.products.bySpu.useQuery({ spu: id })
+  const certsQuery = trpc.compliance.listCerts.useQuery(
+    { productId: productQuery.data?.id ?? '' },
+    { enabled: Boolean(productQuery.data?.id) },
+  )
 
   const invalidateProduct = async () => {
     await utils.products.bySpu.invalidate({ spu: id })
@@ -117,6 +125,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
     await utils.products.listSkus.invalidate()
     await utils.products.stats.invalidate()
     await utils.products.listSkuCodes.invalidate()
+    await utils.compliance.listCerts.invalidate()
   }
 
   const updateMutation = trpc.products.update.useMutation({
@@ -151,6 +160,22 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
       setEditVariant(null)
       setStatusTarget(null)
       setNotice(`${updated.code} 已更新。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const upsertCertMutation = trpc.compliance.upsertCert.useMutation({
+    onSuccess: async (row) => {
+      await utils.compliance.listCerts.invalidate()
+      setCertOpen(false)
+      setCertFile(null)
+      setNotice(`证书 ${row.certNumber} 已保存。`)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const certStatusMutation = trpc.compliance.setCertStatus.useMutation({
+    onSuccess: async () => {
+      await utils.compliance.listCerts.invalidate()
+      setNotice('证书状态已更新。')
     },
     onError: (error) => setNotice(error.message),
   })
@@ -257,6 +282,15 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           { label: '款式 / 版型', value: styleTitles[current.style] ?? current.style },
           { label: '负责人', value: current.owner },
           {
+            label: 'HS 编码',
+            value: current.hsCode || '未填',
+            mono: Boolean(current.hsCode),
+          },
+          {
+            label: '合规校验',
+            value: current.hsCode ? '已按清单校验（保存时由服务端强制）' : '未填 HS，未做合规校验',
+          },
+          {
             label: '状态',
             value: <Badge variant={statusVariant(current.status)}>{current.status}</Badge>,
           },
@@ -282,6 +316,80 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         title="SPU 商品图片"
         description="封面与截图保存在对象存储，并随商品更新写入 products.images。"
       />
+
+      <DetailSection
+        title="合规证书"
+        description="有效且未过期的证书可解除该商品命中强制认证时的建档/上架阻断。"
+        action={
+          <Button size="sm" variant="outline" onClick={() => setCertOpen(true)}>
+            <Plus data-icon="inline-start" />
+            上传证书
+          </Button>
+        }
+      >
+        {(certsQuery.data ?? []).length === 0 ? (
+          <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+            暂无证书。
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>证书编号</TableHead>
+                <TableHead>名称</TableHead>
+                <TableHead>HS</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>有效期至</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>文件</TableHead>
+                <TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(certsQuery.data ?? []).map((cert) => (
+                <TableRow key={cert.id}>
+                  <TableCell className="font-mono text-xs">{cert.certNumber}</TableCell>
+                  <TableCell>{cert.certName || '—'}</TableCell>
+                  <TableCell>{cert.hsCode || '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">{cert.variantSku || 'SPU 级'}</TableCell>
+                  <TableCell>
+                    {cert.expiresAt ? cert.expiresAt.slice(0, 10) : '—'}
+                    {cert.expired ? ' · 已过期' : ''}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={cert.status === 'enabled' ? 'secondary' : 'outline'}>
+                      {cert.status === 'enabled' ? '启用' : '停用'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {cert.fileUrl ? (
+                      <a className="text-sm underline" href={cert.fileUrl} target="_blank" rel="noreferrer">
+                        {cert.fileName || '查看'}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        certStatusMutation.mutate({
+                          id: cert.id,
+                          status: cert.status === 'enabled' ? 'disabled' : 'enabled',
+                        })
+                      }
+                    >
+                      {cert.status === 'enabled' ? '停用' : '启用'}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </DetailSection>
 
       <DetailSection
         title="内部 SKU 规格行"
@@ -312,6 +420,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                 <TableHead>尺码</TableHead>
                 <TableHead>包装</TableHead>
                 <TableHead>条码</TableHead>
+                <TableHead>HS</TableHead>
                 <TableHead>重量 g</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>操作</TableHead>
@@ -325,6 +434,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                   <TableCell>{sizeTitles[variant.size] ?? variant.size}</TableCell>
                   <TableCell>{packTitles[variant.pack] ?? variant.pack}</TableCell>
                   <TableCell className="font-mono text-xs">{variant.barcode || '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">{variant.hsCode || '—'}</TableCell>
                   <TableCell className="tabular-nums">{variant.weight}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant(variant.status)}>{variant.status}</Badge>
@@ -347,6 +457,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                             size: variant.size,
                             pack: variant.pack,
                             barcode: variant.barcode,
+                            hsCode: variant.hsCode ?? '',
                             weight: variant.weight,
                             status: variant.status,
                           })
@@ -365,6 +476,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                             size: variant.size,
                             pack: variant.pack,
                             barcode: variant.barcode,
+                            hsCode: variant.hsCode ?? '',
                             weight: variant.weight,
                             status: variant.status,
                           })
@@ -383,6 +495,71 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
       </DetailSection>
 
       {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
+
+      {certOpen ? (
+        <UedDialog
+          title="上传合规证书"
+          description={`归属 ${current.spu}。证书文件可选，建议上传 PDF 或图片（不超过 5MB）。`}
+          fields={[
+            { key: 'certNumber', label: '证书编号', required: true },
+            { key: 'certName', label: '证书名称', defaultValue: '' },
+            { key: 'hsCode', label: '对应 HS', defaultValue: current.hsCode || '', placeholder: '可空' },
+            {
+              key: 'variantId',
+              label: '适用 SKU',
+              options: [
+                { value: '', title: '整个 SPU' },
+                ...current.variants.map((variant) => ({ value: variant.id, title: variant.code })),
+              ],
+              defaultValue: '',
+            },
+            { key: 'expiresAt', label: '有效期至', type: 'date' },
+            { key: 'notes', label: '备注', type: 'textarea', fullWidth: true },
+          ]}
+          onClose={() => {
+            setCertOpen(false)
+            setCertFile(null)
+          }}
+          onSave={(values) =>
+            upsertCertMutation.mutate({
+              productId: current.id,
+              variantId: values.variantId || null,
+              certNumber: values.certNumber,
+              certName: values.certName,
+              hsCode: values.hsCode,
+              expiresAt: values.expiresAt || null,
+              notes: values.notes,
+              fileName: certFile?.name,
+              fileUrl: certFile?.url,
+            })
+          }
+          saveLabel={upsertCertMutation.isPending ? '保存中…' : '保存证书'}
+        >
+          <div className="space-y-1">
+            <p className="text-sm font-medium">证书文件</p>
+            <Input
+              type="file"
+              accept=".pdf,image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (!file) {
+                  setCertFile(null)
+                  return
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                  setNotice('证书文件不能超过 5MB')
+                  event.target.value = ''
+                  return
+                }
+                const reader = new FileReader()
+                reader.onload = () => setCertFile({ name: file.name, url: String(reader.result ?? '') })
+                reader.readAsDataURL(file)
+              }}
+            />
+            {certFile ? <p className="text-xs text-muted-foreground">已选择 {certFile.name}</p> : null}
+          </div>
+        </UedDialog>
+      ) : null}
 
       {headerOpen ? (
         <UedDialog
@@ -434,6 +611,13 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             },
             { key: 'owner', label: '负责人', defaultValue: current.owner, required: true },
             {
+              key: 'hsCode',
+              label: 'HS 编码',
+              defaultValue: current.hsCode || '',
+              placeholder: '如 8516.31',
+              helper: '未填则不做合规校验。命中强制认证且阻断建档时，须先上传有效证书。',
+            },
+            {
               key: 'status',
               label: '状态',
               options: ['待确认', '启用', '停用'],
@@ -459,6 +643,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               style: values.style || current.style,
               owner: values.owner || current.owner,
               status: (values.status as UiProductStatus) || current.status,
+              hsCode: values.hsCode ?? '',
             })
           }}
           saveLabel={updateMutation.isPending ? '保存中…' : '保存主信息'}
@@ -600,6 +785,13 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               placeholder: '选填，刊登前必补',
             },
             {
+              key: 'hsCode',
+              label: 'HS 编码（覆盖 SPU）',
+              defaultValue: editVariant.hsCode || '',
+              placeholder: current.hsCode ? `空则沿用 ${current.hsCode}` : '选填，空则沿用 SPU',
+              helper: '填写后按该 SKU 的 HS 做合规校验。',
+            },
+            {
               key: 'weight',
               label: '重量（g）',
               type: 'number',
@@ -623,6 +815,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               size: values.size || editVariant.size,
               pack: values.pack || editVariant.pack,
               barcode: values.barcode,
+              hsCode: values.hsCode ?? '',
               weight: Number(values.weight) || 0,
               status: (values.status as UiProductStatus) || editVariant.status,
             })

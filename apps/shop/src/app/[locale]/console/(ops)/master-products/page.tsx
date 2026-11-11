@@ -142,6 +142,12 @@ export default function MasterProductsPage() {
           options: ownerOptions.length > 0 ? ownerOptions : ['当前用户'],
           required: true,
         },
+        {
+          key: 'hsCode',
+          label: 'HS 编码',
+          placeholder: '如 8516.31',
+          helper: '选填。未填则不做合规校验。若该 HS 属于强制认证且阻断建档，请先保存商品并上传有效证书后再填写。',
+        },
         { key: 'launchDate', label: '计划上市日期', type: 'date' },
         {
           key: 'description',
@@ -180,6 +186,7 @@ export default function MasterProductsPage() {
           material: values.material,
           style: values.style,
           status: '待确认',
+          hsCode: values.hsCode || undefined,
         })
       }}
       saveLabel={createMutation.isPending ? '保存中…' : '创建 SPU'}

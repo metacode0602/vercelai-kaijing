@@ -38,6 +38,7 @@ import { integrationLogsRouter } from './integration-logs'
 import { stockAlertsRouter } from './stock-alerts'
 import { rolesRouter } from './roles'
 import { platformBasicsRouter } from './platform-basics'
+import { complianceRouter } from './compliance'
 
 export * from '@/lib/server/trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -82,6 +83,7 @@ export const appRouter = router({
   stockAlerts: stockAlertsRouter,
   roles: rolesRouter,
   platformBasics: platformBasicsRouter,
+  compliance: complianceRouter,
 })
 
 export type AppRouter = typeof appRouter

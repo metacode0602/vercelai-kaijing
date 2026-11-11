@@ -534,6 +534,8 @@ export const products = pgTable(
     categoryHint: text("category_hint"),
     material: text("material"),
     style: text("style"),
+    /** 海关 HS 编码（规范化，如 8516.31）；未填则不做合规校验。 */
+    hsCode: varchar("hs_code", { length: 32 }),
     ownerUserId: text("owner_user_id"),
     images: jsonb("images").$type<Array<Record<string, unknown>>>().default([]),
     /** SPU 级默认尺寸（可被变体覆盖）。 */
@@ -549,6 +551,7 @@ export const products = pgTable(
     index("products_org_idx").on(t.organizationId),
     uniqueIndex("products_org_spu_uidx").on(t.organizationId, t.spuCode),
     index("products_org_brand_idx").on(t.organizationId, t.brandId),
+    index("products_org_hs_idx").on(t.organizationId, t.hsCode),
   ],
 )
 
@@ -572,6 +575,8 @@ export const productVariants = pgTable(
     /** 内部 SKU 码，如 HSY000001001。 */
     skuCode: varchar("sku_code", { length: 32 }),
     barcode: varchar("barcode", { length: 128 }),
+    /** SKU 级 HS 覆盖；空则沿用 SPU。 */
+    hsCode: varchar("hs_code", { length: 32 }),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
@@ -585,6 +590,88 @@ export const productVariants = pgTable(
     index("product_variants_product_idx").on(t.productId),
     uniqueIndex("product_variants_org_sku_uidx").on(t.organizationId, t.sku),
     uniqueIndex("product_variants_org_sku_code_uidx").on(t.organizationId, t.skuCode),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// compliance_hs_rules / product_compliance_certs — 组织级 HS/SLSI 清单与商品证书
+// ---------------------------------------------------------------------------
+
+export const complianceHsRuleStatuses = ["enabled", "disabled"] as const
+export type ComplianceHsRuleStatus = (typeof complianceHsRuleStatuses)[number]
+
+export const complianceHsRuleSources = ["manual", "import"] as const
+export type ComplianceHsRuleSource = (typeof complianceHsRuleSources)[number]
+
+export const productComplianceCertStatuses = ["enabled", "disabled"] as const
+export type ProductComplianceCertStatus = (typeof productComplianceCertStatuses)[number]
+
+export const complianceHsRules = pgTable(
+  "compliance_hs_rules",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    /** 规范化 HS，如 8516.31 */
+    hsCode: varchar("hs_code", { length: 32 }).notNull(),
+    description: text("description"),
+    slsiRequired: boolean("slsi_required").notNull().default(false),
+    certName: text("cert_name"),
+    blockCreate: boolean("block_create").notNull().default(false),
+    source: varchar("source", { length: 16 }).notNull().default("manual"),
+    validFrom: timestamp("valid_from", { withTimezone: true }),
+    validTo: timestamp("valid_to", { withTimezone: true }),
+    status: varchar("status", { length: 16 }).notNull().default("enabled"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("compliance_hs_rules_org_hs_uidx").on(t.organizationId, t.hsCode),
+    index("compliance_hs_rules_org_status_idx").on(t.organizationId, t.status),
+    check(
+      "compliance_hs_rules_status_check",
+      sql`${t.status} in ('enabled', 'disabled')`,
+    ),
+    check(
+      "compliance_hs_rules_source_check",
+      sql`${t.source} in ('manual', 'import')`,
+    ),
+  ],
+)
+
+export const productComplianceCerts = pgTable(
+  "product_compliance_certs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    variantId: text("variant_id").references(() => productVariants.id),
+    certNumber: varchar("cert_number", { length: 128 }).notNull(),
+    certName: text("cert_name"),
+    hsCode: varchar("hs_code", { length: 32 }),
+    fileName: text("file_name"),
+    fileUrl: text("file_url"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    status: varchar("status", { length: 16 }).notNull().default("enabled"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("product_compliance_certs_org_idx").on(t.organizationId),
+    index("product_compliance_certs_product_idx").on(t.organizationId, t.productId),
+    check(
+      "product_compliance_certs_status_check",
+      sql`${t.status} in ('enabled', 'disabled')`,
+    ),
   ],
 )
 
@@ -1561,6 +1648,97 @@ export const reverseOrderItems = pgTable(
     index("reverse_order_items_order_idx").on(t.reverseOrderId),
     index("reverse_order_items_order_line_idx").on(t.orderLineId),
     uniqueIndex("reverse_order_items_shop_ext_uidx").on(t.shopId, t.externalReverseLineId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// attribution_reason_maps / attribution_overrides — 差评与退货原因归类
+// ---------------------------------------------------------------------------
+
+export const attributionCategories = [
+  "quality",
+  "size",
+  "logistics",
+  "description",
+  "other",
+] as const
+export type AttributionCategory = (typeof attributionCategories)[number]
+
+export const attributionMapMatchTypes = ["reason_code", "keyword"] as const
+export type AttributionMapMatchType = (typeof attributionMapMatchTypes)[number]
+
+export const attributionSubjectTypes = ["review", "reverse_item"] as const
+export type AttributionSubjectType = (typeof attributionSubjectTypes)[number]
+
+export const attributionReasonMaps = pgTable(
+  "attribution_reason_maps",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    matchType: varchar("match_type", { length: 16 }).notNull(),
+    pattern: text("pattern").notNull(),
+    category: varchar("category", { length: 16 }).notNull(),
+    notes: text("notes"),
+    status: varchar("status", { length: 16 }).notNull().default("enabled"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("attribution_reason_maps_org_pattern_uidx").on(
+      t.organizationId,
+      t.matchType,
+      t.pattern,
+    ),
+    index("attribution_reason_maps_org_idx").on(t.organizationId, t.status),
+    check(
+      "attribution_reason_maps_type_check",
+      sql`${t.matchType} in ('reason_code', 'keyword')`,
+    ),
+    check(
+      "attribution_reason_maps_category_check",
+      sql`${t.category} in ('quality', 'size', 'logistics', 'description', 'other')`,
+    ),
+    check(
+      "attribution_reason_maps_status_check",
+      sql`${t.status} in ('enabled', 'disabled')`,
+    ),
+  ],
+)
+
+export const attributionOverrides = pgTable(
+  "attribution_overrides",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    subjectType: varchar("subject_type", { length: 16 }).notNull(),
+    subjectId: text("subject_id").notNull(),
+    category: varchar("category", { length: 16 }).notNull(),
+    note: text("note"),
+    overriddenBy: text("overridden_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("attribution_overrides_org_subject_uidx").on(
+      t.organizationId,
+      t.subjectType,
+      t.subjectId,
+    ),
+    index("attribution_overrides_org_idx").on(t.organizationId),
+    check(
+      "attribution_overrides_subject_check",
+      sql`${t.subjectType} in ('review', 'reverse_item')`,
+    ),
+    check(
+      "attribution_overrides_category_check",
+      sql`${t.category} in ('quality', 'size', 'logistics', 'description', 'other')`,
+    ),
   ],
 )
 
@@ -3613,6 +3791,10 @@ export type InventoryReservation = typeof inventoryReservations.$inferSelect
 export type InventoryMovement = typeof inventoryMovements.$inferSelect
 export type ReverseOrder = typeof reverseOrders.$inferSelect
 export type ReverseOrderItem = typeof reverseOrderItems.$inferSelect
+export type ComplianceHsRule = typeof complianceHsRules.$inferSelect
+export type ProductComplianceCert = typeof productComplianceCerts.$inferSelect
+export type AttributionReasonMap = typeof attributionReasonMaps.$inferSelect
+export type AttributionOverride = typeof attributionOverrides.$inferSelect
 export type ReverseQcRecord = typeof reverseQcRecords.$inferSelect
 export type ReverseOrderEvent = typeof reverseOrderEvents.$inferSelect
 export type Refund = typeof refunds.$inferSelect
