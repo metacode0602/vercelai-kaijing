@@ -1,4 +1,15 @@
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm'
 import {
   auditEvents,
   consoleNotifications,
@@ -98,13 +109,19 @@ export async function listPlatformUsers(input: {
     membershipsByUser.set(row.userId, list)
   }
 
+  // 不要在 sql`` 里内嵌 ${member}/${organization} 再 join：单表外层查询下
+  // drizzle 会去掉列前缀，member/organization 同名 id 列导致 ambiguous 报错。
   const [summaryRow] = await db
     .select({
       total: count(),
       banned: sql<number>`count(*) filter (where ${user.banned} = true)`,
-      tenantMembers: sql<number>`(select count(distinct ${member.userId}) from ${member} inner join ${organization} on ${organization.id} = ${member.organizationId} where ${organization.orgType} = 'tenant')`,
     })
     .from(user)
+  const [tenantMembersRow] = await db
+    .select({ tenantMembers: countDistinct(member.userId) })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(organization.orgType, 'tenant'))
 
   const items: PlatformUserListItem[] = rows.map((row) => ({
     ...row,
@@ -120,7 +137,7 @@ export async function listPlatformUsers(input: {
     summary: {
       total: Number(summaryRow?.total ?? 0),
       banned: Number(summaryRow?.banned ?? 0),
-      tenantMembers: Number(summaryRow?.tenantMembers ?? 0),
+      tenantMembers: Number(tenantMembersRow?.tenantMembers ?? 0),
     },
   }
 }
