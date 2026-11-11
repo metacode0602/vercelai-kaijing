@@ -28,6 +28,8 @@ export default function OceanContainerDetailPage() {
   const [leadRef, setLeadRef] = React.useState('')
   const [lineSku, setLineSku] = React.useState('')
   const [lineQty, setLineQty] = React.useState('100')
+  const [lineCartonCount, setLineCartonCount] = React.useState('')
+  const [lineCbm, setLineCbm] = React.useState('')
   const [boxCartonSpec, setBoxCartonSpec] = React.useState('')
   const [boxCbm, setBoxCbm] = React.useState('')
   const [boxWeight, setBoxWeight] = React.useState('')
@@ -79,6 +81,8 @@ export default function OceanContainerDetailPage() {
       await invalidate()
       setNotice('柜次行已保存')
       setLineSku('')
+      setLineCartonCount('')
+      setLineCbm('')
     },
     onError: (e) => setNotice(e.message),
   })
@@ -244,6 +248,18 @@ export default function OceanContainerDetailPage() {
               value={lineQty}
               onChange={(e) => setLineQty(e.target.value)}
             />
+            <Input
+              className="w-24"
+              placeholder="箱数"
+              value={lineCartonCount}
+              onChange={(e) => setLineCartonCount(e.target.value)}
+            />
+            <Input
+              className="w-24"
+              placeholder="行 CBM"
+              value={lineCbm}
+              onChange={(e) => setLineCbm(e.target.value)}
+            />
             <Button
               size="sm"
               disabled={upsertLineMutation.isPending || !lineSku.trim()}
@@ -252,6 +268,8 @@ export default function OceanContainerDetailPage() {
                   shipmentId: lot.id,
                   sku: lineSku.trim(),
                   qtyShipped: Number(lineQty) || 0,
+                  cartonCount: lineCartonCount.trim() ? Number(lineCartonCount) : undefined,
+                  cbm: lineCbm.trim() ? Number(lineCbm) : undefined,
                 })
               }
             >
@@ -266,6 +284,8 @@ export default function OceanContainerDetailPage() {
                 <TableHead>SKU</TableHead>
                 <TableHead>名称</TableHead>
                 <TableHead>发运</TableHead>
+                <TableHead>箱数</TableHead>
+                <TableHead>CBM</TableHead>
                 <TableHead>实收</TableHead>
                 <TableHead>残次</TableHead>
               </TableRow>
@@ -273,7 +293,7 @@ export default function OceanContainerDetailPage() {
             <TableBody>
               {(lot.lines || []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground">
+                  <TableCell colSpan={7} className="text-muted-foreground">
                     暂无行；草稿/订舱阶段可添加。
                   </TableCell>
                 </TableRow>
@@ -283,6 +303,8 @@ export default function OceanContainerDetailPage() {
                     <TableCell>{line.sku}</TableCell>
                     <TableCell>{line.name}</TableCell>
                     <TableCell className="tabular-nums">{line.qtyShipped}</TableCell>
+                    <TableCell className="tabular-nums">{line.cartonCount ?? '—'}</TableCell>
+                    <TableCell className="tabular-nums">{line.cbm ?? '—'}</TableCell>
                     <TableCell className="tabular-nums">{line.qtyReceived}</TableCell>
                     <TableCell className="tabular-nums">{line.qtyDamaged}</TableCell>
                   </TableRow>
@@ -424,7 +446,7 @@ export default function OceanContainerDetailPage() {
             <TableBody>
               {(lot.costs || []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground">
+                  <TableCell colSpan={7} className="text-muted-foreground">
                     暂无；可在成本测算工作台保存，或调用 ocean.saveCost。
                   </TableCell>
                 </TableRow>

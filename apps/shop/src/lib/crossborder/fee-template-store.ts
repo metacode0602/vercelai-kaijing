@@ -14,7 +14,8 @@ export type FeeComponent = {
   labelZh: string
   /** 比例（0–1）或固定金额，由 unit 决定 */
   rate: number
-  unit: 'pct' | 'usd'
+  unit: 'pct' | 'usd' | 'amount' | 'lkr' | 'per_kg' | 'per_unit'
+  currency?: string
   baseHint?: string
   note?: string
 }

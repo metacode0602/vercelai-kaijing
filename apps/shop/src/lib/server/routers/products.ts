@@ -25,6 +25,7 @@ const createProductInput = z.object({
   coverImage: z.string().optional(),
   images: z.array(z.string()).optional(),
   hsCode: z.string().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
 }).refine((v) => Boolean(v.brandId || v.brand), { message: '请选择品牌', path: ['brandId'] })
 
 const updateProductInput = z.object({
@@ -33,6 +34,7 @@ const updateProductInput = z.object({
   brandId: z.string().min(1).nullable().optional(),
   brand: z.string().min(1).optional(),
   category: z.string().min(1).optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   owner: z.string().min(1).optional(),
   material: z.string().min(1).optional(),
   style: z.string().min(1).optional(),
@@ -57,6 +59,7 @@ const createVariantInput = z.object({
   coverImage: z.string().optional(),
   images: z.array(z.string()).optional(),
   hsCode: z.string().optional(),
+  cartonSpecId: z.string().min(1).nullable().optional(),
 })
 
 const batchCreateVariantsInput = z.object({
@@ -71,6 +74,7 @@ const batchCreateVariantsInput = z.object({
   heightMm: z.number().optional(),
   status: statusSchema.optional(),
   hsCode: z.string().optional(),
+  cartonSpecId: z.string().min(1).nullable().optional(),
 })
 
 const updateVariantInput = z.object({
@@ -89,6 +93,7 @@ const updateVariantInput = z.object({
   coverImage: z.string().optional(),
   images: z.array(z.string()).optional(),
   hsCode: z.string().optional(),
+  cartonSpecId: z.string().min(1).nullable().optional(),
 })
 
 export const productsRouter = createTRPCRouter({

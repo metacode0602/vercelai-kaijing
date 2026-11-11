@@ -39,6 +39,8 @@ import { stockAlertsRouter } from './stock-alerts'
 import { rolesRouter } from './roles'
 import { platformBasicsRouter } from './platform-basics'
 import { complianceRouter } from './compliance'
+import { pricingRouter } from './pricing'
+import { hsTariffsRouter } from './hs-tariffs'
 
 export * from '@/lib/server/trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -84,6 +86,8 @@ export const appRouter = router({
   roles: rolesRouter,
   platformBasics: platformBasicsRouter,
   compliance: complianceRouter,
+  pricing: pricingRouter,
+  hsTariffs: hsTariffsRouter,
 })
 
 export type AppRouter = typeof appRouter

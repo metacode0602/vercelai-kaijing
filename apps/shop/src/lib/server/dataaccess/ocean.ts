@@ -18,6 +18,7 @@ import {
   productVariants,
   products,
   skuCosts,
+  commerceCartonSpecs,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import {
@@ -48,6 +49,8 @@ export type OceanLineDto = {
   qtyShipped: number
   qtyReceived: number
   qtyDamaged: number
+  cartonCount: number | null
+  cbm: number | null
   skuCostId: string | null
 }
 
@@ -203,6 +206,8 @@ async function loadLines(db: DbLike, organizationId: string, shipmentId: string)
       qtyShipped: oceanShipmentLines.qtyShipped,
       qtyReceived: oceanShipmentLines.qtyReceived,
       qtyDamaged: oceanShipmentLines.qtyDamaged,
+      cartonCount: oceanShipmentLines.cartonCount,
+      cbm: oceanShipmentLines.cbm,
       skuCostId: oceanShipmentLines.skuCostId,
       variantSku: productVariants.skuCode,
       variantSkuAlt: productVariants.sku,
@@ -225,6 +230,8 @@ async function loadLines(db: DbLike, organizationId: string, shipmentId: string)
     qtyShipped: r.qtyShipped,
     qtyReceived: r.qtyReceived,
     qtyDamaged: r.qtyDamaged,
+    cartonCount: r.cartonCount,
+    cbm: r.cbm != null ? Number(r.cbm) : null,
     skuCostId: r.skuCostId,
   }))
 }
@@ -608,11 +615,37 @@ export async function updateOceanShipment(
   return (await getOceanShipment(db, organizationId, current.id))!
 }
 
+
+async function defaultLinePacking(
+  db: DbLike,
+  organizationId: string,
+  variantId: string,
+  qtyShipped: number,
+): Promise<{ cartonCount: number | null; cbm: string | null }> {
+  const [variant] = await db
+    .select({ cartonSpecId: productVariants.cartonSpecId })
+    .from(productVariants)
+    .where(and(eq(productVariants.organizationId, organizationId), eq(productVariants.id, variantId)))
+    .limit(1)
+  if (!variant?.cartonSpecId) return { cartonCount: null, cbm: null }
+  const [spec] = await db
+    .select()
+    .from(commerceCartonSpecs)
+    .where(and(eq(commerceCartonSpecs.organizationId, organizationId), eq(commerceCartonSpecs.id, variant.cartonSpecId)))
+    .limit(1)
+  if (!spec) return { cartonCount: null, cbm: null }
+  const upc = Math.max(1, spec.unitsPerCarton || 1)
+  const cartonCount = Math.ceil(Math.max(0, qtyShipped) / upc)
+  const cartonCbm = (Number(spec.lengthCm) * Number(spec.widthCm) * Number(spec.heightCm)) / 1_000_000
+  const cbm = cartonCount * cartonCbm
+  return { cartonCount, cbm: cbm > 0 ? String(Number(cbm.toFixed(4))) : null }
+}
+
 export async function upsertOceanLine(
   db: AppDatabase,
   organizationId: string,
   shipmentId: string,
-  input: { sku: string; qtyShipped: number; qtyReceived?: number; qtyDamaged?: number },
+  input: { sku: string; qtyShipped: number; qtyReceived?: number; qtyDamaged?: number; cartonCount?: number | null; cbm?: number | null },
 ): Promise<OceanLotDto> {
   const current = await getOceanShipment(db, organizationId, shipmentId)
   if (!current) throw new Error('柜次不存在')
@@ -637,6 +670,7 @@ export async function upsertOceanLine(
         throw new Error('在途/清关中不可变更发运数量；可先维护实收/残次后再推进到仓')
       }
     }
+    const packing = await defaultLinePacking(db, organizationId, variant.id, Math.floor(input.qtyShipped))
     await db
       .update(oceanShipmentLines)
       .set({
@@ -646,12 +680,15 @@ export async function upsertOceanLine(
           input.qtyReceived !== undefined ? Math.max(0, Math.floor(input.qtyReceived)) : existing.qtyReceived,
         qtyDamaged:
           input.qtyDamaged !== undefined ? Math.max(0, Math.floor(input.qtyDamaged)) : existing.qtyDamaged,
+        cartonCount: input.cartonCount !== undefined ? input.cartonCount : packing.cartonCount ?? existing.cartonCount,
+        cbm: input.cbm !== undefined ? (input.cbm != null ? String(input.cbm) : null) : packing.cbm ?? existing.cbm,
       })
       .where(eq(oceanShipmentLines.id, existing.id))
   } else {
     if (isInTransitBucket(status) || isCustomsBucket(status) || status === 'arrived') {
       throw new Error('开船后不可新增柜次行')
     }
+    const packing = await defaultLinePacking(db, organizationId, variant.id, Math.floor(input.qtyShipped))
     await db.insert(oceanShipmentLines).values({
       id: createId(),
       organizationId,
@@ -661,6 +698,8 @@ export async function upsertOceanLine(
       qtyShipped: Math.floor(input.qtyShipped),
       qtyReceived: input.qtyReceived !== undefined ? Math.max(0, Math.floor(input.qtyReceived)) : 0,
       qtyDamaged: input.qtyDamaged !== undefined ? Math.max(0, Math.floor(input.qtyDamaged)) : 0,
+      cartonCount: input.cartonCount !== undefined ? input.cartonCount : packing.cartonCount,
+      cbm: input.cbm !== undefined ? (input.cbm != null ? String(input.cbm) : null) : packing.cbm,
     })
   }
   await db.update(oceanShipments).set({ updatedAt: new Date() }).where(eq(oceanShipments.id, current.id))

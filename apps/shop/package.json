@@ -16,7 +16,8 @@
     "test:settlements": "tsx 'src/app/[locale]/console/(ops)/settlements/_lib/settlement-import.test.ts'",
     "test:marketplace": "tsx --test src/lib/marketplace/**/*.test.ts",
     "test:errors": "tsx --test src/lib/server/errors/*.test.ts src/lib/trpc/error-message.test.ts",
-    "test:dashboard": "tsx --test src/lib/console/dashboard-query.test.ts"
+    "test:dashboard": "tsx --test src/lib/console/dashboard-query.test.ts",
+    "test:freight": "pnpm --filter @workspace/freight test"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.79.1",
@@ -52,7 +53,8 @@
     "tailwind-merge": "^3.5.0",
     "xlsx": "0.18.5",
     "zod": "^4.6.7",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.13",
+    "@workspace/freight": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",

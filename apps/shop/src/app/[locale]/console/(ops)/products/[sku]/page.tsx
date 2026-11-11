@@ -84,6 +84,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ sku: s
         }}
       />
       <div className="flex flex-wrap gap-2">
+        <Button asChild><LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(product.sku)}`}>定价建议</LocaleLink></Button>
         <Button variant="outline" asChild><LocaleLink href="/console/suppliers">供应商来源</LocaleLink></Button>
         <Button variant="outline" asChild><LocaleLink href="/console/mappings">Seller SKU 映射</LocaleLink></Button>
         <Button variant="outline" asChild><LocaleLink href="/console/inventory-ledger">库存流水</LocaleLink></Button>

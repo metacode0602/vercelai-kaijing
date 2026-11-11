@@ -25,6 +25,7 @@
 | [haoshiyun-erp-console-menu-ia.md](haoshiyun-erp-console-menu-ia.md) | **IA 设计稿** | 控制台左侧菜单合并稿（Excel 菜单蓝图 × 现有导航）：9 组 35 页线框、功能明细、域 A–K 全表展示路径、设置区 Tab 与旧路由迁移 |
 | [console-dropdown-data-maintenance.md](console-dropdown-data-maintenance.md) | **调研清单，待业务确认** | 控制台下拉框数据维护审计：已有维护入口但原型硬编码的数据、缺少维护入口的枚举清单、建议菜单位置与待确认项；确认后再生成维护页面 |
 | [freight-estimation-design.md](freight-estimation-design.md) | **设计稿** | 独立运费测算：先做可交互 UED 并确认使用习惯，再接业务 API/tRPC；覆盖空运 DDP、海运 LCL/FCL；按有效报价和规则计算、展示费用边界/数据来源/历史快照；HS/税率/规则/费率/汇率版本化维护与消费方解耦 |
+| [multi-platform-pricing-calculator-ux-2026-11-11.md](multi-platform-pricing-calculator-ux-2026-11-11.md) | **生效（第一期实施合同，2026-11-11）** | 多平台定价建议计算器：最少操作路径、线框 §7、分期 §10、默认口径 §11、商品/SKU 与相关表字段结论 §12；升级现有成本计算器，不新开顶层菜单 |
 | [ai-candidates/AI选品实现方案.md](ai-candidates/AI选品实现方案.md) | **设计稿** | AI 选品两阶段方案：先用可交互 UED 验证，再接业务 tRPC/持久化；显式区分已核实/估算/假设；统一 PPS；完整比较空运 DDP、海运 LCL/FCL；中间证据、报价和成本快照可追溯与复用 |
 | [comment-scraping-and-report-design.md](comment-scraping-and-report-design.md) | **设计稿** | 评论抓取与入口设计：API 优先（Lazop Review）、AI 辅助兜底，统一 DomainReview，生成 HTML 报告（涵盖 KPI/评分分布/关键发现/负向中性/全部评价；规划输出目录 `docs/comments/`，样例在 `docs/design/comments/`） |
 | [console-sync-confirm-dialog.md](console-sync-confirm-dialog.md) | **已实现（`sync-confirm-dialog.tsx`，12 处入口）** | 控制台同步 / 提交交运 / 重试入口确认对话框：17 处入口分级（A 真实调平台 / B 本地写 / C 纯本地），按操作差异化文案，明确作用店铺与不可逆影响 |

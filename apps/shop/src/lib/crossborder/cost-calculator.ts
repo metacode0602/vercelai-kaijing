@@ -1,7 +1,10 @@
 /**
- * Sri Lanka landed-cost calculator（生产路径）。
+ * Sri Lanka landed-cost calculator（生产路径，旧工作台 / 正式写 sku_costs）。
  *
- * Tax stack (MVP): Customs → CESS → PAL on CIF (v); then VAT & SSCL on (v + 10%v + d + c + p).
+ * Tax stack in this file is lk_uplift_v1: Customs → CESS → PAL on CIF (v); then VAT & SSCL on (v + 10%v + d + c + p).
+ * 定价建议默认改走 @workspace/freight 的 lk_cascade_v1（无 10% CIF 上浮）。本函数保留作对照与既有正式成本路径。
+ * @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md
+ *
  * 正式保存要求：费用模板命中 + 汇率 fx_rates；运价来自 freight_rate_cards 或手工运费总额。
  * 不再使用 TARIFF_PROFILES / FREIGHT_RATES / 写死汇率作为正式成本来源。
  * See apps/shop/content/design/cost-calculator-sl-landed-ued.md §5–§7

@@ -4,7 +4,7 @@
  */
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { feeTemplates, feeTemplateVersions } from '@workspace/db/schema'
+import { feeTemplateMatchRules, feeTemplates, feeTemplateVersions } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import {
   feeTypeLabel,
@@ -33,9 +33,10 @@ export type FeeComponentDto = {
   code: string
   labelZh: string
   rate: number
-  unit: 'pct' | 'usd'
+  unit: 'pct' | 'usd' | 'amount' | 'lkr' | 'per_kg' | 'per_unit'
   baseHint?: string
   note?: string
+  currency?: string
 }
 
 export type FeeTemplateVersionDto = {
@@ -92,6 +93,19 @@ export type ResolveFeeTemplateInput = {
   asOf?: string
   formulaProfile?: string
   templateCodeOrId?: string
+  /** 商品品类，用于匹配规则 */
+  categoryId?: string
+  /** SKU HS，用于匹配规则（将规范化后按前缀/全码比较） */
+  hsCode?: string
+}
+
+export type FeeTemplateMatchRuleDto = {
+  id: string
+  templateId: string
+  categoryId: string | null
+  hsCodePattern: string
+  priority: number
+  note: string
 }
 
 export type ResolvedFeeTemplateDto = {
@@ -103,7 +117,8 @@ function normalizeComponents(raw: unknown): FeeComponentDto[] {
   if (!Array.isArray(raw)) return []
   return raw.map((item) => {
     const row = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
-    const unit = row.unit === 'usd' ? 'usd' : 'pct'
+    const allowed = new Set(['pct', 'usd', 'amount', 'lkr', 'per_kg', 'per_unit'])
+    const unit = allowed.has(String(row.unit)) ? String(row.unit) as FeeComponentDto['unit'] : 'pct'
     return {
       code: String(row.code ?? ''),
       labelZh: String(row.labelZh ?? row.label ?? ''),
@@ -111,6 +126,7 @@ function normalizeComponents(raw: unknown): FeeComponentDto[] {
       unit,
       baseHint: row.baseHint != null ? String(row.baseHint) : undefined,
       note: row.note != null ? String(row.note) : undefined,
+      currency: row.currency != null ? String(row.currency) : undefined,
     }
   })
 }
@@ -788,6 +804,53 @@ export async function resolveFeeTemplateVersion(
   )
   if (matched.length === 0) return null
 
+  const matchRules = await db
+    .select()
+    .from(feeTemplateMatchRules)
+    .where(
+      and(
+        eq(feeTemplateMatchRules.organizationId, organizationId),
+        inArray(feeTemplateMatchRules.templateId, matched.map((row) => row.id)),
+      ),
+    )
+  const rulesByTpl = new Map<string, typeof matchRules>()
+  for (const rule of matchRules) {
+    const list = rulesByTpl.get(rule.templateId) ?? []
+    list.push(rule)
+    rulesByTpl.set(rule.templateId, list)
+  }
+  const hsNorm = (args.hsCode || '').replace(/[.\s]/g, '').toUpperCase()
+  const scoreTemplate = (templateId: string): { ok: boolean; specificity: number; rulePriority: number } => {
+    const rules = rulesByTpl.get(templateId) ?? []
+    if (rules.length === 0) return { ok: true, specificity: 0, rulePriority: 0 }
+    let best: { ok: boolean; specificity: number; rulePriority: number } | null = null
+    for (const rule of rules) {
+      const needCat = Boolean(rule.categoryId)
+      const needHs = Boolean(rule.hsCodePattern)
+      const catOk = !needCat || rule.categoryId === args.categoryId
+      const pattern = (rule.hsCodePattern || '').replace(/[.\s]/g, '').toUpperCase()
+      const hsOk = !needHs || (hsNorm && (hsNorm === pattern || hsNorm.startsWith(pattern)))
+      if (!catOk || !hsOk) continue
+      const specificity = (needHs ? 2 : 0) + (needCat ? 1 : 0)
+      const cand = { ok: true, specificity, rulePriority: rule.priority }
+      if (!best || cand.specificity > best.specificity || (cand.specificity === best.specificity && cand.rulePriority > best.rulePriority)) {
+        best = cand
+      }
+    }
+    return best ?? { ok: false, specificity: 0, rulePriority: 0 }
+  }
+  const scored = matched
+    .map((row) => ({ row, score: scoreTemplate(row.id) }))
+    .filter((item) => item.score.ok)
+  if (scored.length === 0) return null
+  scored.sort((a, b) => {
+    if (b.score.specificity !== a.score.specificity) return b.score.specificity - a.score.specificity
+    if (b.score.rulePriority !== a.score.rulePriority) return b.score.rulePriority - a.score.rulePriority
+    return 0
+  })
+  const bestSpecificity = scored[0]!.score.specificity
+  matched = scored.filter((item) => item.score.specificity === bestSpecificity).map((item) => item.row)
+
   const templateIds = matched.map((t) => t.id)
   const versions = await db
     .select()
@@ -852,4 +915,71 @@ export async function feeTemplateMeta() {
     platforms: ['daraz', 'lazada'],
     countries: ['LK', 'MY', 'ID', 'TH', 'PH', 'VN'],
   }
+}
+
+function mapMatchRule(row: typeof feeTemplateMatchRules.$inferSelect): FeeTemplateMatchRuleDto {
+  return {
+    id: row.id,
+    templateId: row.templateId,
+    categoryId: row.categoryId,
+    hsCodePattern: row.hsCodePattern ?? '',
+    priority: row.priority,
+    note: row.note ?? '',
+  }
+}
+
+export async function listFeeTemplateMatchRules(
+  db: DbLike,
+  organizationId: string,
+  templateId: string,
+): Promise<FeeTemplateMatchRuleDto[]> {
+  const rows = await db
+    .select()
+    .from(feeTemplateMatchRules)
+    .where(
+      and(
+        eq(feeTemplateMatchRules.organizationId, organizationId),
+        eq(feeTemplateMatchRules.templateId, templateId),
+      ),
+    )
+    .orderBy(desc(feeTemplateMatchRules.priority))
+  return rows.map(mapMatchRule)
+}
+
+export async function replaceFeeTemplateMatchRules(
+  db: AppDatabase,
+  organizationId: string,
+  templateId: string,
+  rules: Array<{ categoryId?: string | null; hsCodePattern?: string; priority?: number; note?: string }>,
+): Promise<FeeTemplateMatchRuleDto[]> {
+  const [header] = await db
+    .select({ id: feeTemplates.id })
+    .from(feeTemplates)
+    .where(and(eq(feeTemplates.id, templateId), eq(feeTemplates.organizationId, organizationId)))
+    .limit(1)
+  if (!header) throw new Error('未找到费用模板')
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(feeTemplateMatchRules)
+      .where(
+        and(
+          eq(feeTemplateMatchRules.organizationId, organizationId),
+          eq(feeTemplateMatchRules.templateId, templateId),
+        ),
+      )
+    if (rules.length) {
+      await tx.insert(feeTemplateMatchRules).values(
+        rules.map((rule) => ({
+          id: createId(),
+          organizationId,
+          templateId,
+          categoryId: rule.categoryId || null,
+          hsCodePattern: rule.hsCodePattern?.replace(/[.\s]/g, '').toUpperCase() || null,
+          priority: rule.priority ?? 10,
+          note: rule.note ?? null,
+        })),
+      )
+    }
+    return listFeeTemplateMatchRules(tx, organizationId, templateId)
+  })
 }

@@ -502,9 +502,134 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                 </div>
               </CardContent>
             </Card>
+            <FeeTemplateMatchRules templateId={template.id} />
           </div>
         ) : null}
       </div>
     </div>
+  )
+}
+
+
+function FeeTemplateMatchRules({ templateId }: { templateId: string }) {
+  const utils = trpc.useUtils()
+  const rulesQuery = trpc.feeTemplates.listMatchRules.useQuery({ templateId })
+  const categoriesQuery = trpc.categories.list.useQuery({})
+  const categoryRows = (categoriesQuery.data ?? []) as Array<{ id: string; name: string; status: string }>
+  const [categoryId, setCategoryId] = React.useState('')
+  const [hsCodePattern, setHsCodePattern] = React.useState('')
+  const [priority, setPriority] = React.useState('20')
+  const replaceMutation = trpc.feeTemplates.replaceMatchRules.useMutation({
+    onSuccess: async () => {
+      setNoticeSafe()
+      await utils.feeTemplates.listMatchRules.invalidate({ templateId })
+    },
+    onError: (err) => setErrorSafe(err.message),
+  })
+  const [localNotice, setLocalNotice] = React.useState('')
+  function setNoticeSafe() {
+    setLocalNotice('匹配规则已保存。定价计算器将按品类 / HS 与优先级自动选用本模板。')
+  }
+  function setErrorSafe(message: string) {
+    setLocalNotice(message)
+  }
+  const rules = rulesQuery.data ?? []
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-base">匹配规则（品类 / HS）</CardTitle>
+        <CardDescription>
+          可选。有规则时，仅当 SKU 品类或 HS 命中才会选用本模板；多条按优先级（越大越优先）且更具体（HS 优于品类）排序。无规则则仍按平台+国家匹配。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {localNotice ? <p className="text-sm text-muted-foreground">{localNotice}</p> : null}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>品类</TableHead>
+              <TableHead>HS 模式</TableHead>
+              <TableHead>优先级</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rules.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">暂无规则，模板对所有该平台/站点 SKU 可用。</TableCell>
+              </TableRow>
+            ) : (
+              rules.map((rule) => (
+                <TableRow key={rule.id}>
+                  <TableCell>{categoryRows.find((c) => c.id === rule.categoryId)?.name || rule.categoryId || '—'}</TableCell>
+                  <TableCell className="font-mono">{rule.hsCodePattern || '—'}</TableCell>
+                  <TableCell>{rule.priority}</TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        replaceMutation.mutate({
+                          templateId,
+                          rules: rules
+                            .filter((r) => r.id !== rule.id)
+                            .map((r) => ({
+                              categoryId: r.categoryId,
+                              hsCodePattern: r.hsCodePattern,
+                              priority: r.priority,
+                              note: r.note,
+                            })),
+                        })
+                      }
+                    >
+                      删除
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+        <div className="flex flex-wrap gap-2">
+          <Select value={categoryId || '__none__'} onValueChange={(v) => setCategoryId(v === '__none__' ? '' : v)}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="品类（可选）" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">不限品类</SelectItem>
+              {categoryRows.filter((c) => c.status === '启用').map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input className="w-36" placeholder="HS 前缀" value={hsCodePattern} onChange={(e) => setHsCodePattern(e.target.value)} />
+          <Input className="w-24" placeholder="优先级" value={priority} onChange={(e) => setPriority(e.target.value)} />
+          <Button
+            size="sm"
+            disabled={replaceMutation.isPending || (!categoryId && !hsCodePattern.trim())}
+            onClick={() =>
+              replaceMutation.mutate({
+                templateId,
+                rules: [
+                  ...rules.map((r) => ({
+                    categoryId: r.categoryId,
+                    hsCodePattern: r.hsCodePattern,
+                    priority: r.priority,
+                    note: r.note,
+                  })),
+                  {
+                    categoryId: categoryId || null,
+                    hsCodePattern: hsCodePattern.trim() || undefined,
+                    priority: Number(priority) || 20,
+                  },
+                ],
+              })
+            }
+          >
+            添加规则
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

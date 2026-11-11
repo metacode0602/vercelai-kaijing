@@ -10,6 +10,8 @@ import {
   mapMovementRows,
 } from '@/lib/console/related-info'
 import { trpc } from '@/lib/trpc/client'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { Button } from '@workspace/ui/components/button'
 
 export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
@@ -100,6 +102,12 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
       relatedInfo={relatedInfo}
       notice="主档来自 product_variants；库存余额 / 流水来自 wms；刊登 / 映射来自 listings & mappings tRPC。供应商货号仍未接库。"
       extra={
+        <>
+        <div className="mb-4">
+          <Button asChild>
+            <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(row.sku)}`}>定价建议</LocaleLink>
+          </Button>
+        </div>
         <ProductImageEditor
           initial={{ cover: row.coverImage, images: row.images ?? [] }}
           onChange={async (next) => {
@@ -114,6 +122,7 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
           title="SKU 图片"
           description="封面与截图保存在对象存储，并随 updateVariant 写入变体 attrs。"
         />
+        </>
       }
     />
   )

@@ -588,13 +588,15 @@ export const products = pgTable(
     /** 关联 commerce_brands；brand 文本保留兼容展示/搜索 */
     brandId: text("brand_id").references(() => commerceBrands.id),
     categoryHint: text("category_hint"),
+    /** 品类树外键；categoryHint 仍作展示/搜索兼容。 */
+    categoryId: text("category_id").references(() => commerceCategories.id),
     material: text("material"),
     style: text("style"),
     /** 海关 HS 编码（规范化，如 8516.31）；未填则不做合规校验。 */
     hsCode: varchar("hs_code", { length: 32 }),
     ownerUserId: text("owner_user_id"),
     images: jsonb("images").$type<Array<Record<string, unknown>>>().default([]),
-    /** SPU 级默认尺寸（可被变体覆盖）。 */
+    /** SPU 级默认尺寸（可被变体覆盖）。weight_grams 为净重。 */
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
     widthMm: integer("width_mm"),
@@ -607,6 +609,7 @@ export const products = pgTable(
     index("products_org_idx").on(t.organizationId),
     uniqueIndex("products_org_spu_uidx").on(t.organizationId, t.spuCode),
     index("products_org_brand_idx").on(t.organizationId, t.brandId),
+    index("products_org_category_idx").on(t.organizationId, t.categoryId),
     index("products_org_hs_idx").on(t.organizationId, t.hsCode),
   ],
 )
@@ -634,16 +637,20 @@ export const productVariants = pgTable(
     /** SKU 级 HS 覆盖；空则沿用 SPU。 */
     hsCode: varchar("hs_code", { length: 32 }),
     status: varchar("status", { length: 16 }).notNull().default("active"),
+    /** 净重（克）。从量税用的单件毛重由箱规毛重 ÷ 每箱件数得出。 */
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
     widthMm: integer("width_mm"),
     heightMm: integer("height_mm"),
+    /** 默认箱规，指向同组织 commerce_carton_specs。 */
+    cartonSpecId: text("carton_spec_id").references(() => commerceCartonSpecs.id),
     attrs: jsonb("attrs").$type<Record<string, unknown>>().default({}),
     ...timestamps,
   },
   (t) => [
     index("product_variants_org_idx").on(t.organizationId),
     index("product_variants_product_idx").on(t.productId),
+    index("product_variants_carton_spec_idx").on(t.cartonSpecId),
     uniqueIndex("product_variants_org_sku_uidx").on(t.organizationId, t.sku),
     uniqueIndex("product_variants_org_sku_code_uidx").on(t.organizationId, t.skuCode),
   ],
@@ -2515,6 +2522,10 @@ export const oceanShipmentLines = pgTable(
     qtyShipped: integer("qty_shipped").notNull().default(0),
     qtyReceived: integer("qty_received").notNull().default(0),
     qtyDamaged: integer("qty_damaged").notNull().default(0),
+    /** 本行箱数；可按箱规与发运量回填，允许人工修正。 */
+    cartonCount: integer("carton_count"),
+    /** 本行总体积 CBM；可按箱规回填，允许人工修正。 */
+    cbm: numeric("cbm", { precision: 12, scale: 4 }),
     skuCostId: text("sku_cost_id").references(() => skuCosts.id, { onDelete: "set null" }),
   },
   (t) => [
@@ -2894,6 +2905,157 @@ export const feeTemplateVersions = pgTable(
     index("fee_template_versions_org_idx").on(t.organizationId),
     index("fee_template_versions_eff_idx").on(t.templateId, t.effectiveFrom),
     index("fee_template_versions_status_idx").on(t.templateId, t.status),
+  ],
+)
+
+
+// ---------------------------------------------------------------------------
+// fee_template_match_rules — 按品类 / HS 匹配费用模板（第一期定价计算器）
+// @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §12.3
+// ---------------------------------------------------------------------------
+
+export const feeTemplateMatchRules = pgTable(
+  "fee_template_match_rules",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => feeTemplates.id),
+    /** 匹配 commerce_categories；空则不按品类限制 */
+    categoryId: text("category_id").references(() => commerceCategories.id),
+    /** 规范化 HS 前缀或完整编码；空则不按 HS 限制 */
+    hsCodePattern: varchar("hs_code_pattern", { length: 32 }),
+    /** 越大越优先 */
+    priority: integer("priority").notNull().default(10),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    index("fee_template_match_rules_tpl_idx").on(t.templateId),
+    index("fee_template_match_rules_org_idx").on(t.organizationId, t.priority),
+    index("fee_template_match_rules_category_idx").on(t.categoryId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// hs_codes / hs_tariff_versions — HS 税则（与 compliance_hs_rules 分轨）
+// 适配当前目录/组织约定：organization_id 可空表示平台级（owner_key=global）；
+// 租户级覆盖写 organization_id 且 owner_key=organizationId。
+// 不把税率写到商品行；不自动向已有租户推送演示税则。
+// @see docs/design/freight-estimation-design.md §4.2
+// @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §12.3
+// ---------------------------------------------------------------------------
+
+export const hsCodeStatuses = ["draft", "active", "archived"] as const
+export type HsCodeStatus = (typeof hsCodeStatuses)[number]
+
+export const hsTariffStatuses = ["draft", "active", "archived"] as const
+export type HsTariffStatus = (typeof hsTariffStatuses)[number]
+
+export const hsTariffSpecificRules = ["none", "max", "sum"] as const
+export type HsTariffSpecificRule = (typeof hsTariffSpecificRules)[number]
+
+export const hsCodes = pgTable(
+  "hs_codes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    /** global=平台目录；tenant=组织覆盖 */
+    scope: varchar("scope", { length: 16 }).notNull().default("global"),
+    /** 全局固定 global，租户为 organizationId，用于唯一约束 */
+    ownerKey: text("owner_key").notNull().default("global"),
+    organizationId: text("organization_id").references(() => organization.id),
+    countryCode: varchar("country_code", { length: 2 }).notNull().default("LK"),
+    code: varchar("code", { length: 20 }).notNull(),
+    /** 去掉点/空格后的编码 */
+    normalizedCode: varchar("normalized_code", { length: 20 }).notNull(),
+    description: text("description").notNull().default(""),
+    descriptionEn: text("description_en"),
+    parentCode: varchar("parent_code", { length: 20 }),
+    level: integer("level"),
+    unit: varchar("unit", { length: 16 }),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sourceType: varchar("source_type", { length: 16 }).notNull().default("manual"),
+    sourceRef: text("source_ref"),
+    sourceBatchId: text("source_batch_id"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("hs_codes_owner_code_uidx").on(t.ownerKey, t.countryCode, t.normalizedCode),
+    index("hs_codes_code_idx").on(t.ownerKey, t.countryCode, t.code),
+    index("hs_codes_parent_idx").on(t.ownerKey, t.countryCode, t.parentCode),
+    index("hs_codes_org_idx").on(t.organizationId),
+    check("hs_codes_scope_check", sql`${t.scope} in ('global', 'tenant')`),
+    check("hs_codes_status_check", sql`${t.status} in ('draft', 'active', 'archived')`),
+  ],
+)
+
+export const hsTariffVersions = pgTable(
+  "hs_tariff_versions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    scope: varchar("scope", { length: 16 }).notNull().default("global"),
+    ownerKey: text("owner_key").notNull().default("global"),
+    organizationId: text("organization_id").references(() => organization.id),
+    countryCode: varchar("country_code", { length: 2 }).notNull().default("LK"),
+    /** 对应 hs_codes.normalized_code */
+    hsCode: varchar("hs_code", { length: 20 }).notNull(),
+    version: integer("version").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    currency: varchar("currency", { length: 3 }).notNull().default("LKR"),
+    /** 计税公式版本，默认 lk_cascade_v1 */
+    formulaProfile: varchar("formula_profile", { length: 64 }).default("lk_cascade_v1"),
+    /** 记录 VAT/SSCL 是否含 CIF uplift，消解两版口径 */
+    upliftRule: jsonb("uplift_rule").$type<Record<string, unknown>>(),
+    gdRate: numeric("gd_rate", { precision: 8, scale: 4 }),
+    surchargeRate: numeric("surcharge_rate", { precision: 8, scale: 4 }),
+    palRate: numeric("pal_rate", { precision: 8, scale: 4 }),
+    cessRate: numeric("cess_rate", { precision: 8, scale: 4 }),
+    exciseRate: numeric("excise_rate", { precision: 8, scale: 4 }),
+    vatRate: numeric("vat_rate", { precision: 8, scale: 4 }),
+    ssclRate: numeric("sscl_rate", { precision: 8, scale: 4 }),
+    gdSpecificAmount: numeric("gd_specific_amount", { precision: 15, scale: 4 }),
+    gdSpecificUnit: varchar("gd_specific_unit", { length: 8 }),
+    gdSpecificRule: varchar("gd_specific_rule", { length: 8 }).default("none"),
+    cessSpecificAmount: numeric("cess_specific_amount", { precision: 15, scale: 4 }),
+    cessSpecificUnit: varchar("cess_specific_unit", { length: 8 }),
+    /** 精确税率；false 表示回退/近似，界面须标明 */
+    isExact: boolean("is_exact").notNull().default(true),
+    confidence: numeric("confidence", { precision: 5, scale: 2 }),
+    compliance: jsonb("compliance").$type<Record<string, unknown>>().default({}),
+    notes: text("notes"),
+    sourceType: varchar("source_type", { length: 16 }).notNull().default("manual"),
+    sourceRef: text("source_ref"),
+    sourceBatchId: text("source_batch_id"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    publishedBy: text("published_by"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("hs_tariff_owner_code_ver_uidx").on(t.ownerKey, t.countryCode, t.hsCode, t.version),
+    index("hs_tariff_owner_code_date_idx").on(t.ownerKey, t.countryCode, t.hsCode, t.effectiveFrom),
+    index("hs_tariff_status_idx").on(t.ownerKey, t.status),
+    index("hs_tariff_org_idx").on(t.organizationId),
+    check("hs_tariff_scope_check", sql`${t.scope} in ('global', 'tenant')`),
+    check("hs_tariff_status_check", sql`${t.status} in ('draft', 'active', 'archived')`),
+    check(
+      "hs_tariff_specific_rule_check",
+      sql`${t.gdSpecificRule} is null or ${t.gdSpecificRule} in ('none', 'max', 'sum')`,
+    ),
   ],
 )
 

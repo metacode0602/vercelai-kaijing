@@ -19,7 +19,7 @@ const componentSchema = z.object({
   code: z.string(),
   labelZh: z.string(),
   rate: z.number(),
-  unit: z.enum(['pct', 'usd']),
+  unit: z.enum(['pct', 'usd', 'amount', 'lkr', 'per_kg', 'per_unit']),
   baseHint: z.string().optional(),
   note: z.string().optional(),
 })
@@ -231,9 +231,33 @@ export const feeTemplatesRouter = createTRPCRouter({
         asOf: z.string().optional(),
         formulaProfile: z.string().optional(),
         templateCodeOrId: z.string().optional(),
+        categoryId: z.string().optional(),
+        hsCode: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
       return feeDa.resolveFeeTemplateVersion(ctx.db, ctx.organizationId, input)
     }),
+
+  listMatchRules: tenantProcedure
+    .input(z.object({ templateId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => feeDa.listFeeTemplateMatchRules(ctx.db, ctx.organizationId, input.templateId)),
+
+  replaceMatchRules: tenantProcedure
+    .input(
+      z.object({
+        templateId: z.string().min(1),
+        rules: z.array(
+          z.object({
+            categoryId: z.string().min(1).nullable().optional(),
+            hsCodePattern: z.string().optional(),
+            priority: z.number().int().optional(),
+            note: z.string().optional(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => feeDa.replaceFeeTemplateMatchRules(ctx.db, ctx.organizationId, input.templateId, input.rules)),
+    ),
 })

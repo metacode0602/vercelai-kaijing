@@ -2,12 +2,13 @@
 
 import * as React from 'react'
 import { CostCalculatorEntry } from '@/components/console/cost-calculator-host'
+import { LocaleLink } from '@/lib/i18n/navigation'
 import {
   ConsoleFilterBar,
   ConsoleListSection,
   ConsoleTableEmpty,
 } from '@/components/console/list'
-import { LocaleLink } from '@/lib/i18n/navigation'
+import { Button } from '@workspace/ui/components/button'
 import { Badge } from '@workspace/ui/components/badge'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { trpc } from '@/lib/trpc/client'
@@ -41,16 +42,21 @@ export default function CostsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">成本计算</h2>
-          <p className="text-sm text-muted-foreground">sku_costs 列表 · 柜次版本 · 测算工作台仍可本机试算</p>
+          <h2 className="text-xl font-semibold tracking-tight">成本计算 / 定价建议</h2>
+          <p className="text-sm text-muted-foreground">sku_costs 列表 · 柜次版本 · 定价建议计算器自动带出主档与费用模板</p>
         </div>
-        <CostCalculatorEntry label="成本测算" />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="default" asChild>
+            <LocaleLink href="/console/costs/calculator">定价建议计算器</LocaleLink>
+          </Button>
+          <CostCalculatorEntry label="经典成本测算" />
+        </div>
       </div>
 
       <Alert>
         <AlertTitle>主路径已接库</AlertTitle>
         <AlertDescription>
-          列表读取 sku_costs；测算工作台可继续本地试算。税费/运价不写死，以费用模板与柜次字段为准。
+          列表读取 sku_costs。定价建议请用「定价建议计算器」：自动带出采购价、箱规、柜次分摊、汇率与费用模板。费用来自本组织费用模板，并非平台实时同步。
         </AlertDescription>
       </Alert>
 
