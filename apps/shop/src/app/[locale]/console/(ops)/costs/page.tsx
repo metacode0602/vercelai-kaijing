@@ -10,7 +10,6 @@ import {
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
-import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { trpc } from '@/lib/trpc/client'
 import {
   Table,
@@ -55,9 +54,7 @@ export default function CostsPage() {
         </AlertDescription>
       </Alert>
 
-      <UedPrototypeNotice>
-        订单净利润请前往「利润」页查看。
-      </UedPrototypeNotice>
+      <p className="text-sm text-muted-foreground">订单净利润请前往「利润」页查看。</p>
 
       <ConsoleFilterBar
         keyword={keyword}

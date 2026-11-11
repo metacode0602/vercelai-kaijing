@@ -3069,6 +3069,37 @@ export const inventoryPools = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// organization_settings — 组织级偏好与通知配置（每组织一行）
+// ---------------------------------------------------------------------------
+
+export const tableDensities = ["comfortable", "compact"] as const
+export type TableDensity = (typeof tableDensities)[number]
+
+export const organizationSettings = pgTable(
+  "organization_settings",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organization.id),
+    defaultShopId: text("default_shop_id").references(() => shops.id, {
+      onDelete: "set null",
+    }),
+    timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
+    displayCurrency: varchar("display_currency", { length: 16 }).notNull().default("USD"),
+    tableDensity: varchar("table_density", { length: 16 }).notNull().default("comfortable"),
+    dingtalkEnabled: boolean("dingtalk_enabled").notNull().default(false),
+    dingtalkWebhookEncrypted: text("dingtalk_webhook_encrypted"),
+    ...timestamps,
+  },
+  (t) => [
+    check(
+      "organization_settings_density_check",
+      sql`${t.tableDensity} in ('comfortable', 'compact')`,
+    ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // commerce_bin_bindings / bin_binding_history — 库位-SKU 绑定当前态与审计
 // ---------------------------------------------------------------------------
 
@@ -3577,6 +3608,7 @@ export type TrackingEvent = typeof trackingEvents.$inferSelect
 export type FulfillmentAttempt = typeof fulfillmentAttempts.$inferSelect
 export type FulfillmentBatch = typeof fulfillmentBatches.$inferSelect
 export type FulfillmentBatchPackage = typeof fulfillmentBatchPackages.$inferSelect
+export type OrganizationSettingsRow = typeof organizationSettings.$inferSelect
 export type InventoryReservation = typeof inventoryReservations.$inferSelect
 export type InventoryMovement = typeof inventoryMovements.$inferSelect
 export type ReverseOrder = typeof reverseOrders.$inferSelect

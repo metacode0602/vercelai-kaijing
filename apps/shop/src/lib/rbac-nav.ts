@@ -26,6 +26,7 @@ const PREFIX_MODULES: Array<{ prefix: string; module: string }> = [
   { prefix: '/console/purchases', module: 'purchase' },
   { prefix: '/console/inventory-balances', module: 'inventory' },
   { prefix: '/console/warehouse-zones', module: 'inventory' },
+  { prefix: '/console/inventory-pools', module: 'inventory' },
   { prefix: '/console/warehouse', module: 'inventory' },
   { prefix: '/console/stock-inbounds', module: 'inventory' },
   { prefix: '/console/stock-outbounds', module: 'inventory' },
@@ -77,8 +78,8 @@ export function canSeeNavItem(
   url: string,
   access: { isOwner: boolean; permissions: readonly string[] },
 ): boolean {
-  if (access.isOwner) return true
-  const module = navItemPermissionModule(url)
-  if (!module) return true
-  return access.permissions.includes(`${module}.read`)
+  // 本轮暂不按角色隐藏入口：组织成员可看到全部已上线功能。阶段 C 再恢复 *.read 过滤。
+  void url
+  void access
+  return true
 }

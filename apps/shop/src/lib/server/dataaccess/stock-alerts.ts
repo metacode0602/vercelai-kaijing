@@ -21,6 +21,7 @@ import {
 import type { AppDatabase } from '@workspace/db'
 import { formatStamp } from '@/lib/server/mappers/wms'
 import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
+import { scheduleDingTalkIfEnabled } from '@/lib/server/dataaccess/organization-settings'
 import {
   normalizePage,
   normalizePageSize,
@@ -35,7 +36,7 @@ export const DEFAULT_STOCK_THRESHOLD = 20
 /** 库龄阈值（天）：超过即记入 `aged` 计数与 `open` 告警。 */
 export const STOCK_AGE_DAYS_THRESHOLD = 60
 
-export type StockAlertStatus = 'critical' | 'open' | 'muted' | 'resolved'
+export type StockAlertStatus = 'critical' | 'open' | 'muted' | 'resolved' | 'disabled'
 
 /**
  * 重算单个 variant 的预警并 upsert 到 `stock_alerts`。
@@ -81,10 +82,10 @@ export async function recomputeStockAlert(
 
   const threshold = existing?.threshold ?? DEFAULT_STOCK_THRESHOLD
 
-  // muted 行不自动改 status，仅刷新 triggered_at 留痕，等用户手动解除。
+  // muted / disabled 行不自动改 status：muted 等用户解除，disabled 为软停用。
   let status: StockAlertStatus
-  if (existing?.status === 'muted') {
-    status = 'muted'
+  if (existing?.status === 'muted' || existing?.status === 'disabled') {
+    status = existing.status
   } else if (available <= 0) {
     status = 'critical'
   } else if (available < threshold) {
@@ -98,6 +99,9 @@ export async function recomputeStockAlert(
       ? existing?.triggeredAt ?? new Date()
       : null
 
+  const wasAlerting = existing?.status === 'critical' || existing?.status === 'open'
+  const isAlerting = status === 'critical' || status === 'open'
+
   if (existing) {
     await db
       .update(stockAlerts)
@@ -107,17 +111,31 @@ export async function recomputeStockAlert(
         triggeredAt: triggeredAt,
       })
       .where(eq(stockAlerts.id, existing.id))
-    return
+  } else {
+    await db.insert(stockAlerts).values({
+      id: createId(),
+      organizationId,
+      variantId,
+      threshold,
+      status,
+      triggeredAt: triggeredAt,
+    })
   }
 
-  await db.insert(stockAlerts).values({
-    id: createId(),
-    organizationId,
-    variantId,
-    threshold,
-    status,
-    triggeredAt: triggeredAt,
-  })
+  if (isAlerting && !wasAlerting) {
+    const [variant] = await db
+      .select({ skuCode: productVariants.skuCode, sku: productVariants.sku })
+      .from(productVariants)
+      .where(eq(productVariants.id, variantId))
+      .limit(1)
+    const sku = variant?.skuCode || variant?.sku || variantId
+    const level = status === 'critical' ? '缺货' : '偏低'
+    scheduleDingTalkIfEnabled(
+      db,
+      organizationId,
+      `【好市云·库存预警】SKU ${sku} 可用库存${level}（可用 ${available}，阈值 ${threshold}）`,
+    )
+  }
 }
 
 /**
@@ -179,7 +197,13 @@ export type StockAlertDto = {
 }
 
 function mapAlertStatus(status: string): StockAlertStatus {
-  if (status === 'muted' || status === 'critical' || status === 'open' || status === 'resolved') {
+  if (
+    status === 'muted' ||
+    status === 'critical' ||
+    status === 'open' ||
+    status === 'resolved' ||
+    status === 'disabled'
+  ) {
     return status
   }
   return 'open'
@@ -231,6 +255,8 @@ export async function listStockAlerts(
   if (variantFilter) filters.push(variantFilter)
   if (input.status && input.status !== 'all' && input.status !== '全部') {
     filters.push(eq(stockAlerts.status, input.status))
+  } else {
+    filters.push(sql`${stockAlerts.status} <> 'disabled'`)
   }
   const where = and(...filters)
 
@@ -502,7 +528,7 @@ export async function setStockAlertMuted(
 }
 
 /**
- * 删除预警配置（variant 不再需要阈值监控时）。历史审计保留。
+ * 软停用预警配置（variant 不再需要阈值监控时）。不物理删除，recompute 不会复活；再次 upsert 阈值会重新启用。历史审计保留。
  */
 export async function deleteStockAlert(
   db: AppDatabase,
@@ -515,15 +541,19 @@ export async function deleteStockAlert(
     .where(and(eq(stockAlerts.organizationId, organizationId), eq(stockAlerts.id, input.id)))
     .limit(1)
   if (!existing) throw new Error('预警配置不存在')
-  await db.delete(stockAlerts).where(eq(stockAlerts.id, existing.id))
+  await db
+    .update(stockAlerts)
+    .set({ status: 'disabled', triggeredAt: null })
+    .where(eq(stockAlerts.id, existing.id))
   await appendAuditEvent(db, organizationId, {
     actorUserId: input.actorUserId,
     actorLabel: input.actorLabel,
-    action: 'stock_alert.delete',
+    action: 'stock_alert.disable',
     entityType: 'stock_alert',
     entityId: existing.id,
     result: 'ok',
-    detail: `删除 SKU 预警配置（阈值 ${existing.threshold}，状态 ${existing.status}）${input.reason ? `；原因：${input.reason}` : ''}`,
+    detail: `停用 SKU 预警配置（阈值 ${existing.threshold}，原状态 ${existing.status}）${input.reason ? `；原因：${input.reason}` : ''}`,
     before: { threshold: Number(existing.threshold), status: existing.status, variantId: existing.variantId },
+    after: { status: 'disabled' },
   })
 }

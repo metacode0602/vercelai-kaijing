@@ -35,6 +35,7 @@ export type ConsoleNavTitleKey =
   | 'nav.inventoryLedger'
   | 'nav.stockAdjustments'
   | 'nav.inventoryOverview'
+  | 'nav.inventoryPools'
   | 'nav.orderFulfillment'
   | 'nav.orders'
   | 'nav.orderExceptions'
@@ -108,7 +109,6 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/master-skus', titleKey: 'nav.masterSkus' },
       { url: '/console/supplier-skus', titleKey: 'nav.supplierSkus' },
       { url: '/console/reviews', titleKey: 'nav.reviews' },
-      { url: '/console/compliance-hs-slsi', titleKey: 'nav.complianceHsSlsi' },
     ],
   },
   {
@@ -141,6 +141,7 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/carton-specs', titleKey: 'nav.cartonSpecs' },
       { url: '/console/warehouse', titleKey: 'nav.warehouse' },
       { url: '/console/warehouse-zones', titleKey: 'nav.warehouseZones' },
+      { url: '/console/inventory-pools', titleKey: 'nav.inventoryPools' },
       { url: '/console/stock-inbounds', titleKey: 'nav.stockInbounds' },
       { url: '/console/stock-outbounds', titleKey: 'nav.stockOutbounds' },
       { url: '/console/inventory-ledger', titleKey: 'nav.inventoryLedger' },
@@ -187,7 +188,6 @@ export const CONSOLE_NAV_GROUPS: ConsoleNavGroupConfig[] = [
       { url: '/console/reports', titleKey: 'nav.reports' },
       { url: '/console/reports/sell-through', titleKey: 'nav.sellThrough' },
       { url: '/console/reports/stock-risk', titleKey: 'nav.stockRisk' },
-      { url: '/console/reports/attribution', titleKey: 'nav.attribution' },
     ],
   },
 ]
@@ -274,7 +274,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroupConfig[] = [
     groupKey: 'data',
     labelKey: 'settings.groups.data',
     items: [
-      { url: '/settings/imports', titleKey: 'settings.imports' },
       { url: '/settings/import-templates', titleKey: 'settings.importTemplates' },
     ],
   },

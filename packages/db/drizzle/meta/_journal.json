@@ -36,6 +36,13 @@
       "when": 1794320821806,
       "tag": "0004_fixed_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794329044943,
+      "tag": "0005_organization_settings",
+      "breakpoints": true
     }
   ]
 }

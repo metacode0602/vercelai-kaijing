@@ -32,6 +32,7 @@ import {
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
 import { ensureSystemNotification } from '@/lib/server/dataaccess/notifications'
+import { tryReserveOrder } from '@/lib/server/dataaccess/order'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -314,6 +315,7 @@ async function upsertCase(
     detail?: string
     blocksFulfillment?: boolean
     raw?: Record<string, unknown>
+    reopenIfClosed?: boolean
   },
 ): Promise<'created' | 'updated' | 'skipped'> {
   const [existing] = await db
@@ -332,11 +334,37 @@ async function upsertCase(
   const now = new Date()
   if (existing) {
     if (existing.status === 'resolved' || existing.status === 'ignored') {
+      if (!input.reopenIfClosed) {
+        await db
+          .update(orderExceptionCases)
+          .set({ lastScannedAt: now, updatedAt: now })
+          .where(eq(orderExceptionCases.id, existing.id))
+        return 'skipped'
+      }
       await db
         .update(orderExceptionCases)
-        .set({ lastScannedAt: now, updatedAt: now })
+        .set({
+          status: 'open',
+          shopId: input.shopId ?? existing.shopId,
+          orderId: input.orderId ?? existing.orderId,
+          orderLineId: input.orderLineId ?? existing.orderLineId,
+          externalOrderId: input.externalOrderId ?? existing.externalOrderId,
+          outboundId: input.outboundId ?? existing.outboundId,
+          reservationId: input.reservationId ?? existing.reservationId,
+          sellerSku: input.sellerSku ?? existing.sellerSku,
+          internalSku: input.internalSku ?? existing.internalSku,
+          title: input.title,
+          detail: input.detail ?? existing.detail,
+          blocksFulfillment: input.blocksFulfillment ?? true,
+          resolution: null,
+          resolvedAt: null,
+          resolvedBy: null,
+          lastScannedAt: now,
+          raw: input.raw ?? existing.raw ?? {},
+          updatedAt: now,
+        })
         .where(eq(orderExceptionCases.id, existing.id))
-      return 'skipped'
+      return 'updated'
     }
     await db
       .update(orderExceptionCases)
@@ -680,7 +708,7 @@ export async function startException(
 }
 
 export async function resolveException(
-  db: DbLike,
+  db: AppDatabase,
   organizationId: string,
   id: string,
   resolution: string,
@@ -691,7 +719,64 @@ export async function resolveException(
   if (current.status === '已修复' || current.status === '已忽略') {
     throw new Error(`案件已结束（${current.status}）`)
   }
-  const note = resolution.trim() || '已处理'
+  const baseNote = resolution.trim() || '已处理'
+  let note = baseNote
+  if (current.orderId) {
+    try {
+      await tryReserveOrder(db, organizationId, current.orderId, actor)
+      note = `${baseNote}；已触发幂等再占库`
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '占库失败'
+      const terminal = /不可占库/.test(message) && /shipped|delivered|cancelled/.test(message)
+      if (terminal) {
+        note = `${baseNote}；${message}`
+      } else if (current.kind === '占库失败') {
+        const nowFailed = new Date()
+        note = `${baseNote}；再占库失败：${message}`
+        await db
+          .update(orderExceptionCases)
+          .set({
+            status: 'open',
+            resolution: note,
+            resolvedAt: null,
+            resolvedBy: null,
+            blocksFulfillment: true,
+            detail: `再占库失败：${message}`,
+            updatedAt: nowFailed,
+          })
+          .where(and(eq(orderExceptionCases.organizationId, organizationId), eq(orderExceptionCases.id, current.id)))
+        await writeAudit(db, organizationId, {
+          entityId: current.id,
+          action: 'exception.rereserve_failed',
+          actor,
+          before: { status: current.status },
+          after: { status: 'open' },
+          detail: note,
+        })
+        const failed = await getOrderException(db, organizationId, current.id)
+        if (!failed) throw new Error('更新失败')
+        return failed
+      } else {
+        note = `${baseNote}；再占库失败：${message}`
+        await upsertCase(db, organizationId, {
+          kind: 'reservation_failed',
+          sourceType: 'order_rereserve',
+          sourceId: current.orderId,
+          shopId: current.shopId || null,
+          orderId: current.orderId,
+          orderLineId: current.orderLineId || null,
+          externalOrderId: current.order !== '—' ? current.order : null,
+          sellerSku: current.sellerSku || null,
+          internalSku: current.internalSku || null,
+          title: `占库失败 · ${current.order}`,
+          detail: `修复案件 ${current.caseNo} 后自动再占库失败：${message}`,
+          blocksFulfillment: true,
+          raw: { fromExceptionId: current.id },
+          reopenIfClosed: true,
+        })
+      }
+    }
+  }
   const now = new Date()
   await db
     .update(orderExceptionCases)

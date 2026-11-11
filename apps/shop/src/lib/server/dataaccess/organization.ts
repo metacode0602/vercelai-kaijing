@@ -1,6 +1,6 @@
 /**
  * 设置 · 企业信息：当前入驻租户企业的详细档案。
- * 聚合 organization 主记录 + 入驻申请（tenant_onboarding_applications）+ 成员统计，只读。
+ * 聚合 organization 主记录 + 入驻申请（tenant_onboarding_applications）+ 成员统计。名称可更新；入驻认证档案只读。
  */
 import { count, eq } from 'drizzle-orm'
 import { member, organization, tenantOnboardingApplications } from '@workspace/db/schema'
@@ -120,3 +120,23 @@ export async function getOrganizationProfile(
       : null,
   }
 }
+
+export async function updateOrganizationProfile(
+  db: AppDatabase,
+  organizationId: string,
+  input: { name: string },
+): Promise<OrganizationProfileDto> {
+  const name = input.name.trim()
+  if (!name) throw new Error('组织名称不能为空')
+  if (name.length > 120) throw new Error('组织名称不能超过 120 个字符')
+  const current = await getOrganizationProfile(db, organizationId)
+  if (!current) throw new Error('当前组织不存在或已被删除')
+  await db
+    .update(organization)
+    .set({ name })
+    .where(eq(organization.id, organizationId))
+  const next = await getOrganizationProfile(db, organizationId)
+  if (!next) throw new Error('更新组织信息失败')
+  return next
+}
+

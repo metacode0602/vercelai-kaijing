@@ -6,6 +6,8 @@ import { trpc } from '@/lib/trpc/client'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
+import { Label } from '@workspace/ui/components/label'
 import {
   Card,
   CardContent,
@@ -66,8 +68,26 @@ function StatusBadge({
 }
 
 export default function OrganizationProfilePage() {
+  const utils = trpc.useUtils()
   const profileQuery = trpc.organization.get.useQuery()
   const profile = profileQuery.data
+  const [nameDraft, setNameDraft] = React.useState<string | null>(null)
+  const [notice, setNotice] = React.useState('')
+  const [noticeError, setNoticeError] = React.useState(false)
+  const nameValue = nameDraft ?? profile?.name ?? ''
+
+  const updateMutation = trpc.organization.update.useMutation({
+    onSuccess: async (data) => {
+      await utils.organization.get.invalidate()
+      setNameDraft(null)
+      setNoticeError(false)
+      setNotice(`组织名称已更新为「${data.name}」。入驻认证档案仍只读。`)
+    },
+    onError: (error) => {
+      setNoticeError(true)
+      setNotice(error.message)
+    },
+  })
 
   if (profileQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">加载中…</p>
@@ -92,7 +112,7 @@ export default function OrganizationProfilePage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">企业信息</h2>
           <p className="text-sm text-muted-foreground">
-            当前入驻企业的主体资料与审核状态；资料修改请通过入驻流程提交。
+            组织名称可在此更新并落库；入驻主体与认证档案只读，修改请走入驻流程。
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -111,11 +131,33 @@ export default function OrganizationProfilePage() {
             <Building2 className="size-4 text-muted-foreground" />
             基本信息
           </CardTitle>
-          <CardDescription>组织标识与状态，由平台维护。</CardDescription>
+          <CardDescription>组织名称可编辑；标识、类型与认证状态由平台或入驻流程维护。</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Label htmlFor="org-name">组织名称</Label>
+              <Input
+                id="org-name"
+                value={nameValue}
+                onChange={(event) => setNameDraft(event.target.value)}
+                maxLength={120}
+              />
+            </div>
+            <Button
+              size="sm"
+              disabled={updateMutation.isPending || nameValue.trim() === '' || nameValue.trim() === profile.name}
+              onClick={() => updateMutation.mutate({ name: nameValue })}
+            >
+              {updateMutation.isPending ? '保存中…' : '保存名称'}
+            </Button>
+          </div>
+          {notice ? (
+            <p role="status" className={`text-sm ${noticeError ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {notice}
+            </p>
+          ) : null}
           <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="组织名称" value={profile.name} />
             <Field label="组织 ID" value={<span className="font-mono text-xs">{profile.id}</span>} />
             <Field label="Slug" value={profile.slug ? <span className="font-mono text-xs">{profile.slug}</span> : null} />
             <Field label="组织类型" value={profile.orgType} />

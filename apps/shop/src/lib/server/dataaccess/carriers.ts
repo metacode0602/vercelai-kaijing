@@ -4,7 +4,7 @@
  */
 import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { commerceCarriers, commerceFreightRateCards, fulfillmentBatches, oceanShipments } from '@workspace/db/schema'
+import { commerceCarriers } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import {
   formatStamp,
@@ -184,28 +184,13 @@ export async function updateCarrier(
   return getCarrier(db as AppDatabase, organizationId, existing.id)
 }
 
-/** 删除承运商（被引用时拒绝，引导改停用）。 */
+/** 停用承运商（软停用，不物理删除；已被业务引用时同样只改状态）。 */
 export async function removeCarrier(db: AppDatabase, organizationId: string, idOrCode: string) {
   const existing = await getCarrier(db, organizationId, idOrCode)
   if (!existing) throw new Error('承运商不存在')
-  const [oceanRef] = await db
-    .select({ v: count() })
-    .from(oceanShipments)
-    .where(and(eq(oceanShipments.organizationId, organizationId), eq(oceanShipments.carrierId, existing.id)))
-  const [batchRef] = await db
-    .select({ v: count() })
-    .from(fulfillmentBatches)
-    .where(and(eq(fulfillmentBatches.organizationId, organizationId), eq(fulfillmentBatches.carrierId, existing.id)))
-  const [cardRef] = await db
-    .select({ v: count() })
-    .from(commerceFreightRateCards)
-    .where(and(eq(commerceFreightRateCards.organizationId, organizationId), eq(commerceFreightRateCards.carrierId, existing.id)))
-  const refs = Number(oceanRef?.v ?? 0) + Number(batchRef?.v ?? 0) + Number(cardRef?.v ?? 0)
-  if (refs > 0) {
-    throw new Error(`承运商已被 ${refs} 处业务引用（海运柜次/履约批次/运价卡），不可删除；请改为「停用」`)
-  }
   await db
-    .delete(commerceCarriers)
+    .update(commerceCarriers)
+    .set({ status: toDbActiveStatus('停用'), updatedAt: new Date() })
     .where(and(eq(commerceCarriers.organizationId, organizationId), eq(commerceCarriers.id, existing.id)))
-  return { id: existing.id, code: existing.code }
+  return { id: existing.id, code: existing.code, status: '停用' as const }
 }

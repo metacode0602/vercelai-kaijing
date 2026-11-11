@@ -174,7 +174,7 @@ export default function MasterSkusPage() {
         <Alert>
           <AlertTitle>已接库 · 内部 SKU</AlertTitle>
           <AlertDescription>
-            本页 KPI 中标注「页」的为当前页统计；总数见分页。Seller SKU / 刊登映射仍为 stub。
+            本页 KPI 中标注「页」的为当前页统计；总数见分页。Seller SKU 映射与刊登请分别前往对应页面维护。
           </AlertDescription>
         </Alert>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

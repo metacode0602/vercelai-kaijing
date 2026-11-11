@@ -14,13 +14,14 @@ import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 
-type AlertStatus = 'critical' | 'open' | 'muted' | 'resolved'
+type AlertStatus = 'critical' | 'open' | 'muted' | 'resolved' | 'disabled'
 
 const STATUS_LABEL: Record<AlertStatus, string> = {
   critical: '紧急补货',
   open: '低于阈值',
   muted: '已静音',
   resolved: '正常',
+  disabled: '已停用',
 }
 
 function statusVariant(status: AlertStatus) {
@@ -80,7 +81,7 @@ export default function StockAlertsSettingsPage() {
   })
   const deleteMutation = trpc.stockAlerts.delete.useMutation({
     onSuccess: async () => {
-      setNotice('已删除预警配置（历史审计保留）')
+      setNotice('已停用预警配置（不物理删除，历史审计保留）')
       await utils.stockAlerts.list.invalidate()
     },
     onError: (e) => setNotice(e.message),
@@ -255,12 +256,12 @@ export default function StockAlertsSettingsPage() {
                   variant="ghost"
                   disabled={deleteMutation.isPending}
                   onClick={() => {
-                    if (confirm(`确认删除 ${row.sku} 的预警配置？历史审计保留。`)) {
+                    if (confirm(`确认停用 ${row.sku} 的预警配置？不会物理删除，历史审计保留。`)) {
                       deleteMutation.mutate({ id: row.id })
                     }
                   }}
                 >
-                  删除
+                  停用
                 </Button>
               </div>
             ),

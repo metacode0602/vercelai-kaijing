@@ -1098,6 +1098,29 @@ export async function confirmReserveOrder(
   })
 }
 
+/** 幂等再占库：已占库时直接返回，不抛错、不重复预留。 */
+export async function tryReserveOrder(
+  db: AppDatabase,
+  organizationId: string,
+  orderId: string,
+  operator?: string,
+): Promise<OrderDto> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.organizationId, organizationId),
+          or(eq(orders.id, orderId), eq(orders.externalOrderId, orderId)),
+        ),
+      )
+      .limit(1)
+    if (!row) throw new Error('订单不存在')
+    return reserveOrderInternal(tx, organizationId, row.id, operator?.trim() || '当前用户', false)
+  })
+}
+
 export async function releaseOrderReservations(
   db: AppDatabase,
   organizationId: string,
