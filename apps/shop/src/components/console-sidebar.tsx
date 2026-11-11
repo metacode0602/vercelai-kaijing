@@ -24,6 +24,7 @@ import {
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
 import { canSeeNavItem } from '@/lib/rbac-nav'
 import { Badge } from '@workspace/ui/components/badge'
+import { NavIcon } from '@/components/console/nav-icon'
 
 function formatBadge(n: number) {
   if (n <= 0) return null
@@ -66,7 +67,7 @@ function NavList({ items }: { items: ConsoleNavItemConfig[] }) {
                   isActive={isActive(pathname, item.url, exact)}
                 >
                   <LocaleLink href={item.url}>
-                    <item.icon className="size-4" />
+                    <NavIcon name={item.icon} className="size-4" />
                     <span>{t(item.titleKey)}</span>
                   </LocaleLink>
                 </SidebarMenuButton>

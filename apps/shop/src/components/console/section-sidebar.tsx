@@ -1,11 +1,10 @@
 'use client'
 
-import * as React from 'react'
 import { ArrowLeft, PackageSearch } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { LocaleLink, useLocalePathname } from '@/lib/i18n/navigation'
 import type { ProfileNavTitleKey, SettingsNavGroupLabelKey, SettingsNavTitleKey } from '@/lib/console-nav'
+import { NavIcon, type NavIconName } from '@/components/console/nav-icon'
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +23,7 @@ import { canSeeNavItem } from '@/lib/rbac-nav'
 type SectionItem = {
   url: string
   titleKey: SettingsNavTitleKey | ProfileNavTitleKey
-  icon: LucideIcon
+  icon: NavIconName
 }
 
 type SectionGroup = {
@@ -89,7 +88,7 @@ export function SectionSidebar({
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild isActive={isActive(pathname, item.url)}>
                         <LocaleLink href={item.url}>
-                          <item.icon className="size-4" />
+                          <NavIcon name={item.icon} className="size-4" />
                           <span>{t(item.titleKey)}</span>
                         </LocaleLink>
                       </SidebarMenuButton>
