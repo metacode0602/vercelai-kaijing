@@ -48,6 +48,7 @@ export type MarketplaceSyncResource =
   | "listings"
   | "settlements"
   | "ship_batch"
+  | "listing_write"
   | "all"
 
 export interface MarketplaceSyncOptions {
@@ -338,6 +339,9 @@ function checkpointForResource(
       return { lastSettlementsSyncAt: now }
     case "ship_batch":
       // ship_batch 是写操作，不推进读同步 checkpoint
+      return null
+    case "listing_write":
+      // 刊登写入不推进读同步 checkpoint
       return null
     case "all":
       // "all" is orchestrated per-resource; never write a blended checkpoint here.

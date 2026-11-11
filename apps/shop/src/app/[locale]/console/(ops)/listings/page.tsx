@@ -83,7 +83,7 @@ export default function ListingsPage() {
   const editor = open ? (
     <UedDialog
       title="新建刊登"
-      description="先建刊登头信息，并自动生成一条 Seller SKU 映射行写入 PostgreSQL。刊登拉取走 apps/api 读同步；平台新建/改价/下架写接口本轮不开通。"
+      description="先建刊登头信息，并自动生成一条 Seller SKU 映射行写入 PostgreSQL。发布到平台在刊登详情页执行（connector.createListing）。"
       fields={[
         {
           key: 'shopId',
@@ -111,6 +111,7 @@ export default function ListingsPage() {
         },
         { key: 'brandName', label: '品牌' },
         { key: 'categoryPath', label: '类目路径', fullWidth: true },
+        { key: 'categoryExternalId', label: '平台类目 ID（PrimaryCategory）', fullWidth: true },
         { key: 'warehouseCode', label: '仓库', options: ['WH-CN-XMN-001'], defaultValue: 'WH-CN-XMN-001' },
         {
           key: 'logisticsChannel',
@@ -135,6 +136,7 @@ export default function ListingsPage() {
           status: values.status || '草稿',
           brandName: values.brandName,
           categoryPath: values.categoryPath,
+          categoryExternalId: values.categoryExternalId,
           warehouseCode: values.warehouseCode,
           logisticsChannel: values.logisticsChannel,
           note: values.note,
@@ -151,7 +153,7 @@ export default function ListingsPage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">刊登</h2>
           <p className="text-sm text-muted-foreground">
-            平台商品刊登 · 头信息 + 映射行 · 经 tRPC 读写 PostgreSQL；拉取可读同步，平台写入本轮不开通。
+            平台商品刊登 · 头信息 + 映射行 · 发布 / 更新 / 下架经同步任务调用平台 connector，读同步拉取平台状态。
           </p>
         </div>
         <Button onClick={() => setOpen(true)}>新建刊登</Button>

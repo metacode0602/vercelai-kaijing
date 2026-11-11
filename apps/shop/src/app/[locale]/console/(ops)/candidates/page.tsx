@@ -91,7 +91,7 @@ export default function CandidatesPage() {
         <AlertTitle>数据来源说明</AlertTitle>
         <AlertDescription>
           列表读取 product_candidates / pending_actions。支持手工录入与导入落库；
-          <strong>不提供假市场爬虫成功</strong>。审核通过可创建 SPU 草稿或关联已有商品。
+          <strong>不提供假市场爬虫成功</strong>。审核通过可创建 SPU 草稿或关联已有商品，并自动生成「刊登提交」待审单。
         </AlertDescription>
       </Alert>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}

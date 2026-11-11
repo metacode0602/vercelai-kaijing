@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, exists, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { listings, productVariants, products, shops } from '@workspace/db/schema'
 import { resolveBrandForProduct } from '@/lib/server/dataaccess/brands'
@@ -13,6 +13,7 @@ import {
   toUiStatus,
   type UiProductStatus,
 } from '@/lib/server/mappers/products'
+import { toDbListingStatus } from '@/lib/server/mappers/listings'
 import {
   normalizePage,
   normalizePageSize,
@@ -968,6 +969,60 @@ export async function listCatalogRows(
     )
     if (search) conditions.push(search)
   }
+  // 刊登状态 / 平台 / 店铺筛选进 SQL（EXISTS 关联本 SKU 的刊登），保证分页与 total 正确。
+  const listingStatus = input.listing?.trim()
+  if (listingStatus && listingStatus !== 'all') {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(listings)
+          .where(
+            and(
+              eq(listings.organizationId, organizationId),
+              eq(listings.primaryVariantId, productVariants.id),
+              eq(listings.status, toDbListingStatus(listingStatus)),
+            ),
+          ),
+      ),
+    )
+  }
+  const platform = input.platform?.trim()
+  if (platform && platform !== 'all') {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(listings)
+          .innerJoin(shops, eq(shops.id, listings.shopId))
+          .where(
+            and(
+              eq(listings.organizationId, organizationId),
+              eq(listings.primaryVariantId, productVariants.id),
+              eq(shops.platform, platform),
+              isNull(shops.deletedAt),
+            ),
+          ),
+      ),
+    )
+  }
+  const shopFilter = input.shopId?.trim()
+  if (shopFilter && shopFilter !== 'all') {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(listings)
+          .where(
+            and(
+              eq(listings.organizationId, organizationId),
+              eq(listings.primaryVariantId, productVariants.id),
+              eq(listings.shopId, shopFilter),
+            ),
+          ),
+      ),
+    )
+  }
   const where = and(...conditions)
 
   const [totalRow] = await db
@@ -1001,6 +1056,7 @@ export async function listCatalogRows(
           .where(
             and(eq(listings.organizationId, organizationId), inArray(listings.primaryVariantId, variantIds)),
           )
+          .orderBy(desc(listings.updatedAt))
 
   const byVariant = new Map<string, typeof listingRows>()
   for (const row of listingRows) {
@@ -1011,7 +1067,7 @@ export async function listCatalogRows(
     byVariant.set(vid, list)
   }
 
-  let items: CatalogRowDto[] = rows.map(({ variant, product }) => {
+  const items: CatalogRowDto[] = rows.map(({ variant, product }) => {
     const mapped = mapVariantRow(variant)
     const ls = byVariant.get(variant.id) ?? []
     const primary = ls[0]
@@ -1035,16 +1091,6 @@ export async function listCatalogRows(
       lastError: (primary?.listing.lastError as string | null) ?? null,
     }
   })
-
-  if (input.listing && input.listing !== 'all') {
-    items = items.filter((r) => r.listing === input.listing)
-  }
-  if (input.platform && input.platform !== 'all') {
-    items = items.filter((r) => r.platform === input.platform)
-  }
-  if (input.shopId && input.shopId !== 'all') {
-    items = items.filter((r) => r.shop === input.shopId)
-  }
 
   return { items, total, page, pageSize }
 }

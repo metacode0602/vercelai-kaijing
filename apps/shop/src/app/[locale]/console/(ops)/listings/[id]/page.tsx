@@ -55,6 +55,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const [editOpen, setEditOpen] = React.useState(false)
   const [lineOpen, setLineOpen] = React.useState(false)
   const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
+  const [publishConfirmOpen, setPublishConfirmOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const updateMutation = trpc.listings.update.useMutation({
@@ -67,16 +68,34 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
     onError: (error) => setNotice(error.message),
   })
   const shelfMutation = trpc.listings.setShelf.useMutation({
-    onSuccess: async (row) => {
+    onSuccess: async (result) => {
       await utils.listings.get.invalidate({ id })
       await utils.listings.list.invalidate()
-      setNotice(`本地状态已改为「${row.status}」（未调用平台 OpenAPI）`)
+      setNotice(result.message)
     },
     onError: (error) => setNotice(error.message),
   })
   const syncMutation = trpc.listings.requestPlatformSync.useMutation({
     onSuccess: async (result) => {
       await utils.listings.get.invalidate({ id })
+      setNotice(result.message)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const publishMutation = trpc.listings.publish.useMutation({
+    onSuccess: async (result) => {
+      await utils.listings.get.invalidate({ id })
+      await utils.listings.list.invalidate()
+      await utils.listings.stats.invalidate()
+      setNotice(result.message)
+    },
+    onError: (error) => setNotice(error.message),
+  })
+  const submitMutation = trpc.listings.submitForReview.useMutation({
+    onSuccess: async (result) => {
+      await utils.listings.get.invalidate({ id })
+      await utils.listings.list.invalidate()
+      await utils.pending.list.invalidate()
       setNotice(result.message)
     },
     onError: (error) => setNotice(error.message),
@@ -155,6 +174,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         publishState: listing.publishState,
         brandName: listing.brandName,
         categoryPath: listing.categoryPath,
+        categoryExternalId: listing.categoryExternalId,
         warehouseCode: listing.warehouseCode,
         logisticsChannel: listing.logisticsChannel,
         note: listing.note,
@@ -172,6 +192,12 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         },
         { key: 'brandName', label: '品牌' },
         { key: 'categoryPath', label: '类目路径', fullWidth: true },
+        {
+          key: 'categoryExternalId',
+          label: '平台类目 ID（PrimaryCategory）',
+          fullWidth: true,
+          helper: '发布到平台前必填，如 Daraz/Lazada 类目 ID',
+        },
         { key: 'warehouseCode', label: '仓库', options: ['WH-CN-XMN-001'] },
         {
           key: 'logisticsChannel',
@@ -191,6 +217,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
           publishState: values.publishState,
           brandName: values.brandName,
           categoryPath: values.categoryPath,
+          categoryExternalId: values.categoryExternalId,
           warehouseCode: values.warehouseCode,
           logisticsChannel: values.logisticsChannel,
           note: values.note,
@@ -258,6 +285,23 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             </Button>
             <Button
               size="sm"
+              disabled={publishMutation.isPending || submitMutation.isPending}
+              onClick={() => setPublishConfirmOpen(true)}
+            >
+              {listing.externalItemId ? '更新到平台' : '发布到平台'}
+            </Button>
+            {(listing.status === '草稿' || listing.status === '失败') && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={submitMutation.isPending}
+                onClick={() => submitMutation.mutate({ id: listing.id })}
+              >
+                提交审核
+              </Button>
+            )}
+            <Button
+              size="sm"
               variant="outline"
               disabled={shelfMutation.isPending}
               onClick={() =>
@@ -267,7 +311,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
                 })
               }
             >
-              {listing.status === '在售' ? '本地下架' : '本地上架'}
+              {listing.status === '在售' ? '下架' : '上架（本地）'}
             </Button>
             <Button
               size="sm"
@@ -285,10 +329,11 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       />
 
       <Alert>
-        <AlertTitle>平台刊登写入未开通（本轮只读拉取）</AlertTitle>
+        <AlertTitle>平台写入已开通：发布 / 更新 / 下架</AlertTitle>
         <AlertDescription>
-          头信息 / 售价 / 上下架状态已写入 listings 表；「请求平台同步」只更新本地 publishState，不会调用
-          Daraz / Lazada / TikTok connector。
+          「发布到平台」与「更新到平台」经同步任务调用 Daraz / Lazada connector（createListing /
+          updateListing），成功以平台 item_id 回执为准并回写 listings；「下架」在本地改状态的同时推送
+          平台 /product/deactivate。「上架」仅有本地状态（平台无 activate 端点）。
         </AlertDescription>
       </Alert>
       {notice ? (
@@ -464,6 +509,43 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         onConfirm={() => {
           setSyncConfirmOpen(false)
           syncMutation.mutate({ id: listing.id })
+        }}
+      />
+      <SyncConfirmDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+        title={listing.externalItemId ? '更新到平台' : '发布到平台'}
+        description={
+          listing.externalItemId
+            ? '推送头信息 / 售价 / SKU 到平台（connector.updateListing）。'
+            : '新建平台刊登（connector.createListing），成功后回写平台 item_id。'
+        }
+        scope={{
+          label: '作用刊登',
+          value: `刊登 ${listing.externalItemId || listing.id} · ${listing.shopName}`,
+        }}
+        impacts={
+          listing.externalItemId
+            ? [
+                '平台侧头信息 / 售价 / 库存将被覆盖为本地值',
+                'publishState 置为已发布；失败则置为同步失败并记录 lastError',
+              ]
+            : [
+                '平台将新建一条商品，需已填平台类目 ID（PrimaryCategory）与 Seller SKU 映射行',
+                '成功以平台返回的 item_id 为准（不以 HTTP 200 为准）',
+              ]
+        }
+        platformCall={{
+          label: '将调用平台 OpenAPI',
+          detail: listing.externalItemId
+            ? 'Lazop /product/update（Daraz/Lazada）'
+            : 'Lazop /product/create（Daraz/Lazada）',
+        }}
+        confirmLabel={listing.externalItemId ? '确认更新' : '确认发布'}
+        pending={publishMutation.isPending}
+        onConfirm={() => {
+          setPublishConfirmOpen(false)
+          publishMutation.mutate({ id: listing.id })
         }}
       />
     </div>

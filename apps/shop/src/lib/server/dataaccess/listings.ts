@@ -1,11 +1,13 @@
 /**
  * 刊登 listings + 关联 seller_sku_mappings dataaccess（模块11）。
- * 刊登拉取经 apps/api OpenAPI；平台新建/更新/下架写入本轮不做。
+ * 读同步经 apps/api OpenAPI（resource=listings）；
+ * 平台写（publish / update / deactivate）经同步任务 resource=listing_write。
  */
-import { and, count, desc, eq, ilike, inArray, isNull, or, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, like, or, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import {
   listings,
+  pendingActions,
   productVariants,
   products,
   sellerSkuMappings,
@@ -124,7 +126,7 @@ async function resolveVariantBySku(
   db: DbLike,
   organizationId: string,
   sku: string,
-): Promise<{ variant: typeof productVariants.$inferSelect; product: typeof products.$inferSelect }> {
+): Promise<{ variant: typeof productVariants.$inferSelect; product: typeof products.$inferSelect } | null> {
   const [variant] = await db
     .select()
     .from(productVariants)
@@ -135,7 +137,7 @@ async function resolveVariantBySku(
       ),
     )
     .limit(1)
-  if (!variant) throw new Error(`未找到内部 SKU ${sku}`)
+  if (!variant) return null
   const [product] = await db
     .select()
     .from(products)
@@ -147,8 +149,25 @@ async function resolveVariantBySku(
       ),
     )
     .limit(1)
-  if (!product) throw new Error(`SKU ${sku} 缺少所属 SPU`)
+  if (!product) return null
   return { variant, product }
+}
+
+async function countMappings(
+  db: DbLike,
+  organizationId: string,
+  listingId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(sellerSkuMappings)
+    .where(
+      and(
+        eq(sellerSkuMappings.organizationId, organizationId),
+        eq(sellerSkuMappings.listingId, listingId),
+      ),
+    )
+  return Number(row?.value ?? 0)
 }
 
 async function loadMappingLines(
@@ -258,8 +277,47 @@ async function hydrateListing(
     opts?.withLines === false
       ? []
       : await loadMappingLines(db, organizationId, row.id)
+  const mappingLineCount = await countMappings(db, organizationId, row.id)
   if (!sellerSku && lines[0]) sellerSku = lines[0].sellerSku
   if (!sku && lines[0]) sku = lines[0].internalSku
+  if ((!sellerSku || !sku) && mappingLineCount > 0) {
+    // 列表态不加载全部映射行，但缺 sellerSku/sku 时回退首条映射行（DB 级 limit 1）。
+    const [firstMap] = await db
+      .select({
+        sellerSku: sellerSkuMappings.sellerSku,
+        variantId: sellerSkuMappings.variantId,
+        meta: sellerSkuMappings.meta,
+      })
+      .from(sellerSkuMappings)
+      .where(
+        and(
+          eq(sellerSkuMappings.organizationId, organizationId),
+          eq(sellerSkuMappings.listingId, row.id),
+        ),
+      )
+      .orderBy(sellerSkuMappings.createdAt)
+      .limit(1)
+    if (firstMap) {
+      if (!sellerSku) sellerSku = firstMap.sellerSku
+      if (!sku) {
+        const metaSku = String(readPayload(firstMap.meta).internalSku ?? '')
+        if (metaSku) sku = metaSku
+        else if (firstMap.variantId) {
+          const [mapVariant] = await db
+            .select({ skuCode: productVariants.skuCode, sku: productVariants.sku })
+            .from(productVariants)
+            .where(
+              and(
+                eq(productVariants.organizationId, organizationId),
+                eq(productVariants.id, firstMap.variantId),
+              ),
+            )
+            .limit(1)
+          sku = mapVariant?.skuCode ?? mapVariant?.sku ?? sku
+        }
+      }
+    }
+  }
 
   const status = toUiListingStatus(row.status)
   const publishState = row.publishState
@@ -300,7 +358,7 @@ async function hydrateListing(
     images: Array.isArray(payload.images)
       ? payload.images.filter((item): item is string => typeof item === 'string' && !!item)
       : [],
-    mappingLineCount: lines.length,
+    mappingLineCount,
     mappingLines: lines,
   }
 }
@@ -357,9 +415,10 @@ export async function listListings(
     filters.push(inArray(listings.shopId, ids))
   }
   if (input.sku?.trim()) {
-    const { variant } = await resolveVariantBySku(db, organizationId, input.sku.trim())
+    const resolved = await resolveVariantBySku(db, organizationId, input.sku.trim())
+    if (!resolved) return { items: [], total: 0, page, pageSize }
     filters.push(
-      or(eq(listings.primaryVariantId, variant.id), eq(listings.variantId, variant.id))!,
+      or(eq(listings.primaryVariantId, resolved.variant.id), eq(listings.variantId, resolved.variant.id))!,
     )
   }
   if (input.spu?.trim()) {
@@ -390,7 +449,7 @@ export async function listListings(
 
   const items: ListingListRow[] = []
   for (const row of rows) {
-    const detail = await hydrateListing(db, organizationId, row, { withLines: true })
+    const detail = await hydrateListing(db, organizationId, row, { withLines: false })
     items.push(toListRow(detail))
   }
   return { items, total: Number(totalRow?.total ?? 0), page, pageSize }
@@ -444,6 +503,8 @@ export type CreateListingInput = {
   logisticsChannel?: string
   brandName?: string
   categoryPath?: string
+  /** 平台类目 ID（PrimaryCategory）；发布到平台前必填。 */
+  categoryExternalId?: string
   note?: string
   color?: string
   size?: string
@@ -481,7 +542,9 @@ export async function createListing(
   }
   if (!shop) throw new Error('请选择有效店铺')
 
-  const { variant, product } = await resolveVariantBySku(db, organizationId, input.sku.trim())
+  const resolved = await resolveVariantBySku(db, organizationId, input.sku.trim())
+  if (!resolved) throw new Error(`未找到内部 SKU ${input.sku.trim()} 或缺少所属 SPU`)
+  const { variant, product } = resolved
   const sellerSku = input.sellerSku.trim()
 
   const [dup] = await db
@@ -516,6 +579,7 @@ export async function createListing(
       listingTitle: input.title.trim(),
       brandName: input.brandName?.trim() || product.brand || null,
       categoryPath: input.categoryPath?.trim() || product.categoryHint || null,
+      categoryExternalId: input.categoryExternalId?.trim() || null,
       priceAmount: String(input.sellPrice),
       priceCurrency: input.currency?.trim() || shop!.currency || 'USD',
       stockOnHand: 0,
@@ -572,6 +636,8 @@ export type UpdateListingInput = {
   logisticsChannel?: string
   brandName?: string
   categoryPath?: string
+  /** 平台类目 ID（PrimaryCategory）。 */
+  categoryExternalId?: string
   note?: string
   stockOnHand?: number
   externalItemId?: string
@@ -631,6 +697,7 @@ export async function updateListing(
       logisticsChannel: patch.logisticsChannel ?? row.logisticsChannel,
       brandName: patch.brandName ?? row.brandName,
       categoryPath: patch.categoryPath ?? row.categoryPath,
+      categoryExternalId: patch.categoryExternalId ?? row.categoryExternalId,
       stockOnHand: patch.stockOnHand ?? row.stockOnHand,
       externalItemId: patch.externalItemId ?? row.externalItemId,
       lastError: patch.lastError ?? row.lastError,
@@ -647,13 +714,19 @@ export async function updateListing(
   return updated
 }
 
-/** 上下架：在售 ↔ 下架（本地状态；不调用平台） */
+/**
+ * 上下架。
+ * - 上架：仅本地状态（平台无 activate 端点，禁止臆造）；需通过 HS 合规校验。
+ * - 下架：本地状态 + 若已有平台 item_id 则入队 listing_write#deactivate 同步任务，
+ *   经 apps/api → connector.deactivateListing 推平台（结果回写 publishState / 任务状态）。
+ */
 export async function setListingShelfStatus(
   db: AppDatabase,
   organizationId: string,
   id: string,
   onShelf: boolean,
-): Promise<ListingDto> {
+  actor?: string,
+): Promise<{ listing: ListingDto; task?: syncDa.SyncTaskDto; message: string }> {
   if (onShelf) {
     const current = await getListing(db, organizationId, id)
     if (!current) throw new Error('刊登不存在')
@@ -684,9 +757,159 @@ export async function setListingShelfStatus(
       variantId,
     })
   }
-  return updateListing(db, organizationId, id, {
+
+  const updated = await updateListing(db, organizationId, id, {
     status: onShelf ? '在售' : '下架',
   })
+
+  if (onShelf) {
+    return {
+      listing: updated,
+      message:
+        '本地状态已改为「在售」。平台无商品上架（activate）端点，不会调用平台；发布请走「发布到平台」。',
+    }
+  }
+
+  if (!updated.externalItemId) {
+    return { listing: updated, message: '本地状态已改为「下架」（尚未发布到平台，无平台动作）。' }
+  }
+
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '状态同步',
+    target: `listing:${id}#deactivate`,
+    shopId: updated.shopId,
+    actor,
+    note: '本地下架 → 平台 /product/deactivate（Daraz/Lazada）',
+  })
+  const fresh = (await getListing(db, organizationId, id)) ?? updated
+  const ok = task.status === '成功'
+  return {
+    listing: fresh,
+    task,
+    message: ok
+      ? `本地与平台均已下架（task=${task.taskNo}）。`
+      : `本地已下架，平台下架任务失败：${task.error !== '—' ? task.error : task.status}（task=${task.taskNo}）`,
+  }
+}
+
+export type PublishListingResult = {
+  listing: ListingDto
+  task: syncDa.SyncTaskDto
+  message: string
+}
+
+/**
+ * 发布到平台：入队「发布刊登」同步任务 → apps/api resource=listing_write →
+ * connector.createListing（无 item_id）/ updateListing（已有 item_id），回执回写 listings。
+ * 不以 HTTP 200 为准，成功必须拿到平台 item_id（create）或明确状态（update/deactivate）。
+ */
+export async function publishListing(
+  db: AppDatabase,
+  organizationId: string,
+  id: string,
+  actor?: string,
+): Promise<PublishListingResult> {
+  const current = await getListing(db, organizationId, id)
+  if (!current) throw new Error(`刊登不存在：${id}`)
+  if (!current.externalItemId) {
+    if (!current.categoryExternalId?.trim()) {
+      throw new Error('缺少平台类目 ID（PrimaryCategory），请先在「编辑刊登」补全')
+    }
+    if (current.mappingLineCount < 1) {
+      throw new Error('缺少 Seller SKU 映射行，无法组装平台 SKU')
+    }
+    if (!(current.sellPrice > 0)) throw new Error('售价必须大于 0')
+  }
+
+  const task = await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+    type: '发布刊登',
+    target: `listing:${id}`,
+    shopId: current.shopId,
+    actor,
+    note: current.externalItemId
+      ? '更新平台刊登（connector.updateListing）'
+      : '新建平台刊登（connector.createListing）',
+  })
+  const listing = await getListing(db, organizationId, id)
+  if (!listing) throw new Error('发布后读取刊登失败')
+  const ok = task.status === '成功'
+  return {
+    listing,
+    task,
+    message: ok
+      ? `平台发布成功（task=${task.taskNo}，item_id=${listing.externalItemId || '—'}）。`
+      : `平台发布失败：${task.error !== '—' ? task.error : task.status}（task=${task.taskNo}）`,
+  }
+}
+
+export type SubmitForReviewResult = {
+  listing: ListingDto
+  pendingId: string
+  message: string
+}
+
+/**
+ * 提交审核：草稿/失败 → 待审，并生成 listing_submit 待审单（mode=link）。
+ * 确认（pending.confirm）后刊登保持待审/待同步，由「发布到平台」执行平台写入。
+ */
+export async function submitForReview(
+  db: AppDatabase,
+  organizationId: string,
+  id: string,
+  actor?: string,
+): Promise<SubmitForReviewResult> {
+  const current = await getListing(db, organizationId, id)
+  if (!current) throw new Error(`刊登不存在：${id}`)
+  if (current.status !== '草稿' && current.status !== '失败') {
+    throw new Error(`当前状态不可提交审核：${current.status}`)
+  }
+  const [dup] = await db
+    .select({ id: pendingActions.id })
+    .from(pendingActions)
+    .where(
+      and(
+        eq(pendingActions.organizationId, organizationId),
+        eq(pendingActions.kind, 'listing_submit'),
+        eq(pendingActions.status, 'pending'),
+        like(pendingActions.idempotencyKey, `listing_submit:listing:${id}:%`),
+      ),
+    )
+    .limit(1)
+  if (dup) throw new Error('该刊登已有待审单，请先在待审队列处理')
+
+  const now = new Date()
+  const pendingId = createId()
+  await db.transaction(async (tx) => {
+    await tx.insert(pendingActions).values({
+      id: pendingId,
+      organizationId,
+      shopId: current.shopId,
+      kind: 'listing_submit',
+      status: 'pending',
+      title: `刊登提交：${current.title}`,
+      payload: { mode: 'link', listingId: current.id, source: 'listing' },
+      idempotencyKey: `listing_submit:listing:${current.id}:${now.getTime()}`,
+      createdBy: actor?.trim() || 'console',
+      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+      updatedAt: now,
+    })
+    await tx
+      .update(listings)
+      .set({
+        status: toDbListingStatus('待审'),
+        publishState: toDbPublishState('待同步'),
+        updatedAt: now,
+      })
+      .where(and(eq(listings.id, current.id), eq(listings.organizationId, organizationId)))
+  })
+
+  const listing = await getListing(db, organizationId, id)
+  if (!listing) throw new Error('提交审核后读取刊登失败')
+  return {
+    listing,
+    pendingId,
+    message: `已提交审核，待审单已生成（${pendingId}）。确认后可「发布到平台」。`,
+  }
 }
 
 export async function addListingMappingLine(
@@ -723,7 +946,8 @@ export async function addListingMappingLine(
 }
 
 /**
- * 拉取平台刊登（读同步）。不做新建/更新/下架平台写入。
+ * 拉取平台刊登（读同步，apps/api resource=listings）。
+ * 平台写入走 publishListing / setListingShelfStatus（resource=listing_write）。
  */
 export async function requestPlatformSyncStub(
   db: AppDatabase,
@@ -749,12 +973,14 @@ export async function requestPlatformSyncStub(
       publishState: '同步失败',
       lastError: task.error !== '—' ? task.error : '刊登拉取失败',
     })
+  } else {
+    await updateListing(db, organizationId, id, { lastError: '' })
   }
   return {
     ok,
     stub: false,
     message: ok
-      ? `已拉取平台刊登（task=${task.taskNo}）。本轮不推送新建/上下架。`
+      ? `已拉取平台刊登并回写本地状态（task=${task.taskNo}）。`
       : task.error !== '—'
         ? task.error
         : '刊登拉取失败：请检查店铺凭证与 API 配置',

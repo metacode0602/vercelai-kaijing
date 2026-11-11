@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | SPU/SKU 主档 | `products.*` / products, product_variants | CRUD + 列表 |
 | 商品+刊登列表 | `products.listCatalog` | SKU 聚合 listings |
-| 刊登 / 映射 | listings / mappings | 本地记录 + **平台刊登拉取**（读同步） |
+| 刊登 / 映射 | listings / mappings | 本地记录 + **平台刊登读同步** + **发布/更新/下架写**（`resource=listing_write`，Daraz/Lazada connector） |
 | 采购→收货→质检→入库 | purchase / WMS | 过账流水 |
 | 订单→占库→拣货→出库 | order / wms | 销售履约；**映射确认后自动占库** |
 | LGS/JSB 履约壳 | logistics | 站内状态机 + **平台轨迹拉取** |
@@ -25,7 +25,7 @@
 | 候选审核 / 站内信 | candidates / notifications | 不外发 |
 | 评论列表 / 手工回复 | reviews | **评论拉取**；平台回复仍 stub_queued |
 | 承运商 / 品类 / 字典 / 导入模板 | carriers 等 | 轻量主数据 |
-| 待审队列 | pending | 确认/拒绝站内状态 |
+| 待审队列 | pending | 确认/拒绝；`listing_submit` 确认创建本地刊登 / 放行发布，`complete` 补全字段 |
 | 箱规主数据 | cartonSpecs / commerce_carton_specs | 独立于 ocean_shipment_boxes |
 | 动销 / 滞销断货报表 | reports.* | orders + balances；无假图 |
 
@@ -63,7 +63,8 @@ OAuth 换票 / 回调本轮不实现；沿用库内加密凭证（授权由并�
 | --- | --- | --- |
 | 店铺 OAuth 授权与刷新 | 凭证表可存；无换票 UI/回调 | Daraz/Lazada/TikTok OAuth |
 | 库存推送平台 | pending `inventory_push` 仅站内 | 平台库存写 API |
-| 刊登新建 / 上下架推送 | 适配器方法保留；Console 不调用写 | 平台商品写 API + 授权 |
+| 刊登写（TikTok） | adapter `createListing` payload 简化、未联调，本轮不调用 | TikTok 商品写 API 官方字段联调；**不编造字段** |
+| 商品上架 activate | 上架仅本地状态（平台只公开 `/product/deactivate`） | 平台上架端点（若官方提供） |
 | 价格同步 | pending `price_change` | 平台改价 API |
 | 评论官方回复 | `stub_queued`，未发往平台 | 评论回复 OpenAPI |
 | 售后平台工单闭环 | 站内售后流水 | 平台 reverse/refund API |

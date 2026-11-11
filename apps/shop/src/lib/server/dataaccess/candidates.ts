@@ -431,6 +431,41 @@ export async function acceptCandidate(
         })
         .where(eq(pendingActions.id, existing.pendingActionId))
     }
+
+    // 候选通过 → 自动生成刊登提交待审（mode=create；确认时创建本地刊登）。
+    const listingPendingKey = `listing_submit:candidate:${existing.id}`
+    const [listingPending] = await tx
+      .select({ id: pendingActions.id })
+      .from(pendingActions)
+      .where(
+        and(
+          eq(pendingActions.organizationId, organizationId),
+          eq(pendingActions.idempotencyKey, listingPendingKey),
+        ),
+      )
+      .limit(1)
+    if (!listingPending) {
+      await tx.insert(pendingActions).values({
+        id: createId(),
+        organizationId,
+        kind: 'listing_submit',
+        status: 'pending',
+        title: `刊登提交：${existing.title}`,
+        payload: {
+          mode: 'create',
+          source: 'candidate',
+          candidateId: existing.id,
+          productId,
+          title: existing.title,
+          categoryPath: existing.categoryHint?.trim() || '',
+          brandName: input.brand?.trim() || '',
+        },
+        idempotencyKey: listingPendingKey,
+        createdBy: actor,
+        expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        updatedAt: now,
+      })
+    }
   })
 
   const row = await getCandidate(db, organizationId, existing.id)

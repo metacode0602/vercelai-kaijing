@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import {
   listings,
   products,
@@ -7,9 +7,11 @@ import {
   type Listing,
 } from "@workspace/db"
 import type { DomainProduct } from "@workspace/marketplace"
+import { toLocalListingStatus } from "@workspace/marketplace"
 import { db } from "../db"
 import { createShopConnector } from "./connector"
 import { isOrderListingSyncPlatform } from "./app-env"
+import { mergeListingPayload, nextLiveAt } from "./listing-merge"
 import type { MarketplaceSyncShop } from "./sync"
 
 function envInt(name: string, fallback: number): number {
@@ -61,6 +63,58 @@ async function ensurePlatformProduct(input: {
   return id
 }
 
+/**
+ * 定位本地刊登：
+ * 1) 按 (shopId, externalItemId) 精确匹配；
+ * 2) 未命中时按 seller_sku_mappings.sellerSku 反查本地草稿并回填 externalItemId，
+ *    避免平台行与本地草稿各存一条「幽灵重复行」。
+ */
+async function findExistingListing(input: {
+  shop: MarketplaceSyncShop
+  product: DomainProduct
+}): Promise<typeof listings.$inferSelect | null> {
+  const { shop, product } = input
+  const [byExternal] = await db
+    .select()
+    .from(listings)
+    .where(
+      and(
+        eq(listings.shopId, shop.id),
+        eq(listings.externalItemId, product.externalId)
+      )
+    )
+    .limit(1)
+  if (byExternal) return byExternal
+
+  const sellerSkus = (product.skus ?? [])
+    .map((sku) => (sku.sellerSku ?? "").trim())
+    .filter(Boolean)
+  if (sellerSkus.length === 0) return null
+
+  const maps = await db
+    .select({
+      listingId: sellerSkuMappings.listingId,
+      variantId: sellerSkuMappings.variantId,
+    })
+    .from(sellerSkuMappings)
+    .where(
+      and(
+        eq(sellerSkuMappings.organizationId, shop.organizationId),
+        eq(sellerSkuMappings.shopId, shop.id),
+        inArray(sellerSkuMappings.sellerSku, sellerSkus)
+      )
+    )
+    .limit(10)
+  const listingId = maps.find((row) => row.listingId)?.listingId
+  if (!listingId) return null
+  const [byMapping] = await db
+    .select()
+    .from(listings)
+    .where(eq(listings.id, listingId))
+    .limit(1)
+  return byMapping ?? null
+}
+
 async function upsertListingFromProduct(
   shop: MarketplaceSyncShop,
   product: DomainProduct,
@@ -74,42 +128,45 @@ async function upsertListingFromProduct(
     now,
   })
 
-  const [existing] = await db
-    .select({ id: listings.id })
-    .from(listings)
-    .where(
-      and(
-        eq(listings.shopId, shop.id),
-        eq(listings.externalItemId, product.externalId)
-      )
-    )
-    .limit(1)
+  const existing = await findExistingListing({ shop, product })
 
   const primarySku = product.skus?.[0]
+  // 平台状态归一到本地值域（draft/pending_review/live/failed/offline），
+  // publishState 统一 published：能被拉到即平台侧存在。
   const values = {
     organizationId: shop.organizationId,
     shopId: shop.id,
     productId,
     marketplaceId: shop.platform,
-    status: product.status || "live",
+    status: toLocalListingStatus(product.status),
     title: product.title,
     listingTitle: product.title,
     externalItemId: product.externalId,
     priceAmount: primarySku?.priceAmount,
     priceCurrency: primarySku?.priceCurrency ?? shop.currency,
     stockOnHand: primarySku?.quantity ?? null,
-    publishState: "synced",
-    payload: product.raw ?? {},
-    liveAt: product.status === "live" ? now : null,
+    publishState: "published",
+    payload: mergeListingPayload({
+      existing: existing?.payload,
+      platformRaw: product.raw,
+      shop: { name: shop.name, platform: shop.platform, site: shop.region },
+    }),
+    liveAt: nextLiveAt({
+      platformStatus: product.status,
+      existingLiveAt: existing?.liveAt ?? null,
+      now,
+    }),
     updatedAt: now,
   }
 
   let listingId = existing?.id
+  let variantId = existing?.primaryVariantId ?? existing?.variantId ?? null
   if (!listingId) {
     listingId = nanoid()
     await db.insert(listings).values({
       id: listingId,
       ...values,
+      primaryVariantId: variantId,
       createdAt: now,
     })
   } else {
@@ -152,6 +209,7 @@ async function upsertListingFromProduct(
         meta: { externalSkuId: sku.externalSkuId },
       })
     } else {
+      if (!variantId && map.variantId) variantId = map.variantId
       await db
         .update(sellerSkuMappings)
         .set({
@@ -164,6 +222,18 @@ async function upsertListingFromProduct(
         })
         .where(eq(sellerSkuMappings.id, map.id))
     }
+  }
+
+  // 平台行补 primaryVariantId，让「商品与刊登」列表能聚合到本地 SKU。
+  if (variantId && (!existing?.primaryVariantId || !existing?.variantId)) {
+    await db
+      .update(listings)
+      .set({
+        primaryVariantId: existing?.primaryVariantId ?? variantId,
+        variantId: existing?.variantId ?? variantId,
+        updatedAt: now,
+      })
+      .where(eq(listings.id, listingId))
   }
 
   return { listingId, created: !existing }
