@@ -56,7 +56,7 @@ sequenceDiagram
 | `stats` | — | 待审核数、今日通过/驳回数（UTC 自然日）、国家选项 |
 | `get` | `id` | 详情 + 关联店铺 + 附件签名 URL |
 | `approve` / `reject` | `id, note` | 仅 `submitted` 可操作；驳回必须填写原因 |
-| `listConflicts` / `resolveConflict` | — | 跨租户店铺冲突处理（沿用） |
+| `listConflicts` / `upholdConflict` / `approveTransfer` / `reviewAppeal` | `conflictId`, `reason` | 读取冲突单；维持原绑定或批准转移（批准须填原因）；复审原租户申诉。旧 `resolveConflict` 改组织 ID 路径已停用 |
 | `tenants` / `disableTenant` | — | 租户列表与整体停用（沿用） |
 
 页面：`/crossborder/onboarding`（统计卡片 + 国家/状态筛选 + 搜索 + 分页）、`/crossborder/onboarding/[id]`（主体资料、法人/代理人材料、组织审核状态、关联店铺、审核记录、通过/驳回）。

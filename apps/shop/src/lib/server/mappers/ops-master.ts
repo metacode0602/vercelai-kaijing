@@ -64,6 +64,7 @@ export function toUiShopAuthStatus(status: string | null | undefined, authExpire
   if (s === 'connecting') return '连接中'
   if (s === 'error') return '授权失效'
   if (s === 'disabled') return '授权失效'
+  if (s === 'unbound') return '授权失效'
   if (s === 'draft') return '草稿'
   return '待授权'
 }

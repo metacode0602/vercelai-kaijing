@@ -5,12 +5,18 @@ import {
   getOnboardingReview,
   getOnboardingReviewStats,
   listOnboardingReviews,
-  listShopConflicts,
   listTenants,
   rejectOnboarding,
-  resolveShopConflict,
 } from '@/lib/server/dataaccess/onboarding-review'
+import {
+  approveShopBindingTransfer,
+  listShopBindingConflicts,
+  resolveShopConflictLegacyRejected,
+  reviewShopBindingAppeal,
+  upholdShopBindingConflict,
+} from '@workspace/db'
 import { sendEmail } from '@/lib/mail'
+import { db } from '@/lib/db'
 import { createTRPCRouter, protectedProcedure } from './trpc'
 
 async function notifyReviewByEmail(input: {
@@ -88,7 +94,7 @@ export const platformOnboardingRouter = createTRPCRouter({
       })
       return result
     }),
-  listConflicts: protectedProcedure.query(() => listShopConflicts()),
+  listConflicts: protectedProcedure.query(() => listShopBindingConflicts(db)),
   resolveConflict: protectedProcedure
     .input(
       z.object({
@@ -97,14 +103,52 @@ export const platformOnboardingRouter = createTRPCRouter({
         targetOrganizationId: z.string().optional(),
       }),
     )
+    .mutation(() => resolveShopConflictLegacyRejected()),
+  upholdConflict: protectedProcedure
+    .input(
+      z.object({
+        conflictId: z.string().min(1),
+        reason: z.string().max(1000).optional(),
+      }),
+    )
     .mutation(({ ctx, input }) =>
-      resolveShopConflict({
-        shopId: input.shopId,
-        action: input.action,
-        targetOrganizationId: input.targetOrganizationId,
+      upholdShopBindingConflict(db, {
+        conflictId: input.conflictId,
         reviewerId: ctx.user.id,
+        reason: input.reason,
       }),
     ),
+  approveTransfer: protectedProcedure
+    .input(
+      z.object({
+        conflictId: z.string().min(1),
+        reason: z.string().min(1).max(1000),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      approveShopBindingTransfer(db, {
+        conflictId: input.conflictId,
+        reviewerId: ctx.user.id,
+        reason: input.reason,
+      }),
+    ),
+  reviewAppeal: protectedProcedure
+    .input(
+      z.object({
+        conflictId: z.string().min(1),
+        decision: z.enum(['accept', 'reject']),
+        reason: z.string().min(1).max(1000),
+      }),
+    )
+    .mutation(({ ctx, input }) =>
+      reviewShopBindingAppeal(db, {
+        conflictId: input.conflictId,
+        reviewerId: ctx.user.id,
+        decision: input.decision,
+        reason: input.reason,
+      }),
+    ),
+
   tenants: protectedProcedure
     .input(listInput.omit({ status: true }))
     .query(({ input }) => listTenants(input)),

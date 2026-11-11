@@ -4,9 +4,7 @@ import {
   desc,
   eq,
   ilike,
-  isNotNull,
   isNull,
-  ne,
   or,
   sql,
   type SQL,
@@ -14,7 +12,6 @@ import {
 import {
   auditEvents,
   consoleNotifications,
-  integrationCredentials,
   integrationStates,
   organization,
   shops,
@@ -312,160 +309,6 @@ export function rejectOnboarding(input: {
   note: string
 }) {
   return reviewApplication({ ...input, approve: false })
-}
-
-export async function listShopConflicts() {
-  const candidates = await db
-    .select({
-      shop: shops,
-      organizationName: organization.name,
-    })
-    .from(shops)
-    .innerJoin(organization, eq(organization.id, shops.organizationId))
-    .where(
-      and(
-        eq(shops.status, 'error'),
-        isNotNull(shops.externalShopId),
-        isNull(shops.deletedAt),
-      ),
-    )
-    .orderBy(desc(shops.updatedAt))
-    .limit(100)
-
-  const result = []
-  for (const candidate of candidates) {
-    const [other] = await db
-      .select({
-        shopId: shops.id,
-        organizationId: shops.organizationId,
-        organizationName: organization.name,
-      })
-      .from(shops)
-      .innerJoin(organization, eq(organization.id, shops.organizationId))
-      .where(
-        and(
-          eq(shops.platform, candidate.shop.platform),
-          eq(shops.externalShopId, candidate.shop.externalShopId!),
-          ne(shops.organizationId, candidate.shop.organizationId),
-          isNull(shops.deletedAt),
-        ),
-      )
-      .limit(1)
-    if (other) {
-      result.push({
-        shopId: candidate.shop.id,
-        shopName: candidate.shop.name,
-        platform: candidate.shop.platform,
-        externalShopId: candidate.shop.externalShopId,
-        organizationId: candidate.shop.organizationId,
-        organizationName: candidate.organizationName,
-        otherShopId: other.shopId,
-        otherOrganizationId: other.organizationId,
-        otherOrganizationName: other.organizationName,
-        lastError:
-          candidate.shop.meta && typeof candidate.shop.meta === 'object'
-            ? ((candidate.shop.meta as Record<string, unknown>).lastError as
-                | string
-                | undefined) ?? null
-            : null,
-      })
-    }
-  }
-  return result
-}
-
-export async function resolveShopConflict(input: {
-  shopId: string
-  action: 'disable' | 'reassign'
-  targetOrganizationId?: string
-  reviewerId: string
-}) {
-  return db.transaction(async (tx) => {
-    const [shop] = await tx
-      .select()
-      .from(shops)
-      .where(and(eq(shops.id, input.shopId), isNull(shops.deletedAt)))
-      .limit(1)
-    if (!shop) throw new Error('店铺不存在')
-
-    if (input.action === 'disable') {
-      await tx
-        .update(shops)
-        .set({
-          status: 'disabled',
-          deletedAt: new Date(),
-          meta: {
-            ...(shop.meta ?? {}),
-            syncPaused: true,
-            conflictResolvedBy: input.reviewerId,
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(shops.id, shop.id))
-    } else {
-      const target = input.targetOrganizationId?.trim()
-      if (!target) throw new Error('请选择目标租户')
-      const [org] = await tx
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, target))
-        .limit(1)
-      if (!org) throw new Error('目标租户不存在')
-      const [duplicate] = await tx
-        .select({ id: shops.id })
-        .from(shops)
-        .where(
-          and(
-            eq(shops.organizationId, target),
-            eq(shops.platform, shop.platform),
-            eq(shops.externalShopId, shop.externalShopId!),
-            isNull(shops.deletedAt),
-          ),
-        )
-        .limit(1)
-      if (duplicate) throw new Error('目标租户已存在相同平台店铺')
-
-      await tx
-        .update(shops)
-        .set({
-          organizationId: target,
-          status: 'draft',
-          meta: {
-            ...(shop.meta ?? {}),
-            syncPaused: true,
-            lastError: '平台运营已重新分配店铺，请重新授权',
-            conflictResolvedBy: input.reviewerId,
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(shops.id, shop.id))
-      await tx
-        .update(integrationCredentials)
-        .set({ organizationId: target })
-        .where(eq(integrationCredentials.shopId, shop.id))
-    }
-
-    await tx.insert(auditEvents).values({
-      organizationId: input.action === 'reassign' && input.targetOrganizationId
-        ? input.targetOrganizationId
-        : shop.organizationId,
-      actorUserId: input.reviewerId,
-      action: `shop.conflict.${input.action}`,
-      entityType: 'shop',
-      entityId: shop.id,
-      before: {
-        organizationId: shop.organizationId,
-        status: shop.status,
-      },
-      after: {
-        organizationId:
-          input.action === 'reassign' ? input.targetOrganizationId : shop.organizationId,
-        status: input.action === 'reassign' ? 'draft' : 'disabled',
-      },
-      result: 'success',
-    })
-    return { ok: true as const }
-  })
 }
 
 export async function disableTenant(input: {
