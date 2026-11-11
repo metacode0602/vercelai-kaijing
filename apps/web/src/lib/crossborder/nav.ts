@@ -4,6 +4,7 @@ export const CROSSBORDER_NAV = [
   { href: '/console/onboarding', label: '入驻审核' },
   { href: '/console/shops', label: '店铺' },
   { href: '/console/users', label: '用户' },
+  { href: '/console/invitations', label: '邀请' },
   { href: '/console/shop-conflicts', label: '店铺冲突' },
   { href: '/console/auth-exceptions', label: '授权异常' },
   { href: '/console/sync-health', label: '同步健康' },

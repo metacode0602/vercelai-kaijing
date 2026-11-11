@@ -5,6 +5,7 @@ import { platformOpsRouter } from './platformOps'
 import { platformBasicsRouter } from './platformBasics'
 import { platformShopsRouter } from './platformShops'
 import { platformUsersRouter } from './platformUsers'
+import { platformInvitationsRouter } from './platformInvitations'
 import { siteMessagesRouter } from './site-messages'
 
 export * from './trpc'
@@ -17,6 +18,7 @@ export const appRouter = router({
   platformBasics: platformBasicsRouter,
   platformShops: platformShopsRouter,
   platformUsers: platformUsersRouter,
+  platformInvitations: platformInvitationsRouter,
   siteMessages: siteMessagesRouter,
 })
 

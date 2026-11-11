@@ -17,6 +17,8 @@ describe('console and settings navigation', () => {
     assert.ok(settingsUrls.includes('/settings/audit-logs'))
     assert.ok(settingsUrls.includes('/settings/announcements'))
     assert.ok(settingsUrls.includes('/settings/roles'))
+    assert.ok(consoleUrls.includes('/console/invitations'))
+    assert.ok(!settingsUrls.includes('/console/invitations'))
   })
 
   it('activates list nav items for detail routes', () => {

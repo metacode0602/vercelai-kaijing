@@ -3,6 +3,7 @@ import { webMember, webOrganization, webUser } from '@workspace/db'
 import { eq, type SQL } from 'drizzle-orm'
 import type { BetterAuthPlugin } from 'better-auth'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { hasPendingPlatformInvitationByPhone } from '@/lib/server/dataaccess/platform-invitations'
 import { webAuthDb } from '@/lib/db'
 
 /**
@@ -74,7 +75,7 @@ function signUpClosedMessage(headers?: Headers): string {
  * apps/web 登录门禁插件（better-auth plugin hooks.before）：
  * - 关闭注册（/sign-up/* 全部 403）
  * - /sign-in/email：仅平台管理员可登录
- * - /phone-number/send-otp：仅平台管理员可取手机验证码
+ * - /phone-number/send-otp：平台管理员，或持有未过期 pending 平台邀请的手机号，可取验证码
  * 受保护页面与 tRPC 另有会话级校验（layout / protectedProcedure），此处是第一道闸。
  */
 export const platformAdminGate: BetterAuthPlugin = {
@@ -104,7 +105,11 @@ export const platformAdminGate: BetterAuthPlugin = {
             typeof ctx.body?.phoneNumber === 'string'
               ? ctx.body.phoneNumber.trim()
               : ''
-          if (!phoneNumber || !(await isPlatformAdminByPhone(phoneNumber))) {
+          const allowed =
+            Boolean(phoneNumber) &&
+            ((await isPlatformAdminByPhone(phoneNumber)) ||
+              (await hasPendingPlatformInvitationByPhone(phoneNumber)))
+          if (!allowed) {
             throw new APIError('FORBIDDEN', { message: gateMessage(ctx.headers ?? undefined) })
           }
         }),
