@@ -63,6 +63,9 @@
     "./platform-basics": {
       "default": "./src/platform-basics.ts"
     },
+    "./platform-catalogs": {
+      "default": "./src/platform-catalogs.ts"
+    },
     "./merchant-purchase-price-sync": {
       "default": "./src/merchant-purchase-price-sync.ts"
     }

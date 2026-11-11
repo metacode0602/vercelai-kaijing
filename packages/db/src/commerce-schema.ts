@@ -13,6 +13,7 @@ import { sql } from "drizzle-orm"
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -2279,6 +2280,110 @@ export const commercePlatformBasics = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// platform_*_catalog — 平台运营维护的全局目录（无 organization_id）
+// 审核通过时只拷贝 status=active 的行到租户副本；不要与 platform_categories
+//（店铺平台类目缓存）混用。
+// ---------------------------------------------------------------------------
+
+export const platformCatalogStatuses = ["active", "inactive"] as const
+export type PlatformCatalogStatus = (typeof platformCatalogStatuses)[number]
+
+export const platformDictionariesCatalog = pgTable(
+  "platform_dictionaries_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    key: varchar("key", { length: 64 }).notNull(),
+    label: text("label").notNull(),
+    description: text("description").notNull().default(""),
+    values: jsonb("values").$type<string[]>().notNull().default([]),
+    valueTitles: jsonb("value_titles").$type<Record<string, string>>().notNull().default({}),
+    inactiveValues: jsonb("inactive_values").$type<string[]>().notNull().default([]),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_dictionaries_catalog_key_uidx").on(t.key),
+    index("platform_dictionaries_catalog_status_idx").on(t.status),
+    check("platform_dictionaries_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+export const platformCategoryTreesCatalog = pgTable(
+  "platform_category_trees_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    parentId: text("parent_id"),
+    sort: integer("sort").notNull().default(10),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_category_trees_catalog_code_uidx").on(t.code),
+    index("platform_category_trees_catalog_parent_idx").on(t.parentId),
+    index("platform_category_trees_catalog_status_idx").on(t.status),
+    check("platform_category_trees_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+    foreignKey({
+      columns: [t.parentId],
+      foreignColumns: [t.id],
+      name: "platform_category_trees_catalog_parent_id_fk",
+    }).onDelete("restrict"),
+  ],
+)
+
+export const platformCarriersCatalog = pgTable(
+  "platform_carriers_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    type: varchar("type", { length: 32 }).notNull().default("platform"),
+    coverage: text("coverage").notNull().default(""),
+    note: text("note").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_carriers_catalog_code_uidx").on(t.code),
+    index("platform_carriers_catalog_status_idx").on(t.status),
+    check("platform_carriers_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+export const platformImportTemplatesCatalog = pgTable(
+  "platform_import_templates_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    kind: varchar("kind", { length: 64 }).notNull(),
+    version: varchar("version", { length: 32 }).notNull().default("v1"),
+    fields: text("fields").notNull().default(""),
+    duplicateStrategy: text("duplicate_strategy").notNull().default(""),
+    rollbackStrategy: text("rollback_strategy").notNull().default(""),
+    note: text("note").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_import_templates_catalog_kind_version_uidx").on(t.kind, t.version),
+    index("platform_import_templates_catalog_status_idx").on(t.status),
+    check("platform_import_templates_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // fx_rates — ADD（F33；platform + ccy + effective date + source）
 // ---------------------------------------------------------------------------
 
@@ -2512,6 +2617,8 @@ export const commerceCarriers = pgTable(
     phone: text("phone").notNull().default(""),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     note: text("note").notNull().default(""),
+    /** 平台承运商名称目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformCarriersCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2540,6 +2647,8 @@ export const commerceCategories = pgTable(
     note: text("note").notNull().default(""),
     coverImage: text("cover_image"),
     screenshots: jsonb("screenshots").$type<string[]>().default([]),
+    /** 平台内部品类树目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformCategoryTreesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2565,6 +2674,8 @@ export const commerceDictionaries = pgTable(
     /** value -> 中文标题；值用于存储，标题用于界面展示 */
     valueTitles: jsonb("value_titles").$type<Record<string, string>>().notNull().default({}),
     inactiveValues: jsonb("inactive_values").$type<string[]>().notNull().default([]),
+    /** 平台字典目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformDictionariesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2591,6 +2702,8 @@ export const commerceImportTemplates = pgTable(
     rollbackStrategy: text("rollback_strategy").notNull().default(""),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     note: text("note").notNull().default(""),
+    /** 平台导入模板目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformImportTemplatesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -3318,7 +3431,7 @@ export const organizationSettings = pgTable(
       onDelete: "set null",
     }),
     timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
-    displayCurrency: varchar("display_currency", { length: 16 }).notNull().default("USD"),
+    displayCurrency: varchar("display_currency", { length: 16 }).notNull().default("CNY"),
     tableDensity: varchar("table_density", { length: 16 }).notNull().default("comfortable"),
     dingtalkEnabled: boolean("dingtalk_enabled").notNull().default(false),
     dingtalkWebhookEncrypted: text("dingtalk_webhook_encrypted"),
@@ -3864,6 +3977,10 @@ export type AuditEvent = typeof auditEvents.$inferSelect
 export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
 export type PlatformBasicsCatalogRow = typeof platformBasicsCatalog.$inferSelect
+export type PlatformDictionariesCatalogRow = typeof platformDictionariesCatalog.$inferSelect
+export type PlatformCategoryTreesCatalogRow = typeof platformCategoryTreesCatalog.$inferSelect
+export type PlatformCarriersCatalogRow = typeof platformCarriersCatalog.$inferSelect
+export type PlatformImportTemplatesCatalogRow = typeof platformImportTemplatesCatalog.$inferSelect
 export type CommercePlatformBasicRow = typeof commercePlatformBasics.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect

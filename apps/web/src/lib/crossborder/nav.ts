@@ -10,4 +10,6 @@ export const CROSSBORDER_NAV = [
   { href: '/console/sync-health', label: '同步健康' },
   { href: '/console/pending-actions', label: '待审动作' },
   { href: '/console/platform-basics', label: '基础资料' },
+  { href: '/console/dictionaries', label: '字典目录' },
+  { href: '/console/categories', label: '内部品类' },
 ] as const

@@ -64,6 +64,13 @@
       "when": 1794410400000,
       "tag": "0008_shop_binding_conflicts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794414000000,
+      "tag": "0009_platform_catalogs",
+      "breakpoints": true
     }
   ]
 }

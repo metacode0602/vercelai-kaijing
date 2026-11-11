@@ -175,8 +175,8 @@ describe('platform-basics-rules', () => {
     const countries = DEFAULT_PLATFORM_BASICS.filter((item) => item.kind === 'country')
     const currencies = DEFAULT_PLATFORM_BASICS.filter((item) => item.kind === 'currency')
     assert.equal(platforms.length, 4)
-    assert.equal(countries.length, 7)
-    assert.equal(currencies.length, 7)
+    assert.equal(countries.length, 12)
+    assert.equal(currencies.length, 13)
 
     const currencyCodes = new Set(currencies.map((item) => item.code))
     for (const country of countries) {
@@ -195,6 +195,21 @@ describe('platform-basics-rules', () => {
       assert.match(platform.code, /^[a-z][a-z0-9_]*$/)
       assert.ok(platform.countries.every((code) => /^[A-Z]{2}$/.test(code)))
     }
+    const byCode = Object.fromEntries(DEFAULT_PLATFORM_BASICS.map((item) => [`${item.kind}:${item.code}`, item]))
+    assert.equal(byCode["currency:USD"]?.status, "active")
+    assert.equal(byCode["currency:IDR"]?.status, "active")
+    assert.equal(byCode["country:ID"]?.status, "active")
+    assert.deepEqual(byCode["platform:lazada"]?.countries, ["MY", "PH", "SG", "TH", "VN", "ID"])
+    for (const code of ["PK", "BD", "NP", "MM"]) {
+      assert.equal(byCode[`country:${code}`]?.status, "inactive")
+    }
+    for (const code of ["PKR", "BDT", "NPR", "MMK"]) {
+      assert.equal(byCode[`currency:${code}`]?.status, "inactive")
+    }
+    const shopee = byCode["platform:shopee"]
+    const tiktok = byCode["platform:tiktok_shop"]
+    assert.equal(shopee?.status, "inactive")
+    assert.equal(tiktok?.status, "inactive")
     assert.equal(platformBasicKindLabels.platform, '平台')
   })
 })

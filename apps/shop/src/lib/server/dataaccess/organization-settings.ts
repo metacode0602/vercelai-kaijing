@@ -36,7 +36,7 @@ const DEFAULT_PREFERENCES: OrganizationPreferencesDto = {
   defaultShopId: null,
   defaultShopName: null,
   timezone: 'Asia/Shanghai',
-  displayCurrency: 'USD',
+  displayCurrency: 'CNY',
   tableDensity: 'comfortable',
   tableDensityLabel: TABLE_DENSITY_LABELS.comfortable,
 }

@@ -4,6 +4,7 @@ import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 
 export default function CarriersPage() {
   const utils = trpc.useUtils()
@@ -12,6 +13,14 @@ export default function CarriersPage() {
   const rows = listQuery.data?.items ?? []
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const initFromCatalog = trpc.carriers.initFromCatalog.useMutation({
+    onSuccess: async (result) => {
+      setNotice(result.inserted > 0 ? `已从平台目录补齐 ${result.inserted} 个承运商名称（只补缺失，不含联系人与报价）。` : '承运商已齐全，无需补齐。')
+      await utils.carriers.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
   const createMutation = trpc.carriers.create.useMutation({
     onSuccess: async () => {
       setOpen(false)
@@ -77,8 +86,13 @@ export default function CarriersPage() {
           },
         ]}
       >
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" disabled={initFromCatalog.isPending} onClick={() => initFromCatalog.mutate()}>
+            {initFromCatalog.isPending ? '补齐中…' : '从平台目录补齐'}
+          </Button>
+        </div>
         <UedPrototypeNotice>
-          运价卡可关联承运商；实时报价接口暂未接入。
+          运价卡可关联承运商；实时报价接口暂未接入。可从平台目录补齐 LGS / Daraz Express 名称模板，不含联系人与报价。
         </UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>

@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
 import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
 import { trpc } from '@/lib/trpc/client'
 
 export default function ImportTemplatesPage() {
@@ -11,6 +12,14 @@ export default function ImportTemplatesPage() {
   const rows = listQuery.data?.items ?? []
   const [open, setOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
+  const initFromCatalog = trpc.importTemplates.initFromCatalog.useMutation({
+    onSuccess: async (result) => {
+      setNotice(result.inserted > 0 ? `已从平台目录补齐 ${result.inserted} 条导入模板（只补缺失，不含数据行）。` : '导入模板已齐全，无需补齐。')
+      await utils.importTemplates.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
   const createMutation = trpc.importTemplates.create.useMutation({
     onSuccess: async () => {
       setOpen(false)
@@ -77,7 +86,12 @@ export default function ImportTemplatesPage() {
           { key: 'updatedAt', label: '更新时间' },
         ]}
       >
-        <UedPrototypeNotice>模板配置已保存；导入执行与回滚暂未开放。</UedPrototypeNotice>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" disabled={initFromCatalog.isPending} onClick={() => initFromCatalog.mutate()}>
+            {initFromCatalog.isPending ? '补齐中…' : '从平台目录补齐'}
+          </Button>
+        </div>
+        <UedPrototypeNotice>模板配置已保存；导入执行与回滚暂未开放。可从平台目录补齐商品 / SKU 字段说明，不含数据行。</UedPrototypeNotice>
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </UedWorkspace>
     </>

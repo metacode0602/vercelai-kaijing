@@ -18,7 +18,7 @@ import {
   tenantOnboardingApplications,
   type OnboardingStatus,
 } from '@workspace/db'
-import { initializePlatformBasicsForOrganization } from '@workspace/db/platform-basics'
+import { initializeOrganizationCatalogs } from '@workspace/db/platform-catalogs'
 import { db } from '@/lib/db'
 import { pageValues } from '@/lib/server/dataaccess/pagination'
 import { resolveActorNames } from '@/lib/server/dataaccess/platform-details'
@@ -236,9 +236,16 @@ async function reviewApplication(input: {
       )
       .where(eq(organization.id, application.organizationId))
 
-    const platformBasics = input.approve
-      ? await initializePlatformBasicsForOrganization(tx, application.organizationId)
-      : { inserted: 0 }
+    const catalogs = input.approve
+      ? await initializeOrganizationCatalogs(tx, application.organizationId)
+      : {
+          platformBasics: 0,
+          dictionaries: 0,
+          categories: 0,
+          carriers: 0,
+          importTemplates: 0,
+          organizationSettings: 0,
+        }
 
     await tx.insert(auditEvents).values({
       organizationId: application.organizationId,
@@ -251,7 +258,12 @@ async function reviewApplication(input: {
         status: nextStatus,
         version: application.version,
         reviewNote: input.note?.trim() || null,
-        platformBasicsInitialized: platformBasics.inserted,
+        platformBasicsInitialized: catalogs.platformBasics,
+        dictionariesInitialized: catalogs.dictionaries,
+        categoriesInitialized: catalogs.categories,
+        carriersInitialized: catalogs.carriers,
+        importTemplatesInitialized: catalogs.importTemplates,
+        organizationSettingsInitialized: catalogs.organizationSettings,
       },
       result: 'success',
     })

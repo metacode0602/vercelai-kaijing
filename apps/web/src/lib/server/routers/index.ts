@@ -3,6 +3,8 @@ import { apiKeysRouter } from './apiKeys'
 import { platformOnboardingRouter } from './platformOnboarding'
 import { platformOpsRouter } from './platformOps'
 import { platformBasicsRouter } from './platformBasics'
+import { platformDictionariesRouter } from './platformDictionaries'
+import { platformCategoriesRouter } from './platformCategories'
 import { platformShopsRouter } from './platformShops'
 import { platformUsersRouter } from './platformUsers'
 import { platformInvitationsRouter } from './platformInvitations'
@@ -16,6 +18,8 @@ export const appRouter = router({
   platformOnboarding: platformOnboardingRouter,
   platformOps: platformOpsRouter,
   platformBasics: platformBasicsRouter,
+  platformDictionaries: platformDictionariesRouter,
+  platformCategories: platformCategoriesRouter,
   platformShops: platformShopsRouter,
   platformUsers: platformUsersRouter,
   platformInvitations: platformInvitationsRouter,

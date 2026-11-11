@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { initializeCategoryTreeForOrganization } from '@workspace/db/platform-catalogs'
 import * as categoriesDa from '@/lib/server/dataaccess/categories'
 import { UI_ACTIVE_STATUSES } from '@/lib/server/mappers/ops-master'
 
@@ -53,4 +54,7 @@ export const categoriesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => wrap(() => categoriesDa.updateCategory(ctx.db, ctx.organizationId, input))),
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeCategoryTreeForOrganization(ctx.db, ctx.organizationId)),
+  ),
 })
