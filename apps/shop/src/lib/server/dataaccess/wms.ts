@@ -56,6 +56,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
 import { recomputeStockAlerts } from '@/lib/server/dataaccess/stock-alerts'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
@@ -711,19 +712,24 @@ export async function createWarehouse(
       .limit(1)
     if (dup) throw new Error(`仓库编码 ${code} 已存在`)
     const id = createId()
-    await tx.insert(commerceWarehouses).values({
-      id,
-      organizationId,
-      code,
-      name: input.name.trim(),
-      type: toDbWarehouseType(input.type || '自营仓'),
-      country: (input.country || 'CN').trim(),
-      timezone: input.timezone || 'Asia/Shanghai',
-      operatingCurrency: (input.currency || 'CNY').trim().toUpperCase(),
-      address: input.address?.trim() || null,
-      note: input.note?.trim() || null,
-      status: 'active',
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(commerceWarehouses).values({
+          id,
+          organizationId,
+          code,
+          name: input.name.trim(),
+          type: toDbWarehouseType(input.type || '自营仓'),
+          country: (input.country || 'CN').trim(),
+          timezone: input.timezone || 'Asia/Shanghai',
+          operatingCurrency: (input.currency || 'CNY').trim().toUpperCase(),
+          address: input.address?.trim() || null,
+          note: input.note?.trim() || null,
+          status: 'active',
+        }),
+      { commerce_warehouses_org_code_uidx: `仓库编码 ${code} 已存在` },
+      `仓库编码 ${code} 已存在`,
+    )
     return (await getWarehouse(tx, organizationId, id))!
   })
 }
@@ -856,18 +862,23 @@ export async function createBin(
       : null
     const boundSku = variant?.skuCode || null
     const id = createId()
-    await tx.insert(commerceBins).values({
-      id,
-      organizationId,
-      warehouseId: wh.id,
-      warehouseCode: wh.code,
-      zoneCode: input.zoneCode?.trim() || null,
-      code,
-      name: input.name?.trim() || code,
-      boundSku,
-      status: boundSku ? 'occupied' : 'empty',
-      note: input.note?.trim() || null,
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(commerceBins).values({
+          id,
+          organizationId,
+          warehouseId: wh.id,
+          warehouseCode: wh.code,
+          zoneCode: input.zoneCode?.trim() || null,
+          code,
+          name: input.name?.trim() || code,
+          boundSku,
+          status: boundSku ? 'occupied' : 'empty',
+          note: input.note?.trim() || null,
+        }),
+      { commerce_bins_wh_code_uidx: `库位 ${code} 已存在` },
+      `库位 ${code} 已存在`,
+    )
     if (variant) {
       await bindSkuToBin(tx, {
         organizationId,
@@ -2417,16 +2428,21 @@ export async function createZone(
       .limit(1)
     if (dup) throw new Error(`仓库 ${warehouseCode} 下已有库区 ${code}`)
     const id = createId()
-    await tx.insert(commerceWarehouseZones).values({
-      id,
-      organizationId,
-      warehouseId: wh.id,
-      code,
-      name: input.name?.trim() || `${code} 区`,
-      purpose: input.purpose?.trim() || null,
-      status: toDbZoneStatus(input.status),
-      note: input.note?.trim() || null,
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(commerceWarehouseZones).values({
+          id,
+          organizationId,
+          warehouseId: wh.id,
+          code,
+          name: input.name?.trim() || `${code} 区`,
+          purpose: input.purpose?.trim() || null,
+          status: toDbZoneStatus(input.status),
+          note: input.note?.trim() || null,
+        }),
+      { commerce_warehouse_zones_wh_code_uidx: `仓库 ${warehouseCode} 下已有库区 ${code}` },
+      `仓库 ${warehouseCode} 下已有库区 ${code}`,
+    )
     const row = await getZone(tx, organizationId, id)
     if (!row) throw new Error('库区创建失败')
     return row

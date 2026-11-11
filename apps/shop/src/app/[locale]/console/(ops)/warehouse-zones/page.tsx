@@ -63,15 +63,13 @@ export default function WarehouseZonesPage() {
           warehouses.find((item) => `${item.name} (${item.code})` === values.warehouse) ||
           warehouses[0]
         if (!warehouse) {
-          setNotice('请先创建启用仓库')
-          return
+          throw new Error('请先创建启用仓库')
         }
         const code = (values.code || '').trim().toUpperCase()
         if (!code) {
-          setNotice('库区编码必填')
-          return
+          throw new Error('库区编码必填')
         }
-        createZone.mutate({
+        return createZone.mutateAsync({
           warehouseCode: warehouse.code,
           code,
           name: values.name || `${code} 区`,

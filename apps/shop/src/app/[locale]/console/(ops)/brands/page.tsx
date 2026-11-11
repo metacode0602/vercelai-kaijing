@@ -89,7 +89,7 @@ export default function BrandsPage() {
         setCreateCover({ images: [] })
       }}
       onSave={(values) => {
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           name: values.name ?? '',
           code: values.code || undefined,
           status: values.status === '停用' ? '停用' : '启用',
@@ -126,7 +126,7 @@ export default function BrandsPage() {
       ]}
       onClose={() => setEdit(null)}
       onSave={(values) => {
-        updateMutation.mutate({
+        return updateMutation.mutateAsync({
           id: edit.id,
           name: values.name || edit.name,
           status: values.status === '停用' ? '停用' : '启用',

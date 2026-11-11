@@ -82,7 +82,7 @@ export default function WarehousePage() {
           ]}
           onClose={() => setWhOpen(false)}
           onSave={(values) =>
-            createWh.mutate({
+            createWh.mutateAsync({
               code: values.code,
               name: values.name,
               type: values.type,

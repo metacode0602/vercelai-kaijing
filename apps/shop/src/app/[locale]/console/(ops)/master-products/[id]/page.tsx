@@ -521,7 +521,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             setCertFile(null)
           }}
           onSave={(values) =>
-            upsertCertMutation.mutate({
+            upsertCertMutation.mutateAsync({
               productId: current.id,
               variantId: values.variantId || null,
               certNumber: values.certNumber,
@@ -633,7 +633,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               setNotice('请选择已启用的品牌（或先到「品牌」主档新增）')
               return
             }
-            updateMutation.mutate({
+            return updateMutation.mutateAsync({
               spu: current.spu,
               name: values.name || current.name,
               brandId,
@@ -666,7 +666,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               defaultPack:
                 (typeof packChoices[0] === 'string' ? packChoices[0] : packChoices[0]?.value) || '单件',
             })
-            createVariantMutation.mutate({
+            return createVariantMutation.mutateAsync({
               spu: current.spu,
               ...parsed,
             })
@@ -731,10 +731,9 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             const sizes = parseUedMultiValue(values.sizes)
             const packs = parseUedMultiValue(values.packs)
             if (!colors.length || !sizes.length || !packs.length) {
-              setNotice('请至少选择一个颜色、尺码和包装规格')
-              return
+              throw new Error('请至少选择一个颜色、尺码和包装规格')
             }
-            batchCreateMutation.mutate({
+            return batchCreateMutation.mutateAsync({
               spu: current.spu,
               colors,
               sizes,
@@ -808,7 +807,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
           ]}
           onClose={() => setEditVariant(null)}
           onSave={(values) => {
-            updateVariantMutation.mutate({
+            return updateVariantMutation.mutateAsync({
               spu: current.spu,
               code: editVariant.code,
               color: values.color || editVariant.color,

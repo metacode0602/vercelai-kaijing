@@ -12,6 +12,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -197,15 +198,20 @@ export async function createInventoryPool(
       .limit(1)
     if (dup) throw new Error(`库存池编码 ${code} 已存在`)
     const id = createId()
-    await tx.insert(inventoryPools).values({
-      id,
-      organizationId,
-      code,
-      name,
-      warehouseId: warehouse.id,
-      status: toDbPoolStatus(input.status),
-      note: input.note?.trim() || null,
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(inventoryPools).values({
+          id,
+          organizationId,
+          code,
+          name,
+          warehouseId: warehouse.id,
+          status: toDbPoolStatus(input.status),
+          note: input.note?.trim() || null,
+        }),
+      { inventory_pools_org_code_uidx: `库存池编码 ${code} 已存在` },
+      `库存池编码 ${code} 已存在`,
+    )
     return (await getInventoryPool(tx, organizationId, id))!
   })
 }

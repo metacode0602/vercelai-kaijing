@@ -162,22 +162,18 @@ export default function MasterProductsPage() {
         const brandName = values.brand || brandOptions[0] || ''
         const brandId = brandIdByName[brandName]
         if (!brandId) {
-          setNotice('请先在「品牌」主档新增并启用品牌后再创建商品')
-          return
+          throw new Error('请先在「品牌」主档新增并启用品牌后再创建商品')
         }
         if (!categoryOptions.includes(values.category || '')) {
-          setNotice('请选择有效的多级分类')
-          return
+          throw new Error('请选择有效的多级分类')
         }
         if (!styleOptions.some((option) => option.value === (values.style || ''))) {
-          setNotice('请选择字典中的款式/版型（product_style）')
-          return
+          throw new Error('请选择字典中的款式/版型（product_style）')
         }
         if (!materialOptions.some((option) => option.value === (values.material || ''))) {
-          setNotice('请选择字典中的材质（product_material）')
-          return
+          throw new Error('请选择字典中的材质（product_material）')
         }
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           name: values.name || '新商品',
           brandId,
           brand: brandName,

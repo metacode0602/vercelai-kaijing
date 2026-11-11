@@ -19,6 +19,14 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
+
+function variantUniqueMessages(code: string) {
+  return {
+    product_variants_org_sku_uidx: `内部 SKU ${code} 已存在`,
+    product_variants_org_sku_code_uidx: `内部 SKU 编码 ${code} 已存在`,
+  }
+}
 
 export type ProductListItem = {
   id: string
@@ -351,23 +359,28 @@ export async function createProduct(
     const hsCode = normalizeHsCode(input.hsCode) || null
     await assertHsCompliance(tx, organizationId, { hsCode })
 
-    await tx.insert(products).values({
-      id,
-      organizationId,
-      spuCode,
-      title: input.name.trim(),
-      status: toDbStatus(input.status, 'draft'),
-      source: 'manual',
-      brand: resolved.brandName,
-      brandId: resolved.brandId,
-      categoryHint: input.category.trim(),
-      material: input.material.trim(),
-      style: input.style.trim(),
-      hsCode,
-      ownerUserId: ownerUserId ?? null,
-      images: imageRefs,
-      payload: { ownerName: input.owner.trim() },
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(products).values({
+          id,
+          organizationId,
+          spuCode,
+          title: input.name.trim(),
+          status: toDbStatus(input.status, 'draft'),
+          source: 'manual',
+          brand: resolved.brandName,
+          brandId: resolved.brandId,
+          categoryHint: input.category.trim(),
+          material: input.material.trim(),
+          style: input.style.trim(),
+          hsCode,
+          ownerUserId: ownerUserId ?? null,
+          images: imageRefs,
+          payload: { ownerName: input.owner.trim() },
+        }),
+      { products_org_spu_uidx: `SPU 编码 ${spuCode} 已存在，请重试` },
+      `SPU 编码 ${spuCode} 已存在，请重试`,
+    )
 
     const detail = await getProductBySpu(tx, organizationId, spuCode)
     if (!detail) throw new Error('创建 SPU 后读取失败')
@@ -519,28 +532,33 @@ export async function createVariant(
       })
     }
 
-    await tx.insert(productVariants).values({
-      id,
-      organizationId,
-      productId: product.id,
-      sku: code,
-      skuCode: code,
-      barcode: input.barcode?.trim() || null,
-      hsCode,
-      status: toDbStatus(input.status, 'draft'),
-      weightGrams: Math.round(Number(input.weight) || 0),
-      lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
-      widthMm: Math.round(Number(input.widthMm) || 0) || null,
-      heightMm: Math.round(Number(input.heightMm) || 0) || null,
-      attrs: {
-        color: input.color.trim(),
-        size: input.size.trim(),
-        pack: input.pack.trim(),
-        remark: input.remark?.trim() || undefined,
-        coverImage: input.coverImage,
-        images,
-      },
-    })
+    await withUniqueGuard(
+      () =>
+        tx.insert(productVariants).values({
+          id,
+          organizationId,
+          productId: product.id,
+          sku: code,
+          skuCode: code,
+          barcode: input.barcode?.trim() || null,
+          hsCode,
+          status: toDbStatus(input.status, 'draft'),
+          weightGrams: Math.round(Number(input.weight) || 0),
+          lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
+          widthMm: Math.round(Number(input.widthMm) || 0) || null,
+          heightMm: Math.round(Number(input.heightMm) || 0) || null,
+          attrs: {
+            color: input.color.trim(),
+            size: input.size.trim(),
+            pack: input.pack.trim(),
+            remark: input.remark?.trim() || undefined,
+            coverImage: input.coverImage,
+            images,
+          },
+        }),
+      variantUniqueMessages(code),
+      `内部 SKU ${code} 已存在`,
+    )
 
     const [row] = await tx
       .select()
@@ -624,26 +642,31 @@ export async function batchCreateVariants(
 
           const code = await nextVariantCode(tx, organizationId, product.id, product.spuCode)
           const id = createId()
-          await tx.insert(productVariants).values({
-            id,
-            organizationId,
-            productId: product.id,
-            sku: code,
-            skuCode: code,
-            barcode: input.barcode?.trim() || null,
-            hsCode,
-            status: toDbStatus(input.status, 'draft'),
-            weightGrams: Math.round(Number(input.weight) || 0),
-            lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
-            widthMm: Math.round(Number(input.widthMm) || 0) || null,
-            heightMm: Math.round(Number(input.heightMm) || 0) || null,
-            attrs: {
-              color,
-              size,
-              pack,
-              images: [],
-            },
-          })
+          await withUniqueGuard(
+            () =>
+              tx.insert(productVariants).values({
+                id,
+                organizationId,
+                productId: product.id,
+                sku: code,
+                skuCode: code,
+                barcode: input.barcode?.trim() || null,
+                hsCode,
+                status: toDbStatus(input.status, 'draft'),
+                weightGrams: Math.round(Number(input.weight) || 0),
+                lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
+                widthMm: Math.round(Number(input.widthMm) || 0) || null,
+                heightMm: Math.round(Number(input.heightMm) || 0) || null,
+                attrs: {
+                  color,
+                  size,
+                  pack,
+                  images: [],
+                },
+              }),
+            variantUniqueMessages(code),
+            `内部 SKU ${code} 已存在`,
+          )
 
           existingCombos.set(comboKey, code)
           const [row] = await tx

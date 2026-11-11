@@ -17,6 +17,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -43,23 +44,6 @@ async function nextBrandCode(db: DbLike, organizationId: string): Promise<string
     if (m) max = Math.max(max, Number(m[1]))
   }
   return `BRD-${String(max + 1).padStart(4, '0')}`
-}
-
-/** 将数据库唯一约束冲突转换为可读业务错误（并发写入兜底）。 */
-function uniqueBrandErrorMessage(
-  error: unknown,
-  values: { name: string; code: string },
-): string | null {
-  if (typeof error !== 'object' || error === null) return null
-  if ((error as { code?: unknown }).code !== '23505') return null
-  const constraint = (error as { constraint?: string }).constraint
-  if (constraint === 'commerce_brands_org_name_uidx') {
-    return `品牌名称 ${values.name} 已存在`
-  }
-  if (constraint === 'commerce_brands_org_code_uidx') {
-    return `品牌编码 ${values.code} 已存在`
-  }
-  return '品牌名称或编码已存在'
 }
 
 function mapRow(row: typeof commerceBrands.$inferSelect, productCount = 0): BrandDto {
@@ -203,23 +187,25 @@ export async function createBrand(
   const id = createId()
   const now = new Date()
   const coverImage = input.coverImage?.trim() || null
-  try {
-    await db.insert(commerceBrands).values({
-      id,
-      organizationId,
-      code,
-      name,
-      status: toDbActiveStatus(input.status),
-      note: input.note?.trim() || '',
-      coverImage,
-      createdAt: now,
-      updatedAt: now,
-    })
-  } catch (error) {
-    const message = uniqueBrandErrorMessage(error, { name, code })
-    if (message) throw new Error(message)
-    throw error
-  }
+  await withUniqueGuard(
+    () =>
+      db.insert(commerceBrands).values({
+        id,
+        organizationId,
+        code,
+        name,
+        status: toDbActiveStatus(input.status),
+        note: input.note?.trim() || '',
+        coverImage,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    {
+      commerce_brands_org_name_uidx: `品牌名称 ${name} 已存在`,
+      commerce_brands_org_code_uidx: `品牌编码 ${code} 已存在`,
+    },
+    '品牌名称或编码已存在',
+  )
   return getBrand(db as AppDatabase, organizationId, id)
 }
 
@@ -248,22 +234,24 @@ export async function updateBrand(
     input.coverImage === undefined
       ? existing.coverImage ?? null
       : input.coverImage?.trim() || null
-  try {
-    await db
-      .update(commerceBrands)
-      .set({
-        name: nextName,
-        status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
-        note: input.note ?? existing.note,
-        coverImage: nextCover,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.id, input.id)))
-  } catch (error) {
-    const message = uniqueBrandErrorMessage(error, { name: nextName, code: existing.code })
-    if (message) throw new Error(message)
-    throw error
-  }
+  await withUniqueGuard(
+    () =>
+      db
+        .update(commerceBrands)
+        .set({
+          name: nextName,
+          status: input.status != null ? toDbActiveStatus(input.status) : existing.dbStatus,
+          note: input.note ?? existing.note,
+          coverImage: nextCover,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(commerceBrands.organizationId, organizationId), eq(commerceBrands.id, input.id))),
+    {
+      commerce_brands_org_name_uidx: `品牌名称 ${nextName} 已存在`,
+      commerce_brands_org_code_uidx: `品牌编码 ${existing.code} 已存在`,
+    },
+    '品牌名称或编码已存在',
+  )
 
   // 同步兼容展示名
   if (input.name != null && nextName !== existing.name) {

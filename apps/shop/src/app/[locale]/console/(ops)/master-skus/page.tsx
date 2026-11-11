@@ -101,15 +101,13 @@ export default function MasterSkusPage() {
         const product =
           products.find((item) => `${item.spu} · ${item.name}` === values.spu) ?? products[0]
         if (!product) {
-          setOpen(false)
-          setNotice('请先创建 SPU 再生成 SKU。')
-          return
+          throw new Error('请先创建 SPU 再生成 SKU。')
         }
         const parsed = parseCreateInternalSkuValues(values, {
           defaultPack:
             (typeof packOptions[0] === 'string' ? packOptions[0] : packOptions[0]?.value) || '单件',
         })
-        createMutation.mutate({
+        return createMutation.mutateAsync({
           spu: product.spu,
           ...parsed,
         })

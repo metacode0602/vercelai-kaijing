@@ -14,7 +14,8 @@
     "test:crossborder": "tsx --test src/lib/crossborder/*.test.ts",
     "test:mappers": "tsx --test src/lib/server/mappers/*.test.ts",
     "test:settlements": "tsx 'src/app/[locale]/console/(ops)/settlements/_lib/settlement-import.test.ts'",
-    "test:marketplace": "tsx --test src/lib/marketplace/**/*.test.ts"
+    "test:marketplace": "tsx --test src/lib/marketplace/**/*.test.ts",
+    "test:errors": "tsx --test src/lib/server/errors/*.test.ts src/lib/trpc/error-message.test.ts"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.79.1",

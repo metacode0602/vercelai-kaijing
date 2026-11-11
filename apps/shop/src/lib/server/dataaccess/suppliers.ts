@@ -31,6 +31,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { withUniqueGuard } from '@/lib/server/errors/unique-constraint'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -297,18 +298,23 @@ export async function createSupplier(
     .limit(1)
   if (dup) throw new Error(`供应商编码 ${code} 已存在`)
   const id = createId()
-  await db.insert(commerceSuppliers).values({
-    id,
-    organizationId,
-    code,
-    name,
-    contact: input.contact?.trim() || '',
-    phone: input.phone?.trim() || '',
-    email: input.email?.trim() || '',
-    settlement: input.settlement?.trim() || '',
-    status: toDbSupplierStatus(input.status),
-    note: input.note?.trim() || null,
-  })
+  await withUniqueGuard(
+    () =>
+      db.insert(commerceSuppliers).values({
+        id,
+        organizationId,
+        code,
+        name,
+        contact: input.contact?.trim() || '',
+        phone: input.phone?.trim() || '',
+        email: input.email?.trim() || '',
+        settlement: input.settlement?.trim() || '',
+        status: toDbSupplierStatus(input.status),
+        note: input.note?.trim() || null,
+      }),
+    { commerce_suppliers_org_code_uidx: `供应商编码 ${code} 已存在` },
+    `供应商编码 ${code} 已存在`,
+  )
   const created = await getSupplier(db, organizationId, id)
   if (!created) throw new Error('创建供应商失败')
   return created
@@ -535,22 +541,27 @@ export async function createSupplierSku(
   const effective =
     input.effective?.trim() ||
     new Date().toISOString().slice(0, 10)
-  await db.insert(supplierSkus).values({
-    id,
-    organizationId,
-    supplierId,
-    variantId: variant.id,
-    skuCode: variant.skuCode,
-    factoryCode,
-    unitPrice: String(input.price ?? 0),
-    currency: (input.currency || 'CNY').toUpperCase().slice(0, 3),
-    moq: Math.max(1, Math.floor(input.moq ?? 1)),
-    leadDays: Math.max(0, Math.floor(input.leadDays ?? 0)),
-    effectiveFrom: effective,
-    preferred,
-    status: toDbSupplierSkuStatus(input.status),
-    remark: input.remark?.trim() || null,
-  })
+  await withUniqueGuard(
+    () =>
+      db.insert(supplierSkus).values({
+        id,
+        organizationId,
+        supplierId,
+        variantId: variant.id,
+        skuCode: variant.skuCode,
+        factoryCode,
+        unitPrice: String(input.price ?? 0),
+        currency: (input.currency || 'CNY').toUpperCase().slice(0, 3),
+        moq: Math.max(1, Math.floor(input.moq ?? 1)),
+        leadDays: Math.max(0, Math.floor(input.leadDays ?? 0)),
+        effectiveFrom: effective,
+        preferred,
+        status: toDbSupplierSkuStatus(input.status),
+        remark: input.remark?.trim() || null,
+      }),
+    { supplier_skus_org_sup_sku_factory_uidx: '同一供应商下该 SKU + 厂家款号已存在' },
+    '同一供应商下该 SKU + 厂家款号已存在',
+  )
   const created = await getSupplierSku(db, organizationId, id)
   if (!created) throw new Error('创建供应商货号失败')
   return created
@@ -577,21 +588,44 @@ export async function updateSupplierSku(
   if (input.preferred === true) {
     await clearPreferredForSku(db, organizationId, existing.sku, existing.id)
   }
-  await db
-    .update(supplierSkus)
-    .set({
-      factoryCode: input.factoryCode?.trim() || existing.factoryCode,
-      unitPrice: input.price != null ? String(input.price) : String(existing.price),
-      currency: input.currency?.toUpperCase().slice(0, 3) || existing.currency,
-      moq: input.moq != null ? Math.max(1, Math.floor(input.moq)) : existing.moq,
-      leadDays: input.leadDays != null ? Math.max(0, Math.floor(input.leadDays)) : existing.leadDays,
-      effectiveFrom: input.effective?.trim() || existing.effective,
-      preferred: input.preferred != null ? input.preferred : existing.preferred,
-      status: input.status != null ? toDbSupplierSkuStatus(input.status) : toDbSupplierSkuStatus(existing.status),
-      remark: input.remark !== undefined ? input.remark.trim() || null : existing.remark || null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(supplierSkus.organizationId, organizationId), eq(supplierSkus.id, existing.id)))
+  const nextFactory = input.factoryCode?.trim() || existing.factoryCode
+  if (!nextFactory) throw new Error('厂家款号不能为空')
+  if (nextFactory !== existing.factoryCode) {
+    const [dup] = await db
+      .select({ id: supplierSkus.id })
+      .from(supplierSkus)
+      .where(
+        and(
+          eq(supplierSkus.organizationId, organizationId),
+          eq(supplierSkus.supplierId, existing.supplierId),
+          eq(supplierSkus.skuCode, existing.sku),
+          eq(supplierSkus.factoryCode, nextFactory),
+          ne(supplierSkus.id, existing.id),
+        ),
+      )
+      .limit(1)
+    if (dup) throw new Error('同一供应商下该 SKU + 厂家款号已存在')
+  }
+  await withUniqueGuard(
+    () =>
+      db
+        .update(supplierSkus)
+        .set({
+          factoryCode: nextFactory,
+          unitPrice: input.price != null ? String(input.price) : String(existing.price),
+          currency: input.currency?.toUpperCase().slice(0, 3) || existing.currency,
+          moq: input.moq != null ? Math.max(1, Math.floor(input.moq)) : existing.moq,
+          leadDays: input.leadDays != null ? Math.max(0, Math.floor(input.leadDays)) : existing.leadDays,
+          effectiveFrom: input.effective?.trim() || existing.effective,
+          preferred: input.preferred != null ? input.preferred : existing.preferred,
+          status: input.status != null ? toDbSupplierSkuStatus(input.status) : toDbSupplierSkuStatus(existing.status),
+          remark: input.remark !== undefined ? input.remark.trim() || null : existing.remark || null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(supplierSkus.organizationId, organizationId), eq(supplierSkus.id, existing.id))),
+    { supplier_skus_org_sup_sku_factory_uidx: '同一供应商下该 SKU + 厂家款号已存在' },
+    '同一供应商下该 SKU + 厂家款号已存在',
+  )
   const updated = await getSupplierSku(db, organizationId, existing.id)
   if (!updated) throw new Error('更新供应商货号失败')
   return updated
