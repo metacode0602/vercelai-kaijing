@@ -3061,6 +3061,78 @@ export const hsTariffVersions = pgTable(
 
 
 // ---------------------------------------------------------------------------
+// pricing_suggestion_drafts — 定价建议草稿与历史（第二期）
+// 按 SKU + 平台 + 站点追加版本，不覆盖历史行；软归档，不硬删除。
+// 不写入 listings.price_amount / products.payload / product_variants.attrs。
+// @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §10 / §12.3
+// ---------------------------------------------------------------------------
+
+export const pricingSuggestionDraftStatuses = ["current", "superseded", "archived"] as const
+export type PricingSuggestionDraftStatus = (typeof pricingSuggestionDraftStatuses)[number]
+
+export const pricingSuggestionDraftSources = ["calculator", "listing_fill", "batch"] as const
+export type PricingSuggestionDraftSource = (typeof pricingSuggestionDraftSources)[number]
+
+export const pricingSuggestionDrafts = pgTable(
+  "pricing_suggestion_drafts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    /** 冗余 SKU 编码，便于列表展示 */
+    sku: varchar("sku", { length: 64 }).notNull(),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    /** 站点 / 目的国，如 LK */
+    site: varchar("site", { length: 8 }).notNull(),
+    versionNo: integer("version_no").notNull(),
+    /** current=当前有效；superseded=已被更新版本替代；archived=软归档 */
+    status: varchar("status", { length: 16 }).notNull().default("current"),
+    suggestedRetail: numeric("suggested_retail", { precision: 15, scale: 4 }).notNull(),
+    suggestedFreeShipping: numeric("suggested_free_shipping", { precision: 15, scale: 4 }),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    isEstimate: boolean("is_estimate").notNull().default(false),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull().default({}),
+    source: varchar("source", { length: 16 }).notNull(),
+    createdBy: text("created_by"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedBy: text("archived_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("pricing_suggestion_drafts_ver_uidx").on(
+      t.organizationId,
+      t.variantId,
+      t.platform,
+      t.site,
+      t.versionNo,
+    ),
+    index("pricing_suggestion_drafts_current_idx").on(
+      t.organizationId,
+      t.variantId,
+      t.platform,
+      t.site,
+      t.status,
+    ),
+    index("pricing_suggestion_drafts_org_idx").on(t.organizationId),
+    index("pricing_suggestion_drafts_sku_idx").on(t.organizationId, t.sku),
+    check(
+      "pricing_suggestion_drafts_status_check",
+      sql`${t.status} in ('current', 'superseded', 'archived')`,
+    ),
+    check(
+      "pricing_suggestion_drafts_source_check",
+      sql`${t.source} in ('calculator', 'listing_fill', 'batch')`,
+    ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // 域 D：采购申请 → PO → 分批到货 → 质检 → 入库上架（模块2）
 // 供应商主档见 commerce_suppliers / supplier_skus（模块12）；仓码仍可字符串存，WMS 有 commerce_warehouses。
 // ---------------------------------------------------------------------------

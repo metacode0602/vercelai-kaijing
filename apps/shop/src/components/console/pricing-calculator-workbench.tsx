@@ -118,6 +118,44 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
     },
     onError: (err) => toast.error(err.message),
   })
+  const [attachTemplateId, setAttachTemplateId] = React.useState("")
+  const historyQuery = trpc.pricing.listDraftHistory.useQuery(
+    { sku, platform, site: country, includeArchived: false },
+    { enabled: Boolean(sku) },
+  )
+  const saveDraftMutation = trpc.pricing.saveDraft.useMutation({
+    onSuccess: async () => {
+      toast.success("已保存为定价建议草稿，不会改刊登售价或发布到平台")
+      await historyQuery.refetch()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const archiveDraftsMutation = trpc.pricing.archiveDrafts.useMutation({
+    onSuccess: async () => {
+      toast.success("已归档该 SKU 在本站点的建议草稿（软删除，历史仍保留）")
+      await historyQuery.refetch()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const feeTemplatesQuery = trpc.feeTemplates.list.useQuery(
+    { page: 1, pageSize: 100, type: "platform_fee" },
+    { staleTime: 30_000 },
+  )
+  const addMatchRuleMutation = trpc.feeTemplates.addMatchRule.useMutation({
+    onSuccess: async () => {
+      toast.success("已添加匹配规则，正在重算")
+      setDrawerOpen(false)
+      await suggestQuery.refetch()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const attachableTemplates = (feeTemplatesQuery.data?.items ?? []).filter(
+    (item) =>
+      item.platform.toLowerCase() === platform.toLowerCase() &&
+      item.country.toUpperCase() === country.toUpperCase() &&
+      item.status !== "disabled" &&
+      String(item.statusLabel) !== "停用",
+  )
 
   const data = suggestQuery.data
   React.useEffect(() => {
@@ -441,10 +479,62 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
                   <Button size="sm" variant="outline" onClick={() => setShowBreakdown((v) => !v)}>
                     {showBreakdown ? "收起明细" : "看明细"}
                   </Button>
-                  <Button size="sm" variant="ghost" disabled title="第一期仅支持复制和现场查看，不保存草稿、不改刊登价">
-                    保存为草稿（第二期）
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={saveDraftMutation.isPending || (primary?.suggestedRetailSell ?? primary?.suggestedRetailCost) == null}
+                    onClick={() => {
+                      const price = primary?.suggestedRetailSell ?? primary?.suggestedRetailCost
+                      if (price == null) {
+                        toast.error("暂无建议价可保存")
+                        return
+                      }
+                      saveDraftMutation.mutate({
+                        sku,
+                        platform,
+                        site: country,
+                        suggestedRetail: price,
+                        suggestedFreeShipping: primary?.suggestedFreeShippingSell ?? primary?.suggestedFreeShippingCost,
+                        currency: primary?.suggestedRetailSell != null ? sellCurrency : costCurrency,
+                        isEstimate: Boolean(primary?.isEstimate),
+                        source: "calculator",
+                        snapshot: {
+                          formulaVersion: data?.context.formulaVersion,
+                          gaps: data?.readiness.gaps ?? [],
+                          feeTemplateCode: primary?.feeTemplateCode,
+                          landedUnit: data?.cost.fullLandedUnit,
+                        },
+                      })
+                    }}
+                  >
+                    保存为草稿
                   </Button>
                 </div>
+                {historyQuery.data?.length ? (
+                  <div className="rounded-md border p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">本站点草稿历史</p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={archiveDraftsMutation.isPending}
+                        onClick={() => archiveDraftsMutation.mutate({ sku, platform, site: country })}
+                      >
+                        归档当前草稿
+                      </Button>
+                    </div>
+                    <ul className="space-y-1 text-xs text-muted-foreground">
+                      {historyQuery.data.map((draft) => (
+                        <li key={draft.id}>
+                          v{draft.versionNo} · {draft.status === "current" ? "当前" : draft.status === "superseded" ? "已被替代" : "已归档"} · {draft.suggestedRetail.toFixed(2)} {draft.currency}
+                          {draft.isEstimate ? " · 估算" : ""} · {draft.source === "listing_fill" ? "刊登填入" : draft.source === "batch" ? "批量" : "计算器"} · {new Date(draft.createdAt).toLocaleString("zh-CN")}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">尚未保存本站点草稿。保存后可在此查看历史，不会写入刊登售价。</p>
+                )}
               </CardContent>
             </Card>
 
@@ -565,8 +655,43 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
             <div className="space-y-2 rounded-md border p-3">
               <p className="text-sm font-medium">费用模板</p>
               <p className="text-xs text-muted-foreground">
-                无匹配模板时请先配置，后续同类 SKU 可复用。也可仅对本次填写临时费率（不会写入模板）。
+                无匹配模板时，可把当前品类（含祖先）或 HS（支持章节前缀）规则挂到同平台站点的组织费用模板上，后续同类 SKU 可复用。费率来自本组织模板，不是平台实时同步。也可仅对本次填写临时费率（不会写入模板）。
               </p>
+              <div className="flex flex-wrap gap-2">
+                <Select value={attachTemplateId || "__none__"} onValueChange={(v) => setAttachTemplateId(v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder="选择本站点费用模板" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">选择本站点费用模板</SelectItem>
+                    {attachableTemplates.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        {tpl.code} · {tpl.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    addMatchRuleMutation.isPending ||
+                    !attachTemplateId ||
+                    (!data?.sku.categoryId && !data?.sku.hsCode)
+                  }
+                  onClick={() =>
+                    addMatchRuleMutation.mutate({
+                      templateId: attachTemplateId,
+                      categoryId: data?.sku.categoryId ?? undefined,
+                      hsCodePattern: data?.sku.hsCode || undefined,
+                      priority: 20,
+                      note: `由定价计算器为 ${sku} 添加`,
+                    })
+                  }
+                >
+                  为当前品类 / HS 添加规则
+                </Button>
+              </div>
               <Button variant="outline" size="sm" asChild>
                 <LocaleLink href="/console/fee-templates">去配置费用模板</LocaleLink>
               </Button>

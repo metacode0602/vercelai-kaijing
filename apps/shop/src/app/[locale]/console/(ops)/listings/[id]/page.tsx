@@ -12,6 +12,7 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog } from '@/components/console/erp-ued-workspace'
+import { ListingPriceSuggestion, normalizePricingCountry, normalizePricingPlatform } from '@/components/console/listing-price-suggestion'
 import { ListingImagesSection } from '@/components/console/listing-images-section'
 import { ProductReviewsSection } from '@/components/console/product-reviews-section'
 import { buildUedRelatedInfo } from '@/lib/console/related-info'
@@ -181,7 +182,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       }}
       fields={[
         { key: 'title', label: '标题', required: true, fullWidth: true },
-        { key: 'sellPrice', label: '售价', type: 'number', required: true },
+        { key: 'sellPrice', label: '售价', type: 'number', required: true, fullWidth: true },
         { key: 'currency', label: '币种', options: ['USD', 'MYR', 'THB', 'SGD', 'LKR'], required: true },
         { key: 'status', label: '状态', options: [...LISTING_STATUSES], required: true },
         {
@@ -206,6 +207,20 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         },
         { key: 'note', label: '备注', type: 'textarea', fullWidth: true },
       ]}
+      fieldAfter={(key, { values, setValue }) => {
+        if (key !== 'sellPrice') return null
+        const currentPrice = values.sellPrice ? Number(values.sellPrice) : null
+        return (
+          <ListingPriceSuggestion
+            sku={listing.sku}
+            platform={normalizePricingPlatform(listing.platform)}
+            country={normalizePricingCountry(listing.site)}
+            currency={values.currency || listing.currency}
+            currentPrice={currentPrice != null && Number.isFinite(currentPrice) ? currentPrice : null}
+            onFill={(price) => setValue('sellPrice', price.toFixed(2))}
+          />
+        )
+      }}
       onClose={() => setEditOpen(false)}
       onSave={(values) => {
         updateMutation.mutate({

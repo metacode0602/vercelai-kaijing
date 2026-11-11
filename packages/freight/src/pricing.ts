@@ -162,3 +162,17 @@ export function computeSuggestedPrices(input: {
   }
   return { retail, freeShipping, expectedPayout, expectedMarginPct }
 }
+
+/** 按已填售价回算毛利率（%）。售价无效时返回 null。不把跨币种金额混算。 */
+export function marginAtSellPrice(input: {
+  fullCostUnit: number
+  sellPrice: number
+  fees: Pick<PlatformFeePercents, 'commissionPct' | 'payoutPct' | 'warehousePct'>
+}): number | null {
+  const price = input.sellPrice
+  if (!Number.isFinite(price) || price <= 0) return null
+  if (!Number.isFinite(input.fullCostUnit)) return null
+  const varFees =
+    (price * (input.fees.commissionPct + input.fees.payoutPct + input.fees.warehousePct)) / 100
+  return round2(((price - input.fullCostUnit - varFees) / price) * 100)
+}

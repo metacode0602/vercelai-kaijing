@@ -30,6 +30,8 @@ import {
 } from '@workspace/ui/components/table'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
 import { cn } from '@workspace/ui/lib/utils'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { buildCostRelayPath } from '@/lib/crossborder/ocean-cost-relay'
 import {
   computeLandedCost,
   getFormulaDocs,
@@ -202,13 +204,26 @@ export function CostCalculatorWorkbench({
     setCopilotHint(seed.note)
   }, [seedQuery.data])
   const [saveHint, setSaveHint] = React.useState<string | null>(null)
+  const [saveRelay, setSaveRelay] = React.useState<{ href: string; count: number } | null>(null)
   const saveOceanCostMutation = trpc.ocean.saveCost.useMutation({
     onSuccess: (row) => {
+      const codes = row.affectedSkuCodes ?? []
       setSaveHint(
-        `已写入 DB ${row.id} · 到仓 ${row.landedUnitCost ?? row.amount} ${row.currency}/件 · 费用模板版本 ${row.feeTemplateVersionId ?? '—'}`,
+        `柜次成本已保存，已写入 ${codes.length || 1} 个 SKU 的 sku_costs · ${row.id} · 到仓 ${row.landedUnitCost ?? row.amount} ${row.currency}/件`,
       )
+      if (row.shipmentId && codes.length) {
+        setSaveRelay({
+          href: buildCostRelayPath(row.shipmentId, row.platform, input.country),
+          count: codes.length,
+        })
+      } else {
+        setSaveRelay(null)
+      }
     },
-    onError: (e) => setSaveHint(e.message),
+    onError: (e) => {
+      setSaveHint(e.message)
+      setSaveRelay(null)
+    },
   })
   const skuCostQuery = trpc.finance.getSkuCostBySku.useQuery(
     { sku: input.sku },
@@ -479,6 +494,7 @@ export function CostCalculatorWorkbench({
             oceanLots={oceanLots}
             onSaveVersion={handleSaveVersion}
             saveHint={saveHint}
+            saveRelay={saveRelay}
             versions={skuVersions}
           />
         </div>
@@ -881,6 +897,7 @@ function CostCalculatorResultsPanel({
   oceanLots,
   onSaveVersion,
   saveHint,
+  saveRelay,
   versions,
 }: {
   input: CostCalculatorInput
@@ -893,6 +910,7 @@ function CostCalculatorResultsPanel({
   oceanLots: Array<{ id: string; lotCode: string; status: string; containerNo: string }>
   onSaveVersion: () => void
   saveHint: string | null
+  saveRelay: { href: string; count: number } | null
   versions: Array<{
     id: string
     versionNo: number
@@ -959,6 +977,11 @@ function CostCalculatorResultsPanel({
             ) : null}
           </div>
           {saveHint ? <p role="status" className="text-xs text-muted-foreground">{saveHint}</p> : null}
+          {saveRelay ? (
+            <Button size="sm" variant="outline" asChild>
+              <LocaleLink href={saveRelay.href}>查看这些 SKU 的定价建议</LocaleLink>
+            </Button>
+          ) : null}
           {versions.length > 0 ? (
             <div className="rounded-md border">
               <Table>

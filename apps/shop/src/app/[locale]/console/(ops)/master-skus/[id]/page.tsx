@@ -105,7 +105,7 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
         <>
         <div className="mb-4">
           <Button asChild>
-            <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(row.sku)}`}>定价建议</LocaleLink>
+            <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(row.sku)}`}>定价建议 / 草稿历史</LocaleLink>
           </Button>
         </div>
         <ProductImageEditor

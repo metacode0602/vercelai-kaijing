@@ -38,6 +38,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { listSkusForCostRelay } from '@/lib/crossborder/ocean-cost-relay'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -79,6 +80,13 @@ export type OceanLotCostDto = {
   note: string
   effectiveFrom: string
   createdAt: string
+}
+
+export type SaveOceanLotCostResult = OceanLotCostDto & {
+  shipmentId: string
+  lotCode: string
+  platform: string
+  affectedSkuCodes: string[]
 }
 
 export type OceanLotDto = {
@@ -1275,7 +1283,7 @@ export async function saveOceanLotCost(
     note?: string
     fxRateId?: string | null
   },
-): Promise<OceanLotCostDto> {
+): Promise<SaveOceanLotCostResult> {
   const lot = await getOceanShipment(db, organizationId, input.shipmentId)
   if (!lot) throw new Error('柜次不存在')
   const variant = await resolveVariant(db, organizationId, input.sku)
@@ -1363,7 +1371,48 @@ export async function saveOceanLotCost(
   const costs = await loadCosts(db, organizationId, lot.id)
   const saved = costs.find((c) => c.id === id)
   if (!saved) throw new Error('保存柜次成本失败')
-  return saved
+  const relay = listSkusForCostRelay(
+    costs.map((row) => ({
+      id: row.id,
+      sku: row.sku,
+      shipmentId: lot.id,
+      versionNo: row.versionNo,
+      landedUnitCost: row.landedUnitCost,
+    })),
+    lot.id,
+  )
+  return {
+    ...saved,
+    shipmentId: lot.id,
+    lotCode: lot.lotCode,
+    platform: lot.platform,
+    affectedSkuCodes: relay.map((row) => row.sku),
+  }
+}
+
+export async function listOceanLotCostRelay(
+  db: DbLike,
+  organizationId: string,
+  shipmentId: string,
+) {
+  const lot = await getOceanShipment(db, organizationId, shipmentId)
+  if (!lot) throw new Error('柜次不存在')
+  const costs = lot.costs ?? (await loadCosts(db, organizationId, shipmentId))
+  return {
+    shipmentId: lot.id,
+    lotCode: lot.lotCode,
+    platform: lot.platform,
+    skus: listSkusForCostRelay(
+      costs.map((row) => ({
+        id: row.id,
+        sku: row.sku,
+        shipmentId: lot.id,
+        versionNo: row.versionNo,
+        landedUnitCost: row.landedUnitCost,
+      })),
+      lot.id,
+    ),
+  }
 }
 
 export async function listOceanInventoryBuckets(

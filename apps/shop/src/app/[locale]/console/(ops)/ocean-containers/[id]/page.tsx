@@ -6,6 +6,7 @@ import { DetailKpiRow } from '@/components/console/detail'
 import { UedPrototypeNotice } from '@/components/console/erp-ued-workspace'
 import { useStockAdjustmentDialog } from '@/components/console/stock-adjustment-create-dialog'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { buildCostRelayPath } from '@/lib/crossborder/ocean-cost-relay'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -431,7 +432,14 @@ export default function OceanContainerDetailPage() {
       </div>
 
       <div className="rounded-lg border p-4 space-y-3">
-        <h3 className="text-sm font-medium">柜次成本版本（sku_costs）</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">柜次成本版本（sku_costs）</h3>
+          {(lot.costs || []).length ? (
+            <Button size="sm" variant="outline" asChild>
+              <LocaleLink href={buildCostRelayPath(lot.id, lot.platform)}>查看这些 SKU 的定价建议</LocaleLink>
+            </Button>
+          ) : null}
+        </div>
         <div className="overflow-hidden rounded-lg border">
           <Table>
             <TableHeader>

@@ -260,4 +260,26 @@ export const feeTemplatesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) =>
       wrap(() => feeDa.replaceFeeTemplateMatchRules(ctx.db, ctx.organizationId, input.templateId, input.rules)),
     ),
+
+  addMatchRule: tenantProcedure
+    .input(
+      z.object({
+        templateId: z.string().min(1),
+        categoryId: z.string().min(1).nullable().optional(),
+        hsCodePattern: z.string().optional(),
+        priority: z.number().int().optional(),
+        note: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        feeDa.addFeeTemplateMatchRule(ctx.db, ctx.organizationId, {
+          templateId: input.templateId,
+          categoryId: input.categoryId,
+          hsCodePattern: input.hsCodePattern,
+          priority: input.priority,
+          note: input.note,
+        }),
+      ),
+    ),
 })

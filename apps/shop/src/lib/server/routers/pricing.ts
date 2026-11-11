@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
 import * as pricingDa from '@/lib/server/dataaccess/pricing'
+import * as pricingDraftsDa from '@/lib/server/dataaccess/pricing-drafts'
 import * as productsDa from '@/lib/server/dataaccess/products'
 import { FORMULA_LK_CASCADE_V1, FORMULA_LK_UPLIFT_V1 } from '@workspace/freight'
 
@@ -47,6 +48,8 @@ export const pricingRouter = createTRPCRouter({
         useFreightRateCardEstimate: z.boolean().optional(),
         temporaryFees,
         asOf: z.string().optional(),
+        currentSellPrice: z.number().optional(),
+        currentSellCurrency: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => wrap(() => pricingDa.suggestPricing(ctx.db, ctx.organizationId, input))),
@@ -71,5 +74,79 @@ export const pricingRouter = createTRPCRouter({
           cartonSpecId: input.cartonSpecId,
         })
       }),
+    ),
+
+  listByShipment: tenantProcedure
+    .input(
+      z.object({
+        shipmentId: z.string().min(1),
+        platform: z.string().optional(),
+        country: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) =>
+      wrap(() => pricingDa.listShipmentPricingSuggestions(ctx.db, ctx.organizationId, input)),
+    ),
+
+  saveDraft: tenantProcedure
+    .input(
+      z.object({
+        sku: z.string().min(1),
+        platform: z.string().min(1),
+        site: z.string().min(1),
+        suggestedRetail: z.number(),
+        suggestedFreeShipping: z.number().nullable().optional(),
+        currency: z.string().min(1),
+        isEstimate: z.boolean().optional(),
+        snapshot: z.record(z.string(), z.unknown()).optional(),
+        source: z.enum(['calculator', 'listing_fill', 'batch']),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        pricingDraftsDa.savePricingSuggestionDraft(ctx.db, ctx.organizationId, input, ctx.user?.id),
+      ),
+    ),
+
+  listDrafts: tenantProcedure
+    .input(
+      z.object({
+        sku: z.string().optional(),
+        platform: z.string().optional(),
+        site: z.string().optional(),
+        includeArchived: z.boolean().optional(),
+        page: z.number().int().min(1).optional(),
+        pageSize: z.number().int().min(1).max(100).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) =>
+      pricingDraftsDa.listPricingSuggestionDrafts(ctx.db, ctx.organizationId, input),
+    ),
+
+  listDraftHistory: tenantProcedure
+    .input(
+      z.object({
+        sku: z.string().min(1),
+        platform: z.string().min(1),
+        site: z.string().min(1),
+        includeArchived: z.boolean().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) =>
+      pricingDraftsDa.listPricingSuggestionHistory(ctx.db, ctx.organizationId, input),
+    ),
+
+  archiveDrafts: tenantProcedure
+    .input(
+      z.object({
+        sku: z.string().min(1),
+        platform: z.string().min(1),
+        site: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        pricingDraftsDa.archivePricingSuggestionDrafts(ctx.db, ctx.organizationId, input, ctx.user?.id),
+      ),
     ),
 })

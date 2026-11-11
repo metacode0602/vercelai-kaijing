@@ -11,6 +11,7 @@ import {
   computeLkCascadeTaxStack,
   computeLkUpliftTaxStack,
   computeSuggestedPrices,
+  marginAtSellPrice,
   FORMULA_LK_CASCADE_V1,
   FORMULA_LK_UPLIFT_V1,
   normalizeHsCode,
@@ -40,6 +41,7 @@ import {
 import { resolveHsTariff } from '@/lib/server/dataaccess/hs-tariffs'
 import { listShopConnections } from '@/lib/server/dataaccess/shop-connections'
 import { getSkuByCode } from '@/lib/server/dataaccess/products'
+import { getOceanShipment, listOceanLotCostRelay } from '@/lib/server/dataaccess/ocean'
 
 type DbLike = AppDatabase
 
@@ -89,6 +91,8 @@ export type SuggestPricingInput = {
   useFreightRateCardEstimate?: boolean
   temporaryFees?: TemporaryFeeOverride
   asOf?: string
+  currentSellPrice?: number
+  currentSellCurrency?: string
 }
 
 const COUNTRY_LABEL: Record<string, string> = {
@@ -755,6 +759,33 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
     primary: {
       labelZh: platformLabel(platform, country),
       isEstimate,
+      fees: fees
+        ? {
+            commissionPct: fees.commissionPct,
+            payoutPct: fees.payoutPct,
+            warehousePct: fees.warehousePct,
+            targetMarginPct: fees.targetMarginPct,
+            freeShippingPct: fees.freeShippingPct,
+            freeShippingCap: fees.freeShippingCap,
+            temporary: Boolean(fees.temporary),
+          }
+        : null,
+      currentMarginPct: (() => {
+        if (input.currentSellPrice == null || !fees || fullLandedUnit == null) return null
+        const sellCur = (input.currentSellCurrency || sellCurrency).toUpperCase()
+        let landedInSell: number | null = null
+        if (sellCur === costCurrency.toUpperCase()) landedInSell = fullLandedUnit
+        else if (sellCur === sellCurrency.toUpperCase() && !fxToSell.missing && fxToSell.rate != null) {
+          landedInSell = fullLandedUnit * fxToSell.rate
+        }
+        if (landedInSell == null) return null
+        return marginAtSellPrice({
+          fullCostUnit: landedInSell,
+          sellPrice: input.currentSellPrice,
+          fees,
+        })
+      })(),
+      currentSellPrice: input.currentSellPrice ?? null,
       suggestedRetailCost: priced?.retail.price ?? null,
       suggestedRetailSell: toSell(priced?.retail.price ?? null),
       suggestedFreeShippingCost: priced?.freeShipping?.suggestedPrice ?? null,
@@ -792,3 +823,45 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
 }
 
 export type SuggestPricingResult = Awaited<ReturnType<typeof suggestPricing>>
+
+export async function listShipmentPricingSuggestions(
+  db: DbLike,
+  organizationId: string,
+  input: { shipmentId: string; platform?: string; country?: string },
+) {
+  const relay = await listOceanLotCostRelay(db, organizationId, input.shipmentId)
+  const platform = (input.platform || relay.platform || 'daraz').toLowerCase()
+  const country = (input.country || 'LK').toUpperCase()
+  const items = await Promise.all(
+    relay.skus.map(async (row) => {
+      const suggestion = await suggestPricing(db, organizationId, {
+        sku: row.sku,
+        platform,
+        country,
+      })
+      return {
+        sku: row.sku,
+        name: suggestion.sku.name,
+        costId: row.costId,
+        latestVersionNo: row.latestVersionNo,
+        landedUnitCost: row.landedUnitCost,
+        isEstimate: suggestion.primary.isEstimate,
+        suggestedRetail: suggestion.primary.suggestedRetailSell ?? suggestion.primary.suggestedRetailCost,
+        suggestedFreeShipping:
+          suggestion.primary.suggestedFreeShippingSell ?? suggestion.primary.suggestedFreeShippingCost,
+        currency: suggestion.primary.suggestedRetailSell != null
+          ? suggestion.context.sellCurrency
+          : suggestion.context.costCurrency,
+        gaps: suggestion.readiness.gaps,
+        error: suggestion.primary.error,
+      }
+    }),
+  )
+  return {
+    shipmentId: relay.shipmentId,
+    lotCode: relay.lotCode,
+    platform,
+    country,
+    items,
+  }
+}

@@ -4,6 +4,8 @@ import { allocateOceanFreightByActualCbm } from './allocation'
 import { comparePlatformSuggestions, feesBelongToPlatform } from './compare'
 import { cbmPerCartonCm, pieceCbm, pieceGrossKg, round4 } from './math'
 import {
+  computeSuggestedPrices,
+  marginAtSellPrice,
   reversePriceDenominator,
   suggestFreeShippingPrice,
   suggestSellPriceStandard,
@@ -251,5 +253,22 @@ describe('multi-platform comparison does not mix fee templates', () => {
     assert.equal(lazadaSg.feeSource, 'missing')
     assert.equal(feesBelongToPlatform('daraz', 'LK', 'lazada', 'MY'), false)
     assert.equal(feesBelongToPlatform('lazada', 'MY', 'lazada', 'MY'), true)
+  })
+})
+
+describe('marginAtSellPrice', () => {
+  it('returns margin at a filled sell price without changing suggested price math', () => {
+    const fees = { commissionPct: 8, payoutPct: 2, warehousePct: 5, targetMarginPct: 40, freeShippingPct: 0, freeShippingCap: 0 }
+    const suggested = computeSuggestedPrices({ fullCostUnit: 100, fees })
+    assert.ok(suggested.retail.price)
+    const atSuggested = marginAtSellPrice({ fullCostUnit: 100, sellPrice: suggested.retail.price!, fees })
+    assert.ok(atSuggested != null)
+    assert.ok(Math.abs(atSuggested! - suggested.expectedMarginPct!) < 0.15)
+    const lower = marginAtSellPrice({ fullCostUnit: 100, sellPrice: 150, fees })
+    assert.ok(lower != null && lower < (atSuggested ?? 0))
+  })
+
+  it('returns null for invalid price', () => {
+    assert.equal(marginAtSellPrice({ fullCostUnit: 100, sellPrice: 0, fees: { commissionPct: 8, payoutPct: 2, warehousePct: 5 } }), null)
   })
 })

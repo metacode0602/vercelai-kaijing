@@ -26,6 +26,8 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { selectTemplatesByMatchRules } from '@/lib/crossborder/fee-template-match'
+import { listCategoryAncestorIds } from '@/lib/server/dataaccess/categories'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -813,43 +815,28 @@ export async function resolveFeeTemplateVersion(
         inArray(feeTemplateMatchRules.templateId, matched.map((row) => row.id)),
       ),
     )
-  const rulesByTpl = new Map<string, typeof matchRules>()
-  for (const rule of matchRules) {
-    const list = rulesByTpl.get(rule.templateId) ?? []
-    list.push(rule)
-    rulesByTpl.set(rule.templateId, list)
-  }
-  const hsNorm = (args.hsCode || '').replace(/[.\s]/g, '').toUpperCase()
-  const scoreTemplate = (templateId: string): { ok: boolean; specificity: number; rulePriority: number } => {
-    const rules = rulesByTpl.get(templateId) ?? []
-    if (rules.length === 0) return { ok: true, specificity: 0, rulePriority: 0 }
-    let best: { ok: boolean; specificity: number; rulePriority: number } | null = null
-    for (const rule of rules) {
-      const needCat = Boolean(rule.categoryId)
-      const needHs = Boolean(rule.hsCodePattern)
-      const catOk = !needCat || rule.categoryId === args.categoryId
-      const pattern = (rule.hsCodePattern || '').replace(/[.\s]/g, '').toUpperCase()
-      const hsOk = !needHs || (hsNorm && (hsNorm === pattern || hsNorm.startsWith(pattern)))
-      if (!catOk || !hsOk) continue
-      const specificity = (needHs ? 2 : 0) + (needCat ? 1 : 0)
-      const cand = { ok: true, specificity, rulePriority: rule.priority }
-      if (!best || cand.specificity > best.specificity || (cand.specificity === best.specificity && cand.rulePriority > best.rulePriority)) {
-        best = cand
-      }
-    }
-    return best ?? { ok: false, specificity: 0, rulePriority: 0 }
-  }
-  const scored = matched
-    .map((row) => ({ row, score: scoreTemplate(row.id) }))
-    .filter((item) => item.score.ok)
-  if (scored.length === 0) return null
-  scored.sort((a, b) => {
-    if (b.score.specificity !== a.score.specificity) return b.score.specificity - a.score.specificity
-    if (b.score.rulePriority !== a.score.rulePriority) return b.score.rulePriority - a.score.rulePriority
-    return 0
-  })
-  const bestSpecificity = scored[0]!.score.specificity
-  matched = scored.filter((item) => item.score.specificity === bestSpecificity).map((item) => item.row)
+  const categoryAncestorIds = args.categoryId
+    ? await listCategoryAncestorIds(db, organizationId, args.categoryId)
+    : []
+  const selected = selectTemplatesByMatchRules(
+    matched.map((row) => ({ id: row.id, platform: row.platform, country: row.country })),
+    matchRules.map((rule) => ({
+      templateId: rule.templateId,
+      categoryId: rule.categoryId,
+      hsCodePattern: rule.hsCodePattern,
+      priority: rule.priority,
+    })),
+    {
+      platform: args.platform,
+      country: args.country,
+      categoryId: args.categoryId,
+      categoryAncestorIds,
+      hsCode: args.hsCode,
+    },
+  )
+  if (selected.length === 0) return null
+  const selectedIds = new Set(selected.map((item) => item.template.id))
+  matched = matched.filter((row) => selectedIds.has(row.id))
 
   const templateIds = matched.map((t) => t.id)
   const versions = await db
@@ -982,4 +969,26 @@ export async function replaceFeeTemplateMatchRules(
     }
     return listFeeTemplateMatchRules(tx, organizationId, templateId)
   })
+}
+
+export async function addFeeTemplateMatchRule(
+  db: AppDatabase,
+  organizationId: string,
+  input: { templateId: string; categoryId?: string | null; hsCodePattern?: string; priority?: number; note?: string },
+): Promise<FeeTemplateMatchRuleDto[]> {
+  const existing = await listFeeTemplateMatchRules(db, organizationId, input.templateId)
+  return replaceFeeTemplateMatchRules(db, organizationId, input.templateId, [
+    ...existing.map((rule) => ({
+      categoryId: rule.categoryId,
+      hsCodePattern: rule.hsCodePattern,
+      priority: rule.priority,
+      note: rule.note,
+    })),
+    {
+      categoryId: input.categoryId ?? null,
+      hsCodePattern: input.hsCodePattern,
+      priority: input.priority ?? 20,
+      note: input.note,
+    },
+  ])
 }

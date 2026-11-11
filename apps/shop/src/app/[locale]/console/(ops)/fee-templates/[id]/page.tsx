@@ -539,7 +539,7 @@ function FeeTemplateMatchRules({ templateId }: { templateId: string }) {
       <CardHeader>
         <CardTitle className="text-base">匹配规则（品类 / HS）</CardTitle>
         <CardDescription>
-          可选。有规则时，仅当 SKU 品类或 HS 命中才会选用本模板；多条按优先级（越大越优先）且更具体（HS 优于品类）排序。无规则则仍按平台+国家匹配。
+          可选。有规则时，仅当 SKU 品类（含祖先类目）或 HS（全码、前缀，以及章节如 3900→39）命中才会选用本模板。更长 HS 前缀优于章回退，精确品类优于祖先，再比较优先级（越大越优先）。无规则则仍按同一平台+国家兜底，不会套用其他平台的模板。费率始终来自本组织费用模板，不是平台实时同步。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
