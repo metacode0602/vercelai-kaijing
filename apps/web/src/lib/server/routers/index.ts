@@ -5,6 +5,7 @@ import { platformOpsRouter } from './platformOps'
 import { platformBasicsRouter } from './platformBasics'
 import { platformShopsRouter } from './platformShops'
 import { platformUsersRouter } from './platformUsers'
+import { siteMessagesRouter } from './site-messages'
 
 export * from './trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -16,6 +17,7 @@ export const appRouter = router({
   platformBasics: platformBasicsRouter,
   platformShops: platformShopsRouter,
   platformUsers: platformUsersRouter,
+  siteMessages: siteMessagesRouter,
 })
 
 export type AppRouter = typeof appRouter

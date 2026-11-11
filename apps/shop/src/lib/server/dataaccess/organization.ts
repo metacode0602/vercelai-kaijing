@@ -1,6 +1,6 @@
 /**
  * 设置 · 企业信息：当前入驻租户企业的详细档案。
- * 聚合 organization 主记录 + 入驻申请（tenant_onboarding_applications）+ 成员统计。名称可更新；入驻认证档案只读。
+ * 聚合 organization 主记录 + 入驻申请（tenant_onboarding_applications）+ 成员统计。名称与 Logo 可更新；入驻认证档案只读。
  */
 import { count, eq } from 'drizzle-orm'
 import { member, organization, tenantOnboardingApplications } from '@workspace/db/schema'
@@ -121,19 +121,37 @@ export async function getOrganizationProfile(
   }
 }
 
+function normalizeOrgLogo(input: string | null | undefined): string | null {
+  const value = (input ?? '').trim()
+  if (!value) return null
+  if (value.length > 2048) throw new Error('Logo 地址不能超过 2048 个字符')
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error('请输入有效的 Logo 地址（http:// 或 https://）')
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Logo 地址必须以 http:// 或 https:// 开头')
+  }
+  return value
+}
+
 export async function updateOrganizationProfile(
   db: AppDatabase,
   organizationId: string,
-  input: { name: string },
+  input: { name: string; logo?: string | null },
 ): Promise<OrganizationProfileDto> {
   const name = input.name.trim()
   if (!name) throw new Error('组织名称不能为空')
   if (name.length > 120) throw new Error('组织名称不能超过 120 个字符')
   const current = await getOrganizationProfile(db, organizationId)
   if (!current) throw new Error('当前组织不存在或已被删除')
+  const patch: { name: string; logo?: string | null } = { name }
+  if (input.logo !== undefined) patch.logo = normalizeOrgLogo(input.logo)
   await db
     .update(organization)
-    .set({ name })
+    .set(patch)
     .where(eq(organization.id, organizationId))
   const next = await getOrganizationProfile(db, organizationId)
   if (!next) throw new Error('更新组织信息失败')

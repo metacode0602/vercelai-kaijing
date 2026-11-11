@@ -26,6 +26,7 @@ import {
 } from '@workspace/ui/components/dialog'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import { Textarea } from '@workspace/ui/components/textarea'
 
 export default function ShopDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
@@ -35,6 +36,7 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
   const query = trpc.shops.get.useQuery({ id })
   const row = query.data
   const [notice, setNotice] = React.useState('')
+  const [appealContent, setAppealContent] = React.useState('')
   const [editOpen, setEditOpen] = React.useState(false)
   const [draft, setDraft] = React.useState({
     name: '',
@@ -78,6 +80,22 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
     },
     onError: (e) => setNotice(e.message),
   })
+  const unbind = trpc.shops.unbind.useMutation({
+    onSuccess: async () => {
+      setNotice('店铺已正式解绑，名额已释放。历史订单、库存和结算仍保留在本组织。')
+      await utils.shops.get.invalidate({ id })
+      await utils.shops.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+  const appealTransfer = trpc.shops.appealBindingTransfer.useMutation({
+    onSuccess: async () => {
+      setNotice('申诉已提交，请等待平台运营复审。')
+      setAppealContent('')
+      await utils.shops.get.invalidate({ id })
+    },
+    onError: (e) => setNotice(e.message),
+  })
   const updateDraft = trpc.shops.updateDraft.useMutation({
     onSuccess: async () => {
       setNotice('店铺资料已更新。')
@@ -115,6 +133,8 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
             <Badge variant={row.authStatus === '授权失效' ? 'destructive' : 'secondary'}>{row.authStatus}</Badge>
             <Badge variant="outline">{row.fulfillmentMode}</Badge>
             {row.syncPaused ? <Badge variant="destructive">同步暂停</Badge> : null}
+            {row.dbStatus === 'unbound' ? <Badge variant="destructive">已正式解绑</Badge> : null}
+            {row.bindingConflict ? <Badge variant="outline">{row.bindingConflict.statusLabel}</Badge> : null}
           </>
         }
         actions={
@@ -169,7 +189,7 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
                 解绑授权
               </Button>
             ) : null}
-            {row.dbStatus !== 'disabled' ? (
+            {row.dbStatus !== 'disabled' && row.dbStatus !== 'unbound' ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -179,9 +199,68 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
                 停用店铺
               </Button>
             ) : null}
+            {row.dbStatus === 'active' || row.dbStatus === 'disabled' ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      '正式解绑将释放该平台店铺名额，其他租户随后可以绑定。已同步的历史订单、库存和结算仍留在本组织，不会删除或迁移。普通停用不会释放名额。确认正式解绑？',
+                    )
+                  ) {
+                    unbind.mutate({ id: row.id })
+                  }
+                }}
+                disabled={unbind.isPending}
+              >
+                正式解绑
+              </Button>
+            ) : null}
           </div>
         }
       />
+      {row.bindingConflict ? (
+        <Alert>
+          <AlertTitle>
+            {row.bindingConflict.role === 'occupant' ? '店铺过户申请' : '店铺绑定冲突'}
+          </AlertTitle>
+          <AlertDescription>
+            <p>{row.bindingConflict.message}</p>
+            {row.bindingConflict.appealDeadlineAt ? (
+              <p className="mt-1">
+                申诉截止：
+                {new Date(row.bindingConflict.appealDeadlineAt).toLocaleString('zh-CN', {
+                  timeZone: 'Asia/Shanghai',
+                })}
+                （Asia/Shanghai）
+              </p>
+            ) : null}
+            {row.bindingConflict.canAppeal ? (
+              <form
+                className="mt-3 grid gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  appealTransfer.mutate({ id: row.id, content: appealContent })
+                }}
+              >
+                <Label htmlFor="shop-binding-appeal">申诉内容</Label>
+                <Textarea
+                  id="shop-binding-appeal"
+                  value={appealContent}
+                  onChange={(event) => setAppealContent(event.target.value)}
+                  placeholder="说明为何应维持原绑定。不会向申请过户的一方展示你的公司名称。"
+                />
+                <div>
+                  <Button type="submit" size="sm" disabled={appealTransfer.isPending || !appealContent.trim()}>
+                    提交申诉
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {row.authStatus !== '已授权' ? (
         <Alert>
           <AlertTitle>待平台授权</AlertTitle>

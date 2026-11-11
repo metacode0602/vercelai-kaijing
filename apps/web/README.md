@@ -16,16 +16,19 @@
 | 路径 | 功能 |
 | --- | --- |
 | `src/app/[locale]/(protected)/crossborder` | 运营总览 |
-| ├ `tenants` | 租户列表与审核 |
-| ├ `pending-actions` | 待审动作抽检 |
-| └ `sync-health` | 连接器 / 同步健康 |
-| `src/app/[locale]/(protected)/settings` | 平台设置 |
+| ├ `tenants` / `onboarding` / `users` | 租户、入驻审核、平台用户 |
+| ├ `shops` / `shop-conflicts` | 店铺列表、店铺冲突 |
+| ├ `pending-actions` / `sync-health` | 待审动作抽检、连接器 / 同步健康 |
+| └ `platform-config` / `audit-logs` / `announcements` / `roles` | 平台配置、操作日志、系统公告、角色权限（占位，即将上线） |
+| `src/app/[locale]/(protected)/settings` | 平台设置（账户 / 外观 / 语言 / 通知 / 平台偏好 / 关于） |
 | `src/app/[locale]/(auth)` | 登录 / 注册 / 找回密码 |
+
+壳层：`(protected)/layout.tsx` 提供侧边栏、顶部导航、自动面包屑与站内信入口。
 
 tRPC：
 
 - 入口：`src/lib/server/routers/index.ts`
-- 当前路由：`apiKeys`、`platformOnboarding`（租户入驻审核）、`platformOps`（运营总览 / 同步健康 / 待审抽检）
+- 当前路由：`apiKeys`、`platformOnboarding`（租户入驻审核）、`platformOps`（运营总览 / 同步健康 / 待审抽检）、`siteMessages`（站内信列表 / 未读数 / 已读）
 - 新增领域路由按 `routers/` → dataaccess → `@workspace/db` 分层实现
 
 跨租户写操作默认进入待审队列；平台端不直接绕过租户确认。

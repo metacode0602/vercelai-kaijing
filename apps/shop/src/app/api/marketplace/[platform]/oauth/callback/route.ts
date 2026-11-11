@@ -13,7 +13,10 @@ import {
   oauthStateCookieOptions,
 } from '@/lib/marketplace/oauth-state'
 import { persistOAuthCredentials } from '@/lib/marketplace/persist-credentials'
-import { ShopBindingConflictError } from '@/lib/marketplace/errors'
+import {
+  ShopBindingConflictError,
+  ShopIdentityUnavailableError,
+} from '@/lib/marketplace/errors'
 import { logMarketplaceOAuth } from '@/lib/marketplace/audit'
 import {
   recordMarketplaceAppCredentialError,
@@ -246,6 +249,7 @@ export async function GET(
       externalShopId,
       region,
       shopMeta,
+      actorUserId: session.user.id,
     })
 
     await touchMarketplaceAppCredentialVerification(db, {
@@ -265,14 +269,19 @@ export async function GET(
     return res
   } catch (err) {
     const conflict = err instanceof ShopBindingConflictError
+    const identityUnavailable = err instanceof ShopIdentityUnavailableError
     const internalMessage = err instanceof Error ? err.message : 'oauth_failed'
-    const reason = conflict ? 'shop_bound_other_org' : 'token_exchange_failed'
+    const reason = conflict
+      ? 'shop_bound_other_org'
+      : identityUnavailable
+        ? 'shop_identity_unavailable'
+        : 'token_exchange_failed'
     await recordMarketplaceAppCredentialError(db, {
       id: appCredential.id,
       organizationId: state.organizationId,
       message: reason === 'token_exchange_failed' ? 'token_exchange_failed' : reason,
     })
-    if (!conflict) {
+    if (!conflict && !identityUnavailable) {
       await db
         .update(shops)
         .set({
@@ -309,7 +318,7 @@ export async function GET(
       consoleRedirect(request, state.locale, state.shopId, {
         oauth: conflict ? 'conflict' : 'error',
         reason,
-        message: conflict ? internalMessage : '平台授权失败，请重试',
+        message: conflict || identityUnavailable ? internalMessage : '平台授权失败，请重试',
       }),
     )
     res.cookies.set(OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(0), maxAge: 0 })

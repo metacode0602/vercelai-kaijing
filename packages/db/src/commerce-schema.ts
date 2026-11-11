@@ -33,7 +33,7 @@ import { organization } from "./auth-schema"
 export const commercePlatforms = ["daraz", "lazada", "shopee", "tiktok_shop"] as const
 export type CommercePlatform = (typeof commercePlatforms)[number]
 
-export const shopStatuses = ["draft", "connecting", "active", "error", "disabled"] as const
+export const shopStatuses = ["draft", "connecting", "active", "error", "disabled", "unbound"] as const
 export type ShopStatus = (typeof shopStatuses)[number]
 
 export const fulfillmentModes = ["fbm", "fbp", "hybrid"] as const
@@ -313,6 +313,61 @@ export const shops = pgTable(
       t.organizationId,
       t.platform,
       t.externalShopId,
+    ),
+  ],
+)
+
+/**
+ * G8 跨租户店铺绑定冲突单。
+ * 同一家店的冲突键为 platform + external_shop_id（不含站点/国家）。
+ * 裁决与申诉状态以本表为准，不再靠 error 店铺推断。
+ */
+export const shopBindingConflicts = pgTable(
+  "shop_binding_conflicts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    externalShopId: text("external_shop_id").notNull(),
+    challengerShopId: text("challenger_shop_id")
+      .notNull()
+      .references(() => shops.id),
+    challengerOrganizationId: text("challenger_organization_id")
+      .notNull()
+      .references(() => organization.id),
+    occupantShopId: text("occupant_shop_id")
+      .notNull()
+      .references(() => shops.id),
+    occupantOrganizationId: text("occupant_organization_id")
+      .notNull()
+      .references(() => organization.id),
+    initiatorUserId: text("initiator_user_id"),
+    status: varchar("status", { length: 64 }).notNull().default("pending"),
+    reviewedByUserId: text("reviewed_by_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewReason: text("review_reason"),
+    appealDeadlineAt: timestamp("appeal_deadline_at", { withTimezone: true }),
+    appealContent: text("appeal_content"),
+    appealedAt: timestamp("appealed_at", { withTimezone: true }),
+    appealedByUserId: text("appealed_by_user_id"),
+    appealReviewedByUserId: text("appeal_reviewed_by_user_id"),
+    appealReviewedAt: timestamp("appeal_reviewed_at", { withTimezone: true }),
+    appealReviewReason: text("appeal_review_reason"),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("shop_binding_conflicts_status_created_idx").on(t.status, t.createdAt),
+    index("shop_binding_conflicts_platform_ext_idx").on(t.platform, t.externalShopId),
+    index("shop_binding_conflicts_challenger_org_idx").on(t.challengerOrganizationId),
+    index("shop_binding_conflicts_occupant_org_idx").on(t.occupantOrganizationId),
+    index("shop_binding_conflicts_challenger_shop_idx").on(t.challengerShopId),
+    index("shop_binding_conflicts_occupant_shop_idx").on(t.occupantShopId),
+    check(
+      "shop_binding_conflicts_status_check",
+      sql`${t.status} in ('pending', 'upheld', 'transfer_approved_pending_appeal', 'appealed_pending_review', 'released_pending_reauth', 'closed')`,
     ),
   ],
 )

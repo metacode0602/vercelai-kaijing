@@ -2,6 +2,12 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import {
+  AddPackagesToBatchDialog,
+  batchAllowsAddingPackages,
+  batchAllowsSubmit,
+  useEnabledWarehouseOptions,
+} from '@/components/console/add-packages-to-batch-dialog'
 import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -18,10 +24,12 @@ export default function LogisticsLgsPage() {
   const [createOpen, setCreateOpen] = React.useState(false)
   const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
+  const [addOpen, setAddOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const listQuery = trpc.logistics.listBatches.useQuery({ page: 1, pageSize: 100, channel: 'lgs' })
   const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const warehouses = useEnabledWarehouseOptions()
   const carrierOptions = (carriersQuery.data?.items ?? []).map((c) => ({
     value: c.id,
     title: `${c.code} · ${c.name}`,
@@ -35,8 +43,9 @@ export default function LogisticsLgsPage() {
     onSuccess: async (row) => {
       await utils.logistics.listBatches.invalidate()
       setSelected(row.id)
-      setNotice(`已创建 LGS 批次 ${row.batchNo}`)
+      setNotice(`已创建 LGS 批次 ${row.batchNo}，请加入包裹后再提交`)
       setCreateOpen(false)
+      setAddOpen(true)
     },
     onError: (e) => setNotice(e.message),
   })
@@ -80,6 +89,9 @@ export default function LogisticsLgsPage() {
   }, [selected, listQuery.data])
 
   const current = detailQuery.data
+  const canAddPackages = Boolean(current && batchAllowsAddingPackages(current.statusLabel))
+  const canSubmitBatch = Boolean(current && batchAllowsSubmit(current.statusLabel))
+  const hasPackages = (current?.packageCount ?? 0) > 0
 
   const editor = open ? (
     <UedDialog
@@ -140,7 +152,7 @@ export default function LogisticsLgsPage() {
             : [{ value: '', title: '暂无启用承运商，请先在仓储中心维护' }],
           required: true,
         },
-        { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
+        { key: 'warehouse', label: '发货仓', options: warehouses.options, required: true },
         { key: 'trackingSummary', label: '运单摘要', placeholder: '如 LGS-MY-77120 等 5 单' },
       ]}
       onClose={() => setCreateOpen(false)}
@@ -162,6 +174,18 @@ export default function LogisticsLgsPage() {
     <>
       {editor}
       {creator}
+      {selected ? (
+        <AddPackagesToBatchDialog
+          open={addOpen}
+          batchId={selected}
+          batchNo={current?.id === selected ? current.batchNo : selected}
+          existingShipmentIds={current?.id === selected ? current.packages.map((item) => item.shipmentId) : []}
+          preferredProviderType="lgs"
+          onClose={() => setAddOpen(false)}
+          onAdded={(packageCount) => setNotice(`已加入包裹，当前共 ${packageCount} 个`)}
+          onError={setNotice}
+        />
+      ) : null}
       <UedWorkspace
         title="LGS 物流"
         description="MY / PH / SG / VN 等站点的 LGS 交接批次、轨迹与签收（已接 PostgreSQL）。"
@@ -225,7 +249,21 @@ export default function LogisticsLgsPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{current.statusLabel}</Badge>
-                <Button size="sm" variant="outline" disabled={submitMutation.isPending} onClick={() => setSubmitConfirmOpen(true)}>
+                <Button size="sm" variant="outline" disabled={!canAddPackages} onClick={() => setAddOpen(true)}>
+                  加入包裹
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!canSubmitBatch || !hasPackages || submitMutation.isPending}
+                  onClick={() => {
+                    if (!hasPackages) {
+                      setNotice('批次内没有包裹，不能提交。请先加入包裹。')
+                      return
+                    }
+                    setSubmitConfirmOpen(true)
+                  }}
+                >
                   提交交接
                 </Button>
                 <Button size="sm" variant="ghost" disabled={closeMutation.isPending} onClick={() => setCloseConfirmOpen(true)}>
@@ -251,7 +289,9 @@ export default function LogisticsLgsPage() {
               <p className="mt-3 text-xs text-muted-foreground">
                 包裹：{current.packages.map((p) => p.externalPackageId).join('、')}
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">尚未加入包裹，提交前请先加入至少一个包裹。</p>
+            )}
           </div>
         ) : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

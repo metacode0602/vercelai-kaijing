@@ -1,5 +1,3 @@
-import { websiteConfig } from "./config/website"
-
 /**
  * The routes for the application
  */
@@ -45,8 +43,16 @@ export enum Routes {
   // crossborder ops (P0)
   Crossborder = '/crossborder',
   CrossborderTenants = '/crossborder/tenants',
+  CrossborderOnboarding = '/crossborder/onboarding',
+  CrossborderShops = '/crossborder/shops',
+  CrossborderUsers = '/crossborder/users',
+  CrossborderShopConflicts = '/crossborder/shop-conflicts',
   CrossborderSyncHealth = '/crossborder/sync-health',
   CrossborderPendingActions = '/crossborder/pending-actions',
+  CrossborderPlatformConfig = '/crossborder/platform-config',
+  CrossborderAuditLogs = '/crossborder/audit-logs',
+  CrossborderAnnouncements = '/crossborder/announcements',
+  CrossborderRoles = '/crossborder/roles',
 }
 
 /**

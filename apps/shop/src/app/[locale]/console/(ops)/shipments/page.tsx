@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import { useEnabledWarehouseOptions } from '@/components/console/add-packages-to-batch-dialog'
 import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { Badge } from '@workspace/ui/components/badge'
@@ -28,6 +29,7 @@ export default function ShipmentsPage() {
   const [notice, setNotice] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('all')
   const [syncConfirmOpen, setSyncConfirmOpen] = React.useState(false)
+  const warehouses = useEnabledWarehouseOptions()
 
   const listQuery = trpc.logistics.list.useQuery({ page: 1, pageSize: 100, status: statusFilter })
   const statsQuery = trpc.logistics.stats.useQuery()
@@ -113,13 +115,13 @@ export default function ShipmentsPage() {
     ) : dialogMode === 'create' ? (
       <UedDialog
         title="从订单创建包裹"
-        description="关联已过账/已出库订单的 orderId；真实平台运单仍为 stub，包裹写入 PostgreSQL。"
+        description="关联已有订单的 orderId，包裹写入 PostgreSQL。运单号可手工填写；平台轨迹请通过「同步平台轨迹」从 Lazop 拉取，失败会如实报错，不会本地造轨迹。"
         fields={[
           { key: 'orderId', label: '订单 ID（DB）', placeholder: 'orders.id', required: true },
           { key: 'providerType', label: '物流类型', options: PROVIDER_LABELS, required: true },
           { key: 'providerCode', label: '物流渠道', placeholder: '如 DARAZ_LOGISTICS / LGS_MY' },
           { key: 'tracking', label: '运单号', placeholder: '留空则显示待生成' },
-          { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
+          { key: 'warehouse', label: '发货仓', options: warehouses.options, required: true },
           { key: 'weight', label: '包裹重量', placeholder: '如 460 g' },
           { key: 'skus', label: 'SKU 明细提示', placeholder: '如 HSY000001001 ×2' },
           { key: 'picker', label: '拣货人', placeholder: '默认当前用户' },
@@ -246,7 +248,7 @@ export default function ShipmentsPage() {
                 disabled={syncMutation.isPending}
                 onClick={() => setSyncConfirmOpen(true)}
               >
-                {syncMutation.isPending ? '同步中…' : '同步平台轨迹（stub）'}
+                {syncMutation.isPending ? '同步中…' : '同步平台轨迹'}
               </Button>
               <Button size="sm" variant="ghost" asChild>
                 <LocaleLink href={`/console/shipments/${encodeURIComponent(current.id)}`}>
@@ -297,9 +299,13 @@ export default function ShipmentsPage() {
             value: `包裹 ${current.externalPackageId} · ${current.shop}`,
           }}
           impacts={[
-            '当前为 stub：仅写一条 fulfillment_attempts 记录，不调用平台',
-            '真实轨迹同步需待 connector 联调',
+            '将经 apps/api 调用平台物流轨迹接口（Lazop /logistic/order/trace）',
+            '成功后写入 tracking_events（来源=接口）；没有授权或接口失败时会如实报错，不会本地造轨迹',
           ]}
+          platformCall={{
+            label: '将调用平台 OpenAPI',
+            detail: 'Lazop /logistic/order/trace',
+          }}
           confirmLabel="同步轨迹"
           pending={syncMutation.isPending}
           onConfirm={() => {

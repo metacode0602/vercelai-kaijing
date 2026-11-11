@@ -11,6 +11,11 @@ import {
 import { ConsoleBreadcrumbRegistration } from '@/components/console/console-breadcrumbs-context'
 import { decodeRouteParam } from '@/components/console/erp-ued-detail'
 import { UedDialog } from '@/components/console/erp-ued-workspace'
+import {
+  AddPackagesToBatchDialog,
+  batchAllowsAddingPackages,
+  batchAllowsSubmit,
+} from '@/components/console/add-packages-to-batch-dialog'
 import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -37,6 +42,7 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
   const [notice, setNotice] = React.useState('')
   const [carrierDraft, setCarrierDraft] = React.useState('')
   const [eventOpen, setEventOpen] = React.useState(false)
+  const [addOpen, setAddOpen] = React.useState(false)
   const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
 
@@ -84,7 +90,9 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
     return <DetailPageHeader backHref="/console/logistics-lgs" title="未找到批次" description={id} />
   }
   const row = query.data
-  const canSubmit = row.statusLabel === '开放中' || row.statusLabel === '已驳回'
+  const canAdd = batchAllowsAddingPackages(row.statusLabel)
+  const canSubmit = batchAllowsSubmit(row.statusLabel)
+  const hasPackages = row.packageCount > 0
   const canClose = row.statusLabel !== '已关闭' && row.statusLabel !== '已提交'
 
   return (
@@ -144,11 +152,22 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
             <Button size="sm" variant="outline" onClick={() => setEventOpen(true)}>
               录入履约事件
             </Button>
+            {canAdd ? (
+              <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+                加入包裹
+              </Button>
+            ) : null}
             {canSubmit ? (
               <Button
                 size="sm"
-                disabled={submitMutation.isPending}
-                onClick={() => setSubmitConfirmOpen(true)}
+                disabled={!hasPackages || submitMutation.isPending}
+                onClick={() => {
+                  if (!hasPackages) {
+                    setNotice('批次内没有包裹，不能提交。请先加入包裹。')
+                    return
+                  }
+                  setSubmitConfirmOpen(true)
+                }}
               >
                 提交交运
               </Button>
@@ -228,7 +247,14 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
       </DetailSection>
       <DetailSection title="包裹清单">
         {row.packages.length === 0 ? (
-          <p className="text-sm text-muted-foreground">尚未加入包裹</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">尚未加入包裹，提交前请先加入至少一个包裹。</p>
+            {canAdd ? (
+              <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+                加入包裹
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <ul className="space-y-1 text-sm">
             {row.packages.map((p) => (
@@ -252,6 +278,16 @@ export default function LogisticsLgsDetailPage({ params }: { params: Promise<{ i
         )}
       </DetailSection>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      <AddPackagesToBatchDialog
+        open={addOpen}
+        batchId={row.id}
+        batchNo={row.batchNo}
+        existingShipmentIds={row.packages.map((item) => item.shipmentId)}
+        preferredProviderType="lgs"
+        onClose={() => setAddOpen(false)}
+        onAdded={(packageCount) => setNotice(`已加入包裹，当前共 ${packageCount} 个`)}
+        onError={setNotice}
+      />
       <SyncConfirmDialog
         open={submitConfirmOpen}
         onOpenChange={setSubmitConfirmOpen}

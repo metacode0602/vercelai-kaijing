@@ -2,6 +2,12 @@
 
 import * as React from 'react'
 import { UedDialog, UedPrototypeNotice, UedWorkspace } from '@/components/console/erp-ued-workspace'
+import {
+  AddPackagesToBatchDialog,
+  batchAllowsAddingPackages,
+  batchAllowsSubmit,
+  useEnabledWarehouseOptions,
+} from '@/components/console/add-packages-to-batch-dialog'
 import { SyncConfirmDialog } from '@/components/console/sync-confirm-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -17,10 +23,12 @@ export default function LogisticsJsbPage() {
   const [createOpen, setCreateOpen] = React.useState(false)
   const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = React.useState(false)
+  const [addOpen, setAddOpen] = React.useState(false)
   const [notice, setNotice] = React.useState('')
 
   const listQuery = trpc.logistics.listBatches.useQuery({ page: 1, pageSize: 100, channel: 'jsb' })
   const carriersQuery = trpc.carriers.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const warehouses = useEnabledWarehouseOptions()
   const carrierOptions = (carriersQuery.data?.items ?? []).map((c) => ({
     value: c.id,
     title: `${c.code} · ${c.name}`,
@@ -34,8 +42,9 @@ export default function LogisticsJsbPage() {
     onSuccess: async (row) => {
       await utils.logistics.listBatches.invalidate()
       setSelected(row.id)
-      setNotice(`已创建 JSB 批次 ${row.batchNo}`)
+      setNotice(`已创建 JSB 批次 ${row.batchNo}，请加入包裹后再提交`)
       setCreateOpen(false)
+      setAddOpen(true)
     },
     onError: (e) => setNotice(e.message),
   })
@@ -83,6 +92,9 @@ export default function LogisticsJsbPage() {
   }, [selected, listQuery.data])
 
   const current = detailQuery.data
+  const canAddPackages = Boolean(current && batchAllowsAddingPackages(current.statusLabel))
+  const canSubmitBatch = Boolean(current && batchAllowsSubmit(current.statusLabel))
+  const hasPackages = (current?.packageCount ?? 0) > 0
 
   const editor = open ? (
     <UedDialog
@@ -92,7 +104,7 @@ export default function LogisticsJsbPage() {
         { key: 'event', label: '链路节点', options: eventOptions, required: true },
         { key: 'eventAt', label: '节点时间', type: 'datetime-local', required: true },
         { key: 'fee', label: '费用（含币种）', placeholder: '如 THB 1,240' },
-        { key: 'operator', label: '操作人', options: ['杨洁', '黄发聪'], required: true },
+        { key: 'operator', label: '操作人', required: true },
         { key: 'exception', label: '异常说明', type: 'textarea', fullWidth: true },
       ]}
       onClose={() => setOpen(false)}
@@ -112,6 +124,7 @@ export default function LogisticsJsbPage() {
           eventAt: values.eventAt,
           operator: values.operator,
           exception: values.exception,
+          fee: values.fee || undefined,
           status,
         })
       }}
@@ -132,7 +145,7 @@ export default function LogisticsJsbPage() {
             : [{ value: '', title: '暂无启用承运商，请先在仓储中心维护' }],
           required: true,
         },
-        { key: 'warehouse', label: '发货仓', options: ['WH-CN-XMN-001'], required: true },
+        { key: 'warehouse', label: '发货仓', options: warehouses.options, required: true },
         { key: 'fee', label: '费用提示', placeholder: '如 THB 1,240' },
         { key: 'trackingSummary', label: '运单摘要' },
       ]}
@@ -146,6 +159,7 @@ export default function LogisticsJsbPage() {
           carrierId: values.carrierId || null,
           warehouseCode: values.warehouse,
           trackingSummary: values.trackingSummary,
+          fee: values.fee || undefined,
         })
       }}
     />
@@ -155,6 +169,18 @@ export default function LogisticsJsbPage() {
     <>
       {editor}
       {creator}
+      {selected ? (
+        <AddPackagesToBatchDialog
+          open={addOpen}
+          batchId={selected}
+          batchNo={current?.id === selected ? current.batchNo : selected}
+          existingShipmentIds={current?.id === selected ? current.packages.map((item) => item.shipmentId) : []}
+          preferredProviderType="jsb"
+          onClose={() => setAddOpen(false)}
+          onAdded={(packageCount) => setNotice(`已加入包裹，当前共 ${packageCount} 个`)}
+          onError={setNotice}
+        />
+      ) : null}
       <UedWorkspace
         title="JSB 与 TH 物流"
         description="TH 站点自营仓发货全链路：出库 → 交接 JSB → 清关 → 官方尾程 → 签收（已接 PostgreSQL）。"
@@ -192,7 +218,7 @@ export default function LogisticsJsbPage() {
         ]}
       >
         <UedPrototypeNotice>
-          JSB 暂无可靠的平台接口，轨迹通过导入更新；平台交运暂未接通，不会标记为交运成功。
+          JSB 暂无官方平台接口（Q17）：提交交接只把本地批次标记为已交接，不会调用平台或假装平台交运成功。轨迹请手工补录。
         </UedPrototypeNotice>
         {listQuery.isLoading ? <p className="text-sm text-muted-foreground">加载中…</p> : null}
         <div className="flex flex-wrap gap-2">
@@ -224,7 +250,21 @@ export default function LogisticsJsbPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">TH 链路</Badge>
-                <Button size="sm" variant="outline" disabled={submitMutation.isPending} onClick={() => setSubmitConfirmOpen(true)}>
+                <Button size="sm" variant="outline" disabled={!canAddPackages} onClick={() => setAddOpen(true)}>
+                  加入包裹
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!canSubmitBatch || !hasPackages || submitMutation.isPending}
+                  onClick={() => {
+                    if (!hasPackages) {
+                      setNotice('批次内没有包裹，不能提交。请先加入包裹。')
+                      return
+                    }
+                    setSubmitConfirmOpen(true)
+                  }}
+                >
                   提交交接
                 </Button>
                 <Button size="sm" variant="ghost" disabled={closeMutation.isPending} onClick={() => setCloseConfirmOpen(true)}>
@@ -246,6 +286,13 @@ export default function LogisticsJsbPage() {
                 <li className="text-sm text-muted-foreground">暂无链路事件</li>
               )}
             </ol>
+            {current.packages.length > 0 ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                包裹：{current.packages.map((p) => p.externalPackageId).join('、')}
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">尚未加入包裹，提交前请先加入至少一个包裹。</p>
+            )}
           </div>
         ) : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}

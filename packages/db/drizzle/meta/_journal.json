@@ -50,6 +50,20 @@
       "when": 1794403200000,
       "tag": "0006_compliance_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794406800000,
+      "tag": "0007_clammy_union_jack",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794410400000,
+      "tag": "0008_shop_binding_conflicts",
+      "breakpoints": true
     }
   ]
 }
