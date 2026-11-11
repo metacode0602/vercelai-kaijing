@@ -22,7 +22,12 @@ export const organizationRouter = createTRPCRouter({
   }),
 
   update: tenantProcedure
-    .input(z.object({ name: z.string().min(1).max(120) }))
+    .input(
+      z.object({
+        name: z.string().min(1).max(120),
+        logo: z.string().max(2048).nullable().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) =>
       wrap(() => organizationDa.updateOrganizationProfile(ctx.db, ctx.organizationId, input)),
     ),

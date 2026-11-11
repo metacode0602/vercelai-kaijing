@@ -1054,6 +1054,7 @@ export type CreateBatchInput = {
   carrierId?: string | null
   trackingSummary?: string
   shipmentIds?: string[]
+  fee?: string
 }
 
 export async function createBatch(
@@ -1103,7 +1104,10 @@ export async function createBatch(
     carrierId: resolved.carrierId,
     trackingSummary: input.trackingSummary || '',
     packageCount: 0,
-    raw: { events: [] },
+    raw: {
+      events: [],
+      ...(input.fee?.trim() ? { fee: input.fee.trim() } : {}),
+    },
   })
 
   if (input.shipmentIds?.length) {
@@ -1131,8 +1135,8 @@ export async function addShipmentToBatch(
     )
     .limit(1)
   if (!batch) throw new Error(`批次不存在：${batchId}`)
-  if (batch.status === 'closed' || batch.status === 'rejected') {
-    throw new Error(`批次状态为 ${batch.status}，不能再加入包裹`)
+  if (batch.status === 'closed') {
+    throw new Error('批次已关闭，不能再加入包裹')
   }
   const [ship] = await db
     .select()
@@ -1360,6 +1364,7 @@ export async function appendBatchEvent(
     carrier?: string
     carrierId?: string | null
     exception?: string
+    fee?: string
     /** 可选：同步推进批次状态（必须在白名单内） */
     status?: string
   },
@@ -1399,6 +1404,7 @@ export async function appendBatchEvent(
       ...meta,
       events,
       lastOperator: input.operator || null,
+      ...(input.fee?.trim() ? { fee: input.fee.trim() } : {}),
     },
     trackingSummary: input.tracking || batch.trackingSummary,
     carrier:

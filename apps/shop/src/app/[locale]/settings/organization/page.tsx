@@ -72,16 +72,19 @@ export default function OrganizationProfilePage() {
   const profileQuery = trpc.organization.get.useQuery()
   const profile = profileQuery.data
   const [nameDraft, setNameDraft] = React.useState<string | null>(null)
+  const [logoDraft, setLogoDraft] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState('')
   const [noticeError, setNoticeError] = React.useState(false)
   const nameValue = nameDraft ?? profile?.name ?? ''
+  const logoValue = logoDraft ?? profile?.logo ?? ''
 
   const updateMutation = trpc.organization.update.useMutation({
     onSuccess: async (data) => {
       await utils.organization.get.invalidate()
       setNameDraft(null)
+      setLogoDraft(null)
       setNoticeError(false)
-      setNotice(`组织名称已更新为「${data.name}」。入驻认证档案仍只读。`)
+      setNotice(`组织基本信息已更新为「${data.name}」。入驻认证档案仍只读。`)
     },
     onError: (error) => {
       setNoticeError(true)
@@ -112,7 +115,7 @@ export default function OrganizationProfilePage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">企业信息</h2>
           <p className="text-sm text-muted-foreground">
-            组织名称可在此更新并落库；入驻主体与认证档案只读，修改请走入驻流程。
+            组织名称与 Logo 可在此更新并落库；入驻主体、联系人与认证档案只读，修改请走入驻流程。
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -131,25 +134,57 @@ export default function OrganizationProfilePage() {
             <Building2 className="size-4 text-muted-foreground" />
             基本信息
           </CardTitle>
-          <CardDescription>组织名称可编辑；标识、类型与认证状态由平台或入驻流程维护。</CardDescription>
+          <CardDescription>组织名称和 Logo 可编辑；标识、类型与认证状态由平台或入驻流程维护。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1 space-y-2">
-              <Label htmlFor="org-name">组织名称</Label>
-              <Input
-                id="org-name"
-                value={nameValue}
-                onChange={(event) => setNameDraft(event.target.value)}
-                maxLength={120}
-              />
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Label htmlFor="org-name">组织名称</Label>
+                <Input
+                  id="org-name"
+                  value={nameValue}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  maxLength={120}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Label htmlFor="org-logo">Logo 地址</Label>
+                <Input
+                  id="org-logo"
+                  value={logoValue}
+                  onChange={(event) => setLogoDraft(event.target.value)}
+                  maxLength={2048}
+                  placeholder="https://example.com/logo.png，留空则清除"
+                />
+              </div>
+              {logoValue ? (
+                // 用户输入的任意 https 地址，不能预先加入 Next image 域名白名单
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoValue}
+                  alt="组织 Logo 预览"
+                  className="size-12 rounded-md border bg-muted object-contain"
+                />
+              ) : null}
             </div>
             <Button
               size="sm"
-              disabled={updateMutation.isPending || nameValue.trim() === '' || nameValue.trim() === profile.name}
-              onClick={() => updateMutation.mutate({ name: nameValue })}
+              disabled={
+                updateMutation.isPending ||
+                nameValue.trim() === '' ||
+                (nameValue.trim() === profile.name && logoValue.trim() === (profile.logo ?? ''))
+              }
+              onClick={() =>
+                updateMutation.mutate({
+                  name: nameValue,
+                  logo: logoValue.trim() === '' ? null : logoValue.trim(),
+                })
+              }
             >
-              {updateMutation.isPending ? '保存中…' : '保存名称'}
+              {updateMutation.isPending ? '保存中…' : '保存基本信息'}
             </Button>
           </div>
           {notice ? (
