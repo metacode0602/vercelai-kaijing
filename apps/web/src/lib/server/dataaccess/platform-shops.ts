@@ -9,6 +9,8 @@ import {
   shops,
 } from '@workspace/db'
 import { db } from '@/lib/db'
+import { pageValues } from '@/lib/server/dataaccess/pagination'
+import { sanitizeOAuthText } from '@/lib/server/oauth-auth-errors'
 
 /**
  * 平台运营店铺管理（apps/web）。
@@ -32,12 +34,6 @@ export type PlatformShopListItem = {
   authExpiresAt: Date | null
   lastSyncAt: Date | null
   syncPaused: boolean
-}
-
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
 }
 
 function syncPausedFlag(meta: unknown, health: string | null, status: string) {
@@ -207,6 +203,11 @@ export async function getPlatformShop(id: string) {
     .orderBy(desc(integrationLogs.createdAt))
     .limit(20)
 
+  const safeLogs = logs.map((log) => ({
+    ...log,
+    message: sanitizeOAuthText(log.message),
+  }))
+
   return {
     shop: {
       id: row.shop.id,
@@ -243,7 +244,7 @@ export async function getPlatformShop(id: string) {
         }
       : null,
     syncPaused: syncPausedFlag(row.shop.meta, row.health, row.shop.status),
-    logs,
+    logs: safeLogs,
   }
 }
 

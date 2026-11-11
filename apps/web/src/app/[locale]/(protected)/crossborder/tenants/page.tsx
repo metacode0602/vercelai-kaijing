@@ -1,6 +1,13 @@
 'use client'
 
 import * as React from 'react'
+import { useListPagination } from '@/lib/pagination/use-list-pagination'
+import {
+  TableEmptyRow,
+  TableErrorRow,
+  TableLoadingRow,
+} from '@/components/shared/data-table'
+import { ListPagination } from '@/components/shared/list-pagination'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -15,12 +22,12 @@ import {
 } from '@workspace/ui/components/table'
 
 export default function CrossborderTenantsPage() {
-  const [page, setPage] = React.useState(1)
+  const { page, setPage, pageSize, setPageSize } = useListPagination()
   const [q, setQ] = React.useState('')
   const utils = trpc.useUtils()
   const query = trpc.platformOnboarding.tenants.useQuery({
     page,
-    pageSize: 20,
+    pageSize,
     q: q.trim() || undefined,
   })
   const [notice, setNotice] = React.useState('')
@@ -31,7 +38,7 @@ export default function CrossborderTenantsPage() {
     },
     onError: (error) => setNotice(error.message),
   })
-  const pageCount = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20))
+  const pageCount = Math.max(1, Math.ceil((query.data?.total ?? 0) / pageSize))
 
   return (
     <div className="space-y-4">
@@ -62,11 +69,13 @@ export default function CrossborderTenantsPage() {
         </TableHeader>
         <TableBody>
           {query.isLoading ? (
-            <TableRow>
-              <TableCell colSpan={8} className="text-muted-foreground">
-                加载中…
-              </TableCell>
-            </TableRow>
+            <TableLoadingRow colSpan={8} />
+          ) : query.isError ? (
+            <TableErrorRow
+              colSpan={8}
+              message={query.error.message}
+              onRetry={() => query.refetch()}
+            />
           ) : query.data?.items.length ? (
             query.data.items.map((tenant) => (
               <TableRow key={tenant.id}>
@@ -110,39 +119,19 @@ export default function CrossborderTenantsPage() {
               </TableRow>
             ))
           ) : (
-            <TableRow>
-              <TableCell colSpan={8} className="text-muted-foreground">
-                暂无租户。
-              </TableCell>
-            </TableRow>
+            <TableEmptyRow colSpan={8}>暂无租户。</TableEmptyRow>
           )}
         </TableBody>
       </Table>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>共 {query.data?.total ?? 0} 条</span>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page <= 1}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            上一页
-          </Button>
-          <span>
-            {page} / {pageCount}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page >= pageCount}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            下一页
-          </Button>
-        </div>
-      </div>
+      <ListPagination
+        page={page}
+        totalPages={pageCount}
+        totalItems={query.data?.total ?? 0}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   )
 }

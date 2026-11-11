@@ -7,6 +7,7 @@ import {
   type PlatformBasicValue,
 } from '@workspace/db/platform-basics'
 import { db } from '@/lib/db'
+import { pageValues } from '@/lib/server/dataaccess/pagination'
 
 /**
  * 平台基础资料目录（apps/web 平台侧维护，全局受控）。
@@ -18,12 +19,6 @@ import { db } from '@/lib/db'
 export type PlatformBasicsItem = PlatformBasicValue & {
   id: string
   updatedAt: Date
-}
-
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
 }
 
 function mapRow(row: typeof platformBasicsCatalog.$inferSelect): PlatformBasicsItem {

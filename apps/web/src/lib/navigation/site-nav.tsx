@@ -1,6 +1,7 @@
 import {
   Activity,
   AlertTriangle,
+  CircleAlert,
   Building2,
   ClipboardCheck,
   FileClock,
@@ -69,6 +70,11 @@ export const SITE_NAV_GROUPS: SiteNavGroup[] = [
         title: '店铺冲突',
         url: '/crossborder/shop-conflicts',
         icon: <AlertTriangle className="size-4" />,
+      },
+      {
+        title: '授权异常',
+        url: '/crossborder/auth-exceptions',
+        icon: <CircleAlert className="size-4" />,
       },
       {
         title: '同步健康',

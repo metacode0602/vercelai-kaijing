@@ -20,6 +20,7 @@ import {
 } from '@workspace/db'
 import { initializePlatformBasicsForOrganization } from '@workspace/db/platform-basics'
 import { db } from '@/lib/db'
+import { pageValues } from '@/lib/server/dataaccess/pagination'
 import { signOnboardingFileUrl } from '@/lib/server/onboarding-file'
 
 export type ReviewListItem = {
@@ -38,12 +39,6 @@ export type ReviewListItem = {
   submittedAt: Date | null
   reviewedAt: Date | null
   reviewNote: string | null
-}
-
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
 }
 
 export async function listOnboardingReviews(input: {

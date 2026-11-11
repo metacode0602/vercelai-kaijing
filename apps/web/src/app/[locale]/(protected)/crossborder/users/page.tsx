@@ -2,6 +2,13 @@
 
 import * as React from 'react'
 import { LocaleLink } from '@/lib/i18n/navigation'
+import { useListPagination } from '@/lib/pagination/use-list-pagination'
+import {
+  TableEmptyRow,
+  TableErrorRow,
+  TableLoadingRow,
+} from '@/components/shared/data-table'
+import { ListPagination } from '@/components/shared/list-pagination'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -16,7 +23,6 @@ import {
   TableRow,
 } from '@workspace/ui/components/table'
 
-const PAGE_SIZE = 20
 
 const ROLE_LABELS: Record<string, string> = {
   tenant_owner: '租户所有者',
@@ -29,17 +35,17 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export default function CrossborderUsersPage() {
-  const [page, setPage] = React.useState(1)
+  const { page, setPage, pageSize, setPageSize } = useListPagination()
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState<'all' | 'active' | 'banned'>('all')
   const query = trpc.platformUsers.list.useQuery({
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
     q: q.trim() || undefined,
     status,
   })
   const data = query.data
-  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
+  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))
 
   return (
     <div className="space-y-4">
@@ -108,20 +114,13 @@ export default function CrossborderUsersPage() {
         </TableHeader>
         <TableBody>
           {query.isLoading ? (
-            <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground">
-                加载中…
-              </TableCell>
-            </TableRow>
+            <TableLoadingRow colSpan={6} />
           ) : query.isError ? (
-            <TableRow>
-              <TableCell colSpan={6} className="text-destructive">
-                加载失败：{query.error.message}
-                <Button size="sm" variant="outline" onClick={() => query.refetch()}>
-                  重试
-                </Button>
-              </TableCell>
-            </TableRow>
+            <TableErrorRow
+              colSpan={6}
+              message={query.error.message}
+              onRetry={() => query.refetch()}
+            />
           ) : data?.items.length ? (
             data.items.map((user) => (
               <TableRow key={user.id}>
@@ -179,39 +178,19 @@ export default function CrossborderUsersPage() {
               </TableRow>
             ))
           ) : (
-            <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground">
-                暂无用户。
-              </TableCell>
-            </TableRow>
+            <TableEmptyRow colSpan={6}>暂无用户。</TableEmptyRow>
           )}
         </TableBody>
       </Table>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>共 {data?.total ?? 0} 条</span>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page <= 1 || query.isFetching}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            上一页
-          </Button>
-          <span>
-            {page} / {pageCount}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page >= pageCount || query.isFetching}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            下一页
-          </Button>
-        </div>
-      </div>
+      <ListPagination
+        page={page}
+        totalPages={pageCount}
+        totalItems={data?.total ?? 0}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   )
 }

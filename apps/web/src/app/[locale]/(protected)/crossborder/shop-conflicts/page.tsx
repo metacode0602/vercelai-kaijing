@@ -1,6 +1,13 @@
 'use client'
 
 import * as React from 'react'
+import { useListPagination } from '@/lib/pagination/use-list-pagination'
+import {
+  TableEmptyRow,
+  TableErrorRow,
+  TableLoadingRow,
+} from '@/components/shared/data-table'
+import { ListPagination } from '@/components/shared/list-pagination'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -22,7 +29,11 @@ function formatTime(value: Date | string | null | undefined) {
 
 export default function ShopConflictsPage() {
   const utils = trpc.useUtils()
-  const conflicts = trpc.platformOnboarding.listConflicts.useQuery()
+  const { page, setPage, pageSize, setPageSize } = useListPagination()
+  const conflicts = trpc.platformOnboarding.listConflicts.useQuery({
+    page,
+    pageSize,
+  })
   const [reasons, setReasons] = React.useState<Record<string, string>>({})
   const [notice, setNotice] = React.useState('')
 
@@ -75,13 +86,15 @@ export default function ShopConflictsPage() {
         </TableHeader>
         <TableBody>
           {conflicts.isLoading ? (
-            <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
-                加载中…
-              </TableCell>
-            </TableRow>
-          ) : conflicts.data?.length ? (
-            conflicts.data.map((conflict) => {
+            <TableLoadingRow colSpan={5} />
+          ) : conflicts.isError ? (
+            <TableErrorRow
+              colSpan={5}
+              message={conflicts.error.message}
+              onRetry={() => conflicts.refetch()}
+            />
+          ) : conflicts.data?.items.length ? (
+            conflicts.data.items.map((conflict) => {
               const reason = reasons[conflict.id] ?? ''
               return (
                 <TableRow key={conflict.id}>
@@ -240,15 +253,19 @@ export default function ShopConflictsPage() {
               )
             })
           ) : (
-            <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
-                暂无绑定冲突。
-              </TableCell>
-            </TableRow>
+            <TableEmptyRow colSpan={5}>暂无绑定冲突。</TableEmptyRow>
           )}
         </TableBody>
       </Table>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      <ListPagination
+        page={page}
+        totalPages={Math.max(1, Math.ceil((conflicts.data?.total ?? 0) / pageSize))}
+        totalItems={conflicts.data?.total ?? 0}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   )
 }

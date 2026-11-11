@@ -94,7 +94,12 @@ export const platformOnboardingRouter = createTRPCRouter({
       })
       return result
     }),
-  listConflicts: protectedProcedure.query(() => listShopBindingConflicts(db)),
+  listConflicts: protectedProcedure.input(listInput.omit({ status: true, countryCode: true })).query(({ input }) =>
+    listShopBindingConflicts(db, {
+      page: input.page,
+      pageSize: input.pageSize,
+    }),
+  ),
   resolveConflict: protectedProcedure
     .input(
       z.object({

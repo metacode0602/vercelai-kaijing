@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { PageDataLoading } from '@/components/shared/data-table'
+import { classifyOAuthFailure } from '@/lib/server/oauth-auth-errors'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -60,7 +62,7 @@ export default function PlatformShopDetailPage({
   })
 
   if (query.isLoading) {
-    return <p className="text-sm text-muted-foreground">加载中…</p>
+    return <PageDataLoading />
   }
   if (!query.data) {
     return <p className="text-sm text-muted-foreground">店铺不存在。</p>
@@ -73,6 +75,18 @@ export default function PlatformShopDetailPage({
     shop.meta && typeof shop.meta === 'object'
       ? (shop.meta as Record<string, unknown>)
       : {}
+  const metaLastError =
+    typeof platformMeta.lastError === 'string' ? platformMeta.lastError : null
+  const metaLastErrorCode =
+    typeof platformMeta.lastErrorCode === 'string' ? platformMeta.lastErrorCode : null
+  const failureAdvice =
+    lastError || metaLastError || metaLastErrorCode
+      ? classifyOAuthFailure({
+          reason: metaLastErrorCode,
+          message: lastError ?? metaLastError,
+          lastError,
+        })
+      : null
 
   return (
     <div className="space-y-5">
@@ -148,7 +162,7 @@ export default function PlatformShopDetailPage({
             <dd>
               {health ?? '—'}
               {lastError ? (
-                <span className="text-destructive">（{lastError}）</span>
+                <span className="text-destructive">（{failureAdvice?.reason ?? lastError}）</span>
               ) : null}
             </dd>
           </div>
@@ -160,6 +174,36 @@ export default function PlatformShopDetailPage({
           </div>
         </dl>
       </section>
+
+      {failureAdvice ? (
+        <section className="rounded-lg border p-4 text-sm">
+          <p className="font-medium">授权异常排查</p>
+          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">错误码</dt>
+              <dd className="font-mono text-xs">{failureAdvice.code}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">原因</dt>
+              <dd>{failureAdvice.reason}</dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-muted-foreground">建议操作：{failureAdvice.advice}</p>
+          {failureAdvice.code === 'shop_bound_other_org' ? (
+            <p className="mt-2">
+              <LocaleLink className="underline" href="/crossborder/shop-conflicts">
+                前往店铺冲突队列
+              </LocaleLink>
+            </p>
+          ) : (
+            <p className="mt-2">
+              <LocaleLink className="underline" href="/crossborder/auth-exceptions">
+                查看全部授权异常
+              </LocaleLink>
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {typeof platformMeta.platformDisabledReason === 'string' &&
       platformMeta.platformDisabledReason ? (

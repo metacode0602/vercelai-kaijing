@@ -1,5 +1,6 @@
 'use client'
 
+import { PageDataLoading } from '@/components/shared/data-table'
 import { trpc } from '@/lib/trpc/client'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -32,7 +33,7 @@ export default function CrossborderDashboardPage() {
       </div>
 
       {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">加载中…</p>
+        <PageDataLoading />
       ) : query.isError ? (
         <div className="space-y-2 rounded-lg border p-4">
           <p className="text-sm text-destructive">

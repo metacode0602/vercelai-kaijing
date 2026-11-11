@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { PageDataLoading } from '@/components/shared/data-table'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -81,7 +82,7 @@ export default function OnboardingReviewDetailPage({
   })
 
   if (query.isLoading) {
-    return <p className="text-sm text-muted-foreground">加载中…</p>
+    return <PageDataLoading />
   }
   if (!query.data) {
     return <p className="text-sm text-muted-foreground">入驻申请不存在。</p>

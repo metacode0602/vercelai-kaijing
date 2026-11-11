@@ -1,6 +1,13 @@
 'use client'
 
 import * as React from 'react'
+import { useListPagination } from '@/lib/pagination/use-list-pagination'
+import {
+  TableEmptyRow,
+  TableErrorRow,
+  TableLoadingRow,
+} from '@/components/shared/data-table'
+import { ListPagination } from '@/components/shared/list-pagination'
 import { trpc } from '@/lib/trpc/client'
 import type { PlatformApiReadyState } from '@workspace/db/schema'
 import { Badge } from '@workspace/ui/components/badge'
@@ -33,7 +40,6 @@ import {
  * @see docs/design/haoshiyun-platform-basics-ued.md §7
  */
 
-const PAGE_SIZE = 20
 
 const KINDS = [
   { value: 'platform', label: '平台' },
@@ -96,7 +102,7 @@ function toPayload(kind: Kind, form: FormState) {
 export default function PlatformBasicsPage() {
   const utils = trpc.useUtils()
   const [kind, setKind] = React.useState<Kind>('platform')
-  const [page, setPage] = React.useState(1)
+  const { page, setPage, pageSize, setPageSize } = useListPagination()
   const [q, setQ] = React.useState('')
   const [status, setStatus] = React.useState('')
   const [notice, setNotice] = React.useState('')
@@ -107,7 +113,7 @@ export default function PlatformBasicsPage() {
   const listQuery = trpc.platformBasics.list.useQuery({
     kind,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
     q: q.trim() || undefined,
     status: status === 'active' || status === 'inactive' ? status : undefined,
   })
@@ -154,7 +160,7 @@ export default function PlatformBasicsPage() {
 
   const rows = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   function openCreate() {
     setEditingId(null)
@@ -283,11 +289,13 @@ export default function PlatformBasicsPage() {
         </TableHeader>
         <TableBody>
           {listQuery.isLoading ? (
-            <TableRow>
-              <TableCell colSpan={colSpan} className="text-muted-foreground">
-                加载中…
-              </TableCell>
-            </TableRow>
+            <TableLoadingRow colSpan={colSpan} />
+          ) : listQuery.isError ? (
+            <TableErrorRow
+              colSpan={colSpan}
+              message={listQuery.error.message}
+              onRetry={() => listQuery.refetch()}
+            />
           ) : rows.length ? (
             rows.map((row) => (
               <TableRow key={row.id}>
@@ -332,39 +340,21 @@ export default function PlatformBasicsPage() {
               </TableRow>
             ))
           ) : (
-            <TableRow>
-              <TableCell colSpan={colSpan} className="text-muted-foreground">
-                暂无数据。点「补齐初始资料」写入平台默认目录，或直接新增。
-              </TableCell>
-            </TableRow>
+            <TableEmptyRow colSpan={colSpan}>
+              暂无数据。点「补齐初始资料」写入平台默认目录，或直接新增。
+            </TableEmptyRow>
           )}
         </TableBody>
       </Table>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>共 {total} 条</span>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page <= 1}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            上一页
-          </Button>
-          <span>
-            {page} / {pageCount}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page >= pageCount}
-            onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
-          >
-            下一页
-          </Button>
-        </div>
-      </div>
+      <ListPagination
+        page={page}
+        totalPages={pageCount}
+        totalItems={total}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
 
       {notice ? (
         <p role="status" className="text-sm text-muted-foreground">

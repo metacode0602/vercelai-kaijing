@@ -1,5 +1,6 @@
 'use client'
 
+import { PAGE_SIZE_OPTIONS } from '@/lib/pagination/defaults'
 import { generatePageNumbers } from '@/lib/pagination/generate-page-numbers'
 import {
   Pagination,
@@ -10,6 +11,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@workspace/ui/components/pagination'
+import { NativeSelect } from '@workspace/ui/components/native-select'
 import { cn } from '@workspace/ui/lib/utils'
 
 export type ListPaginationProps = {
@@ -18,6 +20,8 @@ export type ListPaginationProps = {
   totalItems: number
   pageSize: number
   onPageChange: (page: number) => void
+  onPageSizeChange?: (pageSize: number) => void
+  pageSizeOptions?: readonly number[]
   className?: string
 }
 
@@ -27,6 +31,8 @@ export function ListPagination({
   totalItems,
   pageSize,
   onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
   className,
 }: ListPaginationProps) {
   if (totalItems === 0) {
@@ -41,12 +47,33 @@ export function ListPagination({
     <div
       className={cn(
         'flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
-        className
+        className,
       )}
     >
-      <p className="text-muted-foreground text-sm">
-        显示 {start}–{end} 条，共 {totalItems} 条
-      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-muted-foreground text-sm">
+          显示 {start}–{end} 条，共 {totalItems} 条
+        </p>
+        {onPageSizeChange ? (
+          <label className="text-muted-foreground flex items-center gap-2 text-sm">
+            每页
+            <NativeSelect
+              size="sm"
+              value={String(pageSize)}
+              onChange={(event) => {
+                const next = Number(event.target.value)
+                if (Number.isFinite(next) && next > 0) onPageSizeChange(next)
+              }}
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>
+                  {size} 条
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        ) : null}
+      </div>
 
       {totalPages > 1 ? (
         <Pagination className="mx-0 w-auto justify-end">

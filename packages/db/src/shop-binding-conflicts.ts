@@ -2,7 +2,7 @@
  * G8 跨租户店铺绑定冲突单的读写与裁决。
  * 调用方需传入同一事务中的 db/tx；对外包装函数会自行开事务。
  */
-import { and, desc, eq, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm"
+import { and, count, desc, eq, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 import type { AppDatabase } from "./client"
 import { organization } from "./auth-schema"
@@ -643,13 +643,22 @@ export type ShopBindingConflictListItem = {
   releasedAt: Date | null
 }
 
-export async function listShopBindingConflicts(db: AppDatabase) {
+export async function listShopBindingConflicts(
+  db: AppDatabase,
+  input: { page?: number; pageSize?: number } = {},
+) {
+  const page = Math.max(1, Math.trunc(input.page ?? 1))
+  const pageSize = Math.min(100, Math.max(1, Math.trunc(input.pageSize ?? 20)))
   return db.transaction(async (tx) => {
     await finalizeExpiredTransferAppeals(tx)
     const challengerOrg = alias(organization, "challenger_org")
     const occupantOrg = alias(organization, "occupant_org")
     const challengerShop = alias(shops, "challenger_shop")
     const occupantShop = alias(shops, "occupant_shop")
+    const [totalRow] = await tx
+      .select({ value: count() })
+      .from(shopBindingConflicts)
+    const total = Number(totalRow?.value ?? 0)
     const rows = await tx
       .select({
         conflict: shopBindingConflicts,
@@ -676,8 +685,9 @@ export async function listShopBindingConflicts(db: AppDatabase) {
         eq(occupantShop.id, shopBindingConflicts.occupantShopId),
       )
       .orderBy(desc(shopBindingConflicts.updatedAt))
-      .limit(200)
-    return rows.map((row) => {
+      .limit(pageSize)
+      .offset((page - 1) * pageSize)
+    const items = rows.map((row) => {
       const status = asConflictStatus(row.conflict.status)
       return {
         id: row.conflict.id,
@@ -705,6 +715,7 @@ export async function listShopBindingConflicts(db: AppDatabase) {
         releasedAt: row.conflict.releasedAt,
       } satisfies ShopBindingConflictListItem
     })
+    return { items, total, page, pageSize }
   })
 }
 

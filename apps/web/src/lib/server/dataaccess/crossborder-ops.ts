@@ -19,12 +19,7 @@ import {
   shops,
 } from '@workspace/db'
 import { db } from '@/lib/db'
-
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
-}
+import { pageValues } from '@/lib/server/dataaccess/pagination'
 
 export type CrossborderDashboardStats = {
   tenants: number

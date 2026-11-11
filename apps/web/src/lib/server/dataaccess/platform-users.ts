@@ -10,6 +10,7 @@ import {
   user,
 } from '@workspace/db'
 import { db } from '@/lib/db'
+import { pageValues } from '@/lib/server/dataaccess/pagination'
 
 /**
  * 平台运营用户管理（apps/web，租户侧 public.users）。
@@ -30,12 +31,6 @@ export type PlatformUserListItem = {
   banExpires: Date | null
   createdAt: Date
   memberships: { organizationName: string; role: string }[]
-}
-
-function pageValues(page?: number, pageSize?: number) {
-  const normalizedPage = Math.max(1, Math.trunc(page ?? 1))
-  const normalizedSize = Math.min(100, Math.max(1, Math.trunc(pageSize ?? 20)))
-  return { page: normalizedPage, pageSize: normalizedSize }
 }
 
 export async function listPlatformUsers(input: {

@@ -47,6 +47,7 @@ export enum Routes {
   CrossborderShops = '/crossborder/shops',
   CrossborderUsers = '/crossborder/users',
   CrossborderShopConflicts = '/crossborder/shop-conflicts',
+  CrossborderAuthExceptions = '/crossborder/auth-exceptions',
   CrossborderSyncHealth = '/crossborder/sync-health',
   CrossborderPendingActions = '/crossborder/pending-actions',
   CrossborderPlatformConfig = '/crossborder/platform-config',

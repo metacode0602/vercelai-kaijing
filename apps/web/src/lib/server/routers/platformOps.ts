@@ -4,6 +4,7 @@ import {
   listCrossborderPendingActions,
   listCrossborderSyncHealth,
 } from '@/lib/server/dataaccess/crossborder-ops'
+import { listAuthExceptions } from '@/lib/server/dataaccess/auth-exceptions'
 import { createTRPCRouter, protectedProcedure } from './trpc'
 
 const pageInput = z.object({
@@ -24,4 +25,12 @@ export const platformOpsRouter = createTRPCRouter({
       }),
     )
     .query(({ input }) => listCrossborderPendingActions(input)),
+  authExceptions: protectedProcedure
+    .input(
+      pageInput.extend({
+        q: z.string().max(120).optional(),
+        platform: z.string().max(32).optional(),
+      }),
+    )
+    .query(({ input }) => listAuthExceptions(input)),
 })
