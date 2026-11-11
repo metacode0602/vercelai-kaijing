@@ -16,6 +16,7 @@ export const platformShopsRouter = createTRPCRouter({
         q: z.string().max(120).optional(),
         platform: z.string().max(32).optional(),
         status: z.string().max(32).optional(),
+        organizationId: z.string().min(1).optional(),
       }),
     )
     .query(({ input }) => listPlatformShops(input)),

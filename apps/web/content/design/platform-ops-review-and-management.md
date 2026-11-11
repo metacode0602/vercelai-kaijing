@@ -3,7 +3,7 @@
 > 状态：生效（2026-11-10）
 > 范围：`apps/web` 跨境运营中枢下的入驻审核（补齐）、店铺管理、用户管理；与 `apps/shop` 的入驻-审核闭环
 > 关联文档：[tenant-onboarding-and-store-binding.md](../../../shop/content/design/tenant-onboarding-and-store-binding.md)（§12.3 `platformOnboarding`、§11.8 审核线框）、[crossborder-mvp-overview.md](../../../../docs/design/crossborder-mvp-overview.md)（apps/web 模块边界）
-> 代码落点：`apps/web/src/lib/server/{routers,dataaccess}/`、`apps/web/src/app/[locale]/(protected)/crossborder/*`
+> 代码落点：`apps/web/src/lib/server/{routers,dataaccess}/`、`apps/web/src/app/[locale]/(protected)/console/*`
 
 ---
 
@@ -59,7 +59,7 @@ sequenceDiagram
 | `listConflicts` / `upholdConflict` / `approveTransfer` / `reviewAppeal` | `conflictId`, `reason` | 读取冲突单；维持原绑定或批准转移（批准须填原因）；复审原租户申诉。旧 `resolveConflict` 改组织 ID 路径已停用 |
 | `tenants` / `disableTenant` | — | 租户列表与整体停用（沿用） |
 
-页面：`/crossborder/onboarding`（统计卡片 + 国家/状态筛选 + 搜索 + 分页）、`/crossborder/onboarding/[id]`（主体资料、法人/代理人材料、组织审核状态、关联店铺、审核记录、通过/驳回）。
+页面：`/console/onboarding`（统计卡片 + 国家/状态筛选 + 搜索 + 分页）、`/console/onboarding/[id]`（主体资料、法人/代理人材料、组织审核状态、关联店铺、审核记录、通过/驳回）。
 
 ## 3. 权限
 
@@ -95,12 +95,12 @@ sequenceDiagram
 
 | 路由 | 说明 |
 | --- | --- |
-| `/crossborder/onboarding` | 审核队列（统计 + 筛选 + 分页） |
-| `/crossborder/onboarding/[id]` | 审核详情与通过/驳回 |
-| `/crossborder/shops` | 店铺管理列表（新增） |
-| `/crossborder/shops/[id]` | 店铺详情与停用/恢复（新增） |
-| `/crossborder/users` | 用户管理列表（新增） |
-| `/crossborder/users/[id]` | 用户详情与封禁/解封（新增） |
+| `/console/onboarding` | 审核队列（统计 + 筛选 + 分页） |
+| `/console/onboarding/[id]` | 审核详情与通过/驳回 |
+| `/console/shops` | 店铺管理列表（新增） |
+| `/console/shops/[id]` | 店铺详情与停用/恢复（新增） |
+| `/console/users` | 用户管理列表（新增） |
+| `/console/users/[id]` | 用户详情与封禁/解封（新增） |
 
 导航：`CROSSBORDER_NAV` 增补「店铺」「用户」。
 

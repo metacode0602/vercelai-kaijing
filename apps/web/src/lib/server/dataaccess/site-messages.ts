@@ -61,7 +61,7 @@ const demoMessages: Omit<NewWebUserSiteMessage, 'id' | 'userId'>[] = [
 
 请核对营业执照、Daraz 店铺授权与联系人信息后再通过审核。`,
     category: '入驻',
-    links: [{ label: '前往入驻审核', href: '/crossborder/onboarding' }],
+    links: [{ label: '前往入驻审核', href: '/console/onboarding' }],
     read: false,
     createdAt: new Date('2026-11-10T03:20:00.000Z'),
   },
@@ -76,7 +76,7 @@ const demoMessages: Omit<NewWebUserSiteMessage, 'id' | 'userId'>[] = [
 
 系统已自动加入重试队列。若 30 分钟内仍未恢复，请检查平台授权凭证或稍后手动触发同步。`,
     category: '同步',
-    links: [{ label: '查看同步健康', href: '/crossborder/sync-health' }],
+    links: [{ label: '查看同步健康', href: '/console/sync-health' }],
     read: false,
     createdAt: new Date('2026-11-09T14:05:00.000Z'),
   },
@@ -92,7 +92,7 @@ const demoMessages: Omit<NewWebUserSiteMessage, 'id' | 'userId'>[] = [
 
 可在运营总览中查看完整指标趋势。`,
     category: '系统',
-    links: [{ label: '打开运营总览', href: '/crossborder' }],
+    links: [{ label: '打开运营总览', href: '/console' }],
     read: true,
     readAt: new Date('2026-11-08T09:30:00.000Z'),
     createdAt: new Date('2026-11-08T09:00:00.000Z'),

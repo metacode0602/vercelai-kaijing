@@ -5,12 +5,12 @@ import {
   integrationCredentials,
   integrationLogs,
   integrationStates,
+  inventoryPools,
   organization,
   shops,
 } from '@workspace/db'
 import { db } from '@/lib/db'
 import { pageValues } from '@/lib/server/dataaccess/pagination'
-import { sanitizeOAuthText } from '@/lib/server/oauth-auth-errors'
 
 /**
  * 平台运营店铺管理（apps/web）。
@@ -51,9 +51,13 @@ export async function listPlatformShops(input: {
   q?: string
   platform?: string
   status?: string
+  organizationId?: string
 }) {
   const { page, pageSize } = pageValues(input.page, input.pageSize)
   const filters = [isNull(shops.deletedAt)]
+  if (input.organizationId) {
+    filters.push(eq(shops.organizationId, input.organizationId))
+  }
   if (input.platform && input.platform !== 'all') {
     filters.push(eq(shops.platform, input.platform))
   }
@@ -166,14 +170,22 @@ export async function getPlatformShop(id: string) {
       organizationName: organization.name,
       organizationEntryApproved: organization.entryApproved,
       organizationStatus: organization.status,
+      inventoryPoolName: inventoryPools.name,
       health: integrationStates.health,
       lastError: integrationStates.lastError,
       lastOrdersSyncAt: integrationStates.lastOrdersSyncAt,
       lastInventorySyncAt: integrationStates.lastInventorySyncAt,
+      lastProductsSyncAt: integrationStates.lastProductsSyncAt,
+      lastListingsSyncAt: integrationStates.lastListingsSyncAt,
+      lastLogisticsSyncAt: integrationStates.lastLogisticsSyncAt,
+      lastReviewsSyncAt: integrationStates.lastReviewsSyncAt,
+      lastReverseSyncAt: integrationStates.lastReverseSyncAt,
+      lastSettlementsSyncAt: integrationStates.lastSettlementsSyncAt,
     })
     .from(shops)
     .innerJoin(organization, eq(organization.id, shops.organizationId))
     .leftJoin(integrationStates, eq(integrationStates.shopId, shops.id))
+    .leftJoin(inventoryPools, eq(inventoryPools.id, shops.inventoryPoolId))
     .where(and(eq(shops.id, id), isNull(shops.deletedAt)))
     .limit(1)
   if (!row) return null
@@ -189,25 +201,6 @@ export async function getPlatformShop(id: string) {
     .where(eq(integrationCredentials.shopId, row.shop.id))
     .limit(1)
 
-  const logs = await db
-    .select({
-      id: integrationLogs.id,
-      action: integrationLogs.action,
-      direction: integrationLogs.direction,
-      status: integrationLogs.status,
-      message: integrationLogs.message,
-      createdAt: integrationLogs.createdAt,
-    })
-    .from(integrationLogs)
-    .where(eq(integrationLogs.shopId, row.shop.id))
-    .orderBy(desc(integrationLogs.createdAt))
-    .limit(20)
-
-  const safeLogs = logs.map((log) => ({
-    ...log,
-    message: sanitizeOAuthText(log.message),
-  }))
-
   return {
     shop: {
       id: row.shop.id,
@@ -215,6 +208,10 @@ export async function getPlatformShop(id: string) {
       platform: row.shop.platform,
       region: row.shop.marketplaceCountry,
       currency: row.shop.currency,
+      timezone: row.shop.timezone,
+      sellerName: row.shop.sellerName,
+      inventoryPoolId: row.shop.inventoryPoolId,
+      inventoryPoolName: row.inventoryPoolName,
       externalShopId: row.shop.externalShopId,
       sellerId: row.shop.sellerId,
       shopGroup: row.shop.shopGroup,
@@ -236,6 +233,12 @@ export async function getPlatformShop(id: string) {
     lastError: row.lastError,
     lastOrdersSyncAt: row.lastOrdersSyncAt,
     lastInventorySyncAt: row.lastInventorySyncAt,
+    lastProductsSyncAt: row.lastProductsSyncAt,
+    lastListingsSyncAt: row.lastListingsSyncAt,
+    lastLogisticsSyncAt: row.lastLogisticsSyncAt,
+    lastReviewsSyncAt: row.lastReviewsSyncAt,
+    lastReverseSyncAt: row.lastReverseSyncAt,
+    lastSettlementsSyncAt: row.lastSettlementsSyncAt,
     credential: credential
       ? {
           kind: credential.kind,
@@ -244,7 +247,6 @@ export async function getPlatformShop(id: string) {
         }
       : null,
     syncPaused: syncPausedFlag(row.shop.meta, row.health, row.shop.status),
-    logs: safeLogs,
   }
 }
 

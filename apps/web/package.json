@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/server/*.test.ts src/lib/pagination/*.test.ts"
+    "test": "tsx --test src/lib/server/*.test.ts src/lib/pagination/*.test.ts src/lib/navigation/*.test.ts"
   },
   "dependencies": {
     "@bprogress/next": "^3.2.12",

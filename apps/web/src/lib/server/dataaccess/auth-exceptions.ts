@@ -38,6 +38,8 @@ export async function listAuthExceptions(input: {
   pageSize?: number
   q?: string
   platform?: string
+  organizationId?: string
+  shopId?: string
 }) {
   const { page, pageSize } = pageValues(input.page, input.pageSize)
   const filters: SQL[] = [
@@ -51,6 +53,12 @@ export async function listAuthExceptions(input: {
 
   if (input.platform && input.platform !== 'all') {
     filters.push(eq(shops.platform, input.platform))
+  }
+  if (input.organizationId) {
+    filters.push(eq(organization.id, input.organizationId))
+  }
+  if (input.shopId) {
+    filters.push(eq(shops.id, input.shopId))
   }
 
   const keyword = input.q?.trim()

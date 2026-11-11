@@ -15,15 +15,14 @@
 
 | 路径 | 功能 |
 | --- | --- |
-| `src/app/[locale]/(protected)/crossborder` | 运营总览 |
-| ├ `tenants` / `onboarding` / `users` | 租户、入驻审核、平台用户 |
-| ├ `shops` / `shop-conflicts` | 店铺列表、店铺冲突 |
-| ├ `pending-actions` / `sync-health` | 待审动作抽检、连接器 / 同步健康 |
-| └ `platform-config` / `audit-logs` / `announcements` / `roles` | 平台配置、操作日志、系统公告、角色权限（占位，即将上线） |
-| `src/app/[locale]/(protected)/settings` | 平台设置（账户 / 外观 / 语言 / 通知 / 平台偏好 / 关于） |
+| `src/app/[locale]/(protected)/console` | 运营总览（旧路径 `/crossborder` 会重定向到这里） |
+| ├ `tenants` / `onboarding` / `users` | 租户、入驻审核、平台用户及其独立详情页 |
+| ├ `shops` / `shop-conflicts` / `auth-exceptions` | 店铺、店铺冲突、授权异常及其详情页 |
+| ├ `pending-actions` / `sync-health` | 待审动作详情、连接器 / 同步健康（行进店铺详情） |
+| `src/app/[locale]/(protected)/settings` | 账号设置；侧栏另含平台配置 / 操作日志 / 系统公告 / 角色权限（即将上线） |
 | `src/app/[locale]/(auth)` | 登录 / 注册 / 找回密码 |
 
-壳层：`(protected)/layout.tsx` 提供侧边栏、顶部导航、自动面包屑与站内信入口。
+壳层：`console/layout.tsx` 与 `settings/layout.tsx` 各自提供独立侧边栏、顶部导航、自动面包屑与站内信入口。
 
 tRPC：
 

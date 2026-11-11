@@ -2,7 +2,7 @@
  * G8 跨租户店铺绑定冲突单的读写与裁决。
  * 调用方需传入同一事务中的 db/tx；对外包装函数会自行开事务。
  */
-import { and, count, desc, eq, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm"
+import { and, count, desc, eq, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 import type { AppDatabase } from "./client"
 import { organization } from "./auth-schema"
@@ -645,10 +645,53 @@ export type ShopBindingConflictListItem = {
 
 export async function listShopBindingConflicts(
   db: AppDatabase,
-  input: { page?: number; pageSize?: number } = {},
+  input: {
+    page?: number
+    pageSize?: number
+    organizationId?: string
+    shopId?: string
+    platform?: string
+    externalShopId?: string
+  } = {},
 ) {
   const page = Math.max(1, Math.trunc(input.page ?? 1))
   const pageSize = Math.min(100, Math.max(1, Math.trunc(input.pageSize ?? 20)))
+  const filters: SQL[] = []
+  if (input.organizationId) {
+    filters.push(
+      or(
+        eq(shopBindingConflicts.challengerOrganizationId, input.organizationId),
+        eq(shopBindingConflicts.occupantOrganizationId, input.organizationId),
+      )!,
+    )
+  }
+  if (input.shopId && input.platform && input.externalShopId) {
+    filters.push(
+      or(
+        eq(shopBindingConflicts.challengerShopId, input.shopId),
+        eq(shopBindingConflicts.occupantShopId, input.shopId),
+        and(
+          eq(shopBindingConflicts.platform, input.platform),
+          eq(shopBindingConflicts.externalShopId, input.externalShopId),
+        ),
+      )!,
+    )
+  } else if (input.shopId) {
+    filters.push(
+      or(
+        eq(shopBindingConflicts.challengerShopId, input.shopId),
+        eq(shopBindingConflicts.occupantShopId, input.shopId),
+      )!,
+    )
+  } else if (input.platform && input.externalShopId) {
+    filters.push(
+      and(
+        eq(shopBindingConflicts.platform, input.platform),
+        eq(shopBindingConflicts.externalShopId, input.externalShopId),
+      )!,
+    )
+  }
+  const where = filters.length ? and(...filters) : undefined
   return db.transaction(async (tx) => {
     await finalizeExpiredTransferAppeals(tx)
     const challengerOrg = alias(organization, "challenger_org")
@@ -658,6 +701,7 @@ export async function listShopBindingConflicts(
     const [totalRow] = await tx
       .select({ value: count() })
       .from(shopBindingConflicts)
+      .where(where)
     const total = Number(totalRow?.value ?? 0)
     const rows = await tx
       .select({
@@ -684,6 +728,7 @@ export async function listShopBindingConflicts(
         occupantShop,
         eq(occupantShop.id, shopBindingConflicts.occupantShopId),
       )
+      .where(where)
       .orderBy(desc(shopBindingConflicts.updatedAt))
       .limit(pageSize)
       .offset((page - 1) * pageSize)
@@ -716,6 +761,114 @@ export async function listShopBindingConflicts(
       } satisfies ShopBindingConflictListItem
     })
     return { items, total, page, pageSize }
+  })
+}
+
+
+export async function getShopBindingConflict(db: AppDatabase, conflictId: string) {
+  return db.transaction(async (tx) => {
+    await finalizeExpiredTransferAppeals(tx)
+    const challengerOrg = alias(organization, "challenger_org")
+    const occupantOrg = alias(organization, "occupant_org")
+    const challengerShop = alias(shops, "challenger_shop")
+    const occupantShop = alias(shops, "occupant_shop")
+    const challengerState = alias(integrationStates, "challenger_state")
+    const occupantState = alias(integrationStates, "occupant_state")
+    const [row] = await tx
+      .select({
+        conflict: shopBindingConflicts,
+        challengerOrganizationName: challengerOrg.name,
+        challengerOrganizationSlug: challengerOrg.slug,
+        challengerOrganizationStatus: challengerOrg.status,
+        challengerOrganizationEntryApproved: challengerOrg.entryApproved,
+        occupantOrganizationName: occupantOrg.name,
+        occupantOrganizationSlug: occupantOrg.slug,
+        occupantOrganizationStatus: occupantOrg.status,
+        occupantOrganizationEntryApproved: occupantOrg.entryApproved,
+        challengerShopName: challengerShop.name,
+        challengerShopStatus: challengerShop.status,
+        challengerShopSellerId: challengerShop.sellerId,
+        challengerShopAuthExpiresAt: challengerShop.authExpiresAt,
+        occupantShopName: occupantShop.name,
+        occupantShopStatus: occupantShop.status,
+        occupantShopSellerId: occupantShop.sellerId,
+        occupantShopAuthExpiresAt: occupantShop.authExpiresAt,
+        challengerShopHealth: challengerState.health,
+        occupantShopHealth: occupantState.health,
+      })
+      .from(shopBindingConflicts)
+      .innerJoin(
+        challengerOrg,
+        eq(challengerOrg.id, shopBindingConflicts.challengerOrganizationId),
+      )
+      .innerJoin(
+        occupantOrg,
+        eq(occupantOrg.id, shopBindingConflicts.occupantOrganizationId),
+      )
+      .innerJoin(
+        challengerShop,
+        eq(challengerShop.id, shopBindingConflicts.challengerShopId),
+      )
+      .innerJoin(
+        occupantShop,
+        eq(occupantShop.id, shopBindingConflicts.occupantShopId),
+      )
+      .leftJoin(
+        challengerState,
+        eq(challengerState.shopId, shopBindingConflicts.challengerShopId),
+      )
+      .leftJoin(
+        occupantState,
+        eq(occupantState.shopId, shopBindingConflicts.occupantShopId),
+      )
+      .where(eq(shopBindingConflicts.id, conflictId))
+      .limit(1)
+    if (!row) return null
+    const status = asConflictStatus(row.conflict.status)
+    return {
+      id: row.conflict.id,
+      platform: row.conflict.platform,
+      externalShopId: row.conflict.externalShopId,
+      status,
+      statusLabel: SHOP_BINDING_CONFLICT_STATUS_LABELS[status],
+      challengerShopId: row.conflict.challengerShopId,
+      challengerShopName: row.challengerShopName,
+      challengerShopStatus: row.challengerShopStatus,
+      challengerShopSellerId: row.challengerShopSellerId,
+      challengerShopAuthExpiresAt: row.challengerShopAuthExpiresAt,
+      challengerShopHealth: row.challengerShopHealth,
+      challengerOrganizationId: row.conflict.challengerOrganizationId,
+      challengerOrganizationName: row.challengerOrganizationName,
+      challengerOrganizationSlug: row.challengerOrganizationSlug,
+      challengerOrganizationStatus: row.challengerOrganizationStatus,
+      challengerOrganizationEntryApproved: row.challengerOrganizationEntryApproved,
+      occupantShopId: row.conflict.occupantShopId,
+      occupantShopName: row.occupantShopName,
+      occupantShopStatus: row.occupantShopStatus,
+      occupantShopSellerId: row.occupantShopSellerId,
+      occupantShopAuthExpiresAt: row.occupantShopAuthExpiresAt,
+      occupantShopHealth: row.occupantShopHealth,
+      occupantOrganizationId: row.conflict.occupantOrganizationId,
+      occupantOrganizationName: row.occupantOrganizationName,
+      occupantOrganizationSlug: row.occupantOrganizationSlug,
+      occupantOrganizationStatus: row.occupantOrganizationStatus,
+      occupantOrganizationEntryApproved: row.occupantOrganizationEntryApproved,
+      initiatorUserId: row.conflict.initiatorUserId,
+      createdAt: row.conflict.createdAt,
+      updatedAt: row.conflict.updatedAt,
+      reviewedByUserId: row.conflict.reviewedByUserId,
+      reviewedAt: row.conflict.reviewedAt,
+      reviewReason: row.conflict.reviewReason,
+      appealDeadlineAt: row.conflict.appealDeadlineAt,
+      appealContent: row.conflict.appealContent,
+      appealedAt: row.conflict.appealedAt,
+      appealedByUserId: row.conflict.appealedByUserId,
+      appealReviewedByUserId: row.conflict.appealReviewedByUserId,
+      appealReviewedAt: row.conflict.appealReviewedAt,
+      appealReviewReason: row.conflict.appealReviewReason,
+      releasedAt: row.conflict.releasedAt,
+      closedAt: row.conflict.closedAt,
+    }
   })
 }
 

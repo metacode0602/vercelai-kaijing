@@ -21,6 +21,7 @@ import {
 import { initializePlatformBasicsForOrganization } from '@workspace/db/platform-basics'
 import { db } from '@/lib/db'
 import { pageValues } from '@/lib/server/dataaccess/pagination'
+import { resolveActorNames } from '@/lib/server/dataaccess/platform-details'
 import { signOnboardingFileUrl } from '@/lib/server/onboarding-file'
 
 export type ReviewListItem = {
@@ -131,30 +132,16 @@ export async function getOnboardingReview(id: string) {
     .where(eq(tenantOnboardingApplications.id, id))
     .limit(1)
   if (!row) return null
-  const reviewShops = await db
-    .select({
-      id: shops.id,
-      name: shops.name,
-      platform: shops.platform,
-      region: shops.marketplaceCountry,
-      status: shops.status,
-      externalShopId: shops.externalShopId,
-      health: integrationStates.health,
-      authExpiresAt: shops.authExpiresAt,
-    })
-    .from(shops)
-    .leftJoin(integrationStates, eq(integrationStates.shopId, shops.id))
-    .where(
-      and(
-        eq(shops.organizationId, row.application.organizationId),
-        isNull(shops.deletedAt),
-      ),
-    )
-    .orderBy(desc(shops.createdAt))
-    .limit(50)
+  const actors = await resolveActorNames([
+    row.application.applicantUserId,
+    row.application.reviewedBy,
+  ])
   return {
     ...row,
-    shops: reviewShops,
+    applicant: actors.get(row.application.applicantUserId) ?? null,
+    reviewer: row.application.reviewedBy
+      ? actors.get(row.application.reviewedBy) ?? null
+      : null,
     files: {
       license: signOnboardingFileUrl(
         row.application.licenseFileKey,

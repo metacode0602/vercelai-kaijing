@@ -174,6 +174,7 @@ export async function getPlatformUser(id: string) {
       identityStatus: organization.identityStatus,
       merchantStatus: organization.merchantStatus,
       joinedAt: member.createdAt,
+      applicationId: tenantOnboardingApplications.id,
       applicationStatus: tenantOnboardingApplications.status,
       applicationVersion: tenantOnboardingApplications.version,
       shopCount: sql<number>`(select count(*) from ${shops} where ${shops.organizationId} = ${organization.id} and ${shops.deletedAt} is null)`,

@@ -139,6 +139,7 @@ export type CrossborderPendingActionItem = {
   id: string
   organizationId: string
   organizationName: string
+  shopId: string | null
   shopName: string | null
   kind: string
   title: string
@@ -151,6 +152,8 @@ export async function listCrossborderPendingActions(input: {
   pageSize?: number
   status?: string
   q?: string
+  organizationId?: string
+  shopId?: string
 }): Promise<{
   items: CrossborderPendingActionItem[]
   total: number
@@ -161,6 +164,12 @@ export async function listCrossborderPendingActions(input: {
   const filters: SQL[] = []
   if (input.status && input.status !== 'all') {
     filters.push(eq(pendingActions.status, input.status))
+  }
+  if (input.organizationId) {
+    filters.push(eq(pendingActions.organizationId, input.organizationId))
+  }
+  if (input.shopId) {
+    filters.push(eq(pendingActions.shopId, input.shopId))
   }
   if (input.q?.trim()) {
     const value = `%${input.q.trim()}%`
@@ -189,6 +198,7 @@ export async function listCrossborderPendingActions(input: {
       id: pendingActions.id,
       organizationId: pendingActions.organizationId,
       organizationName: organization.name,
+      shopId: pendingActions.shopId,
       shopName: shops.name,
       kind: pendingActions.kind,
       title: pendingActions.title,
