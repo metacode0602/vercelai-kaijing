@@ -1,7 +1,7 @@
 /**
  * 同步任务 dataaccess（模块13）。
  * 真实触发：入队 + 写 sync_job_runs，并调用 apps/api 平台 OpenAPI。
- * 写路径（库存推送/改价等）本轮未接通时会记录失败，禁止假成功。
+ * 库存推送 / 改价回写按店铺开关调用平台写入接口；关闭则跳过且不假装成功。
  */
 import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
@@ -12,6 +12,7 @@ import {
   syncTasks,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
+import { isShopWriteSwitchEnabled, shopWriteSwitchDisabledReason } from '@workspace/db'
 import {
   formatStamp,
   toDbSyncStatus,
@@ -370,14 +371,8 @@ export async function enqueueOrRetrySyncTask(
 
     const mapped = mapTask(taskRow!, shop?.name ?? '')
     const dbType = taskRow!.type
-    if (
-      !input.skipPlatformTrigger &&
-      (dbType === 'inventory' || dbType === 'price' || dbType === 'returns')
-    ) {
-      const error =
-        dbType === 'returns'
-          ? '平台售后列表 OpenAPI 未接线，禁止伪同步'
-          : '本轮仅读同步：库存推送/改价平台写入未接通'
+    if (!input.skipPlatformTrigger && dbType === 'returns') {
+      const error = '平台售后列表 OpenAPI 未接线，禁止伪同步'
       await tx
         .update(syncTasks)
         .set({
@@ -391,16 +386,56 @@ export async function enqueueOrRetrySyncTask(
       const [failed] = await tx.select().from(syncTasks).where(eq(syncTasks.id, taskRow!.id)).limit(1)
       return mapTask(failed!, shop?.name ?? '')
     }
+    if (!input.skipPlatformTrigger && (dbType === 'inventory' || dbType === 'price')) {
+      const writeShopId = taskRow!.shopId || input.shopId
+      if (!writeShopId) {
+        const error = '库存推送/改价回写需要指定店铺'
+        await tx
+          .update(syncTasks)
+          .set({
+            status: 'failed',
+            error,
+            finishedAt: new Date(),
+            note: error,
+            updatedAt: new Date(),
+          })
+          .where(eq(syncTasks.id, taskRow!.id))
+        const [failed] = await tx.select().from(syncTasks).where(eq(syncTasks.id, taskRow!.id)).limit(1)
+        return mapTask(failed!, shop?.name ?? '')
+      }
+      const [writeShop] = await tx
+        .select({
+          inventoryPushEnabled: shops.inventoryPushEnabled,
+          priceWritebackEnabled: shops.priceWritebackEnabled,
+        })
+        .from(shops)
+        .where(eq(shops.id, writeShopId))
+        .limit(1)
+      const enabled =
+        dbType === 'price'
+          ? isShopWriteSwitchEnabled(writeShop?.priceWritebackEnabled)
+          : isShopWriteSwitchEnabled(writeShop?.inventoryPushEnabled)
+      if (!enabled) {
+        const error = shopWriteSwitchDisabledReason(dbType === 'price' ? 'price' : 'inventory')
+        await tx
+          .update(syncTasks)
+          .set({
+            status: 'skipped',
+            error,
+            finishedAt: new Date(),
+            note: error,
+            updatedAt: new Date(),
+          })
+          .where(eq(syncTasks.id, taskRow!.id))
+        const [skipped] = await tx.select().from(syncTasks).where(eq(syncTasks.id, taskRow!.id)).limit(1)
+        return mapTask(skipped!, shop?.name ?? '')
+      }
+    }
     return mapped
   }).then(async (mapped) => {
     if (input.skipPlatformTrigger) return mapped
     const dbType = toDbSyncType(mapped.type)
-    if (
-      dbType === 'inventory' ||
-      dbType === 'price' ||
-      dbType === 'returns' ||
-      mapped.status === '失败'
-    ) {
+    if (dbType === 'returns' || mapped.status === '失败' || mapped.status === '已跳过') {
       return mapped
     }
 

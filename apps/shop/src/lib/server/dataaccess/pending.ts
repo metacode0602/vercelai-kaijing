@@ -15,6 +15,7 @@ import {
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
 import * as listingsDa from '@/lib/server/dataaccess/listings'
+import * as syncDa from '@/lib/server/dataaccess/sync'
 
 const KIND_LABEL: Record<string, string> = {
   sourcing_upsert: '选品入库',
@@ -288,6 +289,22 @@ export async function confirmPendingAction(
       updatedAt: now,
     })
     .where(and(eq(pendingActions.organizationId, organizationId), eq(pendingActions.id, id)))
+
+  if (row.kind === 'inventory_push' || row.kind === 'price_change') {
+    const payload = readPayload(row.payload)
+    const listingId = typeof payload.listingId === 'string' ? payload.listingId : ''
+    const target = listingId
+      ? `listing:${listingId}#${row.kind === 'price_change' ? 'price' : 'inventory'}`
+      : (typeof payload.target === 'string' ? payload.target : row.title || '')
+    await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+      type: row.kind === 'price_change' ? 'price' : 'inventory',
+      target,
+      shopId: row.shopId ?? (typeof payload.shopId === 'string' ? payload.shopId : undefined),
+      actor: confirmedBy,
+      note: '待审确认后按店铺开关执行平台写入',
+    })
+  }
+
   const result = await getPendingAction(db, organizationId, id)
   if (!result) throw new Error('确认失败')
   return result

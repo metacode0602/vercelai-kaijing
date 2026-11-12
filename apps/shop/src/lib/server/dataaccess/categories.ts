@@ -206,3 +206,25 @@ export function categoryPath(rows: CategoryDto[], node: CategoryDto): string {
 export function activeCategoryPaths(rows: CategoryDto[]): string[] {
   return rows.filter((r) => r.status === '启用').map((r) => categoryPath(rows, r))
 }
+
+/** 返回 [自身, 父级, 祖父, ...]，用于费用模板品类祖先匹配。 */
+export async function listCategoryAncestorIds(
+  db: DbLike,
+  organizationId: string,
+  categoryId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: commerceCategories.id, parentId: commerceCategories.parentId })
+    .from(commerceCategories)
+    .where(eq(commerceCategories.organizationId, organizationId))
+  const parentOf = new Map(rows.map((row) => [row.id, row.parentId ?? null]))
+  const ids: string[] = []
+  const seen = new Set<string>()
+  let current: string | null = categoryId
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    ids.push(current)
+    current = parentOf.get(current) ?? null
+  }
+  return ids
+}

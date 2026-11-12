@@ -53,8 +53,12 @@ pnpm --filter @workspace/db db:check
 # 图形化查看数据
 pnpm --filter @workspace/db db:studio
 
-# 跨境演示：组织 + 样例 SPU/SKU（apps/shop 模块1）
+# 跨境演示种子：仅沙箱组织（默认 org_shop_dev_demo / slug=shop-dev-demo），手工执行，幂等。
+# 禁止写入生产或已入驻真实租户；不会在入驻审核或部署流水线中自动执行。
 pnpm --filter @workspace/db db:seed:commerce-products
+pnpm --filter @workspace/db db:seed:commerce-orders
+pnpm --filter @workspace/db db:seed:commerce-dashboard   # 仪表盘近 7/30/90 天订单与库存流水
+# 不要用订单增量同步或 OAuth 回调假装平台成功来写演示数据。
 ```
 
 ## 运行前置

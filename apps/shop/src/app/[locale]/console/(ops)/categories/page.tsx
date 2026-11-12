@@ -58,6 +58,14 @@ export default function CategoriesPage() {
   const rows = (listQuery.data ?? []) as Cat[]
   const [dialog, setDialog] = React.useState<{ mode: 'create' | 'edit'; row?: Cat; parentId: string | null } | null>(null)
   const [notice, setNotice] = React.useState('')
+  const initFromCatalog = trpc.categories.initFromCatalog.useMutation({
+    onSuccess: async (result) => {
+      setNotice(result.inserted > 0 ? `已从平台目录补齐 ${result.inserted} 个品类（只补缺失，不覆盖已有）。` : '品类已齐全，无需补齐。')
+      await utils.categories.list.invalidate()
+    },
+    onError: (e) => setNotice(e.message),
+  })
+
 
   const createMutation = trpc.categories.create.useMutation({
     onSuccess: async () => {
@@ -132,9 +140,14 @@ export default function CategoriesPage() {
           <h2 className="text-xl font-semibold tracking-tight">品类树</h2>
           <p className="text-sm text-muted-foreground">commerce_categories 内部多级品类；非平台类目缓存。</p>
         </div>
-        <Button onClick={() => setDialog({ mode: 'create', parentId: null })}>
-          <Plus className="mr-1 size-4" /> 新增品类
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={initFromCatalog.isPending} onClick={() => initFromCatalog.mutate()}>
+            {initFromCatalog.isPending ? '补齐中…' : '从平台目录补齐'}
+          </Button>
+          <Button onClick={() => setDialog({ mode: 'create', parentId: null })}>
+            <Plus className="mr-1 size-4" /> 新增品类
+          </Button>
+        </div>
       </div>
       <UedPrototypeNotice>
         空列表表示尚未配置；平台类目同步需要 OpenAPI 授权后才会同步类目。

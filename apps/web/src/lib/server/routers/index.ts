@@ -3,6 +3,12 @@ import { apiKeysRouter } from './apiKeys'
 import { platformOnboardingRouter } from './platformOnboarding'
 import { platformOpsRouter } from './platformOps'
 import { platformBasicsRouter } from './platformBasics'
+import { platformDictionariesRouter } from './platformDictionaries'
+import { platformCategoriesRouter } from './platformCategories'
+import { platformCarriersRouter } from './platformCarriers'
+import { platformImportTemplatesRouter } from './platformImportTemplates'
+import { platformHsTariffsRouter } from './platformHsTariffs'
+import { platformFeeTemplatesRouter } from './platformFeeTemplates'
 import { platformShopsRouter } from './platformShops'
 import { platformUsersRouter } from './platformUsers'
 import { platformInvitationsRouter } from './platformInvitations'
@@ -16,6 +22,12 @@ export const appRouter = router({
   platformOnboarding: platformOnboardingRouter,
   platformOps: platformOpsRouter,
   platformBasics: platformBasicsRouter,
+  platformDictionaries: platformDictionariesRouter,
+  platformCategories: platformCategoriesRouter,
+  platformCarriers: platformCarriersRouter,
+  platformImportTemplates: platformImportTemplatesRouter,
+  platformHsTariffs: platformHsTariffsRouter,
+  platformFeeTemplates: platformFeeTemplatesRouter,
   platformShops: platformShopsRouter,
   platformUsers: platformUsersRouter,
   platformInvitations: platformInvitationsRouter,

@@ -24,6 +24,7 @@ export const UI_SYNC_TASK_STATUSES = [
   '排队',
   '排队重试',
   '运行中',
+  '已跳过',
 ] as const
 export type UiSyncTaskStatus = (typeof UI_SYNC_TASK_STATUSES)[number]
 
@@ -61,6 +62,7 @@ const STATUS_UI_TO_DB: Record<UiSyncTaskStatus, string> = {
   排队: 'queued',
   排队重试: 'retry_queued',
   运行中: 'running',
+  已跳过: 'skipped',
 }
 const STATUS_DB_TO_UI: Record<string, UiSyncTaskStatus> = {
   success: '成功',
@@ -69,6 +71,7 @@ const STATUS_DB_TO_UI: Record<string, UiSyncTaskStatus> = {
   queued: '排队',
   retry_queued: '排队重试',
   running: '运行中',
+  skipped: '已跳过',
 }
 
 export function toDbSyncType(ui?: string | null): string {

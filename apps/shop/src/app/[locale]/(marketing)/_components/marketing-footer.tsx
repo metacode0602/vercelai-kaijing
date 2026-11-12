@@ -1,6 +1,7 @@
 import { LocaleLink } from "@/lib/i18n/navigation"
 import Image from "next/image"
-import GPURunFullIcon from "@workspace/ui/components/icons/gpurun-full"
+import { ShoppingBag } from "lucide-react"
+import { footerContent } from "../_content/landing"
 
 const footerMutedTextClassName =
   "text-background/60 dark:text-foreground/60"
@@ -11,45 +12,12 @@ const footerLinkClassName =
 const footerBorderClassName =
   "border-background/10 dark:border-foreground/10"
 
-const productLinks = [
-  { label: "模型 APIs", href: "/models" },
-  { label: "应用模板", href: "/apps" },
-  { label: "Agent 沙盒", href: "/agent-sandbox" },
-  { label: "智能体沙盒", href: "/console/sandbox" },
-  { label: "Serverless GPU", href: "/serverless" },
-  { label: "GPU 实例", href: "/console/server/list" },
-  { label: "GPU 裸金属", href: "/bare-metal" },
-]
-
-const resourceLinks = [
-  {
-    label: "联系销售",
-    href: "https://meetings-na2.hubspot.com/junyu",
-    external: true,
-  },
-  { label: "联系支持", href: "mailto:support@gpurun.cn", external: true },
-  { label: "定价", href: "/pricing" },
-  { label: "文档", href: "https://docs.gpurun.cn", external: true },
-]
-
-const partnerLinks = [
-  { label: "推荐赚取奖励", href: "/affiliate-new" },
-  { label: "供应 GPUs", href: "mailto:gpu@gpurun.cn", external: true },
-]
-
-const companyLinks = [
-  { label: "招聘", href: "/docs/guides/introduction" },
-  { label: "博客", href: "/docs/guides/introduction" },
-  { label: "服务条款", href: "/terms" },
-  { label: "隐私政策", href: "/privacy" },
-]
-
 function FooterColumn({
   title,
   links,
 }: {
   title: string
-  links: { label: string; href: string; external?: boolean }[]
+  links: readonly { label: string; href: string }[]
 }) {
   return (
     <div
@@ -63,14 +31,12 @@ function FooterColumn({
       <div className="flex min-w-0 flex-col gap-3">
         {links.map((link) => (
           <div
-            key={link.label}
+            key={`${title}-${link.label}`}
             className="flex min-w-0 w-full items-center overflow-hidden lg:overflow-visible"
           >
-            {link.external ? (
+            {link.href.startsWith("mailto:") ? (
               <a
                 href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
                 title={link.label}
                 className={footerLinkClassName}
               >
@@ -102,25 +68,33 @@ export function MarketingFooter() {
               <LocaleLink
                 href="/"
                 className="inline-flex shrink-0 items-center justify-center gap-2"
-                aria-label="GPURun"
+                aria-label="Open Shop"
               >
-                <GPURunFullIcon className="block h-6 w-auto select-none" />
-                <span className="text-sm font-semibold">GPURun</span>
+                <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <ShoppingBag
+                    className="size-4"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="text-sm font-semibold">Open Shop</span>
               </LocaleLink>
               <p
                 className={`max-w-[270px] min-w-0 text-base ${footerMutedTextClassName}`}
               >
-                使用 GPURun 的模型 APIs、GPU 实例和智能体沙盒为您的 AI
-                应用提供动力。
+                {footerContent.description}
               </p>
             </div>
           </div>
 
           <div className="grid w-full min-w-0 grid-cols-2 gap-x-4 gap-y-8 overflow-x-hidden sm:grid-cols-4 lg:w-[888px] lg:flex-none lg:gap-y-10 lg:overflow-visible max-sm:[&>*:nth-child(odd)]:border-l-0 sm:[&>*:first-child]:border-l-0 sm:[&>*:first-child]:pl-0">
-            <FooterColumn title="产品" links={productLinks} />
-            <FooterColumn title="资源" links={resourceLinks} />
-            <FooterColumn title="合作伙伴" links={partnerLinks} />
-            <FooterColumn title="公司" links={companyLinks} />
+            {footerContent.columns.map((column) => (
+              <FooterColumn
+                key={column.title}
+                title={column.title}
+                links={column.links}
+              />
+            ))}
           </div>
         </div>
 

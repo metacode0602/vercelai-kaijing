@@ -1,7 +1,17 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { auth } from '@/lib/auth'
+import {
+  LAST_ORGANIZATION_COOKIE,
+  readCookieFromHeader,
+} from '@/lib/organization/constants'
+import {
+  createTRPCRouter,
+  tenantProcedure,
+  userProcedure,
+} from '@/lib/server/trpc'
 import * as organizationDa from '@/lib/server/dataaccess/organization'
+import * as organizationContextDa from '@/lib/server/dataaccess/organization-context'
 import * as orgSettingsDa from '@/lib/server/dataaccess/organization-settings'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
@@ -11,8 +21,59 @@ function wrap<T>(fn: () => Promise<T>): Promise<T> {
   })
 }
 
-/** 设置 · 企业信息、偏好与钉钉通知。 */
+/** 设置 · 企业信息、偏好与钉钉通知；同时提供多组织选择接口。 */
 export const organizationRouter = createTRPCRouter({
+  listMine: userProcedure.query(async ({ ctx }) => {
+    const memberships = await organizationContextDa.listUserOrganizations(
+      ctx.db,
+      ctx.user.id,
+      ctx.organizationId,
+    )
+    return {
+      memberships,
+      activeOrganizationId: ctx.organizationId,
+      lastOrganizationId: readCookieFromHeader(
+        ctx.headers.get('cookie'),
+        LAST_ORGANIZATION_COOKIE,
+      ),
+      entryState:
+        memberships.length === 0
+          ? ('no_org' as const)
+          : memberships.length === 1
+            ? ('single_org' as const)
+            : ('multiple_orgs' as const),
+    }
+  }),
+
+  setActive: userProcedure
+    .input(z.object({ organizationId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await organizationContextDa.getUserOrganization(
+        ctx.db,
+        ctx.user.id,
+        input.organizationId,
+      )
+      if (!membership) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '组织不存在或你不是组织成员' })
+      }
+      if (membership.organizationStatus !== 'active') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: '该组织已暂停，请联系平台运营' })
+      }
+      await auth.api.setActiveOrganization({
+        headers: ctx.headers,
+        body: { organizationId: membership.organizationId },
+      })
+      const canEnterConsole =
+        membership.onboardingStatus === 'submitted' ||
+        membership.onboardingStatus === 'approved'
+      return {
+        organizationId: membership.organizationId,
+        organizationName: membership.name,
+        onboardingStatus: membership.onboardingStatus,
+        redirectTo: canEnterConsole ? ('/console/dashboard' as const) : ('/onboarding' as const),
+      }
+    }),
+
   get: tenantProcedure.query(async ({ ctx }) => {
     const profile = await organizationDa.getOrganizationProfile(ctx.db, ctx.organizationId)
     if (!profile) {

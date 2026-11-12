@@ -18,6 +18,7 @@ import {
   productVariants,
   products,
   skuCosts,
+  commerceCartonSpecs,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
 import {
@@ -37,6 +38,7 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { listSkusForCostRelay } from '@/lib/crossborder/ocean-cost-relay'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -48,6 +50,8 @@ export type OceanLineDto = {
   qtyShipped: number
   qtyReceived: number
   qtyDamaged: number
+  cartonCount: number | null
+  cbm: number | null
   skuCostId: string | null
 }
 
@@ -76,6 +80,13 @@ export type OceanLotCostDto = {
   note: string
   effectiveFrom: string
   createdAt: string
+}
+
+export type SaveOceanLotCostResult = OceanLotCostDto & {
+  shipmentId: string
+  lotCode: string
+  platform: string
+  affectedSkuCodes: string[]
 }
 
 export type OceanLotDto = {
@@ -203,6 +214,8 @@ async function loadLines(db: DbLike, organizationId: string, shipmentId: string)
       qtyShipped: oceanShipmentLines.qtyShipped,
       qtyReceived: oceanShipmentLines.qtyReceived,
       qtyDamaged: oceanShipmentLines.qtyDamaged,
+      cartonCount: oceanShipmentLines.cartonCount,
+      cbm: oceanShipmentLines.cbm,
       skuCostId: oceanShipmentLines.skuCostId,
       variantSku: productVariants.skuCode,
       variantSkuAlt: productVariants.sku,
@@ -225,6 +238,8 @@ async function loadLines(db: DbLike, organizationId: string, shipmentId: string)
     qtyShipped: r.qtyShipped,
     qtyReceived: r.qtyReceived,
     qtyDamaged: r.qtyDamaged,
+    cartonCount: r.cartonCount,
+    cbm: r.cbm != null ? Number(r.cbm) : null,
     skuCostId: r.skuCostId,
   }))
 }
@@ -608,11 +623,37 @@ export async function updateOceanShipment(
   return (await getOceanShipment(db, organizationId, current.id))!
 }
 
+
+async function defaultLinePacking(
+  db: DbLike,
+  organizationId: string,
+  variantId: string,
+  qtyShipped: number,
+): Promise<{ cartonCount: number | null; cbm: string | null }> {
+  const [variant] = await db
+    .select({ cartonSpecId: productVariants.cartonSpecId })
+    .from(productVariants)
+    .where(and(eq(productVariants.organizationId, organizationId), eq(productVariants.id, variantId)))
+    .limit(1)
+  if (!variant?.cartonSpecId) return { cartonCount: null, cbm: null }
+  const [spec] = await db
+    .select()
+    .from(commerceCartonSpecs)
+    .where(and(eq(commerceCartonSpecs.organizationId, organizationId), eq(commerceCartonSpecs.id, variant.cartonSpecId)))
+    .limit(1)
+  if (!spec) return { cartonCount: null, cbm: null }
+  const upc = Math.max(1, spec.unitsPerCarton || 1)
+  const cartonCount = Math.ceil(Math.max(0, qtyShipped) / upc)
+  const cartonCbm = (Number(spec.lengthCm) * Number(spec.widthCm) * Number(spec.heightCm)) / 1_000_000
+  const cbm = cartonCount * cartonCbm
+  return { cartonCount, cbm: cbm > 0 ? String(Number(cbm.toFixed(4))) : null }
+}
+
 export async function upsertOceanLine(
   db: AppDatabase,
   organizationId: string,
   shipmentId: string,
-  input: { sku: string; qtyShipped: number; qtyReceived?: number; qtyDamaged?: number },
+  input: { sku: string; qtyShipped: number; qtyReceived?: number; qtyDamaged?: number; cartonCount?: number | null; cbm?: number | null },
 ): Promise<OceanLotDto> {
   const current = await getOceanShipment(db, organizationId, shipmentId)
   if (!current) throw new Error('柜次不存在')
@@ -637,6 +678,7 @@ export async function upsertOceanLine(
         throw new Error('在途/清关中不可变更发运数量；可先维护实收/残次后再推进到仓')
       }
     }
+    const packing = await defaultLinePacking(db, organizationId, variant.id, Math.floor(input.qtyShipped))
     await db
       .update(oceanShipmentLines)
       .set({
@@ -646,12 +688,15 @@ export async function upsertOceanLine(
           input.qtyReceived !== undefined ? Math.max(0, Math.floor(input.qtyReceived)) : existing.qtyReceived,
         qtyDamaged:
           input.qtyDamaged !== undefined ? Math.max(0, Math.floor(input.qtyDamaged)) : existing.qtyDamaged,
+        cartonCount: input.cartonCount !== undefined ? input.cartonCount : packing.cartonCount ?? existing.cartonCount,
+        cbm: input.cbm !== undefined ? (input.cbm != null ? String(input.cbm) : null) : packing.cbm ?? existing.cbm,
       })
       .where(eq(oceanShipmentLines.id, existing.id))
   } else {
     if (isInTransitBucket(status) || isCustomsBucket(status) || status === 'arrived') {
       throw new Error('开船后不可新增柜次行')
     }
+    const packing = await defaultLinePacking(db, organizationId, variant.id, Math.floor(input.qtyShipped))
     await db.insert(oceanShipmentLines).values({
       id: createId(),
       organizationId,
@@ -661,6 +706,8 @@ export async function upsertOceanLine(
       qtyShipped: Math.floor(input.qtyShipped),
       qtyReceived: input.qtyReceived !== undefined ? Math.max(0, Math.floor(input.qtyReceived)) : 0,
       qtyDamaged: input.qtyDamaged !== undefined ? Math.max(0, Math.floor(input.qtyDamaged)) : 0,
+      cartonCount: input.cartonCount !== undefined ? input.cartonCount : packing.cartonCount,
+      cbm: input.cbm !== undefined ? (input.cbm != null ? String(input.cbm) : null) : packing.cbm,
     })
   }
   await db.update(oceanShipments).set({ updatedAt: new Date() }).where(eq(oceanShipments.id, current.id))
@@ -1236,7 +1283,7 @@ export async function saveOceanLotCost(
     note?: string
     fxRateId?: string | null
   },
-): Promise<OceanLotCostDto> {
+): Promise<SaveOceanLotCostResult> {
   const lot = await getOceanShipment(db, organizationId, input.shipmentId)
   if (!lot) throw new Error('柜次不存在')
   const variant = await resolveVariant(db, organizationId, input.sku)
@@ -1324,7 +1371,48 @@ export async function saveOceanLotCost(
   const costs = await loadCosts(db, organizationId, lot.id)
   const saved = costs.find((c) => c.id === id)
   if (!saved) throw new Error('保存柜次成本失败')
-  return saved
+  const relay = listSkusForCostRelay(
+    costs.map((row) => ({
+      id: row.id,
+      sku: row.sku,
+      shipmentId: lot.id,
+      versionNo: row.versionNo,
+      landedUnitCost: row.landedUnitCost,
+    })),
+    lot.id,
+  )
+  return {
+    ...saved,
+    shipmentId: lot.id,
+    lotCode: lot.lotCode,
+    platform: lot.platform,
+    affectedSkuCodes: relay.map((row) => row.sku),
+  }
+}
+
+export async function listOceanLotCostRelay(
+  db: DbLike,
+  organizationId: string,
+  shipmentId: string,
+) {
+  const lot = await getOceanShipment(db, organizationId, shipmentId)
+  if (!lot) throw new Error('柜次不存在')
+  const costs = lot.costs ?? (await loadCosts(db, organizationId, shipmentId))
+  return {
+    shipmentId: lot.id,
+    lotCode: lot.lotCode,
+    platform: lot.platform,
+    skus: listSkusForCostRelay(
+      costs.map((row) => ({
+        id: row.id,
+        sku: row.sku,
+        shipmentId: lot.id,
+        versionNo: row.versionNo,
+        landedUnitCost: row.landedUnitCost,
+      })),
+      lot.id,
+    ),
+  }
 }
 
 export async function listOceanInventoryBuckets(

@@ -15,6 +15,7 @@ export function buildCreateInternalSkuFields(opts: {
   sizeOptions: UedOption[]
   packOptions: UedOption[]
   spu: CreateInternalSkuSpuField
+  cartonOptions?: UedOption[]
 }): UedDialogField[] {
   const colorOptions = opts.colorOptions.length ? opts.colorOptions : COLOR_FALLBACK
   const sizeOptions = opts.sizeOptions.length ? opts.sizeOptions : SIZE_FALLBACK
@@ -57,10 +58,18 @@ export function buildCreateInternalSkuFields(opts: {
       required: true,
     },
     { key: 'barcode', label: '条码（EAN/UPC）', placeholder: '选填，后续可补录' },
-    { key: 'weight', label: '重量（g）', type: 'number', required: true },
+    { key: 'weight', label: '净重（g）', type: 'number', required: true, helper: '从量税用的单件毛重由箱规毛重 ÷ 每箱件数得出。' },
     { key: 'lengthMm', label: '长（mm）', type: 'number', helper: '外箱/件尺寸，对齐 length_mm' },
     { key: 'widthMm', label: '宽（mm）', type: 'number' },
     { key: 'heightMm', label: '高（mm）', type: 'number' },
+    ...(opts.cartonOptions && opts.cartonOptions.length
+      ? [{
+          key: 'cartonSpec',
+          label: '默认箱规',
+          options: ['（不绑定）', ...opts.cartonOptions],
+          helper: '绑定后定价计算器可自动算件体积与单件毛重。',
+        } satisfies UedDialogField]
+      : []),
     { key: 'status', label: '状态', options: ['待确认', '启用', '停用'], required: true },
     { key: 'remark', label: '规格备注', type: 'textarea', fullWidth: true },
   ]
@@ -77,6 +86,7 @@ export type ParsedCreateInternalSkuValues = {
   heightMm: number
   status: UiProductStatus
   remark?: string
+  cartonSpec?: string
 }
 
 /** 将弹窗 values 解析为 createVariant 入参（不含 spu，由调用方解析）。 */
@@ -96,5 +106,6 @@ export function parseCreateInternalSkuValues(
     heightMm: Number(values.heightMm) || 0,
     status: (values.status as UiProductStatus) || '待确认',
     remark: remark || undefined,
+    cartonSpec: values.cartonSpec,
   }
 }

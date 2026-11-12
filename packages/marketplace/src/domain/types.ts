@@ -60,6 +60,26 @@ export interface DomainListingResult {
   raw?: Record<string, unknown>
 }
 
+export interface DomainPriceQuantitySku {
+  sellerSku: string
+  platformSkuId?: string
+  /** 平台售价；仅改价回写时必填。 */
+  price?: string
+  /** 可售数量（绝对值）；仅库存推送时必填。 */
+  quantity?: number
+}
+
+export interface DomainPriceQuantityItem {
+  externalItemId: string
+  skus: DomainPriceQuantitySku[]
+}
+
+export interface DomainPriceQuantityResult {
+  ok: boolean
+  error?: string
+  raw?: Record<string, unknown>
+}
+
 export interface DomainOrder {
   externalOrderId: string
   status: string

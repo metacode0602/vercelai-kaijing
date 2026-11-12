@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { DetailBackButton } from '@/components/console/detail-back-button'
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog'
 import { ConfirmReasonDialog } from '@/components/shared/confirm-reason-dialog'
 import { PageDataLoading } from '@/components/shared/data-table'
@@ -112,21 +113,18 @@ export default function OnboardingReviewDetailPage({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted-foreground">
-            <LocaleLink className="underline" href="/console/onboarding">
-              入驻审核
-            </LocaleLink>{' '}
-            / 申请详情
-          </p>
-          <h2 className="text-lg font-medium">{app.companyName}</h2>
-          <p className="text-sm text-muted-foreground">
-            租户{' '}
-            <LocaleLink className="underline" href={`/console/tenants/${organization.id}`}>
-              {organization.name}
-            </LocaleLink>
-            {' '}· 提交版本 v{app.version}
-          </p>
+        <div className="flex items-center gap-3">
+          <DetailBackButton href="/console/onboarding" />
+          <div>
+            <h2 className="text-lg font-medium">{app.companyName}</h2>
+            <p className="text-sm text-muted-foreground">
+              租户{' '}
+              <LocaleLink className="underline" href={`/console/tenants/${organization.id}`}>
+                {organization.name}
+              </LocaleLink>
+              {' '}· 提交版本 v{app.version}
+            </p>
+          </div>
         </div>
         <Badge variant={pending ? 'default' : app.status === 'approved' ? 'secondary' : 'destructive'}>
           {STATUS_LABELS[app.status] ?? app.status}

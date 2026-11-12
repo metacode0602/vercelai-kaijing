@@ -32,6 +32,13 @@ import {
 } from '@workspace/ui/components/table'
 import { Layers, Pencil, Plus, Power } from 'lucide-react'
 
+
+function pricingCalculatorHref(variants: Array<{ code: string; status: string }>) {
+  const preferred = variants.find((item) => item.status === '启用') ?? variants[0]
+  if (!preferred?.code) return '/console/costs/calculator'
+  return `/console/costs/calculator?sku=${encodeURIComponent(preferred.code)}`
+}
+
 function statusVariant(status: string) {
   if (status === '启用') return 'secondary' as const
   if (status === '停用' || status === '异常') return 'destructive' as const
@@ -48,6 +55,7 @@ type VariantRow = {
   weight: number
   status: UiProductStatus
   hsCode: string
+  cartonSpecId: string | null
 }
 
 export default function MasterProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -90,6 +98,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
   const brandOptions = brandRows.map((b) => b.name)
   const brandIdByName = Object.fromEntries(brandRows.map((b) => [b.name, b.id]))
   const categoriesQuery = trpc.categories.list.useQuery({})
+  const cartonSpecsQuery = trpc.cartonSpecs.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
   type Cat = { id: string; name: string; parentId: string | null; status: string }
   const categoryRows = (categoriesQuery.data ?? []) as Cat[]
   const categoryPathOf = (node: Cat) => {
@@ -106,6 +115,13 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
     return parts.join(' / ')
   }
   const categoryOptions = categoryRows.filter((c) => c.status === '启用').map((c) => categoryPathOf(c))
+  const categoryIdByPath = Object.fromEntries(
+    categoryRows.filter((c) => c.status === '启用').map((c) => [categoryPathOf(c), c.id]),
+  )
+  const cartonSpecs = cartonSpecsQuery.data?.items ?? []
+  const cartonOptions = cartonSpecs.map((s) => `${s.code} · ${s.name}`)
+  const cartonIdByLabel = Object.fromEntries(cartonSpecs.map((s) => [`${s.code} · ${s.name}`, s.id]))
+  const cartonLabelById = Object.fromEntries(cartonSpecs.map((s) => [s.id, `${s.code} · ${s.name}`]))
   const styleOptions = activeOptions('product_style')
   const materialOptions = activeOptions('product_material')
   const styleTitles = dictMap.product_style?.valueTitles ?? {}
@@ -238,6 +254,9 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button size="sm" asChild>
+              <LocaleLink href={pricingCalculatorHref(current.variants)}>定价建议</LocaleLink>
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setHeaderOpen(true)}>
               <Pencil data-icon="inline-start" />
               编辑主信息
@@ -460,6 +479,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                             hsCode: variant.hsCode ?? '',
                             weight: variant.weight,
                             status: variant.status,
+                            cartonSpecId: variant.cartonSpecId ?? null,
                           })
                         }
                       >
@@ -479,6 +499,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
                             hsCode: variant.hsCode ?? '',
                             weight: variant.weight,
                             status: variant.status,
+                            cartonSpecId: variant.cartonSpecId ?? null,
                           })
                         }
                       >
@@ -639,6 +660,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               brandId,
               brand: brandName,
               category: values.category || current.category,
+              categoryId: categoryIdByPath[values.category || current.category] || current.categoryId || undefined,
               material: values.material || current.material,
               style: values.style || current.style,
               owner: values.owner || current.owner,
@@ -658,6 +680,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             colorOptions: colorChoices,
             sizeOptions: sizeChoices,
             packOptions: packChoices,
+            cartonOptions,
             spu: { mode: 'fixed', value: `${current.spu} · ${current.name}` },
           })}
           onClose={() => setVariantOpen(false)}
@@ -666,9 +689,14 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               defaultPack:
                 (typeof packChoices[0] === 'string' ? packChoices[0] : packChoices[0]?.value) || '单件',
             })
+            const { cartonSpec, ...rest } = parsed
             return createVariantMutation.mutateAsync({
               spu: current.spu,
-              ...parsed,
+              ...rest,
+              cartonSpecId:
+                cartonSpec && cartonSpec !== '（不绑定）'
+                  ? cartonIdByLabel[cartonSpec] || undefined
+                  : undefined,
             })
           }}
           saveLabel={createVariantMutation.isPending ? '生成中…' : '生成 SKU'}
@@ -792,10 +820,18 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
             },
             {
               key: 'weight',
-              label: '重量（g）',
+              label: '净重（g）',
               type: 'number',
               defaultValue: String(editVariant.weight ?? 0),
               required: true,
+              helper: '从量税用的单件毛重由箱规毛重 ÷ 每箱件数得出。',
+            },
+            {
+              key: 'cartonSpec',
+              label: '默认箱规',
+              options: ['（不绑定）', ...cartonOptions],
+              defaultValue: (editVariant.cartonSpecId && cartonLabelById[editVariant.cartonSpecId]) || '（不绑定）',
+              helper: '绑定后计算器可自动算件体积与单件毛重。',
             },
             {
               key: 'status',
@@ -816,6 +852,7 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
               barcode: values.barcode,
               hsCode: values.hsCode ?? '',
               weight: Number(values.weight) || 0,
+              cartonSpecId: values.cartonSpec && values.cartonSpec !== '（不绑定）' ? cartonIdByLabel[values.cartonSpec] || null : null,
               status: (values.status as UiProductStatus) || editVariant.status,
             })
           }}

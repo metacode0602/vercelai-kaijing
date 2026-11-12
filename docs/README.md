@@ -28,7 +28,7 @@ apps/docs/content/docs/     # fumadocs 站点源（会发布）
 | 想找什么 | 去哪里 |
 | --- | --- |
 | 全仓设计清单 | [design/INDEX.md](design/INDEX.md) |
-| 产品 SOW / 排期 / 三级功能清单 | [business/haoshiyun-erp-sow.md](business/haoshiyun-erp-sow.md) |
+| 产品 SOW / 排期 / 功能级交付清单 | [business/haoshiyun-erp-sow.md](business/haoshiyun-erp-sow.md)（操作级逐行清单见其 §6 附件） |
 | 改造总览与模块边界 | [design/crossborder-mvp-overview.md](design/crossborder-mvp-overview.md) |
 | 数据库设计 | [design/crossborder-database-design.md](design/crossborder-database-design.md) |
 | OpenAPI / MCP | [design/crossborder-api-mcp-design.md](design/crossborder-api-mcp-design.md) |

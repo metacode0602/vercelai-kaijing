@@ -19,6 +19,18 @@ describe('console and settings navigation', () => {
     assert.ok(settingsUrls.includes('/settings/roles'))
     assert.ok(consoleUrls.includes('/console/invitations'))
     assert.ok(!settingsUrls.includes('/console/invitations'))
+    for (const url of [
+      '/console/platform-basics',
+      '/console/dictionaries',
+      '/console/categories',
+      '/console/carriers',
+      '/console/import-templates',
+      '/console/tariffs',
+      '/console/fee-templates',
+    ]) {
+      assert.ok(consoleUrls.includes(url), url)
+      assert.ok(!settingsUrls.includes(url), url)
+    }
   })
 
   it('activates list nav items for detail routes', () => {

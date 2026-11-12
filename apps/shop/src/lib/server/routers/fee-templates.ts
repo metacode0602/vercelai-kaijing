@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { createTRPCRouter, requirePermission, tenantProcedure } from '@/lib/server/trpc'
 import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as feeDa from '@/lib/server/dataaccess/fee-templates'
+import * as officialFeeDa from '@/lib/server/dataaccess/official-fee-sync'
+import { initializeFeeTemplatesForOrganization } from '@workspace/db/platform-catalogs'
 
 const paginationInput = z.object({
   page: z.number().int().min(1).optional(),
@@ -19,7 +21,7 @@ const componentSchema = z.object({
   code: z.string(),
   labelZh: z.string(),
   rate: z.number(),
-  unit: z.enum(['pct', 'usd']),
+  unit: z.enum(['pct', 'usd', 'amount', 'lkr', 'per_kg', 'per_unit']),
   baseHint: z.string().optional(),
   note: z.string().optional(),
 })
@@ -231,9 +233,90 @@ export const feeTemplatesRouter = createTRPCRouter({
         asOf: z.string().optional(),
         formulaProfile: z.string().optional(),
         templateCodeOrId: z.string().optional(),
+        categoryId: z.string().optional(),
+        hsCode: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
       return feeDa.resolveFeeTemplateVersion(ctx.db, ctx.organizationId, input)
     }),
+
+  listMatchRules: tenantProcedure
+    .input(z.object({ templateId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => feeDa.listFeeTemplateMatchRules(ctx.db, ctx.organizationId, input.templateId)),
+
+  replaceMatchRules: tenantProcedure
+    .input(
+      z.object({
+        templateId: z.string().min(1),
+        rules: z.array(
+          z.object({
+            categoryId: z.string().min(1).nullable().optional(),
+            hsCodePattern: z.string().optional(),
+            priority: z.number().int().optional(),
+            note: z.string().optional(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() => feeDa.replaceFeeTemplateMatchRules(ctx.db, ctx.organizationId, input.templateId, input.rules)),
+    ),
+
+  addMatchRule: tenantProcedure
+    .input(
+      z.object({
+        templateId: z.string().min(1),
+        categoryId: z.string().min(1).nullable().optional(),
+        hsCodePattern: z.string().optional(),
+        priority: z.number().int().optional(),
+        note: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        feeDa.addFeeTemplateMatchRule(ctx.db, ctx.organizationId, {
+          templateId: input.templateId,
+          categoryId: input.categoryId,
+          hsCodePattern: input.hsCodePattern,
+          priority: input.priority,
+          note: input.note,
+        }),
+      ),
+    ),
+
+  officialFeeCapabilities: tenantProcedure.query(async () => officialFeeDa.listOfficialFeeCapabilities()),
+
+  latestOfficialSync: tenantProcedure
+    .input(z.object({ platform: z.string().optional(), country: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => officialFeeDa.latestOfficialFeeSync(ctx.db, ctx.organizationId, input)),
+
+  pendingOfficialDrafts: tenantProcedure
+    .input(z.object({ platform: z.string().min(1), country: z.string().min(1) }))
+    .query(async ({ ctx, input }) =>
+      officialFeeDa.listPendingOfficialFeeDrafts(ctx.db, ctx.organizationId, input),
+    ),
+
+  syncOfficialFees: tenantProcedure
+    .input(
+      z.object({
+        platform: z.string().min(1),
+        country: z.string().optional(),
+        shopId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        officialFeeDa.syncOfficialFees(ctx.db, ctx.organizationId, {
+          platform: input.platform,
+          country: input.country,
+          shopId: input.shopId,
+          actor: ctx.user?.name || ctx.user?.email || ctx.user?.id,
+        }),
+      ),
+    ),
+
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeFeeTemplatesForOrganization(ctx.db, ctx.organizationId)),
+  ),
 })

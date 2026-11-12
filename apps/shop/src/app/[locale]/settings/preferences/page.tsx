@@ -38,7 +38,7 @@ export default function SettingsPreferencesPage() {
   const [noticeError, setNoticeError] = React.useState(false)
   const defaultShopId = draft?.defaultShopId ?? prefsQuery.data?.defaultShopId ?? ''
   const timezone = draft?.timezone ?? prefsQuery.data?.timezone ?? 'Asia/Shanghai'
-  const displayCurrency = draft?.displayCurrency ?? prefsQuery.data?.displayCurrency ?? 'USD'
+  const displayCurrency = draft?.displayCurrency ?? prefsQuery.data?.displayCurrency ?? 'CNY'
   const tableDensity = draft?.tableDensity ?? prefsQuery.data?.tableDensity ?? 'comfortable'
 
   function patchDraft(partial: Partial<NonNullable<typeof draft>>) {

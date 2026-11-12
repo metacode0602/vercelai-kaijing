@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { DetailBackButton } from '@/components/console/detail-back-button'
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog'
 import { ConfirmReasonDialog } from '@/components/shared/confirm-reason-dialog'
 import {
@@ -96,12 +97,7 @@ export default function PlatformUserDetailPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs text-muted-foreground">
-            <LocaleLink className="underline" href="/console/users">
-              用户管理
-            </LocaleLink>{' '}
-            / 用户详情
-          </p>
+          <DetailBackButton href="/console/users" />
           <h2 className="text-lg font-medium">{user.name || '未命名用户'}</h2>
           <p className="text-sm text-muted-foreground">
             {user.email}

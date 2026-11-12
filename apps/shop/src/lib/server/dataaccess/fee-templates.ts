@@ -4,8 +4,9 @@
  */
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { feeTemplates, feeTemplateVersions } from '@workspace/db/schema'
+import { feeTemplateMatchRules, feeTemplates, feeTemplateVersions } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
+import { feeVersionSourceLabel } from '@/lib/crossborder/official-fee-sync'
 import {
   feeTypeLabel,
   formatDateOnly,
@@ -26,6 +27,8 @@ import {
   normalizePageSize,
   type PaginatedResult,
 } from '@/lib/server/dataaccess/pagination'
+import { selectTemplatesByMatchRules } from '@/lib/crossborder/fee-template-match'
+import { listCategoryAncestorIds } from '@/lib/server/dataaccess/categories'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -33,9 +36,10 @@ export type FeeComponentDto = {
   code: string
   labelZh: string
   rate: number
-  unit: 'pct' | 'usd'
+  unit: 'pct' | 'usd' | 'amount' | 'lkr' | 'per_kg' | 'per_unit'
   baseHint?: string
   note?: string
+  currency?: string
 }
 
 export type FeeTemplateVersionDto = {
@@ -57,6 +61,11 @@ export type FeeTemplateVersionDto = {
   reviewedAt: string
   reviewNote: string
   note: string
+  source: string
+  sourceLabel: string
+  sourcePlatform: string
+  sourceSite: string
+  syncedAt: string
   createdAt: string
   updatedAt: string
 }
@@ -92,6 +101,19 @@ export type ResolveFeeTemplateInput = {
   asOf?: string
   formulaProfile?: string
   templateCodeOrId?: string
+  /** 商品品类，用于匹配规则 */
+  categoryId?: string
+  /** SKU HS，用于匹配规则（将规范化后按前缀/全码比较） */
+  hsCode?: string
+}
+
+export type FeeTemplateMatchRuleDto = {
+  id: string
+  templateId: string
+  categoryId: string | null
+  hsCodePattern: string
+  priority: number
+  note: string
 }
 
 export type ResolvedFeeTemplateDto = {
@@ -103,7 +125,8 @@ function normalizeComponents(raw: unknown): FeeComponentDto[] {
   if (!Array.isArray(raw)) return []
   return raw.map((item) => {
     const row = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
-    const unit = row.unit === 'usd' ? 'usd' : 'pct'
+    const allowed = new Set(['pct', 'usd', 'amount', 'lkr', 'per_kg', 'per_unit'])
+    const unit = allowed.has(String(row.unit)) ? String(row.unit) as FeeComponentDto['unit'] : 'pct'
     return {
       code: String(row.code ?? ''),
       labelZh: String(row.labelZh ?? row.label ?? ''),
@@ -111,6 +134,7 @@ function normalizeComponents(raw: unknown): FeeComponentDto[] {
       unit,
       baseHint: row.baseHint != null ? String(row.baseHint) : undefined,
       note: row.note != null ? String(row.note) : undefined,
+      currency: row.currency != null ? String(row.currency) : undefined,
     }
   })
 }
@@ -136,6 +160,15 @@ function mapVersion(row: typeof feeTemplateVersions.$inferSelect): FeeTemplateVe
     reviewedAt: formatStamp(row.reviewedAt),
     reviewNote: row.reviewNote ?? '',
     note: row.note ?? '',
+    source: row.source ?? 'manual',
+    sourceLabel: feeVersionSourceLabel({
+      source: row.source ?? 'manual',
+      status,
+      published: row.published || status === 'published',
+    }),
+    sourcePlatform: row.sourcePlatform ?? '',
+    sourceSite: row.sourceSite ?? '',
+    syncedAt: formatStamp(row.syncedAt),
     createdAt: formatDateOnly(row.createdAt) || formatStamp(row.createdAt),
     updatedAt: formatDateOnly(row.updatedAt) || formatStamp(row.updatedAt),
   }
@@ -455,6 +488,13 @@ export async function createFeeTemplateVersion(
     components?: FeeComponentDto[]
     note?: string
     reviewNeeded?: boolean
+    source?: 'manual' | 'official_sync'
+    sourcePlatform?: string
+    sourceSite?: string
+    sourceShopId?: string
+    syncedAt?: Date
+    syncRunId?: string
+    rawSnapshot?: Record<string, unknown> | unknown[]
   },
 ): Promise<FeeTemplateVersionDto> {
   const template = await getFeeTemplate(db, organizationId, input.templateId)
@@ -482,6 +522,13 @@ export async function createFeeTemplateVersion(
     reviewNeeded: input.reviewNeeded ?? true,
     status: 'draft',
     note: input.note ?? (base ? `基于 v${base.versionNo} 的草稿` : '草稿版本'),
+    source: input.source ?? 'manual',
+    sourcePlatform: input.sourcePlatform ?? null,
+    sourceSite: input.sourceSite ?? null,
+    sourceShopId: input.sourceShopId ?? null,
+    syncedAt: input.syncedAt ?? null,
+    syncRunId: input.syncRunId ?? null,
+    rawSnapshot: input.rawSnapshot ?? null,
     createdAt: now,
     updatedAt: now,
   })
@@ -788,6 +835,38 @@ export async function resolveFeeTemplateVersion(
   )
   if (matched.length === 0) return null
 
+  const matchRules = await db
+    .select()
+    .from(feeTemplateMatchRules)
+    .where(
+      and(
+        eq(feeTemplateMatchRules.organizationId, organizationId),
+        inArray(feeTemplateMatchRules.templateId, matched.map((row) => row.id)),
+      ),
+    )
+  const categoryAncestorIds = args.categoryId
+    ? await listCategoryAncestorIds(db, organizationId, args.categoryId)
+    : []
+  const selected = selectTemplatesByMatchRules(
+    matched.map((row) => ({ id: row.id, platform: row.platform, country: row.country })),
+    matchRules.map((rule) => ({
+      templateId: rule.templateId,
+      categoryId: rule.categoryId,
+      hsCodePattern: rule.hsCodePattern,
+      priority: rule.priority,
+    })),
+    {
+      platform: args.platform,
+      country: args.country,
+      categoryId: args.categoryId,
+      categoryAncestorIds,
+      hsCode: args.hsCode,
+    },
+  )
+  if (selected.length === 0) return null
+  const selectedIds = new Set(selected.map((item) => item.template.id))
+  matched = matched.filter((row) => selectedIds.has(row.id))
+
   const templateIds = matched.map((t) => t.id)
   const versions = await db
     .select()
@@ -852,4 +931,93 @@ export async function feeTemplateMeta() {
     platforms: ['daraz', 'lazada'],
     countries: ['LK', 'MY', 'ID', 'TH', 'PH', 'VN'],
   }
+}
+
+function mapMatchRule(row: typeof feeTemplateMatchRules.$inferSelect): FeeTemplateMatchRuleDto {
+  return {
+    id: row.id,
+    templateId: row.templateId,
+    categoryId: row.categoryId,
+    hsCodePattern: row.hsCodePattern ?? '',
+    priority: row.priority,
+    note: row.note ?? '',
+  }
+}
+
+export async function listFeeTemplateMatchRules(
+  db: DbLike,
+  organizationId: string,
+  templateId: string,
+): Promise<FeeTemplateMatchRuleDto[]> {
+  const rows = await db
+    .select()
+    .from(feeTemplateMatchRules)
+    .where(
+      and(
+        eq(feeTemplateMatchRules.organizationId, organizationId),
+        eq(feeTemplateMatchRules.templateId, templateId),
+      ),
+    )
+    .orderBy(desc(feeTemplateMatchRules.priority))
+  return rows.map(mapMatchRule)
+}
+
+export async function replaceFeeTemplateMatchRules(
+  db: AppDatabase,
+  organizationId: string,
+  templateId: string,
+  rules: Array<{ categoryId?: string | null; hsCodePattern?: string; priority?: number; note?: string }>,
+): Promise<FeeTemplateMatchRuleDto[]> {
+  const [header] = await db
+    .select({ id: feeTemplates.id })
+    .from(feeTemplates)
+    .where(and(eq(feeTemplates.id, templateId), eq(feeTemplates.organizationId, organizationId)))
+    .limit(1)
+  if (!header) throw new Error('未找到费用模板')
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(feeTemplateMatchRules)
+      .where(
+        and(
+          eq(feeTemplateMatchRules.organizationId, organizationId),
+          eq(feeTemplateMatchRules.templateId, templateId),
+        ),
+      )
+    if (rules.length) {
+      await tx.insert(feeTemplateMatchRules).values(
+        rules.map((rule) => ({
+          id: createId(),
+          organizationId,
+          templateId,
+          categoryId: rule.categoryId || null,
+          hsCodePattern: rule.hsCodePattern?.replace(/[.\s]/g, '').toUpperCase() || null,
+          priority: rule.priority ?? 10,
+          note: rule.note ?? null,
+        })),
+      )
+    }
+    return listFeeTemplateMatchRules(tx, organizationId, templateId)
+  })
+}
+
+export async function addFeeTemplateMatchRule(
+  db: AppDatabase,
+  organizationId: string,
+  input: { templateId: string; categoryId?: string | null; hsCodePattern?: string; priority?: number; note?: string },
+): Promise<FeeTemplateMatchRuleDto[]> {
+  const existing = await listFeeTemplateMatchRules(db, organizationId, input.templateId)
+  return replaceFeeTemplateMatchRules(db, organizationId, input.templateId, [
+    ...existing.map((rule) => ({
+      categoryId: rule.categoryId,
+      hsCodePattern: rule.hsCodePattern,
+      priority: rule.priority,
+      note: rule.note,
+    })),
+    {
+      categoryId: input.categoryId ?? null,
+      hsCodePattern: input.hsCodePattern,
+      priority: input.priority ?? 20,
+      note: input.note,
+    },
+  ])
 }

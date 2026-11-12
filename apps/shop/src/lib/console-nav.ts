@@ -222,12 +222,13 @@ export type SettingsNavTitleKey =
   | 'settings.platformBasics'
   | 'settings.fxRates'
   | 'settings.stockAlerts'
-  | 'settings.aftersalePolicy'
+  | 'settings.shopPolicy'
   | 'settings.dictionaries'
   | 'settings.imports'
   | 'settings.importTemplates'
   | 'settings.integrationLog'
   | 'settings.erpAccess'
+  | 'settings.mcpAccess'
   | 'settings.audit'
   | 'settings.members'
   | 'settings.notifications'
@@ -275,7 +276,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroupConfig[] = [
       { url: '/settings/dictionaries', titleKey: 'settings.dictionaries', icon: 'library' },
       { url: '/settings/fx-rates', titleKey: 'settings.fxRates', icon: 'banknote' },
       { url: '/settings/stock-alerts', titleKey: 'settings.stockAlerts', icon: 'triangle-alert' },
-      { url: '/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy', icon: 'life-buoy' },
+      { url: '/settings/shop-policy', titleKey: 'settings.shopPolicy', icon: 'life-buoy' },
     ],
   },
   {
@@ -291,6 +292,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroupConfig[] = [
     items: [
       { url: '/settings/integration-log', titleKey: 'settings.integrationLog', icon: 'scroll-text' },
       { url: '/settings/erp-access', titleKey: 'settings.erpAccess', icon: 'shield-check' },
+      { url: '/settings/mcp-access', titleKey: 'settings.mcpAccess', icon: 'key-round' },
       { url: '/settings/audit', titleKey: 'settings.audit', icon: 'history' },
     ],
   },

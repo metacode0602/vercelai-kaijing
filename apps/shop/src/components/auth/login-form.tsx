@@ -14,7 +14,9 @@ import { Input } from '@workspace/ui/components/input'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { Routes } from '@/lib/routes'
 import { cn } from '@workspace/ui/lib/utils'
+import { continueOAuthAuthorization } from '@/lib/auth/oauth-continue'
 import { useAuthStore } from '@/lib/stores/auth-store'
+import { isOAuthAuthorizeQuery } from '@workspace/auth/oauth-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { EyeIcon, EyeOffIcon, Loader2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -78,6 +80,11 @@ export function LoginForm({ className, callbackUrl: propCallbackUrl }: LoginForm
         return
       }
 
+      if (isOAuthAuthorizeQuery(searchParams)) {
+        const continued = await continueOAuthAuthorization()
+        window.location.assign(continued.url)
+        return
+      }
       window.location.assign(callbackUrl)
     } catch {
       setError('网络错误，请稍后重试')

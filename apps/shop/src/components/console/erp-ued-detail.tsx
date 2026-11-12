@@ -207,6 +207,7 @@ export function UedRecordDetail({
   notice,
   description,
   extra,
+  headerActions,
   showPrimaryPricing,
 }: {
   backHref: string
@@ -224,6 +225,7 @@ export function UedRecordDetail({
   notice?: string
   description?: string
   extra?: React.ReactNode
+  headerActions?: React.ReactNode
   /** Force show/hide 主定价信息; default auto for SKU-centric modules. */
   showPrimaryPricing?: boolean
 }) {
@@ -334,10 +336,13 @@ export function UedRecordDetail({
           </>
         }
         actions={
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            <Pencil data-icon="inline-start" />
-            编辑详情
-          </Button>
+          <>
+            {headerActions}
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Pencil data-icon="inline-start" />
+              编辑详情
+            </Button>
+          </>
         }
       />
 

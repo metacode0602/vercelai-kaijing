@@ -13,6 +13,7 @@ const PAGE_SIZE = 20
 
 function statusVariant(status: string) {
   if (status === '失败') return 'destructive' as const
+  if (status === '已跳过') return 'outline' as const
   if (status === '部分失败') return 'outline' as const
   if (status === '成功') return 'secondary' as const
   return 'outline' as const
@@ -45,7 +46,7 @@ export default function SyncTasksPage() {
     onSuccess: async (task) => {
       await utils.sync.list.invalidate()
       await utils.sync.stats.invalidate()
-      setNotice(`${task.taskNo} 已入队（仅写请求记录，未调用真实平台）。`)
+      setNotice(`${task.taskNo} 已入队（${task.status}${task.error ? `：${task.error}` : ''}）`)
     },
     onError: (error) => setNotice(error.message),
   })
@@ -75,7 +76,7 @@ export default function SyncTasksPage() {
   return (
     <UedWorkspace
       title="发布与同步任务"
-      description="发布 / 库存 / 价格 / 状态 / 订单 / 评论同步：进度、错误摘要、人工重试。已接 PostgreSQL；入队只写请求记录。"
+      description="发布 / 库存 / 价格 / 状态 / 订单 / 评论同步：进度、错误摘要、人工重试。入队后按类型调用平台接口；库存推送与改价回写受店铺策略开关控制。"
       rows={rows}
       detailHref={(row) => `/console/sync-tasks/${encodeURIComponent(row.id)}`}
       search={q}
@@ -116,7 +117,7 @@ export default function SyncTasksPage() {
     >
       <DetailKpiRow items={kpiItems} />
       <UedPrototypeNotice>
-        本页展示「任务视角」，「设置 → 接口日志」展示 HTTP 流水。重试 / 入队只生成请求记录，<strong>不会</strong>调用真实 Daraz / Lazada OpenAPI。
+        本页展示「任务视角」，「设置 → 接口日志」展示 HTTP 流水。入队后会按任务类型调用 apps/api → 平台接口；库存推送与改价回写受「设置 → 店铺策略」开关控制，关闭时不会调用平台，也不会记为成功。
       </UedPrototypeNotice>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -132,6 +133,21 @@ export default function SyncTasksPage() {
           }
         >
           入队库存同步
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={enqueueMutation.isPending}
+          onClick={() =>
+            enqueueMutation.mutate({
+              type: '价格同步',
+              target: '控制台手动入队',
+              shopId: shops[0]?.id,
+              note: '控制台手动入队',
+            })
+          }
+        >
+          入队价格同步
         </Button>
         {rows
           .filter((row) => row.status === '失败' || row.status === '部分失败')

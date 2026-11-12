@@ -1,6 +1,6 @@
 import { and, count, desc, eq, exists, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { listings, productVariants, products, shops } from '@workspace/db/schema'
+import { listings, productVariants, products, shops, commerceCategories, commerceCartonSpecs } from '@workspace/db/schema'
 import { resolveBrandForProduct } from '@/lib/server/dataaccess/brands'
 import { assertHsCompliance, normalizeHsCode } from '@/lib/server/dataaccess/compliance'
 import type { AppDatabase } from '@workspace/db'
@@ -35,6 +35,7 @@ export type ProductListItem = {
   brandId: string
   brand: string
   category: string
+  categoryId: string | null
   owner: string
   material: string
   style: string
@@ -60,6 +61,7 @@ export type VariantDto = {
   status: UiProductStatus
   remark: string
   hsCode: string
+  cartonSpecId: string | null
   coverImage?: string
   images: string[]
 }
@@ -74,6 +76,7 @@ export type SkuListItem = VariantDto & {
   name: string
   brand: string
   category: string
+  categoryId: string | null
   owner: string
   productId: string
 }
@@ -90,6 +93,7 @@ export type CreateProductInput = {
   coverImage?: string
   images?: string[]
   hsCode?: string
+  categoryId?: string | null
 }
 
 export type UpdateProductInput = Partial<
@@ -99,6 +103,7 @@ export type UpdateProductInput = Partial<
   >
 > & {
   brandId?: string | null
+  categoryId?: string | null
 }
 
 export type CreateVariantInput = {
@@ -116,6 +121,7 @@ export type CreateVariantInput = {
   coverImage?: string
   images?: string[]
   hsCode?: string
+  cartonSpecId?: string | null
 }
 
 export type UpdateVariantInput = Partial<
@@ -134,6 +140,7 @@ export type UpdateVariantInput = Partial<
     | 'coverImage'
     | 'images'
     | 'hsCode'
+    | 'cartonSpecId'
   >
 >
 
@@ -162,6 +169,7 @@ function mapVariantRow(row: typeof productVariants.$inferSelect): VariantDto {
     status: toUiStatus(row.status),
     remark: typeof attrs.remark === 'string' ? attrs.remark : '',
     hsCode: row.hsCode ?? '',
+    cartonSpecId: row.cartonSpecId ?? null,
     coverImage: typeof attrs.coverImage === 'string' ? attrs.coverImage : images[0],
     images,
   }
@@ -243,6 +251,7 @@ export async function listProducts(
       brand: products.brand,
       brandId: products.brandId,
       categoryHint: products.categoryHint,
+      categoryId: products.categoryId,
       material: products.material,
       style: products.style,
       hsCode: products.hsCode,
@@ -271,6 +280,7 @@ export async function listProducts(
       brandId: row.brandId ?? '',
       brand: row.brand ?? '',
       category: row.categoryHint ?? '',
+      categoryId: row.categoryId ?? null,
       owner: payload.ownerName ?? '',
       material: row.material ?? '',
       style: row.style ?? '',
@@ -324,6 +334,7 @@ export async function getProductBySpu(
     brandId: row.brandId ?? '',
     brand: row.brand ?? '',
     category: row.categoryHint ?? '',
+    categoryId: row.categoryId ?? null,
     owner: payload.ownerName ?? '',
     material: row.material ?? '',
     style: row.style ?? '',
@@ -335,6 +346,57 @@ export async function getProductBySpu(
     updatedAt: row.updatedAt,
     variants: variantDtos,
   }
+}
+
+
+async function resolveCategoryId(
+  db: DbLike,
+  organizationId: string,
+  input: { categoryId?: string | null; category?: string },
+): Promise<string | null> {
+  if (input.categoryId) {
+    const [row] = await db
+      .select({ id: commerceCategories.id, name: commerceCategories.name, parentId: commerceCategories.parentId })
+      .from(commerceCategories)
+      .where(and(eq(commerceCategories.organizationId, organizationId), eq(commerceCategories.id, input.categoryId)))
+      .limit(1)
+    if (!row) throw new Error('所选品类不存在或不属于当前组织')
+    return row.id
+  }
+  const label = input.category?.trim()
+  if (!label) return null
+  const rows = await db
+    .select()
+    .from(commerceCategories)
+    .where(eq(commerceCategories.organizationId, organizationId))
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const pathOf = (node: typeof rows[number]): string => {
+    const parts = [node.name]
+    let parentId = node.parentId
+    const seen = new Set<string>([node.id])
+    while (parentId && byId.has(parentId) && !seen.has(parentId)) {
+      const parent = byId.get(parentId)!
+      parts.unshift(parent.name)
+      seen.add(parent.id)
+      parentId = parent.parentId
+    }
+    return parts.join(' / ')
+  }
+  const hit = rows.find((r) => r.id === label || r.code === label || r.name === label || pathOf(r) === label)
+  return hit?.id ?? null
+}
+
+async function assertCartonSpec(
+  db: DbLike,
+  organizationId: string,
+  cartonSpecId: string,
+) {
+  const [row] = await db
+    .select({ id: commerceCartonSpecs.id })
+    .from(commerceCartonSpecs)
+    .where(and(eq(commerceCartonSpecs.organizationId, organizationId), eq(commerceCartonSpecs.id, cartonSpecId)))
+    .limit(1)
+  if (!row) throw new Error('所选箱规不存在或不属于当前组织')
 }
 
 export async function createProduct(
@@ -358,6 +420,7 @@ export async function createProduct(
 
     const hsCode = normalizeHsCode(input.hsCode) || null
     await assertHsCompliance(tx, organizationId, { hsCode })
+    const categoryId = await resolveCategoryId(tx, organizationId, { categoryId: input.categoryId, category: input.category })
 
     await withUniqueGuard(
       () =>
@@ -371,6 +434,7 @@ export async function createProduct(
           brand: resolved.brandName,
           brandId: resolved.brandId,
           categoryHint: input.category.trim(),
+          categoryId,
           material: input.material.trim(),
           style: input.style.trim(),
           hsCode,
@@ -449,6 +513,13 @@ export async function updateProduct(
         brand: nextBrand,
         brandId: nextBrandId,
         categoryHint: patch.category?.trim() ?? existing.categoryHint,
+        categoryId:
+          patch.categoryId !== undefined || patch.category !== undefined
+            ? await resolveCategoryId(tx, organizationId, {
+                categoryId: patch.categoryId,
+                category: patch.category ?? existing.categoryHint ?? undefined,
+              })
+            : existing.categoryId,
         material: patch.material?.trim() ?? existing.material,
         style: patch.style?.trim() ?? existing.style,
         hsCode,
@@ -531,6 +602,8 @@ export async function createVariant(
         productId: product.id,
       })
     }
+    if (input.cartonSpecId) await assertCartonSpec(tx, organizationId, input.cartonSpecId)
+    if (input.cartonSpecId) await assertCartonSpec(tx, organizationId, input.cartonSpecId)
 
     await withUniqueGuard(
       () =>
@@ -547,6 +620,7 @@ export async function createVariant(
           lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
           widthMm: Math.round(Number(input.widthMm) || 0) || null,
           heightMm: Math.round(Number(input.heightMm) || 0) || null,
+          cartonSpecId: input.cartonSpecId || null,
           attrs: {
             color: input.color.trim(),
             size: input.size.trim(),
@@ -582,6 +656,7 @@ export type BatchCreateVariantsInput = {
   widthMm?: number
   heightMm?: number
   hsCode?: string
+  cartonSpecId?: string | null
 }
 
 export type BatchCreateVariantsResult = {
@@ -624,6 +699,7 @@ export async function batchCreateVariants(
         productId: product.id,
       })
     }
+    if (input.cartonSpecId) await assertCartonSpec(tx, organizationId, input.cartonSpecId)
 
     const existingCombos = await listVariantComboKeys(tx, organizationId, product.id)
     const created: VariantDto[] = []
@@ -657,6 +733,7 @@ export async function batchCreateVariants(
                 lengthMm: Math.round(Number(input.lengthMm) || 0) || null,
                 widthMm: Math.round(Number(input.widthMm) || 0) || null,
                 heightMm: Math.round(Number(input.heightMm) || 0) || null,
+                cartonSpecId: input.cartonSpecId || null,
                 attrs: {
                   color,
                   size,
@@ -729,6 +806,7 @@ export async function updateVariant(
         variantId: existing.id,
       })
     }
+    if (patch.cartonSpecId) await assertCartonSpec(tx, organizationId, patch.cartonSpecId)
 
     const attrs = readVariantAttrs(existing.attrs)
     const nextAttrs = {
@@ -783,6 +861,8 @@ export async function updateVariant(
           patch.heightMm !== undefined
             ? Math.round(Number(patch.heightMm) || 0) || null
             : existing.heightMm,
+        cartonSpecId:
+          patch.cartonSpecId !== undefined ? patch.cartonSpecId || null : existing.cartonSpecId,
         attrs: nextAttrs,
         updatedAt: new Date(),
       })
@@ -857,6 +937,7 @@ export async function listSkus(
       name: product.title,
       brand: product.brand ?? '',
       category: product.categoryHint ?? '',
+      categoryId: product.categoryId ?? null,
       owner: payload.ownerName ?? '',
       productId: product.id,
     }
@@ -896,6 +977,7 @@ export async function getSkuByCode(
     name: row.product.title,
     brand: row.product.brand ?? '',
     category: row.product.categoryHint ?? '',
+    categoryId: row.product.categoryId ?? null,
     owner: payload.ownerName ?? '',
     productId: row.product.id,
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { DetailBackButton } from '@/components/console/detail-back-button'
 import { DetailField, DetailSection } from '@/components/console/detail-section'
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog'
 import {
@@ -134,12 +135,7 @@ export default function TenantDetailPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs text-muted-foreground">
-            <LocaleLink className="underline" href="/console/tenants">
-              租户
-            </LocaleLink>{' '}
-            / 租户详情
-          </p>
+          <DetailBackButton href="/console/tenants" />
           <h2 className="text-lg font-medium">{tenant.name}</h2>
           <p className="font-mono text-xs text-muted-foreground">{tenant.slug || '—'}</p>
         </div>

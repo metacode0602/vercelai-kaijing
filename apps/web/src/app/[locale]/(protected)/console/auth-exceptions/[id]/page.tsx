@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { DetailBackButton } from '@/components/console/detail-back-button'
 import { DetailField, DetailSection } from '@/components/console/detail-section'
 import {
   PageDataLoading,
@@ -13,7 +14,6 @@ import { formatOpsTime } from '@/lib/console/format-time'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { useListPagination } from '@/lib/pagination/use-list-pagination'
 import { trpc } from '@/lib/trpc/client'
-import { Badge } from '@workspace/ui/components/badge'
 import {
   Table,
   TableBody,
@@ -49,13 +49,8 @@ export default function AuthExceptionDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs text-muted-foreground">
-          <LocaleLink className="underline" href="/console/auth-exceptions">
-            授权异常
-          </LocaleLink>{' '}
-          / 异常详情
-        </p>
+      <div className="space-y-1">
+        <DetailBackButton href="/console/auth-exceptions" />
         <h2 className="text-lg font-medium">{row.errorCode}</h2>
         <p className="text-sm text-muted-foreground">{formatOpsTime(row.createdAt)}</p>
       </div>

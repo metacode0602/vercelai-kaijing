@@ -46,6 +46,10 @@ export default function MasterSkusPage() {
     status: status === '全部' ? undefined : status,
   })
   const productsQuery = trpc.products.list.useQuery({ page: 1, pageSize: 100 })
+  const cartonSpecsQuery = trpc.cartonSpecs.list.useQuery({ page: 1, pageSize: 100, status: '启用' })
+  const cartonSpecs = cartonSpecsQuery.data?.items ?? []
+  const cartonOptions = cartonSpecs.map((s) => `${s.code} · ${s.name}`)
+  const cartonIdByLabel = Object.fromEntries(cartonSpecs.map((s) => [`${s.code} · ${s.name}`, s.id]))
   const createMutation = trpc.products.createVariant.useMutation({
     onSuccess: async (created) => {
       await utils.products.listSkus.invalidate()
@@ -91,6 +95,7 @@ export default function MasterSkusPage() {
         colorOptions,
         sizeOptions,
         packOptions,
+        cartonOptions,
         spu: {
           mode: 'select',
           options: products.map((product) => `${product.spu} · ${product.name}`),
@@ -107,9 +112,14 @@ export default function MasterSkusPage() {
           defaultPack:
             (typeof packOptions[0] === 'string' ? packOptions[0] : packOptions[0]?.value) || '单件',
         })
+        const { cartonSpec, ...rest } = parsed
         return createMutation.mutateAsync({
           spu: product.spu,
-          ...parsed,
+          ...rest,
+          cartonSpecId:
+            cartonSpec && cartonSpec !== '（不绑定）'
+              ? cartonIdByLabel[cartonSpec] || undefined
+              : undefined,
         })
       }}
       saveLabel={createMutation.isPending ? '生成中…' : '生成 SKU'}

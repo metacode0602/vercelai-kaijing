@@ -13,6 +13,7 @@ import { sql } from "drizzle-orm"
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -303,6 +304,10 @@ export const shops = pgTable(
     marketplaceCountry: varchar("marketplace_country", { length: 16 }),
     authExpiresAt: timestamp("auth_expires_at", { withTimezone: true }),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    /** 是否把本地可售库存推送到平台刊登；缺省/升级视为开启。 */
+    inventoryPushEnabled: boolean("inventory_push_enabled").notNull().default(true),
+    /** 是否把 ERP 刊登售价回写到平台；缺省/升级视为开启。 */
+    priceWritebackEnabled: boolean("price_writeback_enabled").notNull().default(true),
     meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -587,13 +592,15 @@ export const products = pgTable(
     /** 关联 commerce_brands；brand 文本保留兼容展示/搜索 */
     brandId: text("brand_id").references(() => commerceBrands.id),
     categoryHint: text("category_hint"),
+    /** 品类树外键；categoryHint 仍作展示/搜索兼容。 */
+    categoryId: text("category_id").references(() => commerceCategories.id),
     material: text("material"),
     style: text("style"),
     /** 海关 HS 编码（规范化，如 8516.31）；未填则不做合规校验。 */
     hsCode: varchar("hs_code", { length: 32 }),
     ownerUserId: text("owner_user_id"),
     images: jsonb("images").$type<Array<Record<string, unknown>>>().default([]),
-    /** SPU 级默认尺寸（可被变体覆盖）。 */
+    /** SPU 级默认尺寸（可被变体覆盖）。weight_grams 为净重。 */
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
     widthMm: integer("width_mm"),
@@ -606,6 +613,7 @@ export const products = pgTable(
     index("products_org_idx").on(t.organizationId),
     uniqueIndex("products_org_spu_uidx").on(t.organizationId, t.spuCode),
     index("products_org_brand_idx").on(t.organizationId, t.brandId),
+    index("products_org_category_idx").on(t.organizationId, t.categoryId),
     index("products_org_hs_idx").on(t.organizationId, t.hsCode),
   ],
 )
@@ -633,16 +641,20 @@ export const productVariants = pgTable(
     /** SKU 级 HS 覆盖；空则沿用 SPU。 */
     hsCode: varchar("hs_code", { length: 32 }),
     status: varchar("status", { length: 16 }).notNull().default("active"),
+    /** 净重（克）。从量税用的单件毛重由箱规毛重 ÷ 每箱件数得出。 */
     weightGrams: integer("weight_grams"),
     lengthMm: integer("length_mm"),
     widthMm: integer("width_mm"),
     heightMm: integer("height_mm"),
+    /** 默认箱规，指向同组织 commerce_carton_specs。 */
+    cartonSpecId: text("carton_spec_id").references(() => commerceCartonSpecs.id),
     attrs: jsonb("attrs").$type<Record<string, unknown>>().default({}),
     ...timestamps,
   },
   (t) => [
     index("product_variants_org_idx").on(t.organizationId),
     index("product_variants_product_idx").on(t.productId),
+    index("product_variants_carton_spec_idx").on(t.cartonSpecId),
     uniqueIndex("product_variants_org_sku_uidx").on(t.organizationId, t.sku),
     uniqueIndex("product_variants_org_sku_code_uidx").on(t.organizationId, t.skuCode),
   ],
@@ -2279,6 +2291,186 @@ export const commercePlatformBasics = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// platform_*_catalog — 平台运营维护的全局目录（无 organization_id）
+// 审核通过时只拷贝 status=active 的行到租户副本；不要与 platform_categories
+//（店铺平台类目缓存）混用。
+// ---------------------------------------------------------------------------
+
+export const platformCatalogStatuses = ["active", "inactive"] as const
+export type PlatformCatalogStatus = (typeof platformCatalogStatuses)[number]
+
+export const platformDictionariesCatalog = pgTable(
+  "platform_dictionaries_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    key: varchar("key", { length: 64 }).notNull(),
+    label: text("label").notNull(),
+    description: text("description").notNull().default(""),
+    values: jsonb("values").$type<string[]>().notNull().default([]),
+    valueTitles: jsonb("value_titles").$type<Record<string, string>>().notNull().default({}),
+    inactiveValues: jsonb("inactive_values").$type<string[]>().notNull().default([]),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_dictionaries_catalog_key_uidx").on(t.key),
+    index("platform_dictionaries_catalog_status_idx").on(t.status),
+    check("platform_dictionaries_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+export const platformCategoryTreesCatalog = pgTable(
+  "platform_category_trees_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    parentId: text("parent_id"),
+    sort: integer("sort").notNull().default(10),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_category_trees_catalog_code_uidx").on(t.code),
+    index("platform_category_trees_catalog_parent_idx").on(t.parentId),
+    index("platform_category_trees_catalog_status_idx").on(t.status),
+    check("platform_category_trees_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+    foreignKey({
+      columns: [t.parentId],
+      foreignColumns: [t.id],
+      name: "platform_category_trees_catalog_parent_id_fk",
+    }).onDelete("restrict"),
+  ],
+)
+
+export const platformCarriersCatalog = pgTable(
+  "platform_carriers_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    type: varchar("type", { length: 32 }).notNull().default("platform"),
+    coverage: text("coverage").notNull().default(""),
+    note: text("note").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_carriers_catalog_code_uidx").on(t.code),
+    index("platform_carriers_catalog_status_idx").on(t.status),
+    check("platform_carriers_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+export const platformImportTemplatesCatalog = pgTable(
+  "platform_import_templates_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    kind: varchar("kind", { length: 64 }).notNull(),
+    version: varchar("version", { length: 32 }).notNull().default("v1"),
+    fields: text("fields").notNull().default(""),
+    duplicateStrategy: text("duplicate_strategy").notNull().default(""),
+    rollbackStrategy: text("rollback_strategy").notNull().default(""),
+    note: text("note").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_import_templates_catalog_kind_version_uidx").on(t.kind, t.version),
+    index("platform_import_templates_catalog_status_idx").on(t.status),
+    check("platform_import_templates_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+
+export const platformFeeTemplatesCatalog = pgTable(
+  "platform_fee_templates_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    country: varchar("country", { length: 8 }).notNull(),
+    fulfillmentPool: varchar("fulfillment_pool", { length: 64 }),
+    fulfillmentLogistics: varchar("fulfillment_logistics", { length: 32 }),
+    type: varchar("type", { length: 32 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_fee_templates_catalog_code_uidx").on(t.code),
+    index("platform_fee_templates_catalog_status_idx").on(t.status),
+    index("platform_fee_templates_catalog_dim_idx").on(t.platform, t.country, t.type),
+    check("platform_fee_templates_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+    check("platform_fee_templates_catalog_type_check", sql`${t.type} in ('import_tax', 'platform_fee', 'ocean_freight')`),
+  ],
+)
+
+export const platformFeeTemplateVersionsCatalog = pgTable(
+  "platform_fee_template_versions_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => platformFeeTemplatesCatalog.id, { onDelete: "cascade" }),
+    versionNo: integer("version_no").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    priority: integer("priority").notNull().default(10),
+    formulaProfile: varchar("formula_profile", { length: 64 }),
+    components: jsonb("components").$type<Record<string, unknown>[]>().notNull().default([]),
+    note: text("note").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_fee_template_versions_catalog_tpl_ver_uidx").on(t.templateId, t.versionNo),
+    index("platform_fee_template_versions_catalog_status_idx").on(t.templateId, t.status),
+    check("platform_fee_template_versions_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+export const platformFeeTemplateMatchRulesCatalog = pgTable(
+  "platform_fee_template_match_rules_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => platformFeeTemplatesCatalog.id, { onDelete: "cascade" }),
+    /** 对应平台内部品类树目录 code；拷贝时映射到组织 commerce_categories.id */
+    categoryCode: varchar("category_code", { length: 64 }),
+    hsCodePattern: varchar("hs_code_pattern", { length: 32 }),
+    priority: integer("priority").notNull().default(10),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    index("platform_fee_template_match_rules_catalog_tpl_idx").on(t.templateId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
 // fx_rates — ADD（F33；platform + ccy + effective date + source）
 // ---------------------------------------------------------------------------
 
@@ -2410,6 +2602,10 @@ export const oceanShipmentLines = pgTable(
     qtyShipped: integer("qty_shipped").notNull().default(0),
     qtyReceived: integer("qty_received").notNull().default(0),
     qtyDamaged: integer("qty_damaged").notNull().default(0),
+    /** 本行箱数；可按箱规与发运量回填，允许人工修正。 */
+    cartonCount: integer("carton_count"),
+    /** 本行总体积 CBM；可按箱规回填，允许人工修正。 */
+    cbm: numeric("cbm", { precision: 12, scale: 4 }),
     skuCostId: text("sku_cost_id").references(() => skuCosts.id, { onDelete: "set null" }),
   },
   (t) => [
@@ -2512,6 +2708,8 @@ export const commerceCarriers = pgTable(
     phone: text("phone").notNull().default(""),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     note: text("note").notNull().default(""),
+    /** 平台承运商名称目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformCarriersCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2540,6 +2738,8 @@ export const commerceCategories = pgTable(
     note: text("note").notNull().default(""),
     coverImage: text("cover_image"),
     screenshots: jsonb("screenshots").$type<string[]>().default([]),
+    /** 平台内部品类树目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformCategoryTreesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2565,6 +2765,8 @@ export const commerceDictionaries = pgTable(
     /** value -> 中文标题；值用于存储，标题用于界面展示 */
     valueTitles: jsonb("value_titles").$type<Record<string, string>>().notNull().default({}),
     inactiveValues: jsonb("inactive_values").$type<string[]>().notNull().default([]),
+    /** 平台字典目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformDictionariesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2591,6 +2793,8 @@ export const commerceImportTemplates = pgTable(
     rollbackStrategy: text("rollback_strategy").notNull().default(""),
     status: varchar("status", { length: 16 }).notNull().default("active"),
     note: text("note").notNull().default(""),
+    /** 平台导入模板目录来源；组织内手工新增为 null，目录行删除后置空 */
+    sourceId: text("source_id").references(() => platformImportTemplatesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
@@ -2729,6 +2933,7 @@ export const feeTemplates = pgTable(
     type: varchar("type", { length: 32 }).notNull(),
     status: varchar("status", { length: 16 }).notNull().default("draft"),
     note: text("note"),
+    sourceId: text("source_id").references(() => platformFeeTemplatesCatalog.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2740,6 +2945,7 @@ export const feeTemplates = pgTable(
       t.country,
       t.type,
     ),
+    index("fee_templates_source_idx").on(t.sourceId),
   ],
 )
 
@@ -2773,6 +2979,15 @@ export const feeTemplateVersions = pgTable(
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewNote: text("review_note"),
     note: text("note"),
+    /** manual = 运营维护；official_sync = 官方费率同步草稿/来源 */
+    source: varchar("source", { length: 32 }).notNull().default("manual"),
+    sourcePlatform: varchar("source_platform", { length: 32 }),
+    sourceSite: varchar("source_site", { length: 8 }),
+    sourceShopId: text("source_shop_id"),
+    sourceId: text("source_id").references(() => platformFeeTemplateVersionsCatalog.id, { onDelete: "set null" }),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    syncRunId: text("sync_run_id"),
+    rawSnapshot: jsonb("raw_snapshot").$type<Record<string, unknown> | unknown[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2781,9 +2996,292 @@ export const feeTemplateVersions = pgTable(
     index("fee_template_versions_org_idx").on(t.organizationId),
     index("fee_template_versions_eff_idx").on(t.templateId, t.effectiveFrom),
     index("fee_template_versions_status_idx").on(t.templateId, t.status),
+    index("fee_template_versions_source_idx").on(t.organizationId, t.source),
+    index("fee_template_versions_source_id_idx").on(t.sourceId),
+    check("fee_template_versions_source_check", sql`${t.source} in ('manual', 'official_sync', 'platform_catalog')`),
   ],
 )
 
+
+// ---------------------------------------------------------------------------
+// fee_template_match_rules — 按品类 / HS 匹配费用模板（第一期定价计算器）
+// @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §12.3
+// ---------------------------------------------------------------------------
+
+export const feeTemplateMatchRules = pgTable(
+  "fee_template_match_rules",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => feeTemplates.id),
+    /** 匹配 commerce_categories；空则不按品类限制 */
+    categoryId: text("category_id").references(() => commerceCategories.id),
+    /** 规范化 HS 前缀或完整编码；空则不按 HS 限制 */
+    hsCodePattern: varchar("hs_code_pattern", { length: 32 }),
+    /** 越大越优先 */
+    priority: integer("priority").notNull().default(10),
+    note: text("note"),
+    sourceId: text("source_id").references(() => platformFeeTemplateMatchRulesCatalog.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    index("fee_template_match_rules_tpl_idx").on(t.templateId),
+    index("fee_template_match_rules_org_idx").on(t.organizationId, t.priority),
+    index("fee_template_match_rules_category_idx").on(t.categoryId),
+    index("fee_template_match_rules_source_idx").on(t.sourceId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// fee_official_sync_runs — 官方费率同步审计（第三期）
+// 同步结果只作为草稿写入 fee_template_versions，不自动发布。
+// ---------------------------------------------------------------------------
+
+export const feeOfficialSyncStatuses = ["success", "partial", "failed", "unsupported"] as const
+export type FeeOfficialSyncStatus = (typeof feeOfficialSyncStatuses)[number]
+
+export const feeOfficialSyncRuns = pgTable(
+  "fee_official_sync_runs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    country: varchar("country", { length: 8 }),
+    shopId: text("shop_id"),
+    status: varchar("status", { length: 16 }).notNull(),
+    reason: text("reason"),
+    source: varchar("source", { length: 32 }).notNull().default("official_api"),
+    draftVersionIds: jsonb("draft_version_ids").$type<string[]>().notNull().default([]),
+    rawSnapshot: jsonb("raw_snapshot").$type<Record<string, unknown>>(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    requestedBy: text("requested_by"),
+    ...timestamps,
+  },
+  (t) => [
+    index("fee_official_sync_runs_org_plat_idx").on(t.organizationId, t.platform, t.country, t.startedAt),
+    check(
+      "fee_official_sync_runs_status_check",
+      sql`${t.status} in ('success', 'partial', 'failed', 'unsupported')`,
+    ),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// hs_codes / hs_tariff_versions — HS 税则（与 compliance_hs_rules 分轨）
+// 适配当前目录/组织约定：organization_id 可空表示平台级（owner_key=global）；
+// 租户级覆盖写 organization_id 且 owner_key=organizationId。
+// 不把税率写到商品行；不自动向已有租户推送演示税则。
+// @see docs/design/freight-estimation-design.md §4.2
+// @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §12.3
+// ---------------------------------------------------------------------------
+
+export const hsCodeStatuses = ["draft", "active", "archived"] as const
+export type HsCodeStatus = (typeof hsCodeStatuses)[number]
+
+export const hsTariffStatuses = ["draft", "active", "archived"] as const
+export type HsTariffStatus = (typeof hsTariffStatuses)[number]
+
+export const hsTariffSpecificRules = ["none", "max", "sum"] as const
+export type HsTariffSpecificRule = (typeof hsTariffSpecificRules)[number]
+
+export const hsCodes = pgTable(
+  "hs_codes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    /** global=平台目录；tenant=组织覆盖 */
+    scope: varchar("scope", { length: 16 }).notNull().default("global"),
+    /** 全局固定 global，租户为 organizationId，用于唯一约束 */
+    ownerKey: text("owner_key").notNull().default("global"),
+    organizationId: text("organization_id").references(() => organization.id),
+    countryCode: varchar("country_code", { length: 2 }).notNull().default("LK"),
+    code: varchar("code", { length: 20 }).notNull(),
+    /** 去掉点/空格后的编码 */
+    normalizedCode: varchar("normalized_code", { length: 20 }).notNull(),
+    description: text("description").notNull().default(""),
+    descriptionEn: text("description_en"),
+    parentCode: varchar("parent_code", { length: 20 }),
+    level: integer("level"),
+    unit: varchar("unit", { length: 16 }),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sourceType: varchar("source_type", { length: 16 }).notNull().default("manual"),
+    sourceRef: text("source_ref"),
+    sourceBatchId: text("source_batch_id"),
+    sourceId: text("source_id"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("hs_codes_owner_code_uidx").on(t.ownerKey, t.countryCode, t.normalizedCode),
+    index("hs_codes_code_idx").on(t.ownerKey, t.countryCode, t.code),
+    index("hs_codes_parent_idx").on(t.ownerKey, t.countryCode, t.parentCode),
+    index("hs_codes_org_idx").on(t.organizationId),
+    index("hs_codes_source_idx").on(t.sourceId),
+    check("hs_codes_scope_check", sql`${t.scope} in ('global', 'tenant')`),
+    check("hs_codes_status_check", sql`${t.status} in ('draft', 'active', 'archived')`),
+    foreignKey({
+      columns: [t.sourceId],
+      foreignColumns: [t.id],
+      name: "hs_codes_source_id_fk",
+    }).onDelete("set null"),
+  ],
+)
+
+export const hsTariffVersions = pgTable(
+  "hs_tariff_versions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    scope: varchar("scope", { length: 16 }).notNull().default("global"),
+    ownerKey: text("owner_key").notNull().default("global"),
+    organizationId: text("organization_id").references(() => organization.id),
+    countryCode: varchar("country_code", { length: 2 }).notNull().default("LK"),
+    /** 对应 hs_codes.normalized_code */
+    hsCode: varchar("hs_code", { length: 20 }).notNull(),
+    version: integer("version").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    currency: varchar("currency", { length: 3 }).notNull().default("LKR"),
+    /** 计税公式版本；按目的国选择，不再默认写死 lk_cascade_v1 */
+    formulaProfile: varchar("formula_profile", { length: 64 }),
+    /** 记录 VAT/SSCL 是否含 CIF uplift，消解两版口径 */
+    upliftRule: jsonb("uplift_rule").$type<Record<string, unknown>>(),
+    /** 非 LK 公式的灵活税率（内地税、PPh 22 等）；LK 仍使用下列专用列 */
+    components: jsonb("components").$type<Record<string, unknown>>().default({}),
+    gdRate: numeric("gd_rate", { precision: 8, scale: 4 }),
+    surchargeRate: numeric("surcharge_rate", { precision: 8, scale: 4 }),
+    palRate: numeric("pal_rate", { precision: 8, scale: 4 }),
+    cessRate: numeric("cess_rate", { precision: 8, scale: 4 }),
+    exciseRate: numeric("excise_rate", { precision: 8, scale: 4 }),
+    vatRate: numeric("vat_rate", { precision: 8, scale: 4 }),
+    ssclRate: numeric("sscl_rate", { precision: 8, scale: 4 }),
+    gdSpecificAmount: numeric("gd_specific_amount", { precision: 15, scale: 4 }),
+    gdSpecificUnit: varchar("gd_specific_unit", { length: 8 }),
+    gdSpecificRule: varchar("gd_specific_rule", { length: 8 }).default("none"),
+    cessSpecificAmount: numeric("cess_specific_amount", { precision: 15, scale: 4 }),
+    cessSpecificUnit: varchar("cess_specific_unit", { length: 8 }),
+    /** 精确税率；false 表示回退/近似，界面须标明 */
+    isExact: boolean("is_exact").notNull().default(true),
+    confidence: numeric("confidence", { precision: 5, scale: 2 }),
+    compliance: jsonb("compliance").$type<Record<string, unknown>>().default({}),
+    notes: text("notes"),
+    sourceType: varchar("source_type", { length: 16 }).notNull().default("manual"),
+    sourceRef: text("source_ref"),
+    sourceBatchId: text("source_batch_id"),
+    sourceId: text("source_id"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    publishedBy: text("published_by"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("hs_tariff_owner_code_ver_uidx").on(t.ownerKey, t.countryCode, t.hsCode, t.version),
+    index("hs_tariff_owner_code_date_idx").on(t.ownerKey, t.countryCode, t.hsCode, t.effectiveFrom),
+    index("hs_tariff_status_idx").on(t.ownerKey, t.status),
+    index("hs_tariff_org_idx").on(t.organizationId),
+    index("hs_tariff_source_idx").on(t.sourceId),
+    check("hs_tariff_scope_check", sql`${t.scope} in ('global', 'tenant')`),
+    check("hs_tariff_status_check", sql`${t.status} in ('draft', 'active', 'archived')`),
+    check(
+      "hs_tariff_specific_rule_check",
+      sql`${t.gdSpecificRule} is null or ${t.gdSpecificRule} in ('none', 'max', 'sum')`,
+    ),
+    foreignKey({
+      columns: [t.sourceId],
+      foreignColumns: [t.id],
+      name: "hs_tariff_versions_source_id_fk",
+    }).onDelete("set null"),
+  ],
+)
+
+
+// ---------------------------------------------------------------------------
+// pricing_suggestion_drafts — 定价建议草稿与历史（第二期）
+// 按 SKU + 平台 + 站点追加版本，不覆盖历史行；软归档，不硬删除。
+// 不写入 listings.price_amount / products.payload / product_variants.attrs。
+// @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §10 / §12.3
+// ---------------------------------------------------------------------------
+
+export const pricingSuggestionDraftStatuses = ["current", "superseded", "archived"] as const
+export type PricingSuggestionDraftStatus = (typeof pricingSuggestionDraftStatuses)[number]
+
+export const pricingSuggestionDraftSources = ["calculator", "listing_fill", "batch"] as const
+export type PricingSuggestionDraftSource = (typeof pricingSuggestionDraftSources)[number]
+
+export const pricingSuggestionDrafts = pgTable(
+  "pricing_suggestion_drafts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => productVariants.id),
+    /** 冗余 SKU 编码，便于列表展示 */
+    sku: varchar("sku", { length: 64 }).notNull(),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    /** 站点 / 目的国，如 LK */
+    site: varchar("site", { length: 8 }).notNull(),
+    versionNo: integer("version_no").notNull(),
+    /** current=当前有效；superseded=已被更新版本替代；archived=软归档 */
+    status: varchar("status", { length: 16 }).notNull().default("current"),
+    suggestedRetail: numeric("suggested_retail", { precision: 15, scale: 4 }).notNull(),
+    suggestedFreeShipping: numeric("suggested_free_shipping", { precision: 15, scale: 4 }),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    isEstimate: boolean("is_estimate").notNull().default(false),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull().default({}),
+    source: varchar("source", { length: 16 }).notNull(),
+    createdBy: text("created_by"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedBy: text("archived_by"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("pricing_suggestion_drafts_ver_uidx").on(
+      t.organizationId,
+      t.variantId,
+      t.platform,
+      t.site,
+      t.versionNo,
+    ),
+    index("pricing_suggestion_drafts_current_idx").on(
+      t.organizationId,
+      t.variantId,
+      t.platform,
+      t.site,
+      t.status,
+    ),
+    index("pricing_suggestion_drafts_org_idx").on(t.organizationId),
+    index("pricing_suggestion_drafts_sku_idx").on(t.organizationId, t.sku),
+    check(
+      "pricing_suggestion_drafts_status_check",
+      sql`${t.status} in ('current', 'superseded', 'archived')`,
+    ),
+    check(
+      "pricing_suggestion_drafts_source_check",
+      sql`${t.source} in ('calculator', 'listing_fill', 'batch')`,
+    ),
+  ],
+)
 
 // ---------------------------------------------------------------------------
 // 域 D：采购申请 → PO → 分批到货 → 质检 → 入库上架（模块2）
@@ -3318,10 +3816,12 @@ export const organizationSettings = pgTable(
       onDelete: "set null",
     }),
     timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Shanghai"),
-    displayCurrency: varchar("display_currency", { length: 16 }).notNull().default("USD"),
+    displayCurrency: varchar("display_currency", { length: 16 }).notNull().default("CNY"),
     tableDensity: varchar("table_density", { length: 16 }).notNull().default("comfortable"),
     dingtalkEnabled: boolean("dingtalk_enabled").notNull().default(false),
     dingtalkWebhookEncrypted: text("dingtalk_webhook_encrypted"),
+    /** 组织级工作台开关；需同时打开 OPENSHOP_MCP_ENABLED 才会暴露 MCP。 */
+    mcpWorkbenchEnabled: boolean("mcp_workbench_enabled").notNull().default(false),
     ...timestamps,
   },
   (t) => [
@@ -3694,6 +4194,7 @@ export const syncTaskStatuses = [
   "failed",
   "partial_failed",
   "retry_queued",
+  "skipped",
 ] as const
 export type SyncTaskStatusDb = (typeof syncTaskStatuses)[number]
 
@@ -3864,6 +4365,13 @@ export type AuditEvent = typeof auditEvents.$inferSelect
 export type PlatformBrand = typeof platformBrands.$inferSelect
 export type PlatformCategory = typeof platformCategories.$inferSelect
 export type PlatformBasicsCatalogRow = typeof platformBasicsCatalog.$inferSelect
+export type PlatformDictionariesCatalogRow = typeof platformDictionariesCatalog.$inferSelect
+export type PlatformCategoryTreesCatalogRow = typeof platformCategoryTreesCatalog.$inferSelect
+export type PlatformCarriersCatalogRow = typeof platformCarriersCatalog.$inferSelect
+export type PlatformImportTemplatesCatalogRow = typeof platformImportTemplatesCatalog.$inferSelect
+export type PlatformFeeTemplatesCatalogRow = typeof platformFeeTemplatesCatalog.$inferSelect
+export type PlatformFeeTemplateVersionsCatalogRow = typeof platformFeeTemplateVersionsCatalog.$inferSelect
+export type PlatformFeeTemplateMatchRulesCatalogRow = typeof platformFeeTemplateMatchRulesCatalog.$inferSelect
 export type CommercePlatformBasicRow = typeof commercePlatformBasics.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect

@@ -13,6 +13,7 @@ export type MarketplaceSyncResource =
   | 'settlements'
   | 'ship_batch'
   | 'listing_write'
+  | 'inventory_price_write'
   | 'all'
 
 export interface TriggerMarketplaceSyncInput {
@@ -132,6 +133,9 @@ export function resourceForSyncTaskType(type: string): MarketplaceSyncResource {
     case 'status':
       // 刊登平台写：create / update / deactivate（apps/api resource=listing_write）
       return 'listing_write'
+    case 'inventory':
+    case 'price':
+      return 'inventory_price_write'
     case 'listings':
       return 'listings'
     case 'logistics':

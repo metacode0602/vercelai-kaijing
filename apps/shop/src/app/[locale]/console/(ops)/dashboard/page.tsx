@@ -13,6 +13,10 @@ import {
 } from '@/components/console/dashboard-charts'
 import { DashboardKpiCard } from '@/components/console/dashboard-kpi-card'
 import type { DashboardTrendRange } from '@/lib/console/dashboard-types'
+import {
+  defaultDateRange,
+  formatDashboardMoney,
+} from '@/lib/console/dashboard-query'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import { DetailKpiRow } from '@/components/console/detail'
@@ -34,14 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@workspace/ui/components/table'
 
 const RANGE_LABEL: Record<DashboardTrendRange, string> = {
   7: '近 7 天',
@@ -51,12 +47,6 @@ const RANGE_LABEL: Record<DashboardTrendRange, string> = {
 
 function formatNumber(value: number) {
   return value.toLocaleString('en-US')
-}
-
-function formatCompactLkr(value: number) {
-  if (value >= 1_000_000) return `LKR ${(value / 1_000_000).toFixed(2)}M`
-  if (value >= 1_000) return `LKR ${Math.round(value / 1_000)}k`
-  return `LKR ${formatNumber(value)}`
 }
 
 function InventoryStat({
@@ -81,7 +71,6 @@ function InventoryStat({
     </div>
   )
 }
-
 
 function OpsTodoKpiRow() {
   const todosQuery = trpc.dashboard.todos.useQuery()
@@ -116,26 +105,50 @@ function OpsTodoKpiRow() {
   )
 }
 
+type AppliedFilters = {
+  range: DashboardTrendRange
+  dateFrom: string
+  dateTo: string
+  platform: string
+  site: string
+  shopId: string
+}
+
+function initialFilters(): AppliedFilters {
+  const dates = defaultDateRange(new Date(), 7)
+  return {
+    range: 7,
+    dateFrom: dates.dateFrom,
+    dateTo: dates.dateTo,
+    platform: 'all',
+    site: 'all',
+    shopId: 'all',
+  }
+}
+
 export default function DashboardPage() {
-  const [range, setRange] = React.useState<DashboardTrendRange>(7)
-  const [platform, setPlatform] = React.useState('all')
-  const [site, setSite] = React.useState('all')
-  const [shop, setShop] = React.useState('all')
-  const [dateFrom, setDateFrom] = React.useState('2026-10-21')
-  const [dateTo, setDateTo] = React.useState('2026-10-28')
+  const [draft, setDraft] = React.useState<AppliedFilters>(initialFilters)
+  const [applied, setApplied] = React.useState<AppliedFilters>(initialFilters)
   const [notice, setNotice] = React.useState('')
 
-  const rangeLabel = RANGE_LABEL[range]
-  const shopLabel = shop === 'all' ? '全部店铺' : shop
+  const queryInput = {
+    range: applied.range,
+    dateFrom: applied.dateFrom,
+    dateTo: applied.dateTo,
+    platform: applied.platform === 'all' ? undefined : applied.platform,
+    site: applied.site === 'all' ? undefined : applied.site,
+    shopId: applied.shopId === 'all' ? undefined : applied.shopId,
+  }
 
-  const kpisQuery = trpc.dashboard.kpis.useQuery({ range })
-  const trendsQuery = trpc.dashboard.trends.useQuery({ range })
+  const kpisQuery = trpc.dashboard.kpis.useQuery(queryInput)
+  const trendsQuery = trpc.dashboard.trends.useQuery(queryInput)
   const inventoryQuery = trpc.dashboard.inventory.useQuery()
   const inventoryByCategoryQuery = trpc.dashboard.inventoryByCategory.useQuery()
-  const financeOverview = trpc.finance.overview.useQuery()
-  const platformMixQuery = trpc.dashboard.platformMix.useQuery({ range })
+  const platformMixQuery = trpc.dashboard.platformMix.useQuery(queryInput)
   const alertsQuery = trpc.dashboard.alerts.useQuery()
   const todosListQuery = trpc.dashboard.todos.useQuery()
+  const filterOptionsQuery = trpc.dashboard.filterOptions.useQuery()
+  const metaQuery = trpc.dashboard.meta.useQuery()
   const exceptionSync = trpc.orderExceptions.sync.useMutation({
     onSuccess: async () => {
       await alertsQuery.refetch()
@@ -146,8 +159,14 @@ export default function DashboardPage() {
   })
   const k = kpisQuery.data
   const trends = trendsQuery.data ?? []
+  const currency = k?.currency ?? null
+  const currencyMode = k?.currencyMode ?? 'empty'
+  const windowLabel = k ? `${k.dateFrom} 至 ${k.dateTo}` : `${applied.dateFrom} 至 ${applied.dateTo}`
+  const rangeLabel = `${RANGE_LABEL[applied.range]} · ${windowLabel}`
+  const shopOptions = filterOptionsQuery.data?.shops ?? []
 
-  function deltaPct(cur: number, prev: number): { value: string; tone: 'positive' | 'negative' | 'neutral' } {
+  function deltaPct(cur: number | null | undefined, prev: number | null | undefined): { value: string; tone: 'positive' | 'negative' | 'neutral' } {
+    if (cur == null || prev == null) return { value: '—', tone: 'neutral' }
     if (!prev && !cur) return { value: '0%', tone: 'neutral' }
     if (!prev) return { value: '+100%', tone: 'positive' }
     const pct = ((cur - prev) / Math.abs(prev)) * 100
@@ -156,31 +175,31 @@ export default function DashboardPage() {
     return { value, tone }
   }
 
-  const revenueDelta = deltaPct(k?.revenue ?? 0, k?.prevRevenue ?? 0)
+  const revenueDelta = deltaPct(k?.revenue, k?.prevRevenue)
   const ordersDelta = deltaPct(k?.orders ?? 0, k?.prevOrders ?? 0)
   const unitsDelta = deltaPct(k?.units ?? 0, k?.prevUnits ?? 0)
-  const aovDelta = deltaPct(k?.aov ?? 0, k?.prevAov ?? 0)
+  const aovDelta = deltaPct(k?.aov, k?.prevAov)
+  const grossDelta = deltaPct(k?.grossProfit, k?.prevGrossProfit)
+  const netDelta = deltaPct(k?.netProfit, k?.prevNetProfit)
+  const totalTrendOrders = trends.reduce((s, p) => s + p.orders, 0)
   const refundRate =
-    trends.length === 0
+    totalTrendOrders === 0
       ? 0
-      : Number((trends.reduce((s, p) => s + p.refundRate, 0) / trends.length).toFixed(1))
-  const grossProfit = financeOverview.data?.profit ?? (k?.revenue ?? 0)
-  const grossMargin =
-    (k?.revenue ?? 0) > 0 ? (((grossProfit) / (k?.revenue ?? 1)) * 100).toFixed(1) : '0.0'
+      : Number((trends.reduce((s, p) => s + p.refundRate * p.orders, 0) / totalTrendOrders).toFixed(1))
 
   const kpis = [
     {
       key: 'revenue',
-      label: `销售额 · ${rangeLabel}`,
-      value: formatCompactLkr(k?.revenue ?? 0),
+      label: `销售额 · ${windowLabel}`,
+      value: formatDashboardMoney(k?.revenue ?? (currencyMode === 'empty' ? 0 : null), currency, currencyMode, { compact: true }),
       delta: revenueDelta.value,
       tone: revenueDelta.tone,
-      hint: 'vs 上期',
+      hint: 'vs 上期 · 同筛选窗口',
       href: '/console/finance',
     },
     {
       key: 'orders',
-      label: `订单量 · ${rangeLabel}`,
+      label: `订单量 · ${windowLabel}`,
       value: formatNumber(k?.orders ?? 0),
       delta: ordersDelta.value,
       tone: ordersDelta.tone,
@@ -189,7 +208,7 @@ export default function DashboardPage() {
     },
     {
       key: 'units',
-      label: `销量 · ${rangeLabel}`,
+      label: `销量 · ${windowLabel}`,
       value: formatNumber(k?.units ?? 0),
       delta: unitsDelta.value,
       tone: unitsDelta.tone,
@@ -198,8 +217,8 @@ export default function DashboardPage() {
     },
     {
       key: 'aov',
-      label: `客单价 · ${rangeLabel}`,
-      value: `LKR ${formatNumber(k?.aov ?? 0)}`,
+      label: `客单价 · ${windowLabel}`,
+      value: formatDashboardMoney(k?.aov ?? (currencyMode === 'empty' ? 0 : null), currency, currencyMode),
       delta: aovDelta.value,
       tone: aovDelta.tone,
       hint: '销售额 / 订单量',
@@ -207,7 +226,7 @@ export default function DashboardPage() {
     },
     {
       key: 'refundRate',
-      label: `退款率 · ${rangeLabel}`,
+      label: `退款率 · ${windowLabel}`,
       value: `${refundRate}%`,
       delta: '—',
       tone: 'neutral' as const,
@@ -216,43 +235,69 @@ export default function DashboardPage() {
     },
     {
       key: 'grossProfit',
-      label: `毛利 · ${rangeLabel}`,
-      value: formatCompactLkr(grossProfit),
-      delta: '—',
-      tone: 'neutral' as const,
-      hint: `利润约 ${grossMargin}% · finance.overview`,
+      label: `毛利 · ${windowLabel}`,
+      value: formatDashboardMoney(k?.grossProfit ?? (currencyMode === 'empty' ? 0 : null), currency, currencyMode, { compact: true }),
+      delta: grossDelta.value,
+      tone: grossDelta.tone,
+      hint: k?.grossMargin == null ? '收入 − 最新 sku_costs' : `利润约 ${k.grossMargin}% · 收入 − 成本`,
       href: '/console/profits',
     },
     {
       key: 'netProfit',
-      label: `净利 · ${rangeLabel}`,
-      value: formatCompactLkr(financeOverview.data?.profit ?? 0),
-      delta: '—',
-      tone: 'neutral' as const,
-      hint: `净利率 ${financeOverview.data?.margin ?? '—'}`,
+      label: `净利 · ${windowLabel}`,
+      value: formatDashboardMoney(k?.netProfit ?? (currencyMode === 'empty' ? 0 : null), currency, currencyMode, { compact: true }),
+      delta: netDelta.value,
+      tone: netDelta.tone,
+      hint: k?.netMargin == null ? '毛利 − 结算/物流费用' : `净利率 ${k.netMargin}% · 同筛选窗口`,
       href: '/console/profits',
     },
   ]
 
   const inventorySummary = inventoryQuery.data
   const todosQueryInline = trpc.dashboard.todos.useQuery()
+  const mixedMoney = currencyMode === 'mixed'
   const chartPoints = trends.map((p) => {
     const day = p.date.slice(5)
-    const grossProfit = p.profit
-    const grossMargin = p.revenue > 0 ? Number(((grossProfit / p.revenue) * 100).toFixed(1)) : 0
     return {
       day,
       orders: p.orders,
-      revenue: p.revenue,
+      revenue: mixedMoney ? null : p.revenue,
       units: p.units,
-      aov: p.aov,
+      aov: mixedMoney ? null : p.aov,
       refundRate: p.refundRate,
-      grossProfit,
-      grossMargin,
-      netProfit: grossProfit,
-      netMargin: grossMargin,
+      grossProfit: mixedMoney ? null : p.grossProfit,
+      grossMargin: mixedMoney ? null : p.grossMargin,
+      netProfit: mixedMoney ? null : p.netProfit,
+      netMargin: mixedMoney ? null : p.netMargin,
     }
   })
+  const chartRange = k?.range ?? applied.range
+
+  function applyFilters() {
+    setApplied({ ...draft })
+    const shopName =
+      draft.shopId === 'all'
+        ? '全部店铺'
+        : (shopOptions.find((s) => s.id === draft.shopId)?.name ?? draft.shopId)
+    setNotice(
+      `已应用 ${draft.dateFrom} 至 ${draft.dateTo} · ${draft.platform === 'all' ? '全部平台' : draft.platform} · ${draft.site === 'all' ? '全部站点' : draft.site} · ${shopName}`,
+    )
+  }
+
+  function onRangeChange(next: DashboardTrendRange) {
+    const dates = defaultDateRange(new Date(), next)
+    const nextFilters: AppliedFilters = { ...draft, range: next, dateFrom: dates.dateFrom, dateTo: dates.dateTo }
+    setDraft(nextFilters)
+    setApplied(nextFilters)
+    setNotice(`已切换为${RANGE_LABEL[next]}（${dates.dateFrom} 至 ${dates.dateTo}）`)
+  }
+
+  function resetFilters() {
+    const next = initialFilters()
+    setDraft(next)
+    setApplied(next)
+    setNotice('已重置为近 7 天、全部平台、站点和店铺。')
+  }
 
   return (
     <div className="space-y-6">
@@ -265,75 +310,85 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {metaQuery.data?.isDemoTenant ? (
+        <Alert>
+          <AlertTitle>当前为演示种子数据</AlertTitle>
+          <AlertDescription>
+            本组织是沙箱演示租户。订单、库存流水与部分费用由手工种子写入数据库，并标有 source=seed，并非平台同步成功回执。
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">开始日期</label>
-          <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          <Input
+            type="date"
+            value={draft.dateFrom}
+            onChange={(event) => setDraft((prev) => ({ ...prev, dateFrom: event.target.value }))}
+          />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">结束日期</label>
-          <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+          <Input
+            type="date"
+            value={draft.dateTo}
+            onChange={(event) => setDraft((prev) => ({ ...prev, dateTo: event.target.value }))}
+          />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">平台</label>
-          <Select value={platform} onValueChange={setPlatform}>
+          <Select value={draft.platform} onValueChange={(value) => setDraft((prev) => ({ ...prev, platform: value }))}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部平台</SelectItem>
-              <SelectItem value="lazada">Lazada</SelectItem>
-              <SelectItem value="daraz">Daraz</SelectItem>
+              {(filterOptionsQuery.data?.platforms ?? []).map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">国家 / 站点</label>
-          <Select value={site} onValueChange={setSite}>
+          <Select value={draft.site} onValueChange={(value) => setDraft((prev) => ({ ...prev, site: value }))}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部站点</SelectItem>
-              <SelectItem value="MY">MY</SelectItem>
-              <SelectItem value="LK">LK</SelectItem>
-              <SelectItem value="TH">TH</SelectItem>
+              {(filterOptionsQuery.data?.sites ?? []).map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">店铺</label>
-          <Select value={shop} onValueChange={setShop}>
+          <Select value={draft.shopId} onValueChange={(value) => setDraft((prev) => ({ ...prev, shopId: value }))}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部店铺</SelectItem>
+              {shopOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
+                  {item.currency ? ` · ${item.currency}` : ''}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
-        <Button
-          variant="outline"
-          onClick={() =>
-            setNotice(
-              `已应用 ${dateFrom} 至 ${dateTo} · ${platform === 'all' ? '全部平台' : platform} · ${site === 'all' ? '全部站点' : site} · ${shopLabel}`,
-            )
-          }
-        >
+        <Button variant="outline" onClick={applyFilters}>
           应用筛选
         </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setDateFrom('2026-10-21')
-            setDateTo('2026-10-28')
-            setPlatform('all')
-            setSite('all')
-            setShop('all')
-            setRange(7)
-            setNotice('已重置为近 7 天、全部平台、站点和店铺。')
-          }}
-        >
+        <Button variant="ghost" onClick={resetFilters}>
           重置
         </Button>
       </div>
@@ -343,16 +398,24 @@ export default function DashboardPage() {
         </p>
       ) : null}
 
-
-      {/* 运营待办 KPI：聚合待办数据 */}
       <OpsTodoKpiRow />
 
       <Alert>
         <AlertTitle>跨币种指标暂不合计</AlertTitle>
         <AlertDescription>
-          MVP 仅 Daraz LK 使用 LKR 展示；跨币种折算、订单状态范围和利润公式待业务确认，当前不把不同币种相加。
+          {currencyMode === 'mixed'
+            ? `当前窗口包含 ${(k?.currencies ?? []).join(' / ')}，金额类指标不跨币种相加。请筛选单一店铺或站点后查看销售额与利润。`
+            : '金额按订单实际币种展示。筛选出单一币种后才会合计销售额、客单价与利润；不同币种不会加总后标成单一币种。'}
         </AlertDescription>
       </Alert>
+
+      {currencyMode === 'mixed' && (k?.byCurrency.length ?? 0) > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          分币种：{(k?.byCurrency ?? [])
+            .map((row) => `${row.currency} 销售额 ${formatNumber(row.revenue)} / ${row.orders} 单`)
+            .join('；')}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
         {kpis.map((kpi) => (
@@ -373,18 +436,18 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-base">销售与订单趋势</CardTitle>
-              <CardDescription>销售额、订单量、销量 · {rangeLabel}</CardDescription>
+              <CardDescription>销售额、订单量、销量 · {windowLabel}</CardDescription>
             </div>
-            <DashboardRangeToggle value={range} onChange={setRange} />
+            <DashboardRangeToggle value={applied.range} onChange={onRangeChange} />
           </CardHeader>
           <CardContent>
-            <SalesTrendChart range={range} data={chartPoints} />
+            <SalesTrendChart range={chartRange} data={chartPoints} currency={currency} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">平台 / 站点销售占比</CardTitle>
-            <CardDescription>按销售额占比 · 订单×店铺</CardDescription>
+            <CardDescription>按店铺 platform / 站点聚合 · {windowLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             <PlatformMixCard data={platformMixQuery.data} />
@@ -396,19 +459,25 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">利润结构</CardTitle>
-            <CardDescription>毛利额 / 净利额与对应利润率 · {rangeLabel}</CardDescription>
+            <CardDescription>毛利 = 收入 − 成本；净利再减结算/物流费用 · {windowLabel}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ProfitTrendChart range={range} data={chartPoints} />
+            {mixedMoney ? (
+              <p className="flex h-[260px] items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+                存在多种币种，请筛选单一店铺或站点后再查看利润趋势。
+              </p>
+            ) : (
+              <ProfitTrendChart range={chartRange} data={chartPoints} currency={currency} />
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">退款率</CardTitle>
-            <CardDescription>退款率与目标阈值 · {rangeLabel}</CardDescription>
+            <CardDescription>退款率与目标阈值 · {windowLabel}</CardDescription>
           </CardHeader>
           <CardContent>
-            <RefundRateChart range={range} data={chartPoints} />
+            <RefundRateChart range={chartRange} data={chartPoints} />
           </CardContent>
         </Card>
       </div>
@@ -416,10 +485,18 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">客单价与订单量</CardTitle>
-          <CardDescription>柱为订单量，线为客单价 · {rangeLabel}</CardDescription>
+          <CardDescription>柱为订单量，线为客单价 · {windowLabel}</CardDescription>
         </CardHeader>
         <CardContent>
-          <AovOrdersChart range={range} />
+          {mixedMoney ? (
+            <AovOrdersChart
+              range={chartRange}
+              data={chartPoints.map((p) => ({ ...p, aov: null }))}
+              currency={null}
+            />
+          ) : (
+            <AovOrdersChart range={chartRange} data={chartPoints} currency={currency} />
+          )}
         </CardContent>
       </Card>
 
@@ -466,7 +543,6 @@ export default function DashboardPage() {
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">今日预警</CardTitle>

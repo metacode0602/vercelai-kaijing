@@ -25,6 +25,7 @@ export enum Routes {
   Login = '/signin',
   Register = '/signup',
   Onboarding = '/onboarding',
+  SelectOrganization = '/select-org',
   AuthError = '/auth/error',
   ForgotPassword = '/auth/forgot-password',
   ResetPassword = '/auth/reset-password',

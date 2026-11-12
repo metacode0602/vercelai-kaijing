@@ -3,19 +3,26 @@ import React from 'react'
 import {
   Activity,
   AlertTriangle,
+  BookOpen,
   CircleAlert,
   Building2,
   ClipboardCheck,
   FileClock,
+  FileSpreadsheet,
+  FolderTree,
   LayoutDashboard,
+  Library,
   MailPlus,
   Megaphone,
+  Scale,
   ScrollText,
   Settings,
   ShieldCheck,
   Store,
+  Truck,
   UserRound,
   Users,
+  Wallet,
 } from 'lucide-react'
 
 export type SiteNavItem = {
@@ -93,6 +100,46 @@ export const SITE_NAV_GROUPS: SiteNavGroup[] = [
         title: '待审动作',
         url: '/console/pending-actions',
         icon: <FileClock className="size-4" />,
+      },
+    ],
+  },
+  {
+    title: '数据初始化',
+    items: [
+      {
+        title: '基础资料',
+        url: '/console/platform-basics',
+        icon: <BookOpen className="size-4" />,
+      },
+      {
+        title: '字典目录',
+        url: '/console/dictionaries',
+        icon: <Library className="size-4" />,
+      },
+      {
+        title: '内部品类',
+        url: '/console/categories',
+        icon: <FolderTree className="size-4" />,
+      },
+      {
+        title: '承运商目录',
+        url: '/console/carriers',
+        icon: <Truck className="size-4" />,
+      },
+      {
+        title: '导入模板',
+        url: '/console/import-templates',
+        icon: <FileSpreadsheet className="size-4" />,
+      },
+      {
+        title: '全局税则库',
+        url: '/console/tariffs',
+        icon: <Scale className="size-4" />,
+      },
+      {
+        title: '默认费用模板',
+        url: '/console/fee-templates',
+        icon: <Wallet className="size-4" />,
       },
     ],
   },

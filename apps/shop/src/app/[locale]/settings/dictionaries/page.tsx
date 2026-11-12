@@ -62,6 +62,14 @@ export default function DictionariesPage() {
       .includes(query.toLowerCase()),
   )
   const invalidate = () => utils.dictionaries.list.invalidate()
+  const initFromCatalog = trpc.dictionaries.initFromCatalog.useMutation({
+    onSuccess: async (result) => {
+      setNotice(result.inserted > 0 ? `已从平台目录补齐 ${result.inserted} 个字典（只补缺失，不覆盖已有）。` : '字典已齐全，无需补齐。')
+      await invalidate()
+    },
+    onError: (error) => setNotice(error.message),
+  })
+
 
   const upsert = trpc.dictionaries.upsert.useMutation({
     onSuccess: async (row) => {
@@ -191,9 +199,18 @@ export default function DictionariesPage() {
           <h1 className="text-xl font-semibold tracking-tight">基础数据字典</h1>
           <p className="text-sm text-muted-foreground">一次维护，商品、店铺和仓库配置共用标准值</p>
         </div>
-        <Button onClick={openCreateCategory}>
-          <Plus data-icon="inline-start" />新增字典
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={initFromCatalog.isPending}
+            onClick={() => initFromCatalog.mutate()}
+          >
+            {initFromCatalog.isPending ? '补齐中…' : '从平台目录补齐'}
+          </Button>
+          <Button onClick={openCreateCategory}>
+            <Plus data-icon="inline-start" />新增字典
+          </Button>
+        </div>
       </header>
 
       <div className="grid min-h-[540px] overflow-hidden rounded-lg border md:grid-cols-[260px_minmax(0,1fr)]">

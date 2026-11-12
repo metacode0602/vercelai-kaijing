@@ -453,6 +453,10 @@ export function UedDialog(props: {
   initialValues?: Record<string, string>
   error?: string
   children?: React.ReactNode
+  fieldAfter?: (
+    key: string,
+    ctx: { values: Record<string, string>; setValue: (key: string, value: string) => void },
+  ) => React.ReactNode
 }) {
   const [submitError, setSubmitError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
@@ -579,6 +583,13 @@ export function UedDialog(props: {
                     <Input id={`ued-field-${key}`} type={field.type ?? 'text'} value={value} onChange={(event) => setValue(event.target.value)} placeholder={field.placeholder} readOnly={field.readOnly} required={field.required} disabled={field.readOnly} />
                   )}
                   {field.helper ? <p className="text-xs text-muted-foreground">{field.helper}</p> : null}
+                  {props.fieldAfter
+                    ? props.fieldAfter(key, {
+                        values,
+                        setValue: (nextKey, nextValue) =>
+                          setValues((current) => ({ ...current, [nextKey]: nextValue })),
+                      })
+                    : null}
                 </div>
               )
             })}

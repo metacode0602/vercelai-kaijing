@@ -9,6 +9,7 @@ import {
 import { DetailKpiRow } from '@/components/console/detail'
 import { ProductCoverCell } from '@/components/console/product-images'
 import { UedDialog } from '@/components/console/erp-ued-workspace'
+import { ListingPriceSuggestion, normalizePricingCountry, normalizePricingPlatform } from '@/components/console/listing-price-suggestion'
 import { LocaleLink, useLocaleRouter } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
 import {
@@ -100,7 +101,7 @@ export default function ListingsPage() {
         },
         { key: 'sellerSku', label: 'Seller SKU', required: true, placeholder: '平台侧 SKU' },
         { key: 'title', label: '标题', required: true, fullWidth: true },
-        { key: 'sellPrice', label: '售价', type: 'number', required: true, defaultValue: '12.5' },
+        { key: 'sellPrice', label: '售价', type: 'number', required: true, defaultValue: '12.5', fullWidth: true },
         { key: 'currency', label: '币种', options: ['USD', 'MYR', 'THB', 'SGD', 'LKR'], required: true },
         {
           key: 'status',
@@ -120,6 +121,23 @@ export default function ListingsPage() {
         },
         { key: 'note', label: '备注', type: 'textarea', fullWidth: true },
       ]}
+      fieldAfter={(key, { values, setValue }) => {
+        if (key !== 'sellPrice') return null
+        const rawShop = values.shopId || ''
+        const shopIdValue = rawShop.includes('::') ? rawShop.split('::')[0]! : rawShop
+        const shopMeta = shops.find((s) => s.id === shopIdValue)
+        const currentPrice = values.sellPrice ? Number(values.sellPrice) : null
+        return (
+          <ListingPriceSuggestion
+            sku={values.sku}
+            platform={normalizePricingPlatform(shopMeta?.platform)}
+            country={normalizePricingCountry(shopMeta?.site)}
+            currency={values.currency || shopMeta?.currency}
+            currentPrice={currentPrice != null && Number.isFinite(currentPrice) ? currentPrice : null}
+            onFill={(price) => setValue('sellPrice', price.toFixed(2))}
+          />
+        )
+      }}
       onClose={() => setOpen(false)}
       onSave={(values) => {
         const rawShop = values.shopId || ''

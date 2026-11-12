@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { initializeDictionariesForOrganization } from '@workspace/db/platform-catalogs'
 import * as dictionariesDa from '@/lib/server/dataaccess/dictionaries'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
@@ -60,4 +61,7 @@ export const dictionariesRouter = createTRPCRouter({
         dictionariesDa.setDictionaryValueActive(ctx.db, ctx.organizationId, input.key, input.value, input.active),
       ),
     ),
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeDictionariesForOrganization(ctx.db, ctx.organizationId)),
+  ),
 })

@@ -2,8 +2,12 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   buildCreateProductPayload,
+  buildPriceQuantityPayload,
   buildUpdateProductPayload,
+  chunkPriceQuantityItems,
   parseListingPayloadExtras,
+  platformSupportsPriceQuantityWrite,
+  unsupportedPriceQuantityWriteMessage,
 } from "./listing-payload"
 
 describe("buildCreateProductPayload", () => {
@@ -116,5 +120,59 @@ describe("parseListingPayloadExtras", () => {
     assert.deepEqual(extras.images, ["https://a"])
     assert.equal(extras.skus?.length, 1)
     assert.equal(extras.skus?.[0].sellerSku, "ok")
+  })
+})
+
+describe("buildPriceQuantityPayload", () => {
+  it("只带本次要改的 Price / Quantity，并使用官方 ItemId / SellerSku 字段", () => {
+    const payload = buildPriceQuantityPayload([
+      {
+        externalItemId: "111",
+        skus: [
+          { sellerSku: "TEE-1", platformSkuId: "sku-9", price: "19.90", quantity: 7 },
+        ],
+      },
+    ])
+    const product = (payload as { Request: { Product: Array<Record<string, unknown>> } }).Request.Product[0]
+    assert.equal(product.ItemId, "111")
+    const sku = (product.Skus as { Sku: Array<Record<string, unknown>> }).Sku[0]
+    assert.deepEqual(sku, { SellerSku: "TEE-1", SkuId: "sku-9", Price: "19.90", Quantity: 7 })
+  })
+
+  it("仅改价时不带 Quantity，缺少 SKU 或变更字段的项会被丢掉", () => {
+    const payload = buildPriceQuantityPayload([
+      { externalItemId: "111", skus: [{ sellerSku: "A", price: "8" }] },
+      { externalItemId: "222", skus: [{ sellerSku: "B" }] },
+      { externalItemId: "", skus: [{ sellerSku: "C", quantity: 1 }] },
+    ])
+    const products = (payload as { Request: { Product: unknown[] } }).Request.Product
+    assert.equal(products.length, 1)
+    const sku = ((products[0] as { Skus: { Sku: Array<Record<string, unknown>> } }).Skus.Sku[0])
+    assert.equal(sku.Price, "8")
+    assert.equal("Quantity" in sku, false)
+  })
+})
+
+describe("chunkPriceQuantityItems", () => {
+  it("按 20 个商品一批拆分", () => {
+    const items = Array.from({ length: 21 }, (_, i) => ({
+      externalItemId: String(i + 1),
+      skus: [{ sellerSku: `S-${i}`, quantity: 1 }],
+    }))
+    const batches = chunkPriceQuantityItems(items)
+    assert.equal(batches.length, 2)
+    assert.equal(batches[0].length, 20)
+    assert.equal(batches[1].length, 1)
+  })
+})
+
+describe("platformSupportsPriceQuantityWrite", () => {
+  it("wires Daraz / Lazada and is honest for other platforms", () => {
+    assert.equal(platformSupportsPriceQuantityWrite("daraz"), true)
+    assert.equal(platformSupportsPriceQuantityWrite("lazada"), true)
+    assert.equal(platformSupportsPriceQuantityWrite("tiktok_shop"), false)
+    assert.equal(platformSupportsPriceQuantityWrite("shopee"), false)
+    assert.match(unsupportedPriceQuantityWriteMessage("tiktok_shop"), /tiktok_shop/)
+    assert.match(unsupportedPriceQuantityWriteMessage("shopee"), /暂无已接入/)
   })
 })

@@ -1,5 +1,7 @@
 import { serve } from "@hono/node-server"
+import { Hono } from "hono"
 import app from "./app"
+import mcpApp from "./mcp-app"
 import { pool } from "./lib/db"
 import { env } from "./lib/env"
 import {
@@ -7,7 +9,12 @@ import {
   stopMarketplaceSyncCron,
 } from "./lib/marketplace/cron"
 
-const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+const root = new Hono()
+// /mcp 必须先于现有 app 挂载，避免落入 5s timeout / CSRF。
+root.route("/", mcpApp)
+root.route("/", app)
+
+const server = serve({ fetch: root.fetch, port: env.PORT }, (info) => {
   console.log(`API running on http://localhost:${info.port}`)
   startMarketplaceSyncCron()
 })

@@ -33,7 +33,7 @@
     },
     "register": {
       "title": "Create Account",
-      "description": "Sign up to start using GPU Cloud"
+      "description": "Sign up to start using the Open Shop cross-border operations hub"
     }
   },
   "Auth": {
@@ -123,6 +123,47 @@
       "invalidToken": "Reset link is invalid or has expired",
       "success": "Password reset successfully, sign in with your new password",
       "resetFailed": "Reset failed, the link may have expired"
+    }
+  },
+  "OrgSelect": {
+    "title": "Choose an organization",
+    "description": "You belong to more than one organization. Pick the workspace to enter. Switching resets business detail pages to the dashboard.",
+    "loading": "Loading organizations…",
+    "current": "Current",
+    "lastUsed": "Last used",
+    "enter": "Enter",
+    "reenter": "Return",
+    "suspendedHint": "This organization is suspended. Choose another organization or contact platform operations.",
+    "switchFailed": "Failed to switch organization",
+    "acceptFailed": "Failed to accept invitation",
+    "accepted": "Joined {name}",
+    "declined": "Invitation dismissed",
+    "role": {
+      "owner": "Owner",
+      "member": "Member"
+    },
+    "status": {
+      "approved": "Verified",
+      "submitted": "Under review",
+      "rejected": "Rejected",
+      "draft": "Profile incomplete",
+      "notStarted": "Not started",
+      "suspended": "Suspended"
+    },
+    "organizations": {
+      "title": "My organizations",
+      "description": "Current and recently used organizations are shown first. Suspended organizations cannot be entered.",
+      "empty": "You have not joined any organization yet",
+      "startOnboarding": "Start onboarding",
+      "createdAt": "Created {date}"
+    },
+    "invitations": {
+      "title": "Pending invitations",
+      "description": "You join only after accepting. Dismissing an invitation does not affect your existing organizations.",
+      "invitedBy": "Invited by {name}",
+      "expires": "Expires {date}",
+      "accept": "Accept",
+      "decline": "Dismiss"
     }
   },
   "Console": {
@@ -400,7 +441,6 @@
       "preferences": "Preferences",
       "fxRates": "FX rates",
       "stockAlerts": "Stock alert thresholds",
-      "aftersalePolicy": "Aftersale policy",
       "groups": {
         "enterprise": "Onboarding & shops",
         "basics": "Business config",
@@ -408,7 +448,9 @@
         "system": "System & audit",
         "team": "Team & notifications",
         "personal": "Personal"
-      }
+      },
+      "shopPolicy": "Shop policy",
+      "mcpAccess": "Workbench access"
     },
     "profile": {
       "account": "Account",
@@ -554,9 +596,9 @@
     "cancel": "Cancel"
   },
   "Metadata": {
-    "title": "GPU Cloud Console | Serverless & Instance Deployment",
-    "description": "Deploy Serverless endpoints, GPU server instances, and S3-compatible network volumes.",
-    "name": "GPURun Cloud"
+    "title": "Open Shop | Cross-border Commerce AI Operations Hub",
+    "description": "Open Shop keeps products, orders, inventory, costs, finance, and approvals in one source of truth. OpenMCP Station adds discovery, explanation, recommendations, and automation on top.",
+    "name": "Open Shop"
   },
   "Mail": {
     "common": {
@@ -597,5 +639,75 @@
       "accept": "Accept invitation & set password",
       "relogin": "Then sign in with your email and new password."
     }
+  },
+  "OAuthSelectOrg": {
+    "title": "Choose an organization",
+    "description": "The access token will be bound to exactly one organization. Switching organizations later in the console will not change already issued tokens.",
+    "loading": "Loading organizations…",
+    "empty": "You have no organization to authorize. Join or create one first.",
+    "current": "Current",
+    "failed": "Could not select the organization. Please try again."
+  },
+  "OAuthConsent": {
+    "title": "Authorize workbench access",
+    "description": "“{client}” is requesting access to organization “{org}”. Review the permissions below.",
+    "unknownClient": "Unknown application",
+    "currentOrg": "the current organization",
+    "scopesTitle": "Permissions requested",
+    "allow": "Allow",
+    "deny": "Deny",
+    "failed": "Could not complete authorization. Please try again."
+  },
+  "SettingsMcpAccess": {
+    "title": "Workbench access",
+    "breadcrumbSettings": "Settings",
+    "pageDescription": "Manage the Desktop / MCP organization switch, pre-registered clients, and API keys. Only admins can manage clients and keys. Disable is soft, not a hard delete.",
+    "switchTitle": "Organization switch",
+    "switchDescription": "MCP is exposed only when both OPENSHOP_MCP_ENABLED and this organization switch are on.",
+    "envOn": "Environment flag is on",
+    "envOff": "Environment flag is off",
+    "exposed": "MCP is exposed",
+    "notExposed": "MCP is not exposed",
+    "resource": "Resource",
+    "orgSwitch": "Allow this organization to use the workbench / MCP",
+    "saved": "Organization switch saved",
+    "keysTitle": "API keys",
+    "keysDescription": "The plaintext key is shown only once. Never reuse INTERNAL_SYNC_API_KEY here.",
+    "keyName": "Name",
+    "keyCreated": "Key created. Save the plaintext now.",
+    "keyDisabled": "Key disabled",
+    "createKey": "Create key",
+    "prefix": "Prefix",
+    "scopes": "Scopes",
+    "scopeRead": "Read",
+    "scopeWritePending": "Create pending changes",
+    "status": "Status",
+    "active": "Active",
+    "disabled": "Disabled",
+    "disable": "Disable",
+    "clientsTitle": "OAuth clients",
+    "clientsDescription": "v1 supports admin pre-registration only. PKCE is always required. Public and confidential clients are both supported.",
+    "clientName": "Name",
+    "redirectUris": "Redirect URIs (one per line or space-separated)",
+    "confidential": "Confidential client (issues a client_secret)",
+    "applicationType": "Application type",
+    "native": "Native / desktop",
+    "web": "Web",
+    "createClient": "Create client",
+    "clientCreated": "Client created",
+    "clientDisabled": "Client disabled",
+    "type": "Type",
+    "public": "Public",
+    "required": "Required",
+    "optional": "Optional",
+    "confirmTitle": "Confirm disable",
+    "confirmDisableKey": "Disable key “{name}”? The record is kept, but the key stops working immediately.",
+    "confirmDisableClient": "Disable client “{name}”? Issued tokens will fail introspection or revocation checks.",
+    "cancel": "Cancel",
+    "secretTitle": "Save this now. It cannot be shown again.",
+    "secretAck": "I have saved it",
+    "clientIdLabel": "client_id",
+    "clientSecretLabel": "client_secret",
+    "publicClientHint": "This is a public client and has no client_secret. Authorization must use PKCE."
   }
 }

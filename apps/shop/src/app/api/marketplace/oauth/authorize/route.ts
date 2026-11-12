@@ -18,6 +18,7 @@ import {
   type OAuthStateMode,
 } from '@/lib/marketplace/oauth-state'
 import { resolveOrganizationContext } from '@/lib/server/context'
+import { LAST_ORGANIZATION_COOKIE } from '@/lib/organization/constants'
 import {
   getOnboardingState,
   isShopBindingAllowed,
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
   const { organizationId, organizationRole } = await resolveOrganizationContext({
     userId: session.user.id,
     activeOrganizationId,
+    lastOrganizationId: request.cookies.get(LAST_ORGANIZATION_COOKIE)?.value ?? null,
   })
 
   if (!organizationId) {

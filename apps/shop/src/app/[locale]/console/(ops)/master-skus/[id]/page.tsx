@@ -10,6 +10,8 @@ import {
   mapMovementRows,
 } from '@/lib/console/related-info'
 import { trpc } from '@/lib/trpc/client'
+import { LocaleLink } from '@/lib/i18n/navigation'
+import { Button } from '@workspace/ui/components/button'
 
 export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeRouteParam(React.use(params).id)
@@ -30,6 +32,7 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
     { page: 1, pageSize: 20, internalSku: id },
     { enabled: !!id },
   )
+  const updateVariantMutation = trpc.products.updateVariant.useMutation()
 
   if (skuQuery.isLoading) {
     return (
@@ -59,7 +62,6 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const row = skuQuery.data
-  const updateVariantMutation = trpc.products.updateVariant.useMutation()
   const relatedInfo = buildUedRelatedInfo(
     'master-skus',
     row as unknown as Record<string, unknown>,
@@ -99,6 +101,11 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
       row={row as unknown as Record<string, unknown>}
       relatedInfo={relatedInfo}
       notice="主档来自 product_variants；库存余额 / 流水来自 wms；刊登 / 映射来自 listings & mappings tRPC。供应商货号仍未接库。"
+      headerActions={
+        <Button size="sm" asChild>
+          <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(row.sku)}`}>定价建议</LocaleLink>
+        </Button>
+      }
       extra={
         <ProductImageEditor
           initial={{ cover: row.coverImage, images: row.images ?? [] }}

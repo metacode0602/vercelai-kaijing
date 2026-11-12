@@ -1,4 +1,5 @@
 import { createId } from '@paralleldrive/cuid2'
+import { isOwnerIdentity } from '@workspace/auth'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import {
   auditEvents,
@@ -21,6 +22,7 @@ export type OnboardingStateDto = {
   organizationId: string | null
   organizationName: string | null
   organizationRole: string | null
+  organizationStatus: string | null
   entryApproved: boolean
   canEdit: boolean
   bindingAllowed: boolean
@@ -53,6 +55,7 @@ type MembershipWithApplication = {
   organizationId: string
   organizationName: string
   organizationRole: string
+  organizationStatus: string
   entryApproved: boolean
   application: OnboardingApplicationDto | null
 }
@@ -60,20 +63,31 @@ type MembershipWithApplication = {
 async function findTenantMembership(
   db: DbLike,
   userId: string,
-  organizationId?: string | null,
-): Promise<{ organizationId: string; organizationName: string; role: string; entryApproved: boolean } | null> {
-  const conditions = [eq(member.userId, userId), eq(organization.orgType, 'tenant')]
-  if (organizationId) conditions.push(eq(organization.id, organizationId))
+  organizationId: string,
+): Promise<{
+  organizationId: string
+  organizationName: string
+  role: string
+  organizationStatus: string
+  entryApproved: boolean
+} | null> {
   const [row] = await db
     .select({
       organizationId: organization.id,
       organizationName: organization.name,
       role: member.role,
+      organizationStatus: organization.status,
       entryApproved: organization.entryApproved,
     })
     .from(member)
     .innerJoin(organization, eq(member.organizationId, organization.id))
-    .where(and(...conditions))
+    .where(
+      and(
+        eq(member.userId, userId),
+        eq(organization.orgType, 'tenant'),
+        eq(organization.id, organizationId),
+      ),
+    )
     .limit(1)
   return row ?? null
 }
@@ -93,18 +107,17 @@ async function findApplication(
 async function loadMembershipWithApplication(
   db: DbLike,
   userId: string,
-  organizationId?: string | null,
+  organizationId: string | null | undefined,
 ): Promise<MembershipWithApplication | null> {
-  let membership = await findTenantMembership(db, userId, organizationId)
-  if (!membership && organizationId) {
-    membership = await findTenantMembership(db, userId)
-  }
+  if (!organizationId) return null
+  const membership = await findTenantMembership(db, userId, organizationId)
   if (!membership) return null
   const application = await findApplication(db, membership.organizationId)
   return {
     organizationId: membership.organizationId,
     organizationName: membership.organizationName,
     organizationRole: membership.role,
+    organizationStatus: membership.organizationStatus,
     entryApproved: membership.entryApproved,
     application,
   }
@@ -122,6 +135,7 @@ export async function getOnboardingState(
       organizationId: null,
       organizationName: null,
       organizationRole: null,
+      organizationStatus: null,
       entryApproved: false,
       canEdit: true,
       bindingAllowed: false,
@@ -136,6 +150,7 @@ export async function getOnboardingState(
     organizationId: membership.organizationId,
     organizationName: membership.organizationName,
     organizationRole: membership.organizationRole,
+    organizationStatus: membership.organizationStatus,
     entryApproved: membership.entryApproved,
     canEdit: status === 'draft' || status === 'rejected' || status === 'not_started',
     bindingAllowed: isShopBindingAllowed({ status }),
@@ -158,10 +173,27 @@ export async function startOnboarding(
     subjectType: OnboardingSubjectType
     countryCode: string
     nameHint?: string | null
+    organizationId?: string | null
   },
 ): Promise<{ organizationId: string; applicationId: string }> {
   return db.transaction(async (tx) => {
-    const membership = await findTenantMembership(tx, input.userId)
+    const membership = input.organizationId
+      ? await findTenantMembership(tx, input.userId, input.organizationId)
+      : null
+    if (input.organizationId && !membership) {
+      throw new Error('当前组织不存在或你不是组织成员')
+    }
+    if (!membership) {
+      const [existing] = await tx
+        .select({ id: member.id })
+        .from(member)
+        .innerJoin(organization, eq(member.organizationId, organization.id))
+        .where(and(eq(member.userId, input.userId), eq(organization.orgType, 'tenant')))
+        .limit(1)
+      if (existing) {
+        throw new Error('你已属于其他组织，请先选择组织后再开始入驻')
+      }
+    }
     if (membership) {
       const application = await findApplication(tx, membership.organizationId)
       if (!canStart(application?.status as OnboardingStatus | undefined)) {
@@ -172,6 +204,9 @@ export async function startOnboarding(
           organizationId: membership.organizationId,
           applicationId: application.id,
         }
+      }
+      if (!isOwnerIdentity(membership.role)) {
+        throw new Error('仅组织所有者可创建入驻申请')
       }
       const now = new Date()
       const applicationId = createId()

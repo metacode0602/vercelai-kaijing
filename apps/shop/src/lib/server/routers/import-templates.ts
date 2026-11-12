@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { initializeImportTemplatesForOrganization } from '@workspace/db/platform-catalogs'
 import * as importTemplatesDa from '@/lib/server/dataaccess/import-templates'
 import { UI_ACTIVE_STATUSES } from '@/lib/server/mappers/ops-master'
 
@@ -68,4 +69,7 @@ export const importTemplatesRouter = createTRPCRouter({
         }),
       ),
     ),
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeImportTemplatesForOrganization(ctx.db, ctx.organizationId)),
+  ),
 })

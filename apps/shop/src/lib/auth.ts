@@ -1,5 +1,10 @@
 import { AUTH_PATH, normalizeContactPhone } from '@/lib/auth/constants'
+import { canManageOAuthClients, listOrganizationIdsForUser, resolveMcpResourceUrl } from '@/lib/auth/oauth-server'
 import { sharedAuthOptions } from '@workspace/auth'
+import {
+  createShopOAuthPlugins,
+  SHOP_OAUTH_DISABLED_AUTH_PATHS,
+} from '@workspace/auth/oauth'
 import { schema } from '@workspace/db'
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
@@ -13,7 +18,6 @@ import { sendEmail } from '@/lib/mail'
 import { routing } from '@/lib/i18n/routing'
 import { consumeAndValidateToken } from '@workspace/sms-captcha/server'
 import { sendOtpSmsWithRateLimit, SmsRateLimitError } from '@workspace/redis'
-import { acceptPendingInvitationsForPhone } from '@/lib/server/dataaccess/members'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -86,6 +90,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || 'shop-dev-secret-change-me',
   baseURL: resolveBaseURL(),
   basePath: AUTH_PATH,
+  disabledPaths: [...SHOP_OAUTH_DISABLED_AUTH_PATHS],
   trustedOrigins: [
     ...(websiteConfig.auth.trustedOrigins ?? []),
     ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ??
@@ -157,22 +162,6 @@ export const auth = betterAuth({
         },
         getTempName: (phone) => normalizeContactPhone(phone),
       },
-      callbackOnVerification: async ({ phoneNumber: phone, user }) => {
-        try {
-          const result = await acceptPendingInvitationsForPhone(
-            db,
-            user.id,
-            normalizeContactPhone(phone),
-          )
-          if (result.accepted > 0) {
-            console.info(
-              `[auth] phone invite auto-bind: user=${user.id} orgs=${result.organizationIds.join(',')}`,
-            )
-          }
-        } catch (error) {
-          console.error('[auth] phone invite auto-bind failed:', error)
-        }
-      },
     }),
     emailOTP({
       otpLength: 6,
@@ -186,6 +175,12 @@ export const auth = betterAuth({
       sendVerificationOTP: async ({ email, otp, type }) => {
         await sendEmailOtp({ email: email.trim().toLowerCase(), otp, type })
       },
+    }),
+    ...createShopOAuthPlugins({
+      mcpResource: resolveMcpResourceUrl(),
+      allowInsecureLocalRedirects: !isProd,
+      listOrganizationIds: ({ userId }) => listOrganizationIdsForUser(userId),
+      canManageClients: canManageOAuthClients,
     }),
     nextCookies(),
   ],

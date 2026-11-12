@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
+import { initializeCarriersForOrganization } from '@workspace/db/platform-catalogs'
 import * as carriersDa from '@/lib/server/dataaccess/carriers'
 import { UI_ACTIVE_STATUSES, UI_CARRIER_TYPES } from '@/lib/server/mappers/ops-master'
 
@@ -62,5 +63,8 @@ export const carriersRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => wrap(() => carriersDa.updateCarrier(ctx.db, ctx.organizationId, input))),
   remove: tenantProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ ctx, input }) =>
     wrap(() => carriersDa.removeCarrier(ctx.db, ctx.organizationId, input.id)),
+  ),
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeCarriersForOrganization(ctx.db, ctx.organizationId)),
   ),
 })

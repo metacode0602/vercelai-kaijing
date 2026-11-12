@@ -96,6 +96,8 @@ export const oceanRouter = createTRPCRouter({
         qtyShipped: z.number(),
         qtyReceived: z.number().optional(),
         qtyDamaged: z.number().optional(),
+        cartonCount: z.number().int().nullable().optional(),
+        cbm: z.number().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

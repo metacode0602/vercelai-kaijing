@@ -58,6 +58,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ sku: s
         title={product.name || product.sku}
         description={`SKU ${product.sku} · SPU ${product.spu || '—'}`}
         badges={<><Badge variant="outline">{labelStatus(product.status)}</Badge><Badge variant="secondary">{product.category || '—'}</Badge></>}
+        actions={
+          <Button size="sm" asChild>
+            <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(product.sku)}`}>定价建议</LocaleLink>
+          </Button>
+        }
       />
       <Alert>
         <AlertTitle>主档已接库</AlertTitle>

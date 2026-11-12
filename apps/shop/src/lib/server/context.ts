@@ -1,7 +1,13 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { member, organization } from '@workspace/db/schema'
-import { and, eq } from 'drizzle-orm'
+import {
+  LAST_ORGANIZATION_COOKIE,
+  readCookieFromHeader,
+} from '@/lib/organization/constants'
+import {
+  listUserOrganizations,
+  type UserOrganizationDto,
+} from '@/lib/server/dataaccess/organization-context'
 
 export type SessionUser = {
   id: string
@@ -25,54 +31,67 @@ function pickActiveOrganizationId(session: unknown): string | null {
   return s?.session?.activeOrganizationId ?? s?.user?.activeOrganizationId ?? null
 }
 
-type MembershipRow = {
-  organizationId: string
-  role: string
-}
-
-async function listTenantMemberships(userId: string): Promise<MembershipRow[]> {
-  return db
-    .select({ organizationId: member.organizationId, role: member.role })
-    .from(member)
-    .innerJoin(organization, eq(member.organizationId, organization.id))
-    .where(and(eq(member.userId, userId), eq(organization.orgType, 'tenant')))
+export type ResolvedOrganizationContext = {
+  organizationId: string | null
+  organizationRole: string | null
+  memberships: UserOrganizationDto[]
 }
 
 /**
- * 解析租户组织与角色：session.activeOrganizationId → 用户 membership → 开发兜底。
- * 只有 activeOrganizationId 确实属于该用户时才采用，避免伪造 active org 越权。
+ * 解析租户组织与角色：session.activeOrganizationId → 最近使用组织 → 唯一 membership。
+ * 多组织且没有有效 active/last-used 时返回 null，由页面引导到 /select-org，不再静默选第一个。
  */
 export async function resolveOrganizationContext(input: {
   userId: string | null
   activeOrganizationId: string | null
-}): Promise<{ organizationId: string | null; organizationRole: string | null }> {
+  lastOrganizationId?: string | null
+}): Promise<ResolvedOrganizationContext> {
   if (input.userId) {
-    const memberships = await listTenantMemberships(input.userId)
-    if (input.activeOrganizationId) {
-      const active = memberships.find(
-        (row) => row.organizationId === input.activeOrganizationId,
-      )
-      if (active) {
-        return { organizationId: active.organizationId, organizationRole: active.role }
+    const memberships = await listUserOrganizations(
+      db,
+      input.userId,
+      input.activeOrganizationId,
+    )
+    const active = input.activeOrganizationId
+      ? memberships.find((row) => row.organizationId === input.activeOrganizationId)
+      : undefined
+    if (active) {
+      return {
+        organizationId: active.organizationId,
+        organizationRole: active.role,
+        memberships,
       }
     }
-    if (memberships[0]) {
+    const last = input.lastOrganizationId
+      ? memberships.find((row) => row.organizationId === input.lastOrganizationId)
+      : undefined
+    if (last) {
+      return {
+        organizationId: last.organizationId,
+        organizationRole: last.role,
+        memberships,
+      }
+    }
+    if (memberships.length === 1 && memberships[0]) {
       return {
         organizationId: memberships[0].organizationId,
         organizationRole: memberships[0].role,
+        memberships,
       }
     }
+    return { organizationId: null, organizationRole: null, memberships }
   }
-  if (!input.userId) {
-    const devOrg = process.env.SHOP_DEV_ORGANIZATION_ID?.trim()
-    if (devOrg) return { organizationId: devOrg, organizationRole: 'owner' }
+  const devOrg = process.env.SHOP_DEV_ORGANIZATION_ID?.trim()
+  if (devOrg) {
+    return { organizationId: devOrg, organizationRole: 'owner', memberships: [] }
   }
-  return { organizationId: null, organizationRole: null }
+  return { organizationId: null, organizationRole: null, memberships: [] }
 }
 
 export async function resolveOrganizationId(input: {
   userId: string | null
   activeOrganizationId: string | null
+  lastOrganizationId?: string | null
 }): Promise<string | null> {
   const context = await resolveOrganizationContext(input)
   return context.organizationId
@@ -89,9 +108,14 @@ export async function createContextFromRequest(req: Request): Promise<TRPCContex
     : null
 
   const activeOrganizationId = pickActiveOrganizationId(authSession)
+  const lastOrganizationId = readCookieFromHeader(
+    req.headers.get('cookie'),
+    LAST_ORGANIZATION_COOKIE,
+  )
   const { organizationId, organizationRole } = await resolveOrganizationContext({
     userId: user?.id ?? null,
     activeOrganizationId,
+    lastOrganizationId,
   })
 
   return { user, organizationId, organizationRole, headers: req.headers, db }

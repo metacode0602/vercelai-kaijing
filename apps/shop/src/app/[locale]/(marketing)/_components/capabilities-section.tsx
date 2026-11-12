@@ -1,77 +1,34 @@
 import { cn } from "@workspace/ui/lib/utils"
 import {
-  AppWindow,
-  Code2,
-  Globe,
-  History,
-  Monitor,
-  ScanEye,
+  Boxes,
+  Calculator,
+  ClipboardCheck,
+  Package,
+  Store,
+  Truck,
   type LucideIcon,
 } from "lucide-react"
 import { SectionLabel } from "./section-label"
+import { capabilitiesContent } from "../_content/landing"
 
-const capabilities: {
-  number: string
-  icon: LucideIcon
-  title: string
-  description: string
-}[] = [
-  {
-    number: "001",
-    icon: Code2,
-    title: "代码执行",
-    description: "在安全沙盒中运行 Python、JavaScript、C++ 及其他语言。",
-  },
-  {
-    number: "002",
-    icon: Globe,
-    title: "外部 APIs",
-    description: "允许智能体按需访问外部 APIs 和在线数据。",
-  },
-  {
-    number: "003",
-    icon: AppWindow,
-    title: "浏览器使用",
-    description: "在沙盒内自动执行网页导航、表单填写和数据提取。",
-  },
-  {
-    number: "004",
-    icon: Monitor,
-    title: "计算机使用",
-    description:
-      "控制完整的桌面环境，以进行输入、点击、滚动、截图和其他 GUI 操作。",
-  },
-  {
-    number: "005",
-    icon: History,
-    title: "持久会话",
-    description: "暂停和恢复长时间运行的智能体任务，且不丢失状态。",
-  },
-  {
-    number: "006",
-    icon: ScanEye,
-    title: "实时会话视图",
-    description:
-      "使用 VNC 查看和流式传输沙盒会话，以进行交互式监控和调试。",
-  },
-]
+const icons: LucideIcon[] = [Store, Package, Truck, Boxes, Calculator, ClipboardCheck]
 
 export function CapabilitiesSection() {
   return (
-    <section className="marketing-section">
+    <section id="capabilities" className="marketing-section scroll-mt-24">
       <div className="marketing-container">
-        <SectionLabel>沙盒能力</SectionLabel>
+        <SectionLabel>{capabilitiesContent.label}</SectionLabel>
 
-        <div className="mt-6 flex max-w-[430px] flex-col gap-4">
-          <h2 className="marketing-heading">核心运行时能力</h2>
+        <div className="mt-6 flex max-w-[560px] flex-col gap-4">
+          <h2 className="marketing-heading">{capabilitiesContent.title}</h2>
           <p className="marketing-subheading">
-            为智能体提供执行代码、与系统交互并在真实工作流中保持掌控所需的一切。
+            {capabilitiesContent.description}
           </p>
         </div>
 
         <div className="mt-10 grid grid-cols-1 gap-y-6 pt-10 sm:grid-cols-2 lg:grid-cols-3">
-          {capabilities.map((item, index) => {
-            const Icon = item.icon
+          {capabilitiesContent.items.map((item, index) => {
+            const Icon = icons[index] ?? Store
 
             return (
               <div
@@ -93,7 +50,7 @@ export function CapabilitiesSection() {
                     <Icon
                       className="size-12 text-primary/80 md:size-14"
                       strokeWidth={1.25}
-                      aria-hidden
+                      aria-hidden="true"
                     />
                   </div>
                 </div>

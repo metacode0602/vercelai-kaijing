@@ -55,6 +55,9 @@ export default function MasterProductsPage() {
   const categoryOptions = categoryRows
     .filter((c) => c.status === '启用')
     .map((c) => pathOf(categoryRows, c))
+  const categoryIdByPath = Object.fromEntries(
+    categoryRows.filter((c) => c.status === '启用').map((c) => [pathOf(categoryRows, c), c.id]),
+  )
   const styleOptions = activeDictOptions(dictionariesQuery.data, 'product_style')
   const materialOptions = activeDictOptions(dictionariesQuery.data, 'product_material')
   const styleTitles = dictMap.product_style?.valueTitles ?? {}
@@ -178,6 +181,7 @@ export default function MasterProductsPage() {
           brandId,
           brand: brandName,
           category: values.category,
+          categoryId: categoryIdByPath[values.category || ''] || undefined,
           owner: values.owner || ownerOptions[0] || '当前用户',
           material: values.material,
           style: values.style,

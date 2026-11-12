@@ -1,7 +1,13 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { DEFAULT_INVITE_ROLE_CODE } from '@workspace/auth'
-import { createTRPCRouter, publicProcedure, requirePermission, tenantProcedure } from '@/lib/server/trpc'
+import {
+  createTRPCRouter,
+  publicProcedure,
+  requirePermission,
+  tenantProcedure,
+  userProcedure,
+} from '@/lib/server/trpc'
 import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as membersDa from '@/lib/server/dataaccess/members'
 import { sendEmail } from '@/lib/mail'
@@ -31,6 +37,43 @@ function resolveBaseUrl(headers?: Headers | null): string {
 }
 
 export const membersRouter = createTRPCRouter({
+  /** 当前账号待确认的邀请（邮箱或手机号命中），用于 /select-org 邀请中心。 */
+  listMyInvitations: userProcedure.query(async ({ ctx }) =>
+    membersDa.listPendingInvitationsForUser(ctx.db, ctx.user.id),
+  ),
+
+  acceptInvitation: userProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await wrap(() =>
+        membersDa.acceptInvitationForUser(ctx.db, {
+          userId: ctx.user.id,
+          invitationId: input.id,
+        }),
+      )
+      await appendAuditEvent(ctx.db, result.organizationId, {
+        actorUserId: ctx.user.id,
+        actorLabel: ctx.user.name || ctx.user.email || ctx.user.id,
+        action: 'members.acceptInvitation',
+        entityType: 'invitation',
+        entityId: input.id,
+        result: 'ok',
+        detail: `接受邀请加入 ${result.organizationName}`,
+      })
+      return result
+    }),
+
+  declineInvitation: userProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        membersDa.declineInvitationForUser(ctx.db, {
+          userId: ctx.user.id,
+          invitationId: input.id,
+        }),
+      ),
+    ),
+
   list: tenantProcedure
     .input(z.object({ q: z.string().optional() }).optional())
     .query(async ({ ctx, input }) => membersDa.listMembers(ctx.db, ctx.organizationId, input?.q)),

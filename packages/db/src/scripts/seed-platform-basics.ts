@@ -1,10 +1,11 @@
 /**
- * 种子：平台基础资料（平台 / 国家站点 / 币种）。
+ * 种子 / 回补：平台目录（基础资料、字典、内部品类树、承运商名称、导入模板）。
  *
  * 两步都幂等：
- * 1. 补齐平台目录 `platform_basics_catalog`（只补缺失的 kind+code，不覆盖平台已维护行）；
- * 2. 把目录初始化到 tenant 组织的 `commerce_platform_basics`（新审核通过的企业由
- *    审核事务自动执行，此处回补存量组织与本地开发库）。
+ * 1. 补齐各平台目录中缺失的默认行（不覆盖平台已维护内容）；
+ * 2. 把目录中的有效项初始化到已入驻通过的 tenant 组织（只补缺失，不覆盖）。
+ *
+ * 新审核通过的企业由审核事务自动执行；本脚本用于回补存量已通过组织与本地开发库。
  *
  * 用法（仓库根）：
  *   pnpm --filter @workspace/db db:seed:platform-basics
@@ -12,13 +13,10 @@
  */
 import { config } from 'dotenv'
 import { resolve } from 'node:path'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createPgClient } from '../client'
 import { organization } from '../schema'
-import {
-  ensurePlatformBasicsCatalog,
-  initializePlatformBasicsForOrganization,
-} from '../platform-basics'
+import { ensureAllPlatformCatalogs, initializeOrganizationCatalogs } from '../platform-catalogs'
 
 config({ path: resolve(process.cwd(), '../../.env') })
 config({ path: resolve(process.cwd(), '.env') })
@@ -26,8 +24,10 @@ config({ path: resolve(process.cwd(), '.env') })
 async function main() {
   const { db, pool } = createPgClient()
   try {
-    const catalog = await ensurePlatformBasicsCatalog(db)
-    console.log(`平台目录：补齐 ${catalog.inserted} 条默认资料`)
+    const catalog = await ensureAllPlatformCatalogs(db)
+    console.log(
+      `平台目录：基础资料 ${catalog.platformBasics}，字典 ${catalog.dictionaries}，品类 ${catalog.categories}，承运商 ${catalog.carriers}，导入模板 ${catalog.importTemplates}`,
+    )
 
     const targetOrgId = process.env.SHOP_DEV_ORGANIZATION_ID?.trim()
     const orgs = targetOrgId
@@ -38,19 +38,21 @@ async function main() {
       : await db
           .select({ id: organization.id, name: organization.name })
           .from(organization)
-          .where(eq(organization.orgType, 'tenant'))
+          .where(and(eq(organization.orgType, 'tenant'), eq(organization.entryApproved, true)))
 
     if (orgs.length === 0) {
-      throw new Error(
-        targetOrgId
-          ? `组织不存在：${targetOrgId}`
-          : '未找到 tenant 组织，请先完成入驻或设置 SHOP_DEV_ORGANIZATION_ID',
-      )
+      if (targetOrgId) {
+        throw new Error(`组织不存在：${targetOrgId}`)
+      }
+      console.log('未找到已通过入驻的 tenant 组织，仅补齐了平台目录。')
+      return
     }
 
     for (const org of orgs) {
-      const result = await initializePlatformBasicsForOrganization(db, org.id)
-      console.log(`${org.name} (${org.id})：初始化 ${result.inserted} 条`)
+      const result = await initializeOrganizationCatalogs(db, org.id)
+      console.log(
+        `${org.name} (${org.id})：基础资料 ${result.platformBasics}，字典 ${result.dictionaries}，品类 ${result.categories}，承运商 ${result.carriers}，导入模板 ${result.importTemplates}，税则 ${result.hsTariffs}，费用模板 ${result.feeTemplates}，组织偏好 ${result.organizationSettings}`,
+      )
     }
   } finally {
     await pool.end()

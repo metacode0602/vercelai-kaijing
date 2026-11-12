@@ -24,6 +24,7 @@ export default function SettingsMembersPage() {
   const utils = trpc.useUtils()
   const listQuery = trpc.members.list.useQuery({})
   const catalogQuery = trpc.roles.catalog.useQuery()
+  const organizationQuery = trpc.organization.get.useQuery()
   const rows = listQuery.data ?? []
   const { pagedRows, pagination } = useConsolePagination(rows)
   const [open, setOpen] = React.useState(false)
@@ -133,7 +134,8 @@ export default function SettingsMembersPage() {
           <DialogHeader>
             <DialogTitle>邀请成员</DialogTitle>
             <DialogDescription>
-              至少填写手机号或邮箱。填写邮箱将发送邀请邮件；受邀人设密后需重新登录。仅填手机号时，对方用该号验证码登录后自动加入本组织。
+              邀请加入「{organizationQuery.data?.name || '当前组织'}」。至少填写手机号或邮箱；对方登录后需在邀请中心确认接受，不会自动加入。
+              填写邮箱将发送邀请邮件，受邀人设置密码后需重新登录。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

@@ -33,7 +33,7 @@
     },
     "register": {
       "title": "创建账户",
-      "description": "注册以开始使用 GPU 云服务"
+      "description": "注册以开始使用 Open Shop 跨境运营中枢"
     }
   },
   "Auth": {
@@ -141,6 +141,47 @@
       "invalidToken": "重置链接无效或已过期",
       "success": "密码已重置，请使用新密码登录",
       "resetFailed": "重置失败，链接可能已失效"
+    }
+  },
+  "OrgSelect": {
+    "title": "选择组织",
+    "description": "你已加入多个组织，选择要进入的工作台。切换后业务详情页会回到仪表盘。",
+    "loading": "正在加载组织…",
+    "current": "当前",
+    "lastUsed": "上次使用",
+    "enter": "进入",
+    "reenter": "返回",
+    "suspendedHint": "当前组织已暂停，请选择其他组织或联系平台运营。",
+    "switchFailed": "切换组织失败",
+    "acceptFailed": "接受邀请失败",
+    "accepted": "已加入 {name}",
+    "declined": "已忽略邀请",
+    "role": {
+      "owner": "所有者",
+      "member": "成员"
+    },
+    "status": {
+      "approved": "已认证",
+      "submitted": "审核中",
+      "rejected": "已驳回",
+      "draft": "资料待完善",
+      "notStarted": "未开始入驻",
+      "suspended": "已暂停"
+    },
+    "organizations": {
+      "title": "我的组织",
+      "description": "最近使用和当前组织优先展示，暂停的组织无法进入。",
+      "empty": "你还没有加入任何组织",
+      "startOnboarding": "开始入驻",
+      "createdAt": "创建于 {date}"
+    },
+    "invitations": {
+      "title": "待确认邀请",
+      "description": "接受后才会加入组织；忽略不会影响你已有的组织。",
+      "invitedBy": "邀请人：{name}",
+      "expires": "有效期至 {date}",
+      "accept": "接受邀请",
+      "decline": "忽略"
     }
   },
   "Console": {
@@ -418,7 +459,6 @@
       "preferences": "偏好",
       "fxRates": "汇率配置",
       "stockAlerts": "库存预警阈值",
-      "aftersalePolicy": "售后策略",
       "groups": {
         "enterprise": "入驻与店铺",
         "basics": "业务配置",
@@ -426,7 +466,9 @@
         "system": "系统与审计",
         "team": "团队与通知",
         "personal": "个人"
-      }
+      },
+      "shopPolicy": "店铺策略",
+      "mcpAccess": "工作台访问"
     },
     "profile": {
       "account": "账号",
@@ -572,9 +614,9 @@
     "cancel": "取消"
   },
   "Metadata": {
-    "title": "GPU 云控制台 | Serverless 与实例部署",
-    "description": "部署 Serverless 端点、GPU 服务器实例与 S3 标准网络卷的云控制台",
-    "name": "GPURun 云"
+    "title": "Open Shop | 跨境电商 AI 运营中枢",
+    "description": "Open Shop 把商品、订单、库存、成本、财务与审批沉淀为唯一事实源；OpenMCP Station 桌面工作台在此之上完成发现、解释、建议与自动化。",
+    "name": "Open Shop"
   },
   "Mail": {
     "common": {
@@ -615,5 +657,75 @@
       "accept": "接受邀请并设置密码",
       "relogin": "完成设置后请使用邮箱与新密码重新登录。"
     }
+  },
+  "OAuthSelectOrg": {
+    "title": "选择授权组织",
+    "description": "访问令牌将仅绑定你选择的这一个组织。之后在控制台切换组织，不会改写已经签发的令牌。",
+    "loading": "正在加载组织…",
+    "empty": "你还没有可授权的组织。请先加入或创建组织后再授权工作台。",
+    "current": "当前",
+    "failed": "选择组织失败，请重试"
+  },
+  "OAuthConsent": {
+    "title": "授权工作台访问",
+    "description": "“{client}”请求访问组织「{org}」。请确认下方权限。",
+    "unknownClient": "未知应用",
+    "currentOrg": "当前组织",
+    "scopesTitle": "将授予的权限",
+    "allow": "允许",
+    "deny": "拒绝",
+    "failed": "授权处理失败，请重试"
+  },
+  "SettingsMcpAccess": {
+    "title": "工作台访问",
+    "breadcrumbSettings": "设置",
+    "pageDescription": "管理 Desktop / MCP 的组织开关、预注册客户端与 API 密钥。客户端与密钥仅管理员可管理；停用为软禁用，不会硬删除。",
+    "switchTitle": "组织开关",
+    "switchDescription": "必须同时打开进程环境变量 OPENSHOP_MCP_ENABLED 与本组织开关，才会对外暴露 MCP。",
+    "envOn": "环境开关已打开",
+    "envOff": "环境开关未打开",
+    "exposed": "MCP 已暴露",
+    "notExposed": "MCP 未暴露",
+    "resource": "资源标识",
+    "orgSwitch": "允许本组织使用工作台 / MCP",
+    "saved": "已保存组织开关",
+    "keysTitle": "API 密钥",
+    "keysDescription": "密钥明文只显示一次。请勿把内部同步密钥 INTERNAL_SYNC_API_KEY 填到这里。",
+    "keyName": "名称",
+    "keyCreated": "密钥已创建，请立即保存明文",
+    "keyDisabled": "密钥已停用",
+    "createKey": "创建密钥",
+    "prefix": "前缀",
+    "scopes": "范围",
+    "scopeRead": "读取",
+    "scopeWritePending": "提交待审",
+    "status": "状态",
+    "active": "有效",
+    "disabled": "已停用",
+    "disable": "停用",
+    "clientsTitle": "OAuth 客户端",
+    "clientsDescription": "v1 仅支持管理员预注册。始终启用 PKCE。公开与机密客户端都支持。",
+    "clientName": "名称",
+    "redirectUris": "回调地址（每行或空格分隔）",
+    "confidential": "机密客户端（下发 client_secret）",
+    "applicationType": "应用类型",
+    "native": "原生 / 桌面",
+    "web": "Web",
+    "createClient": "创建客户端",
+    "clientCreated": "客户端已创建",
+    "clientDisabled": "客户端已停用",
+    "type": "类型",
+    "public": "公开",
+    "required": "必须",
+    "optional": "可选",
+    "confirmTitle": "确认停用",
+    "confirmDisableKey": "确定停用密钥「{name}」吗？此操作不会删除记录，但该密钥将立即失效。",
+    "confirmDisableClient": "确定停用客户端「{name}」吗？已签发的令牌会在内省或吊销检查时失效。",
+    "cancel": "取消",
+    "secretTitle": "请立即保存，关闭后无法再次查看",
+    "secretAck": "我已保存",
+    "clientIdLabel": "client_id",
+    "clientSecretLabel": "client_secret",
+    "publicClientHint": "这是公开客户端，没有 client_secret。授权时必须使用 PKCE。"
   }
 }
