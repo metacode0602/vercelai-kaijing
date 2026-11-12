@@ -13,9 +13,10 @@
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
-    "better-auth": "^1.6.23",
+    "better-auth": "1.7.21",
     "drizzle-orm": "^0.45.2",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@better-auth/oauth-provider": "1.7.21"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
@@ -32,6 +33,9 @@
     },
     "./client": {
       "default": "./src/client.ts"
+    },
+    "./oauth": {
+      "default": "./src/oauth-provider.ts"
     }
   }
 }

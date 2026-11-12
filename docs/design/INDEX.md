@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | [crossborder-mvp-overview.md](crossborder-mvp-overview.md) | **生效** | 改造总览：模块边界、组织角色、Desktop/OKF 商业闭环与实施顺序 |
 | [crossborder-database-design.md](crossborder-database-design.md) | **现状基线（目标演进见 haoshiyun-erp-database-schema.md）** | 跨境运营域 Drizzle / PostgreSQL schema 现状记录；含业务输入、Skill execution 与 OKF 知识索引、权限和运营 lineage；库存/成本/映射写路径已由权威 schema 重定义 |
-| [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿** | `apps/api` OpenAPI + MCP 资源与 tools（待实现） |
+| [crossborder-api-mcp-design.md](crossborder-api-mcp-design.md) | **设计稿（早期草稿）** | `apps/api` OpenAPI + MCP 资源与 tools（待实现）。**当前升级计划**见 [open-shop-desktop-mcp-upgrade-2026-11-12.md](open-shop-desktop-mcp-upgrade-2026-11-12.md) |
+| [open-shop-desktop-mcp-upgrade-2026-11-12.md](open-shop-desktop-mcp-upgrade-2026-11-12.md) | **设计稿（2026-11-12，当前 MCP/OAuth/Desktop 升级计划）** | open-shop 侧改造合同：扩展 `@workspace/auth` 作为 Better Auth OAuth 授权服务器、新建 `@workspace/commerce-domain`、独立 `/mcp` 宿主、写路径双轨（MCP 只进待审，确认在 `/console/pending`）；纠正 buddy v1.1 中与 `20b3824` 不符的现状。2026-10-25 OpenWork 工作台文档已过时。 |
 | [marketplace-connectors.md](marketplace-connectors.md) | **生效** | `packages/marketplace`：Daraz / Lazada / TikTok OAuth、签名与同步 worker |
 | [marketplace-multitenant-app-credentials.md](marketplace-multitenant-app-credentials.md) | **已确认，待实现** | 租户级 Marketplace 应用凭据：`marketplace_app_credentials`、`/api/marketplace/{platform}/oauth/callback`、控制台配置页、`apps/api` 同步/webhook 按租户解析 |
 | [marketplace-inapp-cron-and-push.md](marketplace-inapp-cron-and-push.md) | **生效（2026-11-06）** | `apps/api` 应用内 cron（订单/物流/评论）+ LAZOP Push 验签接收；含签名规则、落库幂等键与 Daraz Push 待实测说明 |
@@ -43,7 +44,7 @@
 | [cost-calculator-sl-landed-ued.md](../../apps/shop/content/design/cost-calculator-sl-landed-ued.md) | **生效（已接 `trpc.costs.*`，2026-11-08）** | 斯里兰卡成本计算工作台：先交互 UED 再接业务；空运 DDP / LCL / FCL 成本情景、税项与建议售价 |
 | [fee-templates-ued.md](../../apps/shop/content/design/fee-templates-ued.md) | **UED 初版，已接库** | 费用模板（import_tax / platform_fee / ocean_freight）：履约两级、优先级解析、tRPC 列表/详情（localStorage 主路径停用）；成本测算按平台+国家+履约+asOf 命中版本并快照；未命中由 `blockReasons` 阻断 |
 | [comment-review-ued.md](../../apps/shop/content/design/comment-review-ued.md) | **UED 初版** | 评论分析报告 UED：KPI、评分分布、关键发现、负向中性与全部评价区块规格 |
-| [openwork-desktop-workbench-plan.md](../../apps/shop/content/design/openwork-desktop-workbench-plan.md) | **设计稿** | OpenWork Desktop 工作台集成计划：Skill 能力索引、S1–S5 分步与读写路径 |
+| [openwork-desktop-workbench-plan.md](../../apps/shop/content/design/openwork-desktop-workbench-plan.md) | **设计稿（2026-10-25，已过时）** | OpenWork Desktop 工作台集成计划：Skill 能力索引、S1–S5 分步与读写路径。**当前 MCP/OAuth/Desktop 升级计划**见 [open-shop-desktop-mcp-upgrade-2026-11-12.md](open-shop-desktop-mcp-upgrade-2026-11-12.md) |
 | [console-inbox-sheet.md](../../apps/shop/content/design/console-inbox-sheet.md) | **已实现（`trpc.notifications`，2026-11-08）** | 控制台站内信 Sheet 交互（读写 `console_notifications`；`site_messages` 外传为后续项） |
 | [daraz-lk-erp-p0-ued.md](../../apps/shop/content/design/daraz-lk-erp-p0-ued.md) | **生效（P0 原型）** | Daraz LK 架构差分（非厦门共享池）、F22 柜次/清关库存、F33 汇率、F32 柜次成本版本；P1 壳；P2 推迟；官方 API 能力见 [platform-apis/](platform-apis/README.md) |
 

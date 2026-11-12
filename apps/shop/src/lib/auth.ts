@@ -1,5 +1,10 @@
 import { AUTH_PATH, normalizeContactPhone } from '@/lib/auth/constants'
+import { canManageOAuthClients, listOrganizationIdsForUser, resolveMcpResourceUrl } from '@/lib/auth/oauth-server'
 import { sharedAuthOptions } from '@workspace/auth'
+import {
+  createShopOAuthPlugins,
+  SHOP_OAUTH_DISABLED_AUTH_PATHS,
+} from '@workspace/auth/oauth'
 import { schema } from '@workspace/db'
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
@@ -85,6 +90,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || 'shop-dev-secret-change-me',
   baseURL: resolveBaseURL(),
   basePath: AUTH_PATH,
+  disabledPaths: [...SHOP_OAUTH_DISABLED_AUTH_PATHS],
   trustedOrigins: [
     ...(websiteConfig.auth.trustedOrigins ?? []),
     ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ??
@@ -169,6 +175,12 @@ export const auth = betterAuth({
       sendVerificationOTP: async ({ email, otp, type }) => {
         await sendEmailOtp({ email: email.trim().toLowerCase(), otp, type })
       },
+    }),
+    ...createShopOAuthPlugins({
+      mcpResource: resolveMcpResourceUrl(),
+      allowInsecureLocalRedirects: !isProd,
+      listOrganizationIds: ({ userId }) => listOrganizationIdsForUser(userId),
+      canManageClients: canManageOAuthClients,
     }),
     nextCookies(),
   ],

@@ -41,6 +41,7 @@ import { platformBasicsRouter } from './platform-basics'
 import { complianceRouter } from './compliance'
 import { pricingRouter } from './pricing'
 import { hsTariffsRouter } from './hs-tariffs'
+import { mcpAccessRouter } from './mcp-access'
 
 export * from '@/lib/server/trpc'
 export type { inferRouterInputs, inferRouterOutputs } from '@trpc/server'
@@ -88,6 +89,7 @@ export const appRouter = router({
   compliance: complianceRouter,
   pricing: pricingRouter,
   hsTariffs: hsTariffsRouter,
+  mcpAccess: mcpAccessRouter,
 })
 
 export type AppRouter = typeof appRouter

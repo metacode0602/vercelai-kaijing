@@ -8,7 +8,17 @@ const handleI18nRouting = createIntlMiddleware(routing)
 
 const PROTECTED_PREFIXES = ['/console', '/settings', '/onboarding', '/select-org']
 
+function isOAuthSessionPath(pathname: string) {
+  return (
+    pathname === '/oauth/consent' ||
+    pathname.startsWith('/oauth/consent/') ||
+    pathname === '/oauth/select-org' ||
+    pathname.startsWith('/oauth/select-org/')
+  )
+}
+
 function isProtectedPath(pathname: string) {
+  if (isOAuthSessionPath(pathname)) return true
   return PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   )
@@ -30,6 +40,13 @@ export function proxy(request: NextRequest) {
     isProtectedPath(pathname) &&
     !getSessionCookie(request, { cookiePrefix: websiteConfig.auth.cookiePrefix })
   ) {
+    if (isOAuthSessionPath(pathname)) {
+      const signinUrl = new URL(locale ? `/${locale}/oauth/signin` : '/oauth/signin', request.url)
+      request.nextUrl.searchParams.forEach((value, key) => {
+        signinUrl.searchParams.set(key, value)
+      })
+      return NextResponse.redirect(signinUrl)
+    }
     const signinUrl = new URL(locale ? `/${locale}/signin` : '/signin', request.url)
     signinUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(signinUrl)

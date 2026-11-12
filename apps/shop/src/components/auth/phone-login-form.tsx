@@ -12,6 +12,8 @@ import {
 } from '@workspace/ui/components/field'
 import { Input } from '@workspace/ui/components/input'
 import { SmsSliderCaptcha } from '@workspace/sms-captcha/client'
+import { continueOAuthAuthorization } from '@/lib/auth/oauth-continue'
+import { isOAuthAuthorizeQuery } from '@workspace/auth'
 import { authClient } from '@/lib/auth-client'
 import { Routes } from '@/lib/routes'
 import { cn } from '@workspace/ui/lib/utils'
@@ -140,6 +142,11 @@ export function PhoneLoginForm({ className, callbackUrl: propCallbackUrl }: Phon
         })
       } else {
         toast.success(t('verifySuccess'))
+        if (isOAuthAuthorizeQuery(searchParams)) {
+          const continued = await continueOAuthAuthorization()
+          window.location.assign(continued.url)
+          return
+        }
         window.location.assign(callbackUrl)
       }
     } catch {

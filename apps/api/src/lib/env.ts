@@ -78,6 +78,19 @@ export const env = createEnv({
     AGENT_VERSION: z.string().min(1).default("1.0.0"),
     /** Agent 二进制 CDN 根 URL；未设置时 /downloads 返回 501 stub */
     AGENT_CDN_BASE_URL: z.url().optional(),
+    /**
+     * Desktop MCP 宿主开关。默认关闭。
+     * 与组织级 mcp_workbench_enabled 同时打开后才会对外提供 /mcp 工具（S3）。
+     */
+    OPENSHOP_MCP_ENABLED: z
+      .string()
+      .optional()
+      .default("false")
+      .transform((value) => value === "true" || value === "1"),
+    /** MCP 资源标识，须与 shop 授权服务器 resources 一致。 */
+    OPENSHOP_MCP_RESOURCE: z.url().optional(),
+    /** Shop 授权服务器 issuer（用于后续内省）。 */
+    OPENSHOP_OAUTH_ISSUER: z.url().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

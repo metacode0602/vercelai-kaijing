@@ -3820,6 +3820,8 @@ export const organizationSettings = pgTable(
     tableDensity: varchar("table_density", { length: 16 }).notNull().default("comfortable"),
     dingtalkEnabled: boolean("dingtalk_enabled").notNull().default(false),
     dingtalkWebhookEncrypted: text("dingtalk_webhook_encrypted"),
+    /** 组织级工作台开关；需同时打开 OPENSHOP_MCP_ENABLED 才会暴露 MCP。 */
+    mcpWorkbenchEnabled: boolean("mcp_workbench_enabled").notNull().default(false),
     ...timestamps,
   },
   (t) => [

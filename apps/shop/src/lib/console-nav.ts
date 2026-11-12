@@ -228,6 +228,7 @@ export type SettingsNavTitleKey =
   | 'settings.importTemplates'
   | 'settings.integrationLog'
   | 'settings.erpAccess'
+  | 'settings.mcpAccess'
   | 'settings.audit'
   | 'settings.members'
   | 'settings.notifications'
@@ -291,6 +292,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroupConfig[] = [
     items: [
       { url: '/settings/integration-log', titleKey: 'settings.integrationLog', icon: 'scroll-text' },
       { url: '/settings/erp-access', titleKey: 'settings.erpAccess', icon: 'shield-check' },
+      { url: '/settings/mcp-access', titleKey: 'settings.mcpAccess', icon: 'key-round' },
       { url: '/settings/audit', titleKey: 'settings.audit', icon: 'history' },
     ],
   },

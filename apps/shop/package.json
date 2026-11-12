@@ -17,7 +17,8 @@
     "test:marketplace": "tsx --test src/lib/marketplace/**/*.test.ts",
     "test:errors": "tsx --test src/lib/server/errors/*.test.ts src/lib/trpc/error-message.test.ts",
     "test:dashboard": "tsx --test src/lib/console/dashboard-query.test.ts",
-    "test:freight": "pnpm --filter @workspace/freight test"
+    "test:freight": "pnpm --filter @workspace/freight test",
+    "test:oauth": "tsx --test src/lib/auth/**/*.test.ts"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.79.1",
@@ -36,7 +37,7 @@
     "@workspace/sms-captcha": "workspace:*",
     "@workspace/storage": "workspace:*",
     "@workspace/ui": "workspace:*",
-    "better-auth": "^1.6.23",
+    "better-auth": "1.7.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "deepmerge": "^4.3.1",
@@ -54,7 +55,8 @@
     "xlsx": "0.18.5",
     "zod": "^4.6.7",
     "zustand": "^5.0.13",
-    "@workspace/freight": "workspace:*"
+    "@workspace/freight": "workspace:*",
+    "@better-auth/oauth-provider": "1.7.21"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",
