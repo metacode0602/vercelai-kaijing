@@ -209,7 +209,7 @@ export function MarketingHeader() {
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="marketing-popover data-[side=right]:w-[86vw] max-w-[340px] data-[side=right]:sm:max-w-[340px] gap-0 overflow-hidden pt-[env(safe-area-inset-top)]"
+              className="marketing-popover min-w-[35vw] data-[side=right]:w-[86vw] max-w-[340px] data-[side=right]:sm:max-w-[340px] gap-0 overflow-hidden pt-[env(safe-area-inset-top)]"
             >
               <SheetHeader className="shrink-0 pb-2 pr-14">
                 <SheetTitle>菜单</SheetTitle>

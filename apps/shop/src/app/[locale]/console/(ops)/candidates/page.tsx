@@ -187,7 +187,7 @@ export default function CandidatesPage() {
       </ConsoleListSection>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="min-w-[35vw]">
           <DialogHeader>
             <DialogTitle>新建候选（落库）</DialogTitle>
           </DialogHeader>

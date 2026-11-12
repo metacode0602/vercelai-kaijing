@@ -288,7 +288,7 @@ export default function SettlementsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="min-w-[35vw] max-w-xl">
           <DialogHeader>
             <DialogTitle>导入结算账单</DialogTitle>
             <DialogDescription>

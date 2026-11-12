@@ -109,7 +109,7 @@ export function ConsoleInboxSheet() {
           ) : null}
         </Button>
 
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+        <SheetContent side="right" className="flex min-w-[35vw] w-full flex-col gap-0 p-0 sm:max-w-md">
           <SheetHeader className="border-b border-border pr-12">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 space-y-0.5">
@@ -188,7 +188,7 @@ export function ConsoleInboxSheet() {
           if (!next) setSelectedId(null)
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="min-w-[35vw] max-w-lg">
           {selected ? (
             <>
               <DialogHeader>
