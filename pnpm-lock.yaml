@@ -61,6 +61,12 @@ importers:
       '@t3-oss/env-core':
         specifier: ^0.13.11
         version: 0.13.11(typescript@5.9.3)(zod@4.6.7)
+      '@workspace/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@workspace/commerce-domain':
+        specifier: workspace:*
+        version: link:../../packages/commerce-domain
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -76,6 +82,9 @@ importers:
       hono:
         specifier: ^4.7.5
         version: 4.13.9
+      jose:
+        specifier: ^6.1.3
+        version: 6.2.12
       nanoid:
         specifier: ^5.1.7
         version: 5.1.16
@@ -629,6 +638,13 @@ importers:
         version: 5.9.3
 
   packages/commerce-domain:
+    dependencies:
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.3(patch_hash=d9d7278de470b6fb204860e192db13bdc9ea668f6907967a40525dc1466552a8)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(@upstash/redis@1.39.0)(kysely@0.29.6)(pg@8.23.0)
     devDependencies:
       '@types/node':
         specifier: ^22.10.10

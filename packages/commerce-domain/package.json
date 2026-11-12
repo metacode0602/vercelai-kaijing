@@ -20,5 +20,9 @@
     ".": {
       "default": "./src/index.ts"
     }
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "^0.45.2"
   }
 }
