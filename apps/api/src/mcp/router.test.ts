@@ -189,3 +189,59 @@ test("组织始终来自令牌，模型传入的 organization_id 不会改写 pr
   assert.ok(body.result)
   assert.notEqual(reader.organizationId, "org_evil")
 })
+
+test("S4 工具已注册，且仍不含确认、拒绝或直接发布", () => {
+  const names = toMcpToolList().tools.map((tool) => tool.name)
+  for (const name of [
+    "openshop.candidates.create",
+    "openshop.candidates.update",
+    "openshop.candidates.accept",
+    "openshop.candidates.reject",
+    "openshop.listings.create_draft",
+    "openshop.listings.submit_for_review",
+    "openshop.pricing.save_draft",
+    "openshop.sync.request",
+  ]) {
+    assert.equal(names.includes(name), true, `missing ${name}`)
+  }
+  assert.equal(names.includes("openshop.pending.confirm"), false)
+  assert.equal(names.includes("openshop.pending.reject"), false)
+  assert.equal(names.includes("openshop.listings.publish"), false)
+})
+
+test("sync.request 拒绝库存/改价/发布等写同步，不入队", async () => {
+  const principal: McpPrincipal = {
+    kind: "oauth",
+    organizationId: "org_a",
+    scopes: ["openshop:read", "openshop:write.pending"],
+    clientId: "client_ok",
+  }
+  for (const type of ["inventory", "库存同步", "price", "价格同步", "publish", "发布刊登", "status", "状态同步", "ship_batch", "物流交运"]) {
+    const result = await callRegisteredTool(db, principal, "openshop.sync.request", {
+      type,
+      shopId: "shop_1",
+      organization_id: "org_evil",
+    })
+    assert.equal(result.ok, false, `type ${type} should fail`)
+    if (!result.ok) {
+      assert.match(result.message, /不能通过 MCP 入队|不在本期工作台开放/)
+    }
+  }
+})
+
+test("pricing.save_draft 拒绝非 Daraz LK，避免误写其他平台价库", async () => {
+  const principal: McpPrincipal = {
+    kind: "oauth",
+    organizationId: "org_a",
+    scopes: ["openshop:read", "openshop:write.pending"],
+  }
+  const result = await callRegisteredTool(db, principal, "openshop.pricing.save_draft", {
+    sku: "HSY000001001",
+    suggestedRetail: 12.5,
+    currency: "LKR",
+    platform: "tiktok",
+    site: "US",
+  })
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.match(result.message, /Daraz 斯里兰卡/)
+})

@@ -6,9 +6,12 @@ import {
 } from "@workspace/auth"
 import {
   assertMcpWriteAllowed,
+  acceptCandidateAsDraft,
   candidateStats,
   completeListingSubmitPending,
+  createCandidatePending,
   createInventoryPushPending,
+  createListingDraft,
   createPriceChangePending,
   financeOverview,
   financeProfits,
@@ -36,11 +39,16 @@ import {
   listSkuCosts,
   listSyncTasks,
   mcpForbiddenWriteActions,
+  rejectCandidateDraft,
   reportAttribution,
   reportSellThrough,
   reportStockRisk,
+  requestReadSync,
   searchProducts,
+  savePricingSuggestionDraft,
+  submitListingForReview,
   suggestPrices,
+  updateCandidateDraft,
   type DomainActor,
 } from "@workspace/commerce-domain"
 import type { AppDatabase } from "@workspace/db"
@@ -362,6 +370,270 @@ const tools: ToolDef[] = [
         warehouseCode: str(args, "warehouseCode"),
         logisticsChannel: str(args, "logisticsChannel"),
       }),
+  },
+  {
+    name: "openshop.candidates.create",
+    description: "创建选品候选，并生成 sourcing_upsert 待审。不发布、不假装爬虫成功。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        url: { type: "string" },
+        categoryHint: { type: "string" },
+        score: { type: "number" },
+        source: { type: "string", description: "manual / import / sourcing" },
+        currency: { type: "string" },
+        landedCost: { type: "number" },
+        suggestPrice: { type: "number" },
+        marginPct: { type: "number" },
+        goNoGo: { type: "string" },
+      },
+      required: ["title"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      createCandidatePending(ctx.db, ctx.actor, {
+        title: requireString(args, "title", "标题"),
+        url: str(args, "url"),
+        categoryHint: str(args, "categoryHint"),
+        score: num(args, "score"),
+        source: str(args, "source"),
+        currency: str(args, "currency"),
+        landedCost: num(args, "landedCost"),
+        suggestPrice: num(args, "suggestPrice"),
+        marginPct: num(args, "marginPct"),
+        goNoGo: str(args, "goNoGo"),
+      }),
+  },
+  {
+    name: "openshop.candidates.update",
+    description: "更新仍为待审的选品候选，不确认待审。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        title: { type: "string" },
+        url: { type: "string" },
+        categoryHint: { type: "string" },
+        score: { type: "number" },
+        currency: { type: "string" },
+        landedCost: { type: "number" },
+        suggestPrice: { type: "number" },
+        marginPct: { type: "number" },
+        goNoGo: { type: "string" },
+      },
+      required: ["id"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      updateCandidateDraft(ctx.db, ctx.actor, {
+        id: requireString(args, "id", "候选 ID"),
+        title: str(args, "title"),
+        url: str(args, "url"),
+        categoryHint: str(args, "categoryHint"),
+        score: num(args, "score"),
+        currency: str(args, "currency"),
+        landedCost: num(args, "landedCost"),
+        suggestPrice: num(args, "suggestPrice"),
+        marginPct: num(args, "marginPct"),
+        goNoGo: str(args, "goNoGo"),
+      }),
+  },
+  {
+    name: "openshop.candidates.accept",
+    description: "接受候选：创建 SPU 草稿和刊登提交待审，不发布到平台。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        mode: { type: "string", description: "create_draft 或 link_existing" },
+        productId: { type: "string" },
+        productSpu: { type: "string" },
+        brand: { type: "string" },
+      },
+      required: ["id"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      acceptCandidateAsDraft(ctx.db, ctx.actor, {
+        id: requireString(args, "id", "候选 ID"),
+        mode: str(args, "mode") === "link_existing" ? "link_existing" : "create_draft",
+        productId: str(args, "productId"),
+        productSpu: str(args, "productSpu"),
+        brand: str(args, "brand"),
+      }),
+  },
+  {
+    name: "openshop.candidates.reject",
+    description: "拒绝选品候选并填写理由。不会由 MCP 确认或关闭待审。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        reason: { type: "string" },
+      },
+      required: ["id", "reason"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      rejectCandidateDraft(ctx.db, ctx.actor, {
+        id: requireString(args, "id", "候选 ID"),
+        reason: requireString(args, "reason", "拒绝理由"),
+      }),
+  },
+  {
+    name: "openshop.listings.create_draft",
+    description: "创建本地刊登草稿（未发布），不入队平台写入。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        shopId: { type: "string" },
+        sku: { type: "string" },
+        sellerSku: { type: "string" },
+        title: { type: "string" },
+        sellPrice: { type: "number" },
+        currency: { type: "string" },
+        brandName: { type: "string" },
+        categoryPath: { type: "string" },
+        categoryExternalId: { type: "string" },
+        warehouseCode: { type: "string" },
+        logisticsChannel: { type: "string" },
+        color: { type: "string" },
+        size: { type: "string" },
+        note: { type: "string" },
+      },
+      required: ["shopId", "sku", "sellerSku", "title", "sellPrice"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      createListingDraft(ctx.db, ctx.actor, {
+        shopId: requireString(args, "shopId", "店铺 ID"),
+        sku: requireString(args, "sku", "内部 SKU"),
+        sellerSku: requireString(args, "sellerSku", "Seller SKU"),
+        title: requireString(args, "title", "标题"),
+        sellPrice: requireNumber(args, "sellPrice", "售价"),
+        currency: str(args, "currency"),
+        brandName: str(args, "brandName"),
+        categoryPath: str(args, "categoryPath"),
+        categoryExternalId: str(args, "categoryExternalId"),
+        warehouseCode: str(args, "warehouseCode"),
+        logisticsChannel: str(args, "logisticsChannel"),
+        color: str(args, "color"),
+        size: str(args, "size"),
+        note: str(args, "note"),
+      }),
+  },
+  {
+    name: "openshop.listings.submit_for_review",
+    description: "提交刊登审核，只生成 listing_submit 待审，不发布到平台。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        listingId: { type: "string" },
+        id: { type: "string" },
+      },
+      required: [],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      submitListingForReview(ctx.db, ctx.actor, {
+        listingId: str(args, "listingId") || requireString(args, "id", "刊登 ID"),
+      }),
+  },
+  {
+    name: "openshop.pricing.save_draft",
+    description: "保存 Daraz LK 定价建议草稿，不改刊登售价，不向平台回写。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sku: { type: "string" },
+        suggestedRetail: { type: "number" },
+        suggestedFreeShipping: { type: "number" },
+        currency: { type: "string" },
+        platform: { type: "string" },
+        site: { type: "string" },
+        isEstimate: { type: "boolean" },
+      },
+      required: ["sku", "suggestedRetail", "currency"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: (ctx, args) =>
+      savePricingSuggestionDraft(ctx.db, ctx.actor, {
+        sku: requireString(args, "sku", "内部 SKU"),
+        suggestedRetail: requireNumber(args, "suggestedRetail", "建议零售价"),
+        suggestedFreeShipping: num(args, "suggestedFreeShipping"),
+        currency: requireString(args, "currency", "币种"),
+        platform: str(args, "platform"),
+        site: str(args, "site") ?? str(args, "country"),
+        isEstimate: args.isEstimate === true,
+      }),
+  },
+  {
+    name: "openshop.sync.request",
+    description: "仅请求读同步（订单、刊登拉取、结算、物流、评论）。拒绝库存/改价/发布等写同步。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: { type: "string" },
+        shopId: { type: "string" },
+        target: { type: "string" },
+        note: { type: "string" },
+      },
+      required: ["type", "shopId"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    requiredScope: OPENSHOP_WRITE_PENDING_SCOPE,
+    kind: "write",
+    handler: async (ctx, args) => {
+      const created = await requestReadSync(ctx.db, ctx.actor, {
+        type: requireString(args, "type", "同步类型"),
+        shopId: requireString(args, "shopId", "店铺 ID"),
+        target: str(args, "target"),
+        note: str(args, "note"),
+      })
+      if (!created.shouldTrigger || !created.resource) return created
+      try {
+        const { runMarketplaceSync } = await import("../lib/marketplace/sync.js")
+        const result = await runMarketplaceSync({
+          resource: created.resource,
+          organizationId: ctx.actor.organizationId,
+          shopId: created.shopId,
+          syncTaskId: created.id,
+          requestId: created.requestId,
+        })
+        const failed = result.errors.length > 0 && result.shops === 0
+        return {
+          ...created,
+          trigger: {
+            shops: result.shops,
+            errors: result.errors.map((item) => item.message),
+          },
+          message: failed
+            ? `读同步已入队但执行失败：${result.errors.map((item) => item.message).join("；") || "未知错误"}。不会把失败记为成功。`
+            : `读同步已触发现有 connector（店铺 ${result.shops}）。未入队库存/改价/发布写同步。`,
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return {
+          ...created,
+          message: `读同步已入队，但立即触发失败：${message}。任务仍在队列中，不会假成功。`,
+        }
+      }
+    },
   },
 ]
 

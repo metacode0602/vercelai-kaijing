@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { and, eq } from "drizzle-orm"
 import { listings, pendingActions, type AppDatabase } from "@workspace/db"
 import { assertMcpWriteAllowed, type DomainActor } from "./actor"
+import { actorName, recordMcpAudit } from "./audit"
 import { NotFoundError } from "./errors"
 import { requireDesktopShop } from "./shops"
 
@@ -17,10 +18,6 @@ export type PendingWriteResult = {
   confirmPath: "/console/pending"
   message: string
   reused: boolean
-}
-
-function actorName(actor: DomainActor): string {
-  return actor.userId?.trim() || (actor.clientId ? `mcp:${actor.clientId}` : "mcp")
 }
 
 function readPayload(value: unknown): Record<string, unknown> {
@@ -81,9 +78,6 @@ export async function createPriceChangePending(
     idempotencyKey?: string
   },
 ): Promise<PendingWriteResult> {
-  assertMcpWriteAllowed(actor, "listings.updateLivePrice")
-  assertMcpWriteAllowed(actor, "sync.enqueue.price")
-  assertMcpWriteAllowed(actor, "pending.confirm")
   if (!(input.priceAmount > 0)) throw new Error("售价必须大于 0")
 
   const listing = await loadListing(db, actor.organizationId, input.listingId)
@@ -125,6 +119,13 @@ export async function createPriceChangePending(
   })
   const row = await findByIdempotency(db, actor.organizationId, idempotencyKey)
   if (!row) throw new Error("创建改价待审失败")
+  await recordMcpAudit(db, actor, {
+    action: "mcp.pending.create_price_change",
+    entityType: "pending_action",
+    entityId: row.id,
+    after: { kind: "price_change", listingId: listing.id, priceAmount: input.priceAmount },
+    detail: "只创建待审，未改刊登售价，未入队同步。",
+  })
   return toResult(row, "已创建改价待审。刊登售价尚未更改，请到 /console/pending 确认后才会写回平台。", false)
 }
 
@@ -141,8 +142,6 @@ export async function createInventoryPushPending(
     idempotencyKey?: string
   },
 ): Promise<PendingWriteResult> {
-  assertMcpWriteAllowed(actor, "sync.enqueue.inventory")
-  assertMcpWriteAllowed(actor, "pending.confirm")
   if (!Number.isFinite(input.qty) || input.qty < 0) throw new Error("库存数量不能为负数")
 
   const listing = await loadListing(db, actor.organizationId, input.listingId)
@@ -180,6 +179,13 @@ export async function createInventoryPushPending(
   })
   const row = await findByIdempotency(db, actor.organizationId, idempotencyKey)
   if (!row) throw new Error("创建库存推送待审失败")
+  await recordMcpAudit(db, actor, {
+    action: "mcp.pending.create_inventory_push",
+    entityType: "pending_action",
+    entityId: row.id,
+    after: { kind: "inventory_push", listingId: listing.id, qty: input.qty },
+    detail: "只创建待审，未向平台推送库存。",
+  })
   return toResult(row, "已创建库存推送待审。尚未向平台推送，请到 /console/pending 确认。", false)
 }
 
@@ -209,8 +215,6 @@ export async function completeListingSubmitPending(
   actor: DomainActor,
   input: CompleteListingSubmitInput,
 ): Promise<PendingWriteResult> {
-  assertMcpWriteAllowed(actor, "listings.publish")
-  assertMcpWriteAllowed(actor, "pending.confirm")
   const [row] = await db
     .select()
     .from(pendingActions)
@@ -255,6 +259,13 @@ export async function completeListingSubmitPending(
     .where(and(eq(pendingActions.organizationId, actor.organizationId), eq(pendingActions.id, row.id)))
   const updated = await findByIdempotency(db, actor.organizationId, row.idempotencyKey)
   if (!updated) throw new Error("补全待审失败")
+  await recordMcpAudit(db, actor, {
+    action: "mcp.pending.complete_listing_submit",
+    entityType: "pending_action",
+    entityId: updated.id,
+    after: { kind: updated.kind, status: updated.status },
+    detail: "仅补全 payload，未确认、未发布。",
+  })
   return toResult(updated, "已补全刊登提交待审，尚未确认，也不会发布到平台。请到 /console/pending 确认。", false)
 }
 
