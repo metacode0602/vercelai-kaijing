@@ -279,7 +279,7 @@ export default function PlatformCategoriesPage() {
           if (!open) setEditingId(null)
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="min-w-[35vw] max-h-[85vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{editingId ? '编辑品类' : '新增品类'}</DialogTitle>
             <DialogDescription>

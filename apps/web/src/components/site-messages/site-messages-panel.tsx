@@ -305,7 +305,7 @@ export function SiteMessagesPanel({ buttonClassName }: SiteMessagesPanelProps) {
           if (!open) setSelectedMessageId(null)
         }}
       >
-        <DialogContent className="flex max-h-[85vh] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogContent className="flex min-w-[35vw] max-h-[85vh] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
           {detailLoading ? (
             <div className="space-y-4 px-6 py-6">
               <Skeleton className="h-4 w-24" />
