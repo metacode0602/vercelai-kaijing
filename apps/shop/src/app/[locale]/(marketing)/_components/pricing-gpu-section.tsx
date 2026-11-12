@@ -51,7 +51,7 @@ export function PricingGpuSection() {
           </p>
         </div>
 
-        <h3 className="mt-4 text-xl font-semibold text-foreground md:text-2xl">
+        <h3 className="mt-4 text-lg font-semibold text-foreground md:text-xl">
           GPU 云实例
         </h3>
         <p className="mt-2 text-base text-muted-foreground">
@@ -63,7 +63,7 @@ export function PricingGpuSection() {
           rows={cloudGpuRows}
         />
 
-        <h3 className="mt-10 text-xl font-semibold text-foreground md:text-2xl">
+        <h3 className="mt-10 text-lg font-semibold text-foreground md:text-xl">
           GPU 实例市场
         </h3>
         <p className="mt-2 text-base text-muted-foreground">

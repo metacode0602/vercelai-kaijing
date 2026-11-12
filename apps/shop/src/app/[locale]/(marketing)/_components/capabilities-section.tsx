@@ -55,7 +55,7 @@ export function CapabilitiesSection() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-5">
-                  <h3 className="text-xl font-semibold leading-[26px] text-foreground md:text-2xl">
+                  <h3 className="text-lg font-semibold leading-[26px] text-foreground md:text-xl">
                     {item.title}
                   </h3>
                   <p className="text-[15px] leading-[22px] text-muted-foreground md:text-lg md:leading-[26px]">
