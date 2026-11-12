@@ -6,6 +6,7 @@ import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle
 import { createId } from '@paralleldrive/cuid2'
 import { feeTemplateMatchRules, feeTemplates, feeTemplateVersions } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
+import { feeVersionSourceLabel } from '@/lib/crossborder/official-fee-sync'
 import {
   feeTypeLabel,
   formatDateOnly,
@@ -60,6 +61,11 @@ export type FeeTemplateVersionDto = {
   reviewedAt: string
   reviewNote: string
   note: string
+  source: string
+  sourceLabel: string
+  sourcePlatform: string
+  sourceSite: string
+  syncedAt: string
   createdAt: string
   updatedAt: string
 }
@@ -154,6 +160,15 @@ function mapVersion(row: typeof feeTemplateVersions.$inferSelect): FeeTemplateVe
     reviewedAt: formatStamp(row.reviewedAt),
     reviewNote: row.reviewNote ?? '',
     note: row.note ?? '',
+    source: row.source ?? 'manual',
+    sourceLabel: feeVersionSourceLabel({
+      source: row.source ?? 'manual',
+      status,
+      published: row.published || status === 'published',
+    }),
+    sourcePlatform: row.sourcePlatform ?? '',
+    sourceSite: row.sourceSite ?? '',
+    syncedAt: formatStamp(row.syncedAt),
     createdAt: formatDateOnly(row.createdAt) || formatStamp(row.createdAt),
     updatedAt: formatDateOnly(row.updatedAt) || formatStamp(row.updatedAt),
   }
@@ -473,6 +488,13 @@ export async function createFeeTemplateVersion(
     components?: FeeComponentDto[]
     note?: string
     reviewNeeded?: boolean
+    source?: 'manual' | 'official_sync'
+    sourcePlatform?: string
+    sourceSite?: string
+    sourceShopId?: string
+    syncedAt?: Date
+    syncRunId?: string
+    rawSnapshot?: Record<string, unknown> | unknown[]
   },
 ): Promise<FeeTemplateVersionDto> {
   const template = await getFeeTemplate(db, organizationId, input.templateId)
@@ -500,6 +522,13 @@ export async function createFeeTemplateVersion(
     reviewNeeded: input.reviewNeeded ?? true,
     status: 'draft',
     note: input.note ?? (base ? `基于 v${base.versionNo} 的草稿` : '草稿版本'),
+    source: input.source ?? 'manual',
+    sourcePlatform: input.sourcePlatform ?? null,
+    sourceSite: input.sourceSite ?? null,
+    sourceShopId: input.sourceShopId ?? null,
+    syncedAt: input.syncedAt ?? null,
+    syncRunId: input.syncRunId ?? null,
+    rawSnapshot: input.rawSnapshot ?? null,
     createdAt: now,
     updatedAt: now,
   })

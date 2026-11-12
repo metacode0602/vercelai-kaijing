@@ -34,6 +34,11 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import {
+  defaultFormulaForCountry,
+  formulasForCountry,
+  FORMULA_LK_UPLIFT_V1,
+} from "@workspace/freight"
 import { LocaleLink, useLocaleRouter, useLocalePathname } from "@/lib/i18n/navigation"
 import { trpc } from "@/lib/trpc/client"
 
@@ -70,9 +75,14 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
   const [country, setCountry] = React.useState((searchParams.get("country") || "LK").toUpperCase())
   const [shopId, setShopId] = React.useState(searchParams.get("shopId") || "")
   const [marginText, setMarginText] = React.useState(searchParams.get("margin") || "")
-  const [formulaVersion, setFormulaVersion] = React.useState<"lk_cascade_v1" | "lk_uplift_v1">(
-    searchParams.get("formula") === "lk_uplift_v1" ? "lk_uplift_v1" : "lk_cascade_v1",
+  const [formulaVersion, setFormulaVersion] = React.useState<string | undefined>(
+    searchParams.get("formula") || undefined,
   )
+  const formulaOptions = formulasForCountry(country)
+  const resolvedFormula =
+    formulaVersion && formulaOptions.some((f) => f.id === formulaVersion)
+      ? formulaVersion
+      : (defaultFormulaForCountry(country) ?? undefined)
   const [useEstimate, setUseEstimate] = React.useState(searchParams.get("estimate") === "1")
   const [drawerOpen, setDrawerOpen] = React.useState(false)
   const [showBreakdown, setShowBreakdown] = React.useState(false)
@@ -100,7 +110,7 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
       country,
       shopId: shopId || undefined,
       targetMarginPct: Number.isFinite(targetMarginPct) ? targetMarginPct : undefined,
-      formulaVersion,
+      formulaVersion: resolvedFormula as typeof formulaOptions[number]["id"] | undefined,
       useFreightRateCardEstimate: useEstimate,
       temporaryFees,
     },
@@ -206,7 +216,7 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
           定价建议计算器
         </h2>
         <p className="text-sm text-muted-foreground">
-          打开即算。费用来自本组织费用模板，不是平台实时同步。缺项会给出估算并标明，不会静默套用默认税则或发布到平台。
+          打开即算。费用来自本组织费用模板，不是平台实时同步。计税公式按所选平台站点的目的国选择，不会把斯里兰卡税栈套到其他国家。缺项会给出估算并标明，不会发布到平台。
         </p>
       </div>
 
@@ -324,13 +334,24 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
           </div>
           <div className="space-y-1">
             <Label>公式</Label>
-            <Select value={formulaVersion} onValueChange={(v) => setFormulaVersion(v as typeof formulaVersion)}>
+            <Select
+              value={resolvedFormula ?? "__none__"}
+              onValueChange={(v) => setFormulaVersion(v === "__none__" ? undefined : v)}
+              disabled={formulaOptions.length === 0}
+            >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder={formulaOptions.length ? "选择公式" : "该目的国暂无计税公式"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="lk_cascade_v1">lk_cascade_v1（默认，无 10% 上浮）</SelectItem>
-                <SelectItem value="lk_uplift_v1">lk_uplift_v1（旧口径对照）</SelectItem>
+                {formulaOptions.length === 0 ? (
+                  <SelectItem value="__none__">该目的国暂无计税公式</SelectItem>
+                ) : (
+                  formulaOptions.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.labelZh}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -359,10 +380,18 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
         </Alert>
       ) : data ? (
         <>
-          {formulaVersion === "lk_uplift_v1" ? (
+          {resolvedFormula === FORMULA_LK_UPLIFT_V1 ? (
             <Alert>
               <AlertTitle>对照公式</AlertTitle>
               <AlertDescription>切换到 lk_uplift_v1 后结果会变，这不是平台官方报价，仅供对照。</AlertDescription>
+            </Alert>
+          ) : null}
+          {data?.context.pendingOfficialDrafts && data.context.pendingOfficialDrafts.length > 0 ? (
+            <Alert>
+              <AlertTitle>来自官方费率同步草稿（待审核）</AlertTitle>
+              <AlertDescription>
+                该站点存在尚未发布的官方同步草稿，本次建议价仍{data.context.feeSourceNote}
+              </AlertDescription>
             </Alert>
           ) : null}
 

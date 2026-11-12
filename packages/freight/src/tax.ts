@@ -1,9 +1,7 @@
 import { round2, round4 } from './math'
+import { FORMULA_LK_CASCADE_V1, FORMULA_LK_UPLIFT_V1 } from './formulas'
 
-export const FORMULA_LK_CASCADE_V1 = 'lk_cascade_v1'
-export const FORMULA_LK_UPLIFT_V1 = 'lk_uplift_v1'
-
-export type FormulaVersion = typeof FORMULA_LK_CASCADE_V1 | typeof FORMULA_LK_UPLIFT_V1
+export { FORMULA_LK_CASCADE_V1, FORMULA_LK_UPLIFT_V1 }
 
 export type SpecificDutyUnit = 'kg' | 'unit'
 export type SpecificDutyRule = 'none' | 'max' | 'sum'

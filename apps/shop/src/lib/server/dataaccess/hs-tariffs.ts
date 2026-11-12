@@ -8,7 +8,7 @@ import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { hsCodes, hsTariffVersions } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
-import { normalizeHsCode } from '@workspace/freight'
+import { currencyForCountry, defaultFormulaForCountry, normalizeHsCode } from '@workspace/freight'
 import {
   normalizePage,
   normalizePageSize,
@@ -53,6 +53,7 @@ export type HsTariffDto = {
   effectiveTo: string
   currency: string
   formulaProfile: string
+  components: Record<string, unknown>
   upliftRule: Record<string, unknown> | null
   gdRate: number | null
   surchargeRate: number | null
@@ -104,7 +105,8 @@ function mapTariff(row: typeof hsTariffVersions.$inferSelect): HsTariffDto {
     effectiveFrom: row.effectiveFrom.toISOString(),
     effectiveTo: row.effectiveTo ? row.effectiveTo.toISOString() : '',
     currency: row.currency,
-    formulaProfile: row.formulaProfile ?? 'lk_cascade_v1',
+    formulaProfile: row.formulaProfile ?? defaultFormulaForCountry(row.countryCode) ?? '',
+    components: row.components ?? {},
     upliftRule: row.upliftRule ?? null,
     gdRate: num(row.gdRate),
     surchargeRate: num(row.surchargeRate),
@@ -170,6 +172,7 @@ export type UpsertHsTariffInput = {
   effectiveTo?: string
   currency?: string
   formulaProfile?: string
+  components?: Record<string, unknown>
   gdRate?: number | null
   surchargeRate?: number | null
   palRate?: number | null
@@ -272,8 +275,9 @@ export async function createHsTariffDraft(
       status: 'draft',
       effectiveFrom: new Date(input.effectiveFrom),
       effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
-      currency: (input.currency || 'LKR').toUpperCase(),
-      formulaProfile: input.formulaProfile || 'lk_cascade_v1',
+      currency: (input.currency || currencyForCountry(countryCode)).toUpperCase(),
+      formulaProfile: input.formulaProfile || defaultFormulaForCountry(countryCode) || undefined,
+      components: input.components ?? {},
       gdRate: input.gdRate != null ? String(input.gdRate) : null,
       surchargeRate: input.surchargeRate != null ? String(input.surchargeRate) : null,
       palRate: input.palRate != null ? String(input.palRate) : null,

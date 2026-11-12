@@ -11,6 +11,15 @@ import {
   suggestSellPriceStandard,
 } from './pricing'
 import { computeLkCascadeTaxStack, computeLkUpliftTaxStack } from './tax'
+import {
+  defaultFormulaForCountry,
+  isFormulaAllowedForCountry,
+  resolveFormulaForCountry,
+  FORMULA_LK_CASCADE_V1,
+  FORMULA_MY_SST_V1,
+  FORMULA_SG_GST_V1,
+} from './formulas'
+import { computeTaxStack } from './tax-stacks'
 
 describe('lk_cascade_v1 tax stack (no CIF uplift)', () => {
   it('对齐移动电源实例的中间值与含税成本（不以讲义售价为验收）', () => {
@@ -270,5 +279,98 @@ describe('marginAtSellPrice', () => {
 
   it('returns null for invalid price', () => {
     assert.equal(marginAtSellPrice({ fullCostUnit: 100, sellPrice: 0, fees: { commissionPct: 8, payoutPct: 2, warehousePct: 5 } }), null)
+  })
+})
+
+
+describe('destination tax formulas (phase 3)', () => {
+  it('keeps lk_cascade_v1 as the default for LK only', () => {
+    assert.equal(defaultFormulaForCountry('LK'), FORMULA_LK_CASCADE_V1)
+    assert.equal(defaultFormulaForCountry('MY'), FORMULA_MY_SST_V1)
+    assert.equal(defaultFormulaForCountry('SG'), FORMULA_SG_GST_V1)
+    assert.equal(defaultFormulaForCountry('TH') != null, true)
+    assert.equal(defaultFormulaForCountry('VN') != null, true)
+    assert.equal(defaultFormulaForCountry('ID') != null, true)
+    assert.equal(defaultFormulaForCountry('PH') != null, true)
+    assert.equal(defaultFormulaForCountry('PK'), null)
+    assert.equal(defaultFormulaForCountry('BD'), null)
+    assert.equal(isFormulaAllowedForCountry(FORMULA_LK_CASCADE_V1, 'MY'), false)
+    const rejected = resolveFormulaForCountry({ country: 'MY', requested: FORMULA_LK_CASCADE_V1 })
+    assert.equal(rejected.formula, FORMULA_MY_SST_V1)
+    assert.equal(rejected.rejectedRequested, true)
+    const missing = resolveFormulaForCountry({ country: 'PK' })
+    assert.equal(missing.formula, null)
+    assert.match(missing.reasonZh ?? '', /不会套用斯里兰卡/)
+  })
+
+  it('does not apply LK insurance, PAL, CESS or SSCL to a Malaysia stack', () => {
+    const my = computeTaxStack({
+      formulaVersion: FORMULA_MY_SST_V1,
+      purchaseUnit: 50,
+      freightUnit: 10,
+      rates: { gdRate: 0.1, vatRate: 0.1 },
+    })
+    assert.ok(my)
+    assert.equal(my.formulaVersion, FORMULA_MY_SST_V1)
+    assert.equal(my.insuranceUnit, 0)
+    assert.equal(my.pal, 0)
+    assert.equal(my.cess, 0)
+    assert.equal(my.sscl, 0)
+    assert.equal(my.duty, 6) // 10% of CIF 60
+    assert.equal(my.vat, 6.6) // 10% of (60+6)
+    assert.equal(my.taxTotal, 12.6)
+    assert.equal(my.fullLandedUnit, 72.6)
+
+    const lk = computeTaxStack({
+      formulaVersion: FORMULA_LK_CASCADE_V1,
+      purchaseUnit: 50,
+      freightUnit: 10,
+      rates: { gdRate: 0.1, palRate: 0.05, vatRate: 0.18, ssclRate: 0.025 },
+    })
+    assert.ok(lk)
+    assert.ok(lk.insuranceUnit > 0)
+    assert.notEqual(lk.fullLandedUnit, my.fullLandedUnit)
+  })
+
+  it('Singapore GST stack uses published rates only and stays free of LK lines', () => {
+    const sg = computeTaxStack({
+      formulaVersion: FORMULA_SG_GST_V1,
+      purchaseUnit: 100,
+      freightUnit: 0,
+      rates: { vatRate: 0.09 },
+    })
+    assert.ok(sg)
+    assert.equal(sg.duty, 0)
+    assert.equal(sg.vat, 9)
+    assert.equal(sg.sscl, 0)
+    assert.equal(sg.insuranceUnit, 0)
+  })
+
+  it('Thailand interior tax is not invented when the tariff omits it', () => {
+    const th = computeTaxStack({
+      formulaVersion: 'th_vat_v1',
+      purchaseUnit: 100,
+      freightUnit: 0,
+      rates: { gdRate: 0.1, exciseRate: 0.2, vatRate: 0.07 },
+    })
+    assert.ok(th)
+    assert.equal(th.duty, 10)
+    assert.equal(th.excise, 22)
+    assert.equal(th.interiorTax, 0)
+    assert.ok(th.warnings.some((w) => w.includes('内地税')))
+    const vatBase = 100 + 10 + 22
+    assert.equal(th.vat, round4(vatBase * 0.07))
+  })
+
+  it('returns null for an unknown formula instead of falling back to LK', () => {
+    assert.equal(
+      computeTaxStack({
+        formulaVersion: 'made_up',
+        purchaseUnit: 10,
+        freightUnit: 1,
+        rates: { vatRate: 0.1 },
+      }),
+      null,
+    )
   })
 })

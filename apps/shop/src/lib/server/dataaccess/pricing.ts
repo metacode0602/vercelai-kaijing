@@ -8,15 +8,15 @@ import {
   allocateOceanFreightByActualCbm,
   cbmPerCartonCm,
   comparePlatformSuggestions,
-  computeLkCascadeTaxStack,
-  computeLkUpliftTaxStack,
   computeSuggestedPrices,
+  computeTaxStack,
+  currencyForCountry,
   marginAtSellPrice,
-  FORMULA_LK_CASCADE_V1,
-  FORMULA_LK_UPLIFT_V1,
   normalizeHsCode,
   pieceCbm,
   pieceGrossKg,
+  formulasForCountry,
+  resolveFormulaForCountry,
   type FormulaVersion,
   type PlatformFeePercents,
 } from '@workspace/freight'
@@ -39,6 +39,7 @@ import {
   type ResolvedFeeTemplateDto,
 } from '@/lib/server/dataaccess/fee-templates'
 import { resolveHsTariff } from '@/lib/server/dataaccess/hs-tariffs'
+import { listPendingOfficialFeeDrafts } from '@/lib/server/dataaccess/official-fee-sync'
 import { listShopConnections } from '@/lib/server/dataaccess/shop-connections'
 import { getSkuByCode } from '@/lib/server/dataaccess/products'
 import { getOceanShipment, listOceanLotCostRelay } from '@/lib/server/dataaccess/ocean'
@@ -54,6 +55,7 @@ export type PricingGapCode =
   | 'fx'
   | 'fee_template'
   | 'freight'
+  | 'formula'
 
 export type PricingGap = {
   code: PricingGapCode
@@ -113,20 +115,7 @@ function platformLabel(platform: string, country: string) {
 }
 
 function listingCurrencyFor(country: string): string {
-  const map: Record<string, string> = {
-    LK: 'LKR',
-    MY: 'MYR',
-    SG: 'SGD',
-    ID: 'IDR',
-    TH: 'THB',
-    PH: 'PHP',
-    VN: 'VND',
-    PK: 'PKR',
-    BD: 'BDT',
-    CN: 'CNY',
-    US: 'USD',
-  }
-  return map[country.toUpperCase()] ?? 'USD'
+  return currencyForCountry(country)
 }
 
 function n(v: string | number | null | undefined): number {
@@ -232,9 +221,20 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
   const asOf = (input.asOf || new Date().toISOString().slice(0, 10)).slice(0, 10)
   const platform = input.platform.trim().toLowerCase()
   const country = input.country.trim().toUpperCase()
-  const formulaVersion: FormulaVersion = input.formulaVersion || FORMULA_LK_CASCADE_V1
+  const formulaResolution = resolveFormulaForCountry({
+    country,
+    requested: input.formulaVersion,
+  })
+  const formulaVersion: FormulaVersion | null = formulaResolution.formula
   const gaps: PricingGap[] = []
   const steps: PricingBreakdownStep[] = []
+  if (formulaResolution.reasonZh) {
+    gaps.push({
+      code: 'formula',
+      labelZh: formulaVersion ? '公式已改用目的国默认' : '缺计税公式',
+      detail: formulaResolution.reasonZh,
+    })
+  }
 
   const sku = await getSkuByCode(db, organizationId, input.sku)
   if (!sku) throw new Error(`未找到 SKU ${input.sku}`)
@@ -486,39 +486,20 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
   let purchaseFreightDuty: number | null = null
   let otherTaxes: number | null = null
 
-  if (formulaVersion === FORMULA_LK_UPLIFT_V1) {
-    const cif = purchaseUnit + freightUnit
-    const rates = {
-      customs: tariff?.gdRate ?? 0,
-      cess: tariff?.cessRate ?? 0,
-      pal: tariff?.palRate ?? 0,
-      vat: tariff?.vatRate ?? 0,
-      sscl: tariff?.ssclRate ?? 0,
-    }
-    const uplift = computeLkUpliftTaxStack({ cifTotal: cif, rates })
-    fullLandedUnit = cif + uplift.taxTotal
-    taxSummary = {
-      formulaVersion,
-      customs: uplift.customs,
-      cess: uplift.cess,
-      pal: uplift.pal,
-      vat: uplift.vat,
-      sscl: uplift.sscl,
-      taxTotal: uplift.taxTotal,
-    }
-    purchaseFreightDuty = purchaseUnit + freightUnit + uplift.customs
-    otherTaxes = uplift.taxTotal - uplift.customs
-    steps.push(
-      ...[
-        { id: 'cif', labelZh: 'CIF', input: `${purchaseUnit}+${freightUnit}`, source: '采购+海运', currency: costCurrency, result: cif },
-        { id: 'uplift', labelZh: '对照：CIF+10% 上浮税栈', input: formulaVersion, source: 'lk_uplift_v1', currency: costCurrency, result: uplift.taxTotal, note: '结果会变，不是平台官方报价' },
-      ],
-    )
+  if (!formulaVersion) {
+    steps.push({
+      id: 'landed_est',
+      labelZh: '含税成本（缺计税公式，税金按 0 估算，未套用斯里兰卡税栈）',
+      input: `${purchaseUnit}+${freightUnit}`,
+      source: '估算',
+      currency: costCurrency,
+      result: fullLandedUnit,
+    })
   } else if (tariff) {
-    // 从量若为税则币种，先折到成本币种
     let gdSpecific = tariff.gdSpecificAmount
     let cessSpecific = tariff.cessSpecificAmount
-    if ((gdSpecific || cessSpecific) && tariff.currency && tariff.currency !== costCurrency) {
+    const components = { ...(tariff.components ?? {}) }
+    if ((gdSpecific || cessSpecific || components.dutySpecificAmount) && tariff.currency && tariff.currency !== costCurrency) {
       if (gdSpecific) {
         const conv = await convertAmount(db, organizationId, gdSpecific, tariff.currency, costCurrency, asOf, platform)
         if (conv.missing) gaps.push({ code: 'fx', labelZh: '缺汇率', detail: `从量税为 ${tariff.currency}，缺少换到 ${costCurrency} 的汇率。` })
@@ -529,61 +510,94 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
         if (conv.missing) gaps.push({ code: 'fx', labelZh: '缺汇率', detail: `CESS 从量税为 ${tariff.currency}，缺少换到 ${costCurrency} 的汇率。` })
         else cessSpecific = conv.amount
       }
+      if (components.dutySpecificAmount != null) {
+        const raw = Number(components.dutySpecificAmount)
+        if (Number.isFinite(raw) && raw > 0) {
+          const conv = await convertAmount(db, organizationId, raw, tariff.currency, costCurrency, asOf, platform)
+          if (!conv.missing) components.dutySpecificAmount = conv.amount
+        }
+      }
     }
-    const cascade = computeLkCascadeTaxStack({
+    const stack = computeTaxStack({
+      formulaVersion,
       purchaseUnit,
       freightUnit,
       pieceGrossKg: grossKg,
       rates: {
-        gdRate: tariff.gdRate ?? 0,
-        surchargeRate: tariff.surchargeRate ?? 0,
-        palRate: tariff.palRate ?? 0,
-        cessRate: tariff.cessRate ?? 0,
-        exciseRate: tariff.exciseRate ?? 0,
-        vatRate: tariff.vatRate ?? 0,
-        ssclRate: tariff.ssclRate ?? 0,
+        components,
+        gdRate: tariff.gdRate,
+        surchargeRate: tariff.surchargeRate,
+        palRate: tariff.palRate,
+        cessRate: tariff.cessRate,
+        exciseRate: tariff.exciseRate,
+        vatRate: tariff.vatRate,
+        ssclRate: tariff.ssclRate,
         gdSpecificAmount: gdSpecific,
-        gdSpecificUnit: (tariff.gdSpecificUnit as 'kg' | 'unit') || null,
-        gdSpecificRule: (tariff.gdSpecificRule as 'none' | 'max' | 'sum') || 'none',
+        gdSpecificUnit: tariff.gdSpecificUnit || null,
+        gdSpecificRule: tariff.gdSpecificRule || 'none',
         cessSpecificAmount: cessSpecific,
-        cessSpecificUnit: (tariff.cessSpecificUnit as 'kg' | 'unit') || null,
-        insuranceRate: 0.003,
+        cessSpecificUnit: tariff.cessSpecificUnit || null,
       },
     })
-    for (const w of cascade.warnings) {
-      if (w.includes('毛重') && !gaps.some((g) => g.code === 'gross_weight')) {
-        gaps.push({ code: 'gross_weight', labelZh: '缺毛重', detail: w })
-      }
-    }
-    fullLandedUnit = cascade.fullLandedUnit
-    purchaseFreightDuty = cascade.purchaseFreightDuty
-    otherTaxes = cascade.otherTaxes
-    taxSummary = {
-      formulaVersion,
-      insurance: cascade.insuranceUnit,
-      gd: cascade.gd,
-      surcharge: cascade.surcharge,
-      pal: cascade.pal,
-      cess: cascade.cess,
-      excise: cascade.excise,
-      vat: cascade.vat,
-      sscl: cascade.sscl,
-      taxTotal: cascade.taxTotal,
-    }
-    steps.push(
-      ...cascade.lines.map((line) => ({
-        id: line.code,
-        labelZh: line.labelZh,
-        input: line.base ? `税基 ${line.base}` : '',
-        source: line.source,
+    if (!stack) {
+      gaps.push({
+        code: 'formula',
+        labelZh: '缺计税公式',
+        detail: `无法按公式 ${formulaVersion} 计税，税金按 0 估算，不会套用其他国家税栈。`,
+      })
+      steps.push({
+        id: 'landed_est',
+        labelZh: '含税成本（公式不可用，税金按 0 估算）',
+        input: `${purchaseUnit}+${freightUnit}`,
+        source: '估算',
         currency: costCurrency,
-        result: line.amount,
-      })),
-    )
+        result: fullLandedUnit,
+      })
+    } else {
+      for (const w of stack.warnings) {
+        if (w.includes('毛重') && !gaps.some((g) => g.code === 'gross_weight')) {
+          gaps.push({ code: 'gross_weight', labelZh: '缺毛重', detail: w })
+        } else if (w.includes('内地税') && !gaps.some((g) => g.detail.includes('内地税'))) {
+          gaps.push({ code: 'tariff', labelZh: '税则缺项', detail: w })
+        }
+      }
+      fullLandedUnit = stack.fullLandedUnit
+      purchaseFreightDuty = stack.purchaseFreightDuty
+      otherTaxes = stack.otherTaxes
+      taxSummary = {
+        formulaVersion: stack.formulaVersion,
+        insurance: stack.insuranceUnit,
+        duty: stack.duty,
+        gd: stack.duty,
+        surcharge: stack.surcharge,
+        pal: stack.pal,
+        cess: stack.cess,
+        excise: stack.excise,
+        interiorTax: stack.interiorTax,
+        incomeTax: stack.incomeTax,
+        luxuryTax: stack.luxuryTax,
+        vat: stack.vat,
+        sscl: stack.sscl,
+        taxTotal: stack.taxTotal,
+      }
+      steps.push(
+        ...stack.lines.map((line) => ({
+          id: line.code,
+          labelZh: line.labelZh,
+          input: line.base ? `税基 ${line.base}` : '',
+          source: line.source,
+          currency: costCurrency,
+          result: line.amount,
+          note: line.code === 'uplift' ? '结果会变，不是平台官方报价' : undefined,
+        })),
+      )
+    }
   } else {
     steps.push({
       id: 'landed_est',
-      labelZh: '含税成本（缺税则，税金按 0 估算）',
+      labelZh: formulaVersion
+        ? '含税成本（缺税则，税金按 0 估算）'
+        : '含税成本（缺计税公式或税则，税金按 0 估算）',
       input: `${purchaseUnit}+${freightUnit}`,
       source: '估算',
       currency: costCurrency,
@@ -609,7 +623,7 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
     input: fees
       ? `${fullLandedUnit} ÷ (1 − ${fees.commissionPct}% − ${fees.payoutPct}% − ${fees.warehousePct}% − ${fees.targetMarginPct}%)`
       : '缺费用模板',
-    source: feeParsed.temporary ? '临时费率' : fees ? '本组织费用模板' : '缺项',
+    source: feeParsed.temporary ? '临时费率' : fees ? '来自本组织费用模板' : '缺项',
     currency: costCurrency,
     result: priced?.retail.price ?? null,
   })
@@ -618,7 +632,7 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
       id: 'free_shipping',
       labelZh: priced.freeShipping.capped ? '包邮建议价（已按上限回算）' : '包邮建议价',
       input: priced.freeShipping.capped ? `(完全成本 + 封顶) ÷ 标准分母` : '标准分母 − 包邮佣金',
-      source: feeParsed.temporary ? '临时费率' : '本组织费用模板',
+      source: feeParsed.temporary ? '临时费率' : '来自本组织费用模板',
       currency: costCurrency,
       result: priced.freeShipping.suggestedPrice,
     })
@@ -647,29 +661,44 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
     const otherMissing: string[] = []
     let otherLanded: number | null = fullLandedUnit
     if (otherCountry !== country) {
+      const otherFormula = resolveFormulaForCountry({ country: otherCountry })
       const otherTariff = hsCode
         ? await resolveHsTariff(db, organizationId, { hsCode, countryCode: otherCountry, asOf })
         : null
-      if (!otherTariff) {
+      if (!otherFormula.formula) {
+        otherMissing.push(otherFormula.reasonZh || '缺该站点计税公式')
+        otherLanded = null
+      } else if (!otherTariff) {
         otherMissing.push('缺该站点税则')
         otherLanded = null
       } else {
-        const otherCascade = computeLkCascadeTaxStack({
+        const otherStack = computeTaxStack({
+          formulaVersion: otherFormula.formula,
           purchaseUnit,
           freightUnit,
           pieceGrossKg: grossKg,
           rates: {
-            gdRate: otherTariff.gdRate ?? 0,
-            surchargeRate: otherTariff.surchargeRate ?? 0,
-            palRate: otherTariff.palRate ?? 0,
-            cessRate: otherTariff.cessRate ?? 0,
-            exciseRate: otherTariff.exciseRate ?? 0,
-            vatRate: otherTariff.vatRate ?? 0,
-            ssclRate: otherTariff.ssclRate ?? 0,
-            insuranceRate: 0.003,
+            components: otherTariff.components ?? {},
+            gdRate: otherTariff.gdRate,
+            surchargeRate: otherTariff.surchargeRate,
+            palRate: otherTariff.palRate,
+            cessRate: otherTariff.cessRate,
+            exciseRate: otherTariff.exciseRate,
+            vatRate: otherTariff.vatRate,
+            ssclRate: otherTariff.ssclRate,
+            gdSpecificAmount: otherTariff.gdSpecificAmount,
+            gdSpecificUnit: otherTariff.gdSpecificUnit || null,
+            gdSpecificRule: otherTariff.gdSpecificRule || 'none',
+            cessSpecificAmount: otherTariff.cessSpecificAmount,
+            cessSpecificUnit: otherTariff.cessSpecificUnit || null,
           },
         })
-        otherLanded = otherCascade.fullLandedUnit
+        if (!otherStack) {
+          otherMissing.push('该站点计税公式不可用')
+          otherLanded = null
+        } else {
+          otherLanded = otherStack.fullLandedUnit
+        }
       }
     }
     if (!otherFees.fees) otherMissing.push('缺费用模板')
@@ -687,6 +716,10 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
   }
   const comparison = comparePlatformSuggestions(comparisonInputs)
 
+  const pendingOfficialDrafts = await listPendingOfficialFeeDrafts(db, organizationId, {
+    platform,
+    country,
+  })
   const shops = await listShopConnections(db, organizationId, { page: 1, pageSize: 100 })
   const shopOptions = shops.items.map((s) => ({
     id: s.id,
@@ -696,7 +729,7 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
     currency: s.currency,
   }))
 
-  const requiredCodes: PricingGapCode[] = ['purchase', 'carton', 'hs', 'tariff', 'fx', 'fee_template', 'freight']
+  const requiredCodes: PricingGapCode[] = ['purchase', 'carton', 'hs', 'tariff', 'formula', 'fx', 'fee_template', 'freight']
   const readyRequired = requiredCodes.filter((c) => !gaps.some((g) => g.code === c))
   // 毛重只在从量需要时计入，但箱规缺毛重仍展示
   const extra = gaps.some((g) => g.code === 'gross_weight') ? 1 : 0
@@ -729,7 +762,11 @@ export async function suggestPricing(db: DbLike, organizationId: string, input: 
       asOf,
       costCurrency,
       sellCurrency,
-      feeSourceNote: '费用来源：本组织费用模板（非平台实时同步）',
+      feeSourceNote: pendingOfficialDrafts.length
+        ? '费用来源：来自本组织费用模板。另有来自官方费率同步草稿（待审核），本次建议价未使用。'
+        : '费用来源：来自本组织费用模板（并非平台实时同步）。',
+      pendingOfficialDrafts,
+      availableFormulas: formulasForCountry(country).map((f) => ({ id: f.id, labelZh: f.labelZh, legacy: Boolean(f.legacy) })),
       targetMarginPct: fees?.targetMarginPct ?? input.targetMarginPct ?? 40,
       targetMarginSource: input.targetMarginPct != null ? 'user' : feeParsed.fees ? 'fee_template' : 'default',
     },

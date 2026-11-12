@@ -4,6 +4,8 @@
  */
 export * from './math'
 export * from './allocation'
+export * from './formulas'
 export * from './tax'
+export * from './tax-stacks'
 export * from './pricing'
 export * from './compare'

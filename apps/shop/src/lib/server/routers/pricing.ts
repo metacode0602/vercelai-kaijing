@@ -4,7 +4,7 @@ import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
 import * as pricingDa from '@/lib/server/dataaccess/pricing'
 import * as pricingDraftsDa from '@/lib/server/dataaccess/pricing-drafts'
 import * as productsDa from '@/lib/server/dataaccess/products'
-import { FORMULA_LK_CASCADE_V1, FORMULA_LK_UPLIFT_V1 } from '@workspace/freight'
+import { FORMULA_IDS } from '@workspace/freight'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
   return fn().catch((error: unknown) => {
@@ -44,7 +44,7 @@ export const pricingRouter = createTRPCRouter({
         country: z.string().min(1),
         shopId: z.string().optional(),
         targetMarginPct: z.number().optional(),
-        formulaVersion: z.enum([FORMULA_LK_CASCADE_V1, FORMULA_LK_UPLIFT_V1]).optional(),
+        formulaVersion: z.enum(FORMULA_IDS).optional(),
         useFreightRateCardEstimate: z.boolean().optional(),
         temporaryFees,
         asOf: z.string().optional(),

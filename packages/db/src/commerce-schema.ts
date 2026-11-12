@@ -2897,6 +2897,14 @@ export const feeTemplateVersions = pgTable(
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewNote: text("review_note"),
     note: text("note"),
+    /** manual = 运营维护；official_sync = 官方费率同步草稿/来源 */
+    source: varchar("source", { length: 32 }).notNull().default("manual"),
+    sourcePlatform: varchar("source_platform", { length: 32 }),
+    sourceSite: varchar("source_site", { length: 8 }),
+    sourceShopId: text("source_shop_id"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    syncRunId: text("sync_run_id"),
+    rawSnapshot: jsonb("raw_snapshot").$type<Record<string, unknown> | unknown[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2905,6 +2913,8 @@ export const feeTemplateVersions = pgTable(
     index("fee_template_versions_org_idx").on(t.organizationId),
     index("fee_template_versions_eff_idx").on(t.templateId, t.effectiveFrom),
     index("fee_template_versions_status_idx").on(t.templateId, t.status),
+    index("fee_template_versions_source_idx").on(t.organizationId, t.source),
+    check("fee_template_versions_source_check", sql`${t.source} in ('manual', 'official_sync')`),
   ],
 )
 
@@ -2939,6 +2949,45 @@ export const feeTemplateMatchRules = pgTable(
     index("fee_template_match_rules_tpl_idx").on(t.templateId),
     index("fee_template_match_rules_org_idx").on(t.organizationId, t.priority),
     index("fee_template_match_rules_category_idx").on(t.categoryId),
+  ],
+)
+
+// ---------------------------------------------------------------------------
+// fee_official_sync_runs — 官方费率同步审计（第三期）
+// 同步结果只作为草稿写入 fee_template_versions，不自动发布。
+// ---------------------------------------------------------------------------
+
+export const feeOfficialSyncStatuses = ["success", "partial", "failed", "unsupported"] as const
+export type FeeOfficialSyncStatus = (typeof feeOfficialSyncStatuses)[number]
+
+export const feeOfficialSyncRuns = pgTable(
+  "fee_official_sync_runs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    country: varchar("country", { length: 8 }),
+    shopId: text("shop_id"),
+    status: varchar("status", { length: 16 }).notNull(),
+    reason: text("reason"),
+    source: varchar("source", { length: 32 }).notNull().default("official_api"),
+    draftVersionIds: jsonb("draft_version_ids").$type<string[]>().notNull().default([]),
+    rawSnapshot: jsonb("raw_snapshot").$type<Record<string, unknown>>(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    requestedBy: text("requested_by"),
+    ...timestamps,
+  },
+  (t) => [
+    index("fee_official_sync_runs_org_plat_idx").on(t.organizationId, t.platform, t.country, t.startedAt),
+    check(
+      "fee_official_sync_runs_status_check",
+      sql`${t.status} in ('success', 'partial', 'failed', 'unsupported')`,
+    ),
   ],
 )
 
@@ -3015,10 +3064,12 @@ export const hsTariffVersions = pgTable(
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
     currency: varchar("currency", { length: 3 }).notNull().default("LKR"),
-    /** 计税公式版本，默认 lk_cascade_v1 */
-    formulaProfile: varchar("formula_profile", { length: 64 }).default("lk_cascade_v1"),
+    /** 计税公式版本；按目的国选择，不再默认写死 lk_cascade_v1 */
+    formulaProfile: varchar("formula_profile", { length: 64 }),
     /** 记录 VAT/SSCL 是否含 CIF uplift，消解两版口径 */
     upliftRule: jsonb("uplift_rule").$type<Record<string, unknown>>(),
+    /** 非 LK 公式的灵活税率（内地税、PPh 22 等）；LK 仍使用下列专用列 */
+    components: jsonb("components").$type<Record<string, unknown>>().default({}),
     gdRate: numeric("gd_rate", { precision: 8, scale: 4 }),
     surchargeRate: numeric("surcharge_rate", { precision: 8, scale: 4 }),
     palRate: numeric("pal_rate", { precision: 8, scale: 4 }),

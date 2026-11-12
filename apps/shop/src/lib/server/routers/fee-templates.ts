@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createTRPCRouter, requirePermission, tenantProcedure } from '@/lib/server/trpc'
 import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as feeDa from '@/lib/server/dataaccess/fee-templates'
+import * as officialFeeDa from '@/lib/server/dataaccess/official-fee-sync'
 
 const paginationInput = z.object({
   page: z.number().int().min(1).optional(),
@@ -279,6 +280,37 @@ export const feeTemplatesRouter = createTRPCRouter({
           hsCodePattern: input.hsCodePattern,
           priority: input.priority,
           note: input.note,
+        }),
+      ),
+    ),
+
+  officialFeeCapabilities: tenantProcedure.query(async () => officialFeeDa.listOfficialFeeCapabilities()),
+
+  latestOfficialSync: tenantProcedure
+    .input(z.object({ platform: z.string().optional(), country: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => officialFeeDa.latestOfficialFeeSync(ctx.db, ctx.organizationId, input)),
+
+  pendingOfficialDrafts: tenantProcedure
+    .input(z.object({ platform: z.string().min(1), country: z.string().min(1) }))
+    .query(async ({ ctx, input }) =>
+      officialFeeDa.listPendingOfficialFeeDrafts(ctx.db, ctx.organizationId, input),
+    ),
+
+  syncOfficialFees: tenantProcedure
+    .input(
+      z.object({
+        platform: z.string().min(1),
+        country: z.string().optional(),
+        shopId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) =>
+      wrap(() =>
+        officialFeeDa.syncOfficialFees(ctx.db, ctx.organizationId, {
+          platform: input.platform,
+          country: input.country,
+          shopId: input.shopId,
+          actor: ctx.user?.name || ctx.user?.email || ctx.user?.id,
         }),
       ),
     ),

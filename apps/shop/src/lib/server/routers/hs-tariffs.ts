@@ -21,6 +21,7 @@ const upsertInput = z.object({
   effectiveTo: z.string().optional(),
   currency: z.string().optional(),
   formulaProfile: z.string().optional(),
+  components: z.record(z.string(), z.unknown()).optional(),
   gdRate: z.number().nullable().optional(),
   surchargeRate: z.number().nullable().optional(),
   palRate: z.number().nullable().optional(),

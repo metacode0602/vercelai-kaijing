@@ -44,6 +44,8 @@ type DraftVersion = {
   note: string
   status: string
   statusLabel: string
+  source: string
+  sourceLabel: string
 }
 
 export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,6 +85,8 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
       note: selectedFromServer.note,
       status: selectedFromServer.status,
       statusLabel: selectedFromServer.statusLabel,
+      source: selectedFromServer.source ?? 'manual',
+      sourceLabel: selectedFromServer.sourceLabel ?? '来自本组织费用模板',
     })
     setDirty(false)
   }, [selectedFromServer?.id, selectedFromServer?.updatedAt])
@@ -244,6 +248,7 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                   </span>
                   <span className="text-muted-foreground">
                     {row.effectiveFrom} → {row.effectiveTo || '长期'} · {row.statusLabel}
+                    {row.sourceLabel ? ` · ${row.sourceLabel}` : ''}
                   </span>
                 </button>
               ))}
@@ -302,6 +307,11 @@ export default function FeeTemplateDetailPage({ params }: { params: Promise<{ id
                   <Badge variant={selected.published ? 'secondary' : 'outline'}>
                     {selected.statusLabel || (selected.published ? '已发布' : '草稿')}
                   </Badge>
+                  {selected.sourceLabel ? (
+                    <Badge variant={selected.source === 'official_sync' && !selected.published ? 'outline' : 'secondary'}>
+                      {selected.sourceLabel}
+                    </Badge>
+                  ) : null}
                   {selected.reviewNeeded ? <Badge variant="outline">待报关行复核</Badge> : null}
                   {dirty ? <Badge variant="outline">未保存</Badge> : null}
                   <Button

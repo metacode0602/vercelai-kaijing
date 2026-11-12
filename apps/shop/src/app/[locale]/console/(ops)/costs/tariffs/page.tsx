@@ -8,18 +8,34 @@ import { Badge } from '@workspace/ui/components/badge'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@workspace/ui/components/table'
+import {
+  currencyForCountry,
+  defaultFormulaForCountry,
+  formulasForCountry,
+  getFormulaProfile,
+} from '@workspace/freight'
 import { LocaleLink } from '@/lib/i18n/navigation'
 import { trpc } from '@/lib/trpc/client'
+
+const COUNTRIES = ['LK', 'MY', 'SG', 'TH', 'VN', 'ID', 'PH', 'PK', 'BD'] as const
+
+function rateLabel(country: string, formulaId: string | null): string {
+  const profile = formulaId ? getFormulaProfile(formulaId) : null
+  if (profile) return profile.rateFields.map((f) => f.labelZh).slice(0, 4).join(' / ')
+  return country === 'LK' ? 'GD / PAL / VAT / SSCL' : '关税 / 增值税等（以公式为准）'
+}
 
 export default function HsTariffsPage() {
   const [q, setQ] = React.useState('')
   const [countryCode, setCountryCode] = React.useState('LK')
+  const [formulaProfile, setFormulaProfile] = React.useState(defaultFormulaForCountry('LK') ?? '')
   const [hsCode, setHsCode] = React.useState('')
   const [effectiveFrom, setEffectiveFrom] = React.useState(new Date().toISOString().slice(0, 10))
-  const [gdRate, setGdRate] = React.useState('0.15')
-  const [palRate, setPalRate] = React.useState('0.05')
-  const [vatRate, setVatRate] = React.useState('0.18')
-  const [ssclRate, setSsclRate] = React.useState('0.025')
+  const [dutyRate, setDutyRate] = React.useState('0')
+  const [exciseRate, setExciseRate] = React.useState('0')
+  const [vatRate, setVatRate] = React.useState('0')
+  const [extraRate, setExtraRate] = React.useState('0')
+  const formulaOptions = formulasForCountry(countryCode)
   const listQuery = trpc.hsTariffs.list.useQuery({ page: 1, pageSize: 50, q: q || undefined, countryCode })
   const utils = trpc.useUtils()
   const createMutation = trpc.hsTariffs.createDraft.useMutation({
@@ -37,12 +53,29 @@ export default function HsTariffsPage() {
     onError: (err) => toast.error(err.message),
   })
 
+  const onCountryChange = (next: string) => {
+    const code = next.toUpperCase()
+    setCountryCode(code)
+    setFormulaProfile(defaultFormulaForCountry(code) ?? '')
+  }
+
+  const isLk = formulaProfile.startsWith('lk_')
+  const vatLabel = getFormulaProfile(formulaProfile)?.rateFields.find((f) => f.key === 'vatRate')?.labelZh ?? '增值税'
+  const extraField =
+    formulaProfile === 'th_vat_v1'
+      ? { key: 'interiorTaxRate', label: '内地税率' }
+      : formulaProfile === 'id_ppn_v1'
+        ? { key: 'incomeTaxRate', label: 'PPh 22 税率' }
+        : isLk
+          ? { key: 'ssclRate', label: 'SSCL 率' }
+          : null
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">HS 税则</h2>
         <p className="text-sm text-muted-foreground">
-          与 SLSI 合规清单分轨。税率按 HS + 目的国 + 版本维护，不写进商品行。已发布版本不可直接改，请新建版本。不把讲义静态税则库写进代码，也不会自动同步到其他租户。
+          与 SLSI 合规清单分轨。税率按 HS + 目的国 + 公式版本维护，不写进商品行。已发布版本不可直接改，请新建版本。不会把讲义静态税则写进代码，也不会自动同步到其他租户。非斯里兰卡站点不会套用 LK 税栈。
         </p>
       </div>
       <p className="text-sm">
@@ -52,40 +85,85 @@ export default function HsTariffsPage() {
       </p>
       <div className="flex flex-wrap gap-2">
         <Input className="w-40" placeholder="搜索 HS" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Input className="w-24" placeholder="国家" value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} />
+        <select
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          value={countryCode}
+          onChange={(e) => onCountryChange(e.target.value)}
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
       </div>
       <div className="rounded-lg border p-4 space-y-2">
         <h3 className="text-sm font-medium">新建本组织草稿</h3>
-        <div className="flex flex-wrap gap-2">
-          <Input className="w-40" placeholder="HS，如 8507.60.90" value={hsCode} onChange={(e) => setHsCode(e.target.value)} />
-          <Input className="w-36" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-          <Input className="w-24" placeholder="GD 率" value={gdRate} onChange={(e) => setGdRate(e.target.value)} />
-          <Input className="w-24" placeholder="PAL 率" value={palRate} onChange={(e) => setPalRate(e.target.value)} />
-          <Input className="w-24" placeholder="VAT 率" value={vatRate} onChange={(e) => setVatRate(e.target.value)} />
-          <Input className="w-24" placeholder="SSCL 率" value={ssclRate} onChange={(e) => setSsclRate(e.target.value)} />
-          <Button
-            size="sm"
-            disabled={createMutation.isPending || !hsCode.trim()}
-            onClick={() =>
-              createMutation.mutate({
-                countryCode,
-                hsCode,
-                effectiveFrom,
-                gdRate: Number(gdRate) || 0,
-                palRate: Number(palRate) || 0,
-                vatRate: Number(vatRate) || 0,
-                ssclRate: Number(ssclRate) || 0,
-                cessRate: 0,
-                surchargeRate: 0,
-                exciseRate: 0,
-                isExact: true,
-              })
-            }
-          >
-            创建草稿
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">税率填写小数，如 15% 请填 0.15。创建后需手动发布才会被计算器使用。</p>
+        {formulaOptions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">该目的国尚无计税公式，不能套用斯里兰卡税则。请仅在已支持的站点维护税率。</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Input className="w-40" placeholder="HS，如 8507.60.90" value={hsCode} onChange={(e) => setHsCode(e.target.value)} />
+              <Input className="w-36" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+                value={formulaProfile}
+                onChange={(e) => setFormulaProfile(e.target.value)}
+              >
+                {formulaOptions.map((f) => (
+                  <option key={f.id} value={f.id}>{f.labelZh}</option>
+                ))}
+              </select>
+              <Input className="w-24" placeholder={isLk ? 'GD 率' : '关税率'} value={dutyRate} onChange={(e) => setDutyRate(e.target.value)} />
+              {isLk ? (
+                <Input className="w-24" placeholder="PAL 率" value={exciseRate} onChange={(e) => setExciseRate(e.target.value)} />
+              ) : (
+                <Input className="w-28" placeholder="消费税率" value={exciseRate} onChange={(e) => setExciseRate(e.target.value)} />
+              )}
+              <Input className="w-28" placeholder={`${vatLabel}`} value={vatRate} onChange={(e) => setVatRate(e.target.value)} />
+              {extraField ? (
+                <Input className="w-28" placeholder={extraField.label} value={extraRate} onChange={(e) => setExtraRate(e.target.value)} />
+              ) : null}
+              <Button
+                size="sm"
+                disabled={createMutation.isPending || !hsCode.trim() || !formulaProfile}
+                onClick={() => {
+                  const duty = Number(dutyRate) || 0
+                  const mid = Number(exciseRate) || 0
+                  const vat = Number(vatRate) || 0
+                  const extra = Number(extraRate) || 0
+                  const components: Record<string, unknown> = {
+                    dutyRate: duty,
+                    vatRate: vat,
+                  }
+                  if (!isLk) components.exciseRate = mid
+                  if (extraField?.key === 'interiorTaxRate') components.interiorTaxRate = extra
+                  if (extraField?.key === 'incomeTaxRate') components.incomeTaxRate = extra
+                  createMutation.mutate({
+                    countryCode,
+                    hsCode,
+                    effectiveFrom,
+                    currency: currencyForCountry(countryCode),
+                    formulaProfile,
+                    components,
+                    gdRate: duty,
+                    palRate: isLk ? mid : 0,
+                    vatRate: vat,
+                    ssclRate: extraField?.key === 'ssclRate' ? extra : 0,
+                    cessRate: 0,
+                    surchargeRate: 0,
+                    exciseRate: isLk ? 0 : mid,
+                    isExact: true,
+                  })
+                }}
+              >
+                创建草稿
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {getFormulaProfile(formulaProfile)?.descriptionZh} 税率填写小数，如 15% 请填 0.15。创建后需手动发布才会被计算器使用。不要把讲义数字当作验收值。
+            </p>
+          </>
+        )}
       </div>
       <div className="overflow-hidden rounded-lg border">
         <Table>
@@ -93,28 +171,31 @@ export default function HsTariffsPage() {
             <TableRow>
               <TableHead>HS</TableHead>
               <TableHead>国家</TableHead>
+              <TableHead>公式</TableHead>
               <TableHead>版本</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>范围</TableHead>
-              <TableHead>GD / PAL / VAT / SSCL</TableHead>
+              <TableHead>主要税率</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(listQuery.data?.items ?? []).length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">暂无税则。请先为本组织创建草稿并发布。</TableCell>
+                <TableCell colSpan={8} className="text-muted-foreground">暂无税则。请先为本组织创建草稿并发布。</TableCell>
               </TableRow>
             ) : (
               (listQuery.data?.items ?? []).map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-mono">{row.hsCode}{row.isExact ? '' : ' · 近似'}</TableCell>
                   <TableCell>{row.countryCode}</TableCell>
+                  <TableCell className="text-xs">{row.formulaProfile || '—'}</TableCell>
                   <TableCell>v{row.version}</TableCell>
                   <TableCell><Badge variant={row.status === 'active' ? 'default' : 'secondary'}>{row.status}</Badge></TableCell>
                   <TableCell>{row.scope === 'global' ? '平台' : '本组织'}</TableCell>
                   <TableCell className="tabular-nums text-xs">
-                    {row.gdRate ?? '—'} / {row.palRate ?? '—'} / {row.vatRate ?? '—'} / {row.ssclRate ?? '—'}
+                    {String(row.gdRate ?? row.components?.dutyRate ?? '—')} / {String(row.vatRate ?? row.components?.vatRate ?? '—')}
+                    <div className="text-[10px] text-muted-foreground">{rateLabel(row.countryCode, row.formulaProfile || null)}</div>
                   </TableCell>
                   <TableCell className="space-x-2">
                     {row.scope !== 'global' && row.status === 'draft' ? (
