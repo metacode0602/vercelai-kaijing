@@ -4,6 +4,7 @@ import {
   feeTemplates,
   inventoryBalances,
   listings,
+  oceanShipments,
   orderLines,
   orders,
   pendingActions,
@@ -19,6 +20,7 @@ import {
 } from "@workspace/db"
 import { assertDesktopMarketplaceScope, DESKTOP_PLATFORM, DESKTOP_SITE } from "./desktop-scope"
 import { NotFoundError } from "./errors"
+import { assembleFreightUnion } from "./freight-scope"
 import { currencyModeOf, sumMoneyByCurrency } from "./money"
 import { normalizeLimit, normalizeOffset } from "./pagination"
 import { redactRecord, redactUntrustedText } from "./redaction"
@@ -851,20 +853,51 @@ export async function listFreight(db: AppDatabase, organizationId: string, input
       unitRate: commerceFreightRateCards.unitRate,
       status: commerceFreightRateCards.status,
       destPort: commerceFreightRateCards.destPort,
+      originPort: commerceFreightRateCards.originPort,
+      freightMode: commerceFreightRateCards.freightMode,
+      effectiveFrom: commerceFreightRateCards.effectiveFrom,
+      note: commerceFreightRateCards.note,
     })
     .from(commerceFreightRateCards)
     .where(eq(commerceFreightRateCards.organizationId, organizationId))
-    .limit(100)
+    .limit(200)
 
-  const hasData = templates.length + cards.length > 0
+  const lots = await db
+    .select({
+      id: oceanShipments.id,
+      lotCode: oceanShipments.lotCode,
+      platform: oceanShipments.platform,
+      destPort: oceanShipments.destPort,
+      originPort: oceanShipments.originPort,
+      freightMode: oceanShipments.freightMode,
+      status: oceanShipments.status,
+      etd: oceanShipments.etd,
+      notes: oceanShipments.notes,
+      packingDetails: oceanShipments.packingDetails,
+    })
+    .from(oceanShipments)
+    .where(eq(oceanShipments.organizationId, organizationId))
+    .limit(200)
+
+  const assembled = assembleFreightUnion({
+    templates,
+    oceanLots: lots,
+    rateCards: cards,
+  })
   return {
-    feeTemplates: templates,
-    freightRateCards: cards.map((row) => ({ ...row, unitRate: num(row.unitRate) })),
-    estimates: [],
-    dataAvailable: hasData,
-    message: hasData
-      ? "运费由费用模板与运价卡组成，不存在 freight_estimates 表，未生成估算行。"
-      : emptyNote("运费资料"),
+    items: assembled.items,
+    feeTemplates: assembled.feeTemplates,
+    oceanShipments: assembled.oceanShipments,
+    freightRateCards: assembled.freightRateCards,
+    excludedOceanCount: assembled.excludedOceanCount,
+    excludedRateCardCount: assembled.excludedRateCardCount,
+    currencyMode: assembled.currencyMode,
+    currency: assembled.currency,
+    currencies: assembled.currencies,
+    total: assembled.total,
+    byCurrency: assembled.byCurrency,
+    dataAvailable: assembled.dataAvailable,
+    message: assembled.message,
     ...timeMeta(bounds),
   }
 }

@@ -68,3 +68,14 @@ export {
   requestReadSync,
   type ReadSyncRequestResult,
 } from "./sync-request"
+
+export {
+  assembleFreightUnion,
+  feeTemplateToFreightItem,
+  isDarazPlatform,
+  isSriLankaDestPort,
+  oceanLotToFreightItem,
+  rateCardToFreightItem,
+  readOceanFreightAmount,
+  type FreightUnionItem,
+} from "./freight-scope"

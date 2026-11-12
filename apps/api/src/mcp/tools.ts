@@ -240,7 +240,7 @@ const tools: ToolDef[] = [
   readTool("openshop.finance.sku_costs", "列出 SKU 成本", (ctx, args) =>
     listSkuCosts(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.finance.freight", "费用模板与运价卡（不做虚构估算）", (ctx, args) =>
+  readTool("openshop.finance.freight", "费用模板、海运柜次与运价卡三源只读合并（不做虚构估算，不存在 freight_estimates 表）", (ctx, args) =>
     listFreight(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   readTool("openshop.pricing.suggest", "返回已保存的定价建议草稿，不现场虚构价格", (ctx, args) =>
