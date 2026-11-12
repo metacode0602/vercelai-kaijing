@@ -49,7 +49,7 @@ export function CostCalculatorHost() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="min-w-[35vw] max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-2 pr-6">
             <Calculator className="size-4 text-primary" />

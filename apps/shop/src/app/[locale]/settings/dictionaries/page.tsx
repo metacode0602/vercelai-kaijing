@@ -358,7 +358,7 @@ export default function DictionariesPage() {
       ) : null}
 
       <Dialog open={Boolean(dialog)} onOpenChange={(open) => !open && setDialog(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="min-w-[35vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>
