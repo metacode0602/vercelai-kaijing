@@ -32,6 +32,7 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
     { page: 1, pageSize: 20, internalSku: id },
     { enabled: !!id },
   )
+  const updateVariantMutation = trpc.products.updateVariant.useMutation()
 
   if (skuQuery.isLoading) {
     return (
@@ -61,7 +62,6 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const row = skuQuery.data
-  const updateVariantMutation = trpc.products.updateVariant.useMutation()
   const relatedInfo = buildUedRelatedInfo(
     'master-skus',
     row as unknown as Record<string, unknown>,
