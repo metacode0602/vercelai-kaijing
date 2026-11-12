@@ -125,15 +125,6 @@ export function createShopOAuthProviderOptions(
         action,
       })
     },
-    schema: {
-      oauthClient: { modelName: "oauth_client" },
-      oauthResource: { modelName: "oauth_resource" },
-      oauthClientResource: { modelName: "oauth_client_resource" },
-      oauthAccessToken: { modelName: "oauth_access_token" },
-      oauthRefreshToken: { modelName: "oauth_refresh_token" },
-      oauthConsent: { modelName: "oauth_consent" },
-      oauthClientAssertion: { modelName: "oauth_client_assertion" },
-    },
   }
 }
 
