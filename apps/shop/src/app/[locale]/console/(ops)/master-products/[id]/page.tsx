@@ -32,6 +32,13 @@ import {
 } from '@workspace/ui/components/table'
 import { Layers, Pencil, Plus, Power } from 'lucide-react'
 
+
+function pricingCalculatorHref(variants: Array<{ code: string; status: string }>) {
+  const preferred = variants.find((item) => item.status === '启用') ?? variants[0]
+  if (!preferred?.code) return '/console/costs/calculator'
+  return `/console/costs/calculator?sku=${encodeURIComponent(preferred.code)}`
+}
+
 function statusVariant(status: string) {
   if (status === '启用') return 'secondary' as const
   if (status === '停用' || status === '异常') return 'destructive' as const
@@ -247,6 +254,9 @@ export default function MasterProductDetailPage({ params }: { params: Promise<{ 
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button size="sm" asChild>
+              <LocaleLink href={pricingCalculatorHref(current.variants)}>定价建议</LocaleLink>
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setHeaderOpen(true)}>
               <Pencil data-icon="inline-start" />
               编辑主信息

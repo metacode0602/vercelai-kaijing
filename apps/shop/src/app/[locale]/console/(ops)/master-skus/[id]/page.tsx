@@ -101,13 +101,12 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
       row={row as unknown as Record<string, unknown>}
       relatedInfo={relatedInfo}
       notice="主档来自 product_variants；库存余额 / 流水来自 wms；刊登 / 映射来自 listings & mappings tRPC。供应商货号仍未接库。"
+      headerActions={
+        <Button size="sm" asChild>
+          <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(row.sku)}`}>定价建议</LocaleLink>
+        </Button>
+      }
       extra={
-        <>
-        <div className="mb-4">
-          <Button asChild>
-            <LocaleLink href={`/console/costs/calculator?sku=${encodeURIComponent(row.sku)}`}>定价建议 / 草稿历史</LocaleLink>
-          </Button>
-        </div>
         <ProductImageEditor
           initial={{ cover: row.coverImage, images: row.images ?? [] }}
           onChange={async (next) => {
@@ -122,7 +121,6 @@ export default function MasterSkuDetailPage({ params }: { params: Promise<{ id: 
           title="SKU 图片"
           description="封面与截图保存在对象存储，并随 updateVariant 写入变体 attrs。"
         />
-        </>
       }
     />
   )
