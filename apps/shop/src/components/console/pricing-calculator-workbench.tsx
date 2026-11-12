@@ -639,7 +639,7 @@ export function PricingCalculatorWorkbench({ initialSku }: { initialSku?: string
       ) : null}
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetContent className="overflow-y-auto sm:max-w-md min-w-[35vw]">
           <SheetHeader>
             <SheetTitle>补全 {sku}</SheetTitle>
             <SheetDescription>能在本页改完的主档字段会写回 SKU 并立即重算。费用模板与税则、汇率请走原页面维护。</SheetDescription>
