@@ -16,10 +16,12 @@ type PolicyRow = {
   refundMode: string
   refundWaitDays: number
   refundAutoSupported: boolean
+  inventoryPushEnabled: boolean
+  priceWritebackEnabled: boolean
   updatedAt: string
 }
 
-export default function AftersalePolicySettingsPage() {
+export default function ShopPolicySettingsPage() {
   const utils = trpc.useUtils()
   const listQuery = trpc.aftersale.policyList.useQuery()
   const shopsQuery = trpc.mappings.listShops.useQuery()
@@ -28,7 +30,7 @@ export default function AftersalePolicySettingsPage() {
 
   const upsertMutation = trpc.aftersale.policyUpsert.useMutation({
     onSuccess: async (row) => {
-      setNotice(`已保存 ${row.shopName} 售后策略`)
+      setNotice(`已保存 ${row.shopName} 店铺策略`)
       setDrafts((prev) => {
         const next = { ...prev }
         delete next[row.shopId]
@@ -58,6 +60,8 @@ export default function AftersalePolicySettingsPage() {
           refundMode: 'manual',
           refundWaitDays: 1,
           refundAutoSupported: ['lazada'].includes(s.platform.toLowerCase()),
+          inventoryPushEnabled: true,
+          priceWritebackEnabled: true,
           updatedAt: '',
         })
       }
@@ -83,6 +87,8 @@ export default function AftersalePolicySettingsPage() {
       inventoryReleaseMode: d.inventoryReleaseMode as 'manual' | 'auto',
       refundMode: d.refundMode as 'manual' | 'auto',
       refundWaitDays: d.refundWaitDays,
+      inventoryPushEnabled: d.inventoryPushEnabled,
+      priceWritebackEnabled: d.priceWritebackEnabled,
     })
   }
 
@@ -91,18 +97,18 @@ export default function AftersalePolicySettingsPage() {
       <ConsoleBreadcrumbRegistration
         items={[
           { label: '设置', href: '/settings' },
-          { label: '售后策略', href: '/settings/aftersale-policy' },
+          { label: '店铺策略', href: '/settings/shop-policy' },
         ]}
       />
       <div className="flex w-full flex-col gap-4">
         <DetailPageHeader
           backHref="/settings"
-          title="售后策略"
-          description="按店铺分别设置未发货占库释放与店铺退款。占库释放只有手动/自动；退款另有等待天数，且仅在平台提供同意退款接口时可选自动。"
+          title="店铺策略"
+          description="按店铺设置可选功能：售后占库释放与退款，以及是否向平台推送库存、回写售价。开关默认开启；关闭后不会调用对应平台写入接口，也不会假装成功。"
           badges={<Badge variant="outline">PostgreSQL</Badge>}
         />
         <UedPrototypeNotice>
-          {'买家在 Lazada / Daraz 发起取消或退款后，系统定时拉取建档并按本页策略执行：占库释放与退款分开。'}
+          售后策略仍按店铺执行占库释放与退款。库存推送与改价回写是店铺级可选功能，默认打开；定价计算器不会自动把建议价回写到平台。
         </UedPrototypeNotice>
 
         {merged.length === 0 ? (
@@ -129,6 +135,7 @@ export default function AftersalePolicySettingsPage() {
                     </div>
                   </div>
 
+                  <div className="text-sm font-medium">售后策略</div>
                   <div className="grid gap-4 md:grid-cols-2">
                     {/* 占库释放 */}
                     <div className="flex flex-col gap-2">
@@ -200,6 +207,58 @@ export default function AftersalePolicySettingsPage() {
                           : d.refundMode === 'auto'
                             ? `申请满 ${d.refundWaitDays} 天后自动同意退款（受平台 SLA 约束）。`
                             : '只建退款记录，人工同意或拒绝。'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-sm font-medium">同步与回写</div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="text-sm font-medium">库存推送</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant={d.inventoryPushEnabled ? 'default' : 'outline'}
+                          onClick={() => setDraft(row.shopId, { inventoryPushEnabled: true })}
+                        >
+                          开启
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={!d.inventoryPushEnabled ? 'default' : 'outline'}
+                          onClick={() => setDraft(row.shopId, { inventoryPushEnabled: false })}
+                        >
+                          关闭
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {d.inventoryPushEnabled
+                          ? '开启后，将把本地可售库存推送到该店铺已发布的平台刊登。Daraz / Lazada 走官方改价库存接口；其他平台若尚未接入会如实记失败。'
+                          : '已关闭：不会调用平台库存写入，任务将记为「该店铺已关闭库存推送」。'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="text-sm font-medium">改价回写</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant={d.priceWritebackEnabled ? 'default' : 'outline'}
+                          onClick={() => setDraft(row.shopId, { priceWritebackEnabled: true })}
+                        >
+                          开启
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={!d.priceWritebackEnabled ? 'default' : 'outline'}
+                          onClick={() => setDraft(row.shopId, { priceWritebackEnabled: false })}
+                        >
+                          关闭
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {d.priceWritebackEnabled
+                          ? '开启后，在刊登改价或入队价格同步时把 ERP 售价回写到平台。定价计算器的建议价不会自动回写。'
+                          : '已关闭：不会调用平台改价接口，任务将记为「该店铺已关闭改价回写」。'}
                       </p>
                     </div>
                   </div>

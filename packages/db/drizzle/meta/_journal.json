@@ -99,6 +99,13 @@
             "when": 1794441600000,
             "tag": "0013_platform_tariff_fee_catalogs",
             "breakpoints": true
+        },
+        {
+            "idx": 14,
+            "version": "7",
+            "when": 1794450000000,
+            "tag": "0014_shop_writeback_switches",
+            "breakpoints": true
         }
     ]
 }

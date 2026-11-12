@@ -304,6 +304,10 @@ export const shops = pgTable(
     marketplaceCountry: varchar("marketplace_country", { length: 16 }),
     authExpiresAt: timestamp("auth_expires_at", { withTimezone: true }),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    /** 是否把本地可售库存推送到平台刊登；缺省/升级视为开启。 */
+    inventoryPushEnabled: boolean("inventory_push_enabled").notNull().default(true),
+    /** 是否把 ERP 刊登售价回写到平台；缺省/升级视为开启。 */
+    priceWritebackEnabled: boolean("price_writeback_enabled").notNull().default(true),
     meta: jsonb("meta").$type<Record<string, unknown>>().default({}),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -4188,6 +4192,7 @@ export const syncTaskStatuses = [
   "failed",
   "partial_failed",
   "retry_queued",
+  "skipped",
 ] as const
 export type SyncTaskStatusDb = (typeof syncTaskStatuses)[number]
 

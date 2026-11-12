@@ -711,6 +711,19 @@ export async function updateListing(
 
   const updated = await getListing(db, organizationId, id)
   if (!updated) throw new Error('更新刊登失败')
+  const priceChanged =
+    patch.sellPrice != null && String(patch.sellPrice) !== String(row.priceAmount ?? '')
+  if (priceChanged && row.externalItemId) {
+    await syncDa.enqueueOrRetrySyncTask(db, organizationId, {
+      type: 'price',
+      target: `listing:${id}#price`,
+      shopId: row.shopId,
+      note: '刊登售价变更，按店铺开关回写平台',
+    }).catch((error) => {
+      // 本地售价已保存；回写失败由同步任务如实记录，不回滚刊登。
+      void error
+    })
+  }
   return updated
 }
 

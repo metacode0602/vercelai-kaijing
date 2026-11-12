@@ -7,6 +7,8 @@ import type {
   DomainImMessage,
   DomainListingInput,
   DomainListingResult,
+  DomainPriceQuantityItem,
+  DomainPriceQuantityResult,
   DomainOrder,
   DomainOrderLine,
   DomainOrderTrace,
@@ -86,6 +88,14 @@ export interface MarketplaceConnector {
   ): Promise<DomainListingResult>
 
   deactivateListing(externalId: string): Promise<DomainListingResult>
+
+  /**
+   * 更新平台刊登价格与/或可售库存（Lazop UpdatePriceQuantity）。
+   * 未实现的平台不要提供此方法，由调用方如实记失败，禁止假成功。
+   */
+  updatePriceQuantity?(
+    items: DomainPriceQuantityItem[],
+  ): Promise<DomainPriceQuantityResult>
 
   getOrder(externalOrderId: string): Promise<DomainOrder>
 

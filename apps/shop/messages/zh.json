@@ -459,7 +459,6 @@
       "preferences": "偏好",
       "fxRates": "汇率配置",
       "stockAlerts": "库存预警阈值",
-      "aftersalePolicy": "售后策略",
       "groups": {
         "enterprise": "入驻与店铺",
         "basics": "业务配置",
@@ -467,7 +466,8 @@
         "system": "系统与审计",
         "team": "团队与通知",
         "personal": "个人"
-      }
+      },
+      "shopPolicy": "店铺策略"
     },
     "profile": {
       "account": "账号",

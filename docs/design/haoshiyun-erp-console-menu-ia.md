@@ -139,7 +139,7 @@
 │  · 基础数据字典      │  │                                    │
 │  · 汇率配置          │  │                                    │
 │  · 库存预警阈值      │  │                                    │
-│  · 售后策略          │  │                                    │
+│  · 店铺策略          │  │                                    │
 │ 数据管理             │  │                                    │
 │  · 数据导入          │  │                                    │
 │  · 导入模板          │  │                                    │
@@ -264,7 +264,7 @@
 | 业务配置 | 基础数据字典 | /settings/dictionaries | 左右两栏字典维护 | commerce_dictionaries 系 | 现有（D5 唯一入口） |
 | 业务配置 | 汇率配置 | /settings/fx-rates | 平台币种汇率维护 | fx_rates | 现有 |
 | 业务配置 | 库存预警阈值 | /settings/stock-alerts | 库存预警阈值维护 | stock_alert_rules | 现有 |
-| 业务配置 | 售后策略 | /settings/aftersale-policy | 售后策略维护 | aftersale_policies | 现有 |
+| 业务配置 | 店铺策略 | /settings/shop-policy | 售后占库/退款策略与库存推送、改价回写开关 | shop_aftersale_policies、shops | 现有 |
 | 数据管理 | 数据导入 | /settings/imports | 模板下载、上传校验、错误行报告、批次回滚（双通道 file/platform_api） | import_batches、import_rows | 迁自 /console/imports |
 | 数据管理 | 导入模板 | /settings/import-templates | 导入类型、版本、字段清单、重复处理、回滚策略、启停 | commerce_import_templates | 现有 |
 | 系统与审计 | 接口日志 | /settings/integration-log | 调用流水、成功失败、错误码、重试、告警（与 audit 关联跳转） | integration_logs、audit_events | 迁自 /console/system-log |

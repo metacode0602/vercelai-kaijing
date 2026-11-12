@@ -258,7 +258,7 @@ export const aftersaleRouter = createTRPCRouter({
       wrap(() => aftersaleDa.updateRefundStatus(ctx.db, ctx.organizationId, input)),
     ),
 
-  // ---- 售后策略 / 占库释放 / 退款决定 ----
+  // ---- 店铺策略 / 占库释放 / 退款决定 ----
   policyList: tenantProcedure.query(async ({ ctx }) =>
     aftersaleDa.listAftersalePolicies(ctx.db, ctx.organizationId),
   ),
@@ -276,6 +276,8 @@ export const aftersaleRouter = createTRPCRouter({
         inventoryReleaseMode: z.enum(['manual', 'auto']),
         refundMode: z.enum(['manual', 'auto']),
         refundWaitDays: z.number().int().min(0).optional(),
+        inventoryPushEnabled: z.boolean().optional(),
+        priceWritebackEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) =>

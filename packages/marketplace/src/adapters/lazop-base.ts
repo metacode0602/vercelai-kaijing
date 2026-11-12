@@ -2,6 +2,7 @@ import { LazopHttpClient, type LazopFamily } from "../clients/lazop-http"
 import type { MarketplaceConnector, MarketplaceConnectorConfig } from "./types"
 import {
   buildCreateProductPayload,
+  buildPriceQuantityPayload,
   buildUpdateProductPayload,
 } from "./listing-payload"
 import type {
@@ -11,6 +12,8 @@ import type {
   DomainImCapabilityInfo,
   DomainListingInput,
   DomainListingResult,
+  DomainPriceQuantityItem,
+  DomainPriceQuantityResult,
   DomainOrder,
   DomainOrderLine,
   DomainOrderTrace,
@@ -326,6 +329,32 @@ export abstract class LazopConnectorBase implements MarketplaceConnector {
       externalId,
       status: "archived",
       raw: data,
+    }
+  }
+
+  async updatePriceQuantity(
+    items: DomainPriceQuantityItem[],
+  ): Promise<DomainPriceQuantityResult> {
+    if (items.length === 0) {
+      return { ok: false, error: "没有可推送的刊登价格或库存" }
+    }
+    const payload = buildPriceQuantityPayload(items)
+    const products = (asRecord(payload.Request).Product ?? []) as unknown[]
+    if (!Array.isArray(products) || products.length === 0) {
+      return { ok: false, error: "没有可推送的刊登价格或库存" }
+    }
+    try {
+      const json = await this.http.call<Json>({
+        method: "POST",
+        path: "/product/price_quantity/update",
+        bodyParams: { payload: JSON.stringify(payload) },
+      })
+      return { ok: true, raw: asRecord(json.data ?? json) }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
     }
   }
 

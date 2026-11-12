@@ -1781,7 +1781,7 @@ export async function updateRefundStatus(
 void toDbTicketStatus
 
 // ---------------------------------------------------------------------------
-// 售后策略 + 取消占库释放 + 退款决定
+// 店铺策略（售后 + 库存推送 / 改价回写开关）+ 取消占库释放 + 退款决定
 // @see docs/design/aftersale-cancel-ingest-and-policy.md
 // ---------------------------------------------------------------------------
 
@@ -1794,6 +1794,8 @@ export type AftersalePolicyDto = {
   refundWaitDays: number
   /** 平台是否提供 seller decide 接口（决定自动退款是否可选）。 */
   refundAutoSupported: boolean
+  inventoryPushEnabled: boolean
+  priceWritebackEnabled: boolean
   updatedAt: string
 }
 
@@ -1829,6 +1831,8 @@ export async function listAftersalePolicies(
       refundMode: p?.refundMode ?? 'manual',
       refundWaitDays: p?.refundWaitDays ?? 1,
       refundAutoSupported: platformSupportsAutoRefund(s.platform),
+      inventoryPushEnabled: s.inventoryPushEnabled !== false,
+      priceWritebackEnabled: s.priceWritebackEnabled !== false,
       updatedAt: formatStamp(p?.updatedAt ?? s.updatedAt),
     }
   })
@@ -1858,6 +1862,8 @@ export async function getAftersalePolicy(
     refundMode: p?.refundMode ?? 'manual',
     refundWaitDays: p?.refundWaitDays ?? 1,
     refundAutoSupported: platformSupportsAutoRefund(shop.platform),
+    inventoryPushEnabled: shop.inventoryPushEnabled !== false,
+    priceWritebackEnabled: shop.priceWritebackEnabled !== false,
     updatedAt: formatStamp(p?.updatedAt ?? shop.updatedAt),
   }
 }
@@ -1870,6 +1876,8 @@ export async function upsertAftersalePolicy(
     inventoryReleaseMode: 'manual' | 'auto'
     refundMode: 'manual' | 'auto'
     refundWaitDays?: number
+    inventoryPushEnabled?: boolean
+    priceWritebackEnabled?: boolean
   },
 ): Promise<AftersalePolicyDto> {
   const [shop] = await db
@@ -1884,6 +1892,14 @@ export async function upsertAftersalePolicy(
       : 1
   if (input.refundMode === 'auto' && !platformSupportsAutoRefund(shop.platform)) {
     throw new Error(`${shop.platform} 平台未提供同意退款接口，自动退款不可选`)
+  }
+  const shopPatch: { inventoryPushEnabled?: boolean; priceWritebackEnabled?: boolean; updatedAt: Date } = {
+    updatedAt: new Date(),
+  }
+  if (input.inventoryPushEnabled != null) shopPatch.inventoryPushEnabled = input.inventoryPushEnabled
+  if (input.priceWritebackEnabled != null) shopPatch.priceWritebackEnabled = input.priceWritebackEnabled
+  if (input.inventoryPushEnabled != null || input.priceWritebackEnabled != null) {
+    await db.update(shops).set(shopPatch).where(eq(shops.id, input.shopId))
   }
   const [existing] = await db
     .select()

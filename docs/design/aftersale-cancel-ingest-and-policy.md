@@ -7,7 +7,7 @@
 ## 已落地
 
 - `shop_aftersale_policies` 表 + `reverse_orders` 决策列（历史 migration 0011；2026-11-08 重生成后现于 `0002_glamorous_bruce_banner.sql`）。
-- 设置页 `/settings/aftersale-policy`：占库释放手动/自动、退款手动/自动 + 等待天数；Daraz 自动退款禁用。
+- 设置页 `/settings/shop-policy`（店铺策略）：占库释放手动/自动、退款手动/自动 + 等待天数；Daraz 自动退款禁用。另含库存推送与改价回写开关。
 - 取消页拆分「占库释放」「退款决定」两列状态与动作（释放占库 / 同意退款 / 拒绝 / 改为人工）。
 - `apps/api` 售后同步 cron + 到期退款决定 cron + `/api/v1/cron/reverse-sync`、`/reverse-refund-decide` 路由。
 - marketplace connector 接口 `listReverseOrders` / `getReverseOrderDetail`（LazopConnectorBase，Lazada+Daraz 共用查询）/ `decideReverse`（仅 LazadaConnector；Daraz 公开文档无 seller decide，cron 标 unsupported）。
@@ -159,7 +159,7 @@ due_at = platform_created_at + refund_wait_days
 
 ## 5. 设置页
 
-路由：`/settings/aftersale-policy`，加入 `SETTINGS_NAV`。按店铺切换，两块上下分开，互不影响。
+路由：`/settings/shop-policy`（店铺策略），加入 `SETTINGS_NAV_GROUPS`。售后占库释放与退款、以及库存推送/改价回写开关按店铺维护，互不影响。旧路径 `/settings/aftersale-policy` 已删除，不再保留重定向。
 
 ```text
 店铺  [ Daraz LK 主店 v ]

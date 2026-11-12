@@ -222,7 +222,7 @@ export type SettingsNavTitleKey =
   | 'settings.platformBasics'
   | 'settings.fxRates'
   | 'settings.stockAlerts'
-  | 'settings.aftersalePolicy'
+  | 'settings.shopPolicy'
   | 'settings.dictionaries'
   | 'settings.imports'
   | 'settings.importTemplates'
@@ -275,7 +275,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroupConfig[] = [
       { url: '/settings/dictionaries', titleKey: 'settings.dictionaries', icon: 'library' },
       { url: '/settings/fx-rates', titleKey: 'settings.fxRates', icon: 'banknote' },
       { url: '/settings/stock-alerts', titleKey: 'settings.stockAlerts', icon: 'triangle-alert' },
-      { url: '/settings/aftersale-policy', titleKey: 'settings.aftersalePolicy', icon: 'life-buoy' },
+      { url: '/settings/shop-policy', titleKey: 'settings.shopPolicy', icon: 'life-buoy' },
     ],
   },
   {

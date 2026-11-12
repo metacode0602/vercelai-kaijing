@@ -6,6 +6,7 @@ import {
   type MarketplaceSyncResource,
 } from "../lib/marketplace/sync"
 import { runListingWrite } from "../lib/marketplace/listing-write"
+import { runInventoryPriceWrite } from "../lib/marketplace/inventory-price-write"
 import { findSyncTask } from "../lib/marketplace/sync-tasks"
 
 const sync = new Hono()
@@ -18,6 +19,7 @@ const resources: MarketplaceSyncResource[] = [
   "settlements",
   "ship_batch",
   "listing_write",
+  "inventory_price_write",
   "all",
 ]
 
@@ -129,6 +131,38 @@ sync.post("/marketplace", async (c) => {
       return c.json(
         { ok: result.ok, resource, error: result.error, result },
         result.ok ? 200 : 502
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return c.json({ ok: false, resource, error: message }, 500)
+    }
+  }
+
+  if (resource === "inventory_price_write") {
+    if (!syncTaskId && !organizationId) {
+      return c.json(
+        { ok: false, error: "inventory_price_write_requires_sync_task_or_organization" },
+        400,
+      )
+    }
+    const writeOptions = {
+      syncTaskId,
+      organizationId,
+      shopId,
+      requestId: body.requestId,
+      target: body.target,
+    }
+    if (body.wait === false) {
+      void runInventoryPriceWrite(writeOptions).catch((error) => {
+        console.error("[internal-sync] inventory_price_write async failed", error)
+      })
+      return c.json({ ok: true, accepted: true, resource }, 202)
+    }
+    try {
+      const result = await runInventoryPriceWrite(writeOptions)
+      return c.json(
+        { ok: result.ok, resource, error: result.error, result },
+        result.ok ? 200 : 502,
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
