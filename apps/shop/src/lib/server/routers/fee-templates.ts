@@ -4,6 +4,7 @@ import { createTRPCRouter, requirePermission, tenantProcedure } from '@/lib/serv
 import { appendAuditEvent } from '@/lib/server/dataaccess/audit'
 import * as feeDa from '@/lib/server/dataaccess/fee-templates'
 import * as officialFeeDa from '@/lib/server/dataaccess/official-fee-sync'
+import { initializeFeeTemplatesForOrganization } from '@workspace/db/platform-catalogs'
 
 const paginationInput = z.object({
   page: z.number().int().min(1).optional(),
@@ -314,4 +315,8 @@ export const feeTemplatesRouter = createTRPCRouter({
         }),
       ),
     ),
+
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeFeeTemplatesForOrganization(ctx.db, ctx.organizationId)),
+  ),
 })

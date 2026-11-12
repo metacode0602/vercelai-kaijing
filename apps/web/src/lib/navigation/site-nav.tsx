@@ -14,6 +14,7 @@ import {
   Library,
   MailPlus,
   Megaphone,
+  Scale,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -21,6 +22,7 @@ import {
   Truck,
   UserRound,
   Users,
+  Wallet,
 } from 'lucide-react'
 
 export type SiteNavItem = {
@@ -128,6 +130,16 @@ export const SITE_NAV_GROUPS: SiteNavGroup[] = [
         title: '导入模板',
         url: '/console/import-templates',
         icon: <FileSpreadsheet className="size-4" />,
+      },
+      {
+        title: '全局税则库',
+        url: '/console/tariffs',
+        icon: <Scale className="size-4" />,
+      },
+      {
+        title: '默认费用模板',
+        url: '/console/fee-templates',
+        icon: <Wallet className="size-4" />,
       },
     ],
   },

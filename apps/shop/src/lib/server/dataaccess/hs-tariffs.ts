@@ -1,7 +1,8 @@
 /**
  * HS 税则主档。与 compliance_hs_rules（SLSI/阻断）分轨，不写商品行。
- * 平台级 organization_id 为空（owner_key=global）；租户覆盖 owner_key=organizationId。
+ * 平台级 organization_id 为空（owner_key=global）；租户副本 owner_key=organizationId。
  * 已发布（active）版本不可覆盖，变更须新建版本。软停用走 archived。
+ * 计算器只解析本组织已发布税则；平台目录需先「从平台目录补齐」并发布。
  * @see docs/design/multi-platform-pricing-calculator-ux-2026-11-11.md §12.3
  */
 import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
@@ -383,7 +384,7 @@ function inRange(from: Date, to: Date | null, asOf: Date) {
   return true
 }
 
-/** 精确匹配 HS + 目的国；租户覆盖优先于平台级。不回退父码税率。 */
+/** 精确匹配 HS + 目的国，只使用本组织已发布税则。不回退平台全局目录，不回退父码税率。 */
 export async function resolveHsTariff(
   db: DbLike,
   organizationId: string,
@@ -401,14 +402,12 @@ export async function resolveHsTariff(
         eq(hsTariffVersions.hsCode, hsCode),
         eq(hsTariffVersions.countryCode, countryCode),
         eq(hsTariffVersions.status, 'active'),
-        or(eq(hsTariffVersions.ownerKey, organizationId), eq(hsTariffVersions.ownerKey, 'global'))!,
+        eq(hsTariffVersions.ownerKey, organizationId),
       ),
     )
     .orderBy(desc(hsTariffVersions.effectiveFrom), desc(hsTariffVersions.version))
   const effective = rows.filter((r) => inRange(r.effectiveFrom, r.effectiveTo, asOf))
-  const tenant = effective.find((r) => r.ownerKey === organizationId)
-  const global = effective.find((r) => r.ownerKey === 'global')
-  const picked = tenant ?? global
+  const picked = effective[0]
   return picked ? mapTariff(picked) : null
 }
 

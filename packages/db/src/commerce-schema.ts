@@ -2390,6 +2390,82 @@ export const platformImportTemplatesCatalog = pgTable(
   ],
 )
 
+
+export const platformFeeTemplatesCatalog = pgTable(
+  "platform_fee_templates_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: text("name").notNull(),
+    platform: varchar("platform", { length: 32 }).notNull(),
+    country: varchar("country", { length: 8 }).notNull(),
+    fulfillmentPool: varchar("fulfillment_pool", { length: 64 }),
+    fulfillmentLogistics: varchar("fulfillment_logistics", { length: 32 }),
+    type: varchar("type", { length: 32 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    note: text("note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_fee_templates_catalog_code_uidx").on(t.code),
+    index("platform_fee_templates_catalog_status_idx").on(t.status),
+    index("platform_fee_templates_catalog_dim_idx").on(t.platform, t.country, t.type),
+    check("platform_fee_templates_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+    check("platform_fee_templates_catalog_type_check", sql`${t.type} in ('import_tax', 'platform_fee', 'ocean_freight')`),
+  ],
+)
+
+export const platformFeeTemplateVersionsCatalog = pgTable(
+  "platform_fee_template_versions_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => platformFeeTemplatesCatalog.id, { onDelete: "cascade" }),
+    versionNo: integer("version_no").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    priority: integer("priority").notNull().default(10),
+    formulaProfile: varchar("formula_profile", { length: 64 }),
+    components: jsonb("components").$type<Record<string, unknown>[]>().notNull().default([]),
+    note: text("note").notNull().default(""),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("platform_fee_template_versions_catalog_tpl_ver_uidx").on(t.templateId, t.versionNo),
+    index("platform_fee_template_versions_catalog_status_idx").on(t.templateId, t.status),
+    check("platform_fee_template_versions_catalog_status_check", sql`${t.status} in ('active', 'inactive')`),
+  ],
+)
+
+export const platformFeeTemplateMatchRulesCatalog = pgTable(
+  "platform_fee_template_match_rules_catalog",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => platformFeeTemplatesCatalog.id, { onDelete: "cascade" }),
+    /** 对应平台内部品类树目录 code；拷贝时映射到组织 commerce_categories.id */
+    categoryCode: varchar("category_code", { length: 64 }),
+    hsCodePattern: varchar("hs_code_pattern", { length: 32 }),
+    priority: integer("priority").notNull().default(10),
+    note: text("note").notNull().default(""),
+    ...timestamps,
+  },
+  (t) => [
+    index("platform_fee_template_match_rules_catalog_tpl_idx").on(t.templateId),
+  ],
+)
+
 // ---------------------------------------------------------------------------
 // fx_rates — ADD（F33；platform + ccy + effective date + source）
 // ---------------------------------------------------------------------------
@@ -2853,6 +2929,7 @@ export const feeTemplates = pgTable(
     type: varchar("type", { length: 32 }).notNull(),
     status: varchar("status", { length: 16 }).notNull().default("draft"),
     note: text("note"),
+    sourceId: text("source_id").references(() => platformFeeTemplatesCatalog.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -2864,6 +2941,7 @@ export const feeTemplates = pgTable(
       t.country,
       t.type,
     ),
+    index("fee_templates_source_idx").on(t.sourceId),
   ],
 )
 
@@ -2902,6 +2980,7 @@ export const feeTemplateVersions = pgTable(
     sourcePlatform: varchar("source_platform", { length: 32 }),
     sourceSite: varchar("source_site", { length: 8 }),
     sourceShopId: text("source_shop_id"),
+    sourceId: text("source_id").references(() => platformFeeTemplateVersionsCatalog.id, { onDelete: "set null" }),
     syncedAt: timestamp("synced_at", { withTimezone: true }),
     syncRunId: text("sync_run_id"),
     rawSnapshot: jsonb("raw_snapshot").$type<Record<string, unknown> | unknown[]>(),
@@ -2914,7 +2993,8 @@ export const feeTemplateVersions = pgTable(
     index("fee_template_versions_eff_idx").on(t.templateId, t.effectiveFrom),
     index("fee_template_versions_status_idx").on(t.templateId, t.status),
     index("fee_template_versions_source_idx").on(t.organizationId, t.source),
-    check("fee_template_versions_source_check", sql`${t.source} in ('manual', 'official_sync')`),
+    index("fee_template_versions_source_id_idx").on(t.sourceId),
+    check("fee_template_versions_source_check", sql`${t.source} in ('manual', 'official_sync', 'platform_catalog')`),
   ],
 )
 
@@ -2943,12 +3023,14 @@ export const feeTemplateMatchRules = pgTable(
     /** 越大越优先 */
     priority: integer("priority").notNull().default(10),
     note: text("note"),
+    sourceId: text("source_id").references(() => platformFeeTemplateMatchRulesCatalog.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [
     index("fee_template_match_rules_tpl_idx").on(t.templateId),
     index("fee_template_match_rules_org_idx").on(t.organizationId, t.priority),
     index("fee_template_match_rules_category_idx").on(t.categoryId),
+    index("fee_template_match_rules_source_idx").on(t.sourceId),
   ],
 )
 
@@ -3033,6 +3115,7 @@ export const hsCodes = pgTable(
     sourceType: varchar("source_type", { length: 16 }).notNull().default("manual"),
     sourceRef: text("source_ref"),
     sourceBatchId: text("source_batch_id"),
+    sourceId: text("source_id"),
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
     ...timestamps,
@@ -3042,8 +3125,14 @@ export const hsCodes = pgTable(
     index("hs_codes_code_idx").on(t.ownerKey, t.countryCode, t.code),
     index("hs_codes_parent_idx").on(t.ownerKey, t.countryCode, t.parentCode),
     index("hs_codes_org_idx").on(t.organizationId),
+    index("hs_codes_source_idx").on(t.sourceId),
     check("hs_codes_scope_check", sql`${t.scope} in ('global', 'tenant')`),
     check("hs_codes_status_check", sql`${t.status} in ('draft', 'active', 'archived')`),
+    foreignKey({
+      columns: [t.sourceId],
+      foreignColumns: [t.id],
+      name: "hs_codes_source_id_fk",
+    }).onDelete("set null"),
   ],
 )
 
@@ -3090,6 +3179,7 @@ export const hsTariffVersions = pgTable(
     sourceType: varchar("source_type", { length: 16 }).notNull().default("manual"),
     sourceRef: text("source_ref"),
     sourceBatchId: text("source_batch_id"),
+    sourceId: text("source_id"),
     createdBy: text("created_by"),
     updatedBy: text("updated_by"),
     publishedBy: text("published_by"),
@@ -3101,12 +3191,18 @@ export const hsTariffVersions = pgTable(
     index("hs_tariff_owner_code_date_idx").on(t.ownerKey, t.countryCode, t.hsCode, t.effectiveFrom),
     index("hs_tariff_status_idx").on(t.ownerKey, t.status),
     index("hs_tariff_org_idx").on(t.organizationId),
+    index("hs_tariff_source_idx").on(t.sourceId),
     check("hs_tariff_scope_check", sql`${t.scope} in ('global', 'tenant')`),
     check("hs_tariff_status_check", sql`${t.status} in ('draft', 'active', 'archived')`),
     check(
       "hs_tariff_specific_rule_check",
       sql`${t.gdSpecificRule} is null or ${t.gdSpecificRule} in ('none', 'max', 'sum')`,
     ),
+    foreignKey({
+      columns: [t.sourceId],
+      foreignColumns: [t.id],
+      name: "hs_tariff_versions_source_id_fk",
+    }).onDelete("set null"),
   ],
 )
 
@@ -4266,6 +4362,9 @@ export type PlatformDictionariesCatalogRow = typeof platformDictionariesCatalog.
 export type PlatformCategoryTreesCatalogRow = typeof platformCategoryTreesCatalog.$inferSelect
 export type PlatformCarriersCatalogRow = typeof platformCarriersCatalog.$inferSelect
 export type PlatformImportTemplatesCatalogRow = typeof platformImportTemplatesCatalog.$inferSelect
+export type PlatformFeeTemplatesCatalogRow = typeof platformFeeTemplatesCatalog.$inferSelect
+export type PlatformFeeTemplateVersionsCatalogRow = typeof platformFeeTemplateVersionsCatalog.$inferSelect
+export type PlatformFeeTemplateMatchRulesCatalogRow = typeof platformFeeTemplateMatchRulesCatalog.$inferSelect
 export type CommercePlatformBasicRow = typeof commercePlatformBasics.$inferSelect
 export type PendingAction = typeof pendingActions.$inferSelect
 export type ProductCandidate = typeof productCandidates.$inferSelect

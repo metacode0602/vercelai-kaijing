@@ -25,6 +25,8 @@ describe('console and settings navigation', () => {
       '/console/categories',
       '/console/carriers',
       '/console/import-templates',
+      '/console/tariffs',
+      '/console/fee-templates',
     ]) {
       assert.ok(consoleUrls.includes(url), url)
       assert.ok(!settingsUrls.includes(url), url)

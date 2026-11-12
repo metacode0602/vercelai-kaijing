@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { createTRPCRouter, tenantProcedure } from '@/lib/server/trpc'
 import * as hsDa from '@/lib/server/dataaccess/hs-tariffs'
+import { initializeHsTariffsForOrganization } from '@workspace/db/platform-catalogs'
 
 function wrap<T>(fn: () => Promise<T>): Promise<T> {
   return fn().catch((error: unknown) => {
@@ -70,4 +71,8 @@ export const hsTariffsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) =>
       wrap(() => hsDa.setHsTariffStatus(ctx.db, ctx.organizationId, { ...input, ...actor(ctx) })),
     ),
+
+  initFromCatalog: tenantProcedure.mutation(({ ctx }) =>
+    wrap(() => initializeHsTariffsForOrganization(ctx.db, ctx.organizationId)),
+  ),
 })

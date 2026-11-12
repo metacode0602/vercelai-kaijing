@@ -45,6 +45,17 @@ export default function HsTariffsPage() {
     },
     onError: (err) => toast.error(err.message),
   })
+  const initFromCatalog = trpc.hsTariffs.initFromCatalog.useMutation({
+    onSuccess: async (result) => {
+      toast.success(
+        result.inserted > 0
+          ? `已从平台税则库补齐 ${result.inserted} 条（只补缺失，拷贝为草稿，需发布后计算器才使用）`
+          : '本组织税则已齐全，无需补齐。',
+      )
+      await utils.hsTariffs.list.invalidate()
+    },
+    onError: (err) => toast.error(err.message),
+  })
   const statusMutation = trpc.hsTariffs.setStatus.useMutation({
     onSuccess: async () => {
       toast.success('已更新税则状态')
@@ -75,8 +86,18 @@ export default function HsTariffsPage() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight">HS 税则</h2>
         <p className="text-sm text-muted-foreground">
-          与 SLSI 合规清单分轨。税率按 HS + 目的国 + 公式版本维护，不写进商品行。已发布版本不可直接改，请新建版本。不会把讲义静态税则写进代码，也不会自动同步到其他租户。非斯里兰卡站点不会套用 LK 税栈。
+          与 SLSI 合规清单分轨。税率按 HS + 目的国 + 公式版本维护，不写进商品行。已发布版本不可直接改，请新建版本。可从平台全局税则库补齐缺失项（拷贝为草稿，需发布后计算器才使用），不会自动同步到已有租户。非斯里兰卡站点不会套用 LK 税栈。
         </p>
+      </div>
+      <div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={initFromCatalog.isPending}
+          onClick={() => initFromCatalog.mutate()}
+        >
+          {initFromCatalog.isPending ? '补齐中…' : '从平台目录补齐'}
+        </Button>
       </div>
       <p className="text-sm">
         <LocaleLink href="/console/costs/calculator" className="underline">返回定价计算器</LocaleLink>

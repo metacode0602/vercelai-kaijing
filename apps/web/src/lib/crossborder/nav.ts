@@ -14,4 +14,6 @@ export const CROSSBORDER_NAV = [
   { href: '/console/categories', label: '内部品类' },
   { href: '/console/carriers', label: '承运商目录' },
   { href: '/console/import-templates', label: '导入模板' },
+  { href: '/console/tariffs', label: '全局税则库' },
+  { href: '/console/fee-templates', label: '默认费用模板' },
 ] as const

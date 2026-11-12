@@ -33,6 +33,17 @@ export default function FeeTemplatesPage() {
   })
   const selectedCapability = (capabilitiesQuery.data ?? []).find((c) => c.platform === (syncPlatform === 'tiktok' ? 'tiktok_shop' : syncPlatform))
     ?? (capabilitiesQuery.data ?? []).find((c) => c.platform === syncPlatform)
+  const initFromCatalog = trpc.feeTemplates.initFromCatalog.useMutation({
+    onSuccess: async (result) => {
+      await utils.feeTemplates.list.invalidate()
+      setNotice(
+        result.inserted > 0
+          ? `已从平台默认费用模板补齐 ${result.inserted} 条（只补缺失，拷贝为草稿，需复核发布后计算器才使用）`
+          : '本组织费用模板已齐全，无需补齐。',
+      )
+    },
+    onError: (e) => setNotice(e.message),
+  })
   const createMutation = trpc.feeTemplates.create.useMutation({
     onSuccess: async (row) => {
       await utils.feeTemplates.list.invalidate()
@@ -168,9 +179,19 @@ export default function FeeTemplatesPage() {
           {latest?.reason && latest.reason !== selectedCapability?.reasonZh ? ` 记录：${latest.reason}` : ''}
         </p>
       </div>
+      <div className="mb-3">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={initFromCatalog.isPending}
+          onClick={() => initFromCatalog.mutate()}
+        >
+          {initFromCatalog.isPending ? '补齐中…' : '从平台目录补齐'}
+        </Button>
+      </div>
       <UedWorkspace
         title="费用模板"
-        description="按平台、国家、履约配置进口税与平台费版本；测算按有效期+优先级解析，保存柜次成本时写入版本 ID 与组件快照。官方同步只产生待审核草稿。"
+        description="按平台、国家、履约配置进口税与平台费版本；测算按有效期+优先级解析，保存柜次成本时写入版本 ID 与组件快照。可从平台默认费用模板补齐缺失项（拷贝为草稿）。官方同步只产生待审核草稿，不会显示「已从平台实时同步」。"
         rows={rows}
         detailHref={(row) => `/console/fee-templates/${encodeURIComponent(row.id)}`}
         searchKeys={['code', 'name', 'platform', 'country', 'fulfillmentPool', 'typeLabel', 'status']}

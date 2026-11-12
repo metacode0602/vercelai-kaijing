@@ -51,7 +51,7 @@ async function main() {
     for (const org of orgs) {
       const result = await initializeOrganizationCatalogs(db, org.id)
       console.log(
-        `${org.name} (${org.id})：基础资料 ${result.platformBasics}，字典 ${result.dictionaries}，品类 ${result.categories}，承运商 ${result.carriers}，导入模板 ${result.importTemplates}，组织偏好 ${result.organizationSettings}`,
+        `${org.name} (${org.id})：基础资料 ${result.platformBasics}，字典 ${result.dictionaries}，品类 ${result.categories}，承运商 ${result.carriers}，导入模板 ${result.importTemplates}，税则 ${result.hsTariffs}，费用模板 ${result.feeTemplates}，组织偏好 ${result.organizationSettings}`,
       )
     }
   } finally {

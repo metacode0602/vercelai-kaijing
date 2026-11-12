@@ -15,14 +15,25 @@ import {
   commerceCategories,
   commerceDictionaries,
   commerceImportTemplates,
+  feeTemplateMatchRules,
+  feeTemplates,
+  feeTemplateVersions,
+  hsCodes,
+  hsTariffVersions,
   organizationSettings,
   platformCarriersCatalog,
   platformCategoryTreesCatalog,
   platformDictionariesCatalog,
+  platformFeeTemplateMatchRulesCatalog,
+  platformFeeTemplatesCatalog,
+  platformFeeTemplateVersionsCatalog,
   platformImportTemplatesCatalog,
   type PlatformCatalogStatus,
   type PlatformCarriersCatalogRow,
   type PlatformDictionariesCatalogRow,
+  type PlatformFeeTemplateMatchRulesCatalogRow,
+  type PlatformFeeTemplatesCatalogRow,
+  type PlatformFeeTemplateVersionsCatalogRow,
   type PlatformImportTemplatesCatalogRow,
 } from "./commerce-schema"
 
@@ -41,6 +52,8 @@ export type OrganizationCatalogInitResult = {
   categories: number
   carriers: number
   importTemplates: number
+  hsTariffs: number
+  feeTemplates: number
   organizationSettings: number
 }
 
@@ -704,6 +717,216 @@ export async function ensureAllPlatformCatalogs(db: DbLike): Promise<{
   }
 }
 
+
+/**
+ * 把平台全局税则（owner_key=global 且 status=active）拷贝到组织，版本落为 draft。
+ * 已有 (country, hs) 编码或 (country, hs, version) 不覆盖；计算器只读组织已发布版本。
+ */
+export async function initializeHsTariffsForOrganization(
+  db: DbLike,
+  organizationId: string,
+): Promise<CatalogInsertResult> {
+  const now = new Date()
+  const catalogCodes = await db.select().from(hsCodes).where(eq(hsCodes.ownerKey, "global"))
+  const existingCodes = await db
+    .select({
+      countryCode: hsCodes.countryCode,
+      normalizedCode: hsCodes.normalizedCode,
+    })
+    .from(hsCodes)
+    .where(eq(hsCodes.organizationId, organizationId))
+  const presentCodes = new Set(existingCodes.map((row) => `${row.countryCode}:${row.normalizedCode}`))
+  let inserted = 0
+  for (const row of catalogCodes) {
+    if (row.status !== "active") continue
+    const key = `${row.countryCode}:${row.normalizedCode}`
+    if (presentCodes.has(key)) continue
+    await db.insert(hsCodes).values({
+      id: createId(),
+      scope: "tenant",
+      ownerKey: organizationId,
+      organizationId,
+      countryCode: row.countryCode,
+      code: row.code,
+      normalizedCode: row.normalizedCode,
+      description: row.description ?? "",
+      descriptionEn: row.descriptionEn,
+      parentCode: row.parentCode,
+      level: row.level,
+      unit: row.unit,
+      status: "active",
+      sourceType: "platform_catalog",
+      sourceRef: row.id,
+      sourceId: row.id,
+      createdAt: now,
+      updatedAt: now,
+    })
+    presentCodes.add(key)
+    inserted += 1
+  }
+
+  const catalogVersions = await db
+    .select()
+    .from(hsTariffVersions)
+    .where(eq(hsTariffVersions.ownerKey, "global"))
+  const existingVersions = await db
+    .select({
+      countryCode: hsTariffVersions.countryCode,
+      hsCode: hsTariffVersions.hsCode,
+      version: hsTariffVersions.version,
+    })
+    .from(hsTariffVersions)
+    .where(eq(hsTariffVersions.organizationId, organizationId))
+  const presentVersions = new Set(
+    existingVersions.map((row) => `${row.countryCode}:${row.hsCode}:${row.version}`),
+  )
+  for (const row of catalogVersions) {
+    if (row.status !== "active") continue
+    const key = `${row.countryCode}:${row.hsCode}:${row.version}`
+    if (presentVersions.has(key)) continue
+    await db.insert(hsTariffVersions).values({
+      id: createId(),
+      scope: "tenant",
+      ownerKey: organizationId,
+      organizationId,
+      countryCode: row.countryCode,
+      hsCode: row.hsCode,
+      version: row.version,
+      status: "draft",
+      effectiveFrom: row.effectiveFrom,
+      effectiveTo: row.effectiveTo,
+      currency: row.currency,
+      formulaProfile: row.formulaProfile,
+      upliftRule: row.upliftRule,
+      components: row.components ?? {},
+      gdRate: row.gdRate,
+      surchargeRate: row.surchargeRate,
+      palRate: row.palRate,
+      cessRate: row.cessRate,
+      exciseRate: row.exciseRate,
+      vatRate: row.vatRate,
+      ssclRate: row.ssclRate,
+      gdSpecificAmount: row.gdSpecificAmount,
+      gdSpecificUnit: row.gdSpecificUnit,
+      gdSpecificRule: row.gdSpecificRule,
+      cessSpecificAmount: row.cessSpecificAmount,
+      cessSpecificUnit: row.cessSpecificUnit,
+      isExact: row.isExact,
+      confidence: row.confidence,
+      compliance: row.compliance ?? {},
+      notes: row.notes ?? "",
+      sourceType: "platform_catalog",
+      sourceRef: row.id,
+      sourceId: row.id,
+      createdAt: now,
+      updatedAt: now,
+    })
+    presentVersions.add(key)
+    inserted += 1
+  }
+  return { inserted }
+}
+
+/**
+ * 把平台默认费用模板（status=active）拷贝到组织：模板头与版本均为草稿，不自动发布。
+ * 已有 (organization_id, code) 整份跳过，不覆盖组织已维护内容。
+ */
+export async function initializeFeeTemplatesForOrganization(
+  db: DbLike,
+  organizationId: string,
+): Promise<CatalogInsertResult> {
+  const catalog = await db
+    .select()
+    .from(platformFeeTemplatesCatalog)
+    .orderBy(platformFeeTemplatesCatalog.sortOrder, platformFeeTemplatesCatalog.code)
+  if (catalog.length === 0) return { inserted: 0 }
+  const existing = await db
+    .select({ code: feeTemplates.code })
+    .from(feeTemplates)
+    .where(eq(feeTemplates.organizationId, organizationId))
+  const present = new Set(existing.map((row) => row.code))
+  const active = catalog.filter(
+    (row: PlatformFeeTemplatesCatalogRow) => isActiveCatalogStatus(row.status) && !present.has(row.code),
+  )
+  if (active.length === 0) return { inserted: 0 }
+
+  const versions = await db.select().from(platformFeeTemplateVersionsCatalog)
+  const rules = await db.select().from(platformFeeTemplateMatchRulesCatalog)
+  const orgCategories = await db
+    .select({ id: commerceCategories.id, code: commerceCategories.code })
+    .from(commerceCategories)
+    .where(eq(commerceCategories.organizationId, organizationId))
+  const categoryByCode = new Map(orgCategories.map((row) => [row.code, row.id]))
+  const now = new Date()
+  let inserted = 0
+
+  for (const row of active) {
+    const headerId = createId()
+    await db.insert(feeTemplates).values({
+      id: headerId,
+      organizationId,
+      code: row.code,
+      name: row.name,
+      platform: row.platform,
+      country: row.country,
+      fulfillmentPool: row.fulfillmentPool,
+      fulfillmentLogistics: row.fulfillmentLogistics,
+      type: row.type,
+      status: "draft",
+      note: row.note ?? "",
+      sourceId: row.id,
+      createdAt: now,
+      updatedAt: now,
+    })
+    inserted += 1
+    const catalogVersions = versions.filter(
+      (item: PlatformFeeTemplateVersionsCatalogRow) =>
+        item.templateId === row.id && isActiveCatalogStatus(item.status),
+    )
+    for (const version of catalogVersions) {
+      await db.insert(feeTemplateVersions).values({
+        id: createId(),
+        organizationId,
+        templateId: headerId,
+        versionNo: version.versionNo,
+        effectiveFrom: version.effectiveFrom,
+        effectiveTo: version.effectiveTo,
+        priority: version.priority,
+        formulaProfile: version.formulaProfile,
+        components: version.components ?? [],
+        published: false,
+        reviewNeeded: true,
+        status: "draft",
+        note: version.note ?? "",
+        source: "platform_catalog",
+        sourceId: version.id,
+        createdAt: now,
+        updatedAt: now,
+      })
+      inserted += 1
+    }
+    const catalogRules = rules.filter((item: PlatformFeeTemplateMatchRulesCatalogRow) => item.templateId === row.id)
+    for (const rule of catalogRules) {
+      const categoryId = rule.categoryCode ? (categoryByCode.get(rule.categoryCode) ?? null) : null
+      if (rule.categoryCode && !categoryId) continue
+      await db.insert(feeTemplateMatchRules).values({
+        id: createId(),
+        organizationId,
+        templateId: headerId,
+        categoryId,
+        hsCodePattern: rule.hsCodePattern,
+        priority: rule.priority,
+        note: rule.note ?? "",
+        sourceId: rule.id,
+        createdAt: now,
+        updatedAt: now,
+      })
+      inserted += 1
+    }
+  }
+  return { inserted }
+}
+
 /**
  * 审核通过或回补时：先补齐缺失的默认目录行（不覆盖运营已改内容），再只拷 active 项到组织。
  * 调用方应放在同一事务内，失败则整笔回滚。
@@ -718,6 +941,8 @@ export async function initializeOrganizationCatalogs(
   const categories = await initializeCategoryTreeForOrganization(db, organizationId)
   const carriers = await initializeCarriersForOrganization(db, organizationId)
   const importTemplates = await initializeImportTemplatesForOrganization(db, organizationId)
+  const hsTariffs = await initializeHsTariffsForOrganization(db, organizationId)
+  const feeTemplates = await initializeFeeTemplatesForOrganization(db, organizationId)
   const settings = await ensureOrganizationSettingsForOrganization(db, organizationId)
   return {
     platformBasics: platformBasics.inserted,
@@ -725,6 +950,8 @@ export async function initializeOrganizationCatalogs(
     categories: categories.inserted,
     carriers: carriers.inserted,
     importTemplates: importTemplates.inserted,
+    hsTariffs: hsTariffs.inserted,
+    feeTemplates: feeTemplates.inserted,
     organizationSettings: settings.inserted,
   }
 }

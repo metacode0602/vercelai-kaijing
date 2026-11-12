@@ -92,6 +92,8 @@ describe('official fee sync planner', () => {
     assert.equal(feeVersionSourceLabel({ source: 'official_sync', status: 'draft' }), '来自官方费率同步草稿（待审核）')
     assert.equal(feeVersionSourceLabel({ source: 'official_sync', published: true }), '来自本组织费用模板')
     assert.equal(feeVersionSourceLabel({ source: 'manual', published: true }), '来自本组织费用模板')
+    assert.equal(feeVersionSourceLabel({ source: 'platform_catalog', status: 'draft' }), '来自平台默认费用模板（待复核发布）')
+    assert.equal(feeVersionSourceLabel({ source: 'platform_catalog', published: true }), '来自平台默认费用模板（本组织已发布）')
   })
 
   it('updates an existing official draft instead of touching the published version', () => {

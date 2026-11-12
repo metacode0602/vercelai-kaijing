@@ -107,8 +107,11 @@ export function feeVersionSourceLabel(input: {
   published?: boolean
 }): string {
   const official = input.source === 'official_sync'
+  const fromCatalog = input.source === 'platform_catalog'
   const published = Boolean(input.published || input.status === 'published')
   if (official && !published) return officialFeeDraftLabel()
+  if (fromCatalog && !published) return '来自平台默认费用模板（待复核发布）'
+  if (fromCatalog) return '来自平台默认费用模板（本组织已发布）'
   return orgFeeTemplateLabel()
 }
 

@@ -244,6 +244,8 @@ async function reviewApplication(input: {
           categories: 0,
           carriers: 0,
           importTemplates: 0,
+          hsTariffs: 0,
+          feeTemplates: 0,
           organizationSettings: 0,
         }
 
@@ -263,6 +265,8 @@ async function reviewApplication(input: {
         categoriesInitialized: catalogs.categories,
         carriersInitialized: catalogs.carriers,
         importTemplatesInitialized: catalogs.importTemplates,
+        hsTariffsInitialized: catalogs.hsTariffs,
+        feeTemplatesInitialized: catalogs.feeTemplates,
         organizationSettingsInitialized: catalogs.organizationSettings,
       },
       result: 'success',
