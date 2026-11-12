@@ -36,6 +36,12 @@
     },
     "./oauth": {
       "default": "./src/oauth-provider.ts"
+    },
+    "./oauth-scopes": {
+      "default": "./src/oauth-scopes.ts"
+    },
+    "./oauth-query": {
+      "default": "./src/oauth-query.ts"
     }
   }
 }

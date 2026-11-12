@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@workspace/ui/components/card'
-import { OPENSHOP_SCOPE_LABELS_ZH, parseScopeList } from '@workspace/auth'
+import { OPENSHOP_SCOPE_LABELS_ZH, parseScopeList } from '@workspace/auth/oauth-scopes'
 import { submitOAuthConsent } from '@/lib/auth/oauth-continue'
 import { trpc } from '@/lib/trpc/client'
 

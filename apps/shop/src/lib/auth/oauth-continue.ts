@@ -1,7 +1,7 @@
 'use client'
 
 import { AUTH_PATH } from '@/lib/auth/constants'
-import { oauthQueryFromSearch } from '@workspace/auth'
+import { oauthQueryFromSearch } from '@workspace/auth/oauth-query'
 
 export async function continueOAuthAuthorization(
   body: {
