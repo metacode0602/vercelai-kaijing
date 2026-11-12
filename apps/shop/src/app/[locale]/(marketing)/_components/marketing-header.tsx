@@ -19,26 +19,18 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { LocaleSwitcher } from "@/components/locale-switcher"
 import { LocaleLink, useLocalePathname } from "@/lib/i18n/navigation"
-import { ChevronDown, Globe, Menu, Monitor } from "lucide-react"
+import { ChevronDown, Globe, Menu, Monitor, ShoppingBag } from "lucide-react"
 import type { ReactNode } from "react"
-import GPURunFullIcon from "@workspace/ui/components/icons/gpurun-full"
+import { landingNav } from "../_content/landing"
 
-const navLinks = [
-  { label: "Agent 沙盒", href: "/sandbox" },
-  { label: "Serverless", href: "/serverless" },
-  { label: "裸金属", href: "/bare-metal" },
-  { label: "应用", href: "/apps" },
-  { label: "定价", href: "/pricing" },
-  {
-    label: "资源",
-    href: "https://docs.gpurun.cn",
-    hasDropdown: true,
-    items: [
-      { label: "文档", href: "https://docs.gpurun.cn" },
-      { label: "博客", href: "/docs/guides/introduction" },
-    ],
-  },
-]
+const navLinks: Array<{
+  label: string
+  href: string
+  items?: { label: string; href: string }[]
+}> = landingNav.map((item) => ({
+  ...item,
+  href: `/${item.href}`,
+}))
 
 function isExternalHref(href: string) {
   return href.startsWith("http://") || href.startsWith("https://")
@@ -46,6 +38,7 @@ function isExternalHref(href: string) {
 
 function isActivePath(pathname: string, href: string) {
   if (isExternalHref(href)) return false
+  if (href.includes("#")) return false
   if (href === "/") return pathname === "/"
   return pathname === href || pathname.startsWith(`${href}/`)
 }
@@ -54,6 +47,17 @@ function mobileNavLinkClassName(active: boolean) {
   return cn(
     "h-11 w-full justify-start rounded-lg px-3 text-[15px] active:bg-accent",
     active && "bg-accent font-medium text-accent-foreground",
+  )
+}
+
+function BrandMark() {
+  return (
+    <>
+      <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <ShoppingBag className="size-4" strokeWidth={2} aria-hidden="true" />
+      </span>
+      <span className="text-sm font-semibold text-foreground">Open Shop</span>
+    </>
   )
 }
 
@@ -130,19 +134,18 @@ export function MarketingHeader() {
         <div className="relative flex h-[52px] min-h-0 flex-row items-center justify-between pl-4 pr-3 sm:pl-5 lg:gap-10 lg:pl-5 lg:pr-1.5">
           <LocaleLink
             href="/"
-            className="hidden h-full shrink-0 items-center justify-center lg:flex gap-2"
-            aria-label="GPURun"
+            className="hidden h-full shrink-0 items-center justify-center gap-2 lg:flex"
+            aria-label="Open Shop"
           >
-            <GPURunFullIcon className="block h-6 w-auto select-none" />
-            <span className="text-sm font-semibold">GPURun</span>
+            <BrandMark />
           </LocaleLink>
 
           <LocaleLink
             href="/"
-            className="flex h-full shrink-0 items-center lg:hidden"
-            aria-label="GPURun"
+            className="flex h-full shrink-0 items-center gap-2 lg:hidden"
+            aria-label="Open Shop"
           >
-            <GPURunFullIcon className="size-7 select-none" />
+            <BrandMark />
           </LocaleLink>
 
           <div className="hidden flex-row items-center gap-2 lg:flex">
@@ -174,19 +177,22 @@ export function MarketingHeader() {
               <Button
                 asChild
                 variant="ghost"
-                className="h-11 rounded-full px-5"
+                className="h-11 rounded-full px-4"
               >
                 <LocaleLink href="/signin">登录</LocaleLink>
               </Button>
               <Button
                 asChild
                 variant="ghost"
-                className="h-11 rounded-full px-5 text-primary"
+                className="h-11 rounded-full px-4 text-primary"
               >
-                <LocaleLink href="/console" className="gap-2">
+                <LocaleLink href="/console/dashboard" className="gap-2">
                   <Monitor className="size-4" aria-hidden="true" />
                   控制台
                 </LocaleLink>
+              </Button>
+              <Button asChild className="h-11 rounded-full px-5">
+                <LocaleLink href="/signup">免费开始</LocaleLink>
               </Button>
             </div>
           </div>
@@ -225,7 +231,9 @@ export function MarketingHeader() {
                         isActivePath(pathname, link.href) ? "page" : undefined
                       }
                     >
-                      <MarketingNavLink href={link.href}>{link.label}</MarketingNavLink>
+                      <MarketingNavLink href={link.href}>
+                        {link.label}
+                      </MarketingNavLink>
                     </Button>
                   ) : (
                     link.items?.map((item) => (
@@ -264,11 +272,14 @@ export function MarketingHeader() {
                 <Button asChild variant="outline" className="h-11 w-full">
                   <LocaleLink href="/signin">登录</LocaleLink>
                 </Button>
-                <Button asChild className="h-11 w-full gap-2">
-                  <LocaleLink href="/console">
+                <Button asChild variant="outline" className="h-11 w-full gap-2">
+                  <LocaleLink href="/console/dashboard">
                     <Monitor className="size-4" />
                     控制台
                   </LocaleLink>
+                </Button>
+                <Button asChild className="h-11 w-full">
+                  <LocaleLink href="/signup">免费开始</LocaleLink>
                 </Button>
               </div>
             </SheetContent>

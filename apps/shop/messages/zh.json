@@ -33,7 +33,7 @@
     },
     "register": {
       "title": "创建账户",
-      "description": "注册以开始使用 GPU 云服务"
+      "description": "注册以开始使用 Open Shop 跨境运营中枢"
     }
   },
   "Auth": {
@@ -614,9 +614,9 @@
     "cancel": "取消"
   },
   "Metadata": {
-    "title": "GPU 云控制台 | Serverless 与实例部署",
-    "description": "部署 Serverless 端点、GPU 服务器实例与 S3 标准网络卷的云控制台",
-    "name": "GPURun 云"
+    "title": "Open Shop | 跨境电商 AI 运营中枢",
+    "description": "Open Shop 把商品、订单、库存、成本、财务与审批沉淀为唯一事实源；OpenMCP Station 桌面工作台在此之上完成发现、解释、建议与自动化。",
+    "name": "Open Shop"
   },
   "Mail": {
     "common": {

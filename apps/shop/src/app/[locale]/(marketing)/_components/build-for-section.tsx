@@ -1,122 +1,129 @@
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent } from "@workspace/ui/components/card"
 import { LocaleLink } from "@/lib/i18n/navigation"
-import { ChevronRight } from "lucide-react"
+import { Check, ChevronRight, Monitor, ShieldCheck, Sparkles } from "lucide-react"
 import { SectionLabel } from "./section-label"
+import { dualEntryContent } from "../_content/landing"
 
-const useCases = [
-  {
-    number: "01",
-    title: "编码智能体",
-    description: "在隔离的沙盒环境中运行能够编写、执行并迭代代码的智能体。",
-    href: "/docs/guides/sandbox-your-first-agent-sandbox",
-    bgImage: undefined,
-  },
-  {
-    number: "02",
-    title: "浏览器自动化",
-    description: "支持智能体浏览网页、完成多步骤任务并提取结构化结果。",
-    href: "/docs/guides/sandbox-integrations-browser-use",
-    bgImage: "/sandbox1/page/build-for/card-bg01.png",
-  },
-  {
-    number: "03",
-    title: "计算机使用",
-    description:
-      "让智能体能够与完整桌面环境交互，以执行基于 GUI 的工作流和类人操作。",
-    href: "/docs/guides/sandbox-integrations-e2b-desktop",
-    bgImage: "/sandbox1/page/build-for/card-bg02.png",
-  },
-  {
-    number: "04",
-    title: "评估与 RL",
-    description:
-      "在受控环境中运行可重复的评估和强化学习工作负载，用于测试、训练和迭代优化。",
-    href: "/docs/guides/sandbox-your-first-agent-sandbox",
-    bgImage: undefined,
-  },
-  {
-    number: "05",
-    title: "AI 驱动的 CI/CD",
-    description:
-      "在您的 CI/CD 流水线中，在隔离沙盒内运行代码审查、测试生成和验证工作流。",
-    href: "/docs/guides/sandbox-overview",
-    bgImage: "/sandbox1/page/build-for/card-bg01.png",
-  },
-  {
-    number: "06",
-    title: "长时间运行的工作流",
-    description:
-      "让多步骤智能体任务在长时间会话中持续运行，而不中断执行流程。",
-    href: "/docs/guides/sandbox-overview",
-    bgImage: "/sandbox1/page/build-for/card-bg02.png",
-  },
-]
-
-const useCaseCardClassName =
-  "glass-card relative flex min-h-[240px] flex-col overflow-hidden border-0 py-0 ring-0 dark:border dark:border-border/30 dark:bg-card/70"
+const cardIcons = [Monitor, Sparkles]
 
 export function BuildForSection() {
   return (
-    <section className="marketing-section">
+    <section id="workbench" className="marketing-section scroll-mt-24">
       <div className="marketing-container">
         <div className="flex flex-col gap-6">
-          <SectionLabel>专为 AI 原生工作负载而构建</SectionLabel>
+          <SectionLabel>{dualEntryContent.label}</SectionLabel>
 
-          <div className="flex max-w-[430px] flex-col gap-4 py-4">
-            <h2 className="marketing-heading">从智能体执行到评估与 RL</h2>
+          <div className="flex max-w-[560px] flex-col gap-4 py-4">
+            <h2 className="marketing-heading">{dualEntryContent.title}</h2>
             <p className="marketing-subheading">
-              支持全范围的 AI 原生工作负载—从编码智能体和浏览器自动化，到评估、强化学习环境以及长时间运行的工作流。
+              {dualEntryContent.description}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 pt-4 md:grid-cols-2 lg:grid-cols-3">
-            {useCases.map((item) => (
-              <Card
-                key={item.number}
-                className={useCaseCardClassName}
-              >
-                {item.bgImage && (
-                  <>
-                    <div
-                      className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-100 dark:opacity-[0.12]"
-                      style={{ backgroundImage: `url(${item.bgImage})` }}
-                      aria-hidden="true"
-                    />
-                    <div
-                      className="glass-overlay pointer-events-none absolute inset-0 dark:bg-card/80 dark:backdrop-blur-[3px]"
-                      aria-hidden="true"
-                    />
-                  </>
-                )}
-                <CardContent className="relative flex h-full flex-col p-6">
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {item.number}
-                  </span>
-                  <div className="mt-3 flex w-full max-w-[320px] flex-col gap-3">
-                    <h3 className="text-lg font-semibold text-foreground md:text-xl">
-                      {item.title}
-                    </h3>
-                    <p className="text-base text-muted-foreground md:text-lg">
-                      {item.description}
-                    </p>
-                  </div>
-                  <Button
-                    asChild
-                    variant="link"
-                    className="mt-auto h-auto w-fit justify-start p-0 text-sm text-foreground no-underline hover:opacity-70"
-                  >
-                    <LocaleLink
-                      href={item.href}
-                      className="inline-flex items-center gap-2"
+          <div className="grid grid-cols-1 gap-6 pt-4 lg:grid-cols-2">
+            {dualEntryContent.cards.map((card, index) => {
+              const Icon = cardIcons[index] ?? Monitor
+              return (
+                <Card
+                  key={card.key}
+                  className="glass-card relative flex flex-col overflow-hidden border-0 py-0 ring-0 dark:border dark:border-border/30 dark:bg-card/70"
+                >
+                  <CardContent className="relative flex h-full flex-col gap-6 p-6 md:p-8">
+                    <div className="flex items-center justify-between">
+                      <span className="glass-surface flex size-12 items-center justify-center rounded-xl border border-border/20">
+                        <Icon
+                          className="size-6 text-primary/80"
+                          strokeWidth={1.5}
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                        {card.eyebrow}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <h3 className="text-2xl font-semibold text-foreground">
+                        {card.title}
+                      </h3>
+                      <p className="text-base text-muted-foreground md:text-lg">
+                        {card.description}
+                      </p>
+                    </div>
+
+                    <ul className="flex flex-col gap-3">
+                      {card.features.map((feature) => (
+                        <li
+                          key={feature}
+                          className="flex items-start gap-2 text-sm text-muted-foreground md:text-base"
+                        >
+                          <Check
+                            className="mt-0.5 size-4 shrink-0 text-primary"
+                            aria-hidden="true"
+                          />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Button
+                      asChild
+                      variant="link"
+                      className="mt-auto h-auto w-fit justify-start p-0 text-sm text-foreground no-underline hover:opacity-70"
                     >
-                      了解更多
-                      <ChevronRight className="size-3.5" />
-                    </LocaleLink>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                      {card.key === "web" ? (
+                        <LocaleLink
+                          href={card.cta.href}
+                          className="inline-flex items-center gap-2"
+                        >
+                          {card.cta.label}
+                          <ChevronRight className="size-3.5" aria-hidden="true" />
+                        </LocaleLink>
+                      ) : (
+                        <a
+                          href={card.cta.href}
+                          className="inline-flex items-center gap-2"
+                        >
+                          {card.cta.label}
+                          <ChevronRight className="size-3.5" aria-hidden="true" />
+                        </a>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          <div className="glass-panel mt-4 flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+            <div className="flex items-start gap-3">
+              <span className="glass-surface flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/20">
+                <ShieldCheck
+                  className="size-5 text-primary/80"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
+              </span>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-lg font-semibold text-foreground">
+                  {dualEntryContent.shared.title}
+                </h3>
+                <p className="max-w-[760px] text-sm text-muted-foreground md:text-base">
+                  {dualEntryContent.shared.description}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              {dualEntryContent.shared.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-border/40 px-3 py-1 text-xs text-muted-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </div>

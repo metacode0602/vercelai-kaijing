@@ -33,7 +33,7 @@
     },
     "register": {
       "title": "Create Account",
-      "description": "Sign up to start using GPU Cloud"
+      "description": "Sign up to start using the Open Shop cross-border operations hub"
     }
   },
   "Auth": {
@@ -596,9 +596,9 @@
     "cancel": "Cancel"
   },
   "Metadata": {
-    "title": "GPU Cloud Console | Serverless & Instance Deployment",
-    "description": "Deploy Serverless endpoints, GPU server instances, and S3-compatible network volumes.",
-    "name": "GPURun Cloud"
+    "title": "Open Shop | Cross-border Commerce AI Operations Hub",
+    "description": "Open Shop keeps products, orders, inventory, costs, finance, and approvals in one source of truth. OpenMCP Station adds discovery, explanation, recommendations, and automation on top.",
+    "name": "Open Shop"
   },
   "Mail": {
     "common": {
