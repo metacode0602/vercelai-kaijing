@@ -12,4 +12,6 @@ export const CROSSBORDER_NAV = [
   { href: '/console/platform-basics', label: '基础资料' },
   { href: '/console/dictionaries', label: '字典目录' },
   { href: '/console/categories', label: '内部品类' },
+  { href: '/console/carriers', label: '承运商目录' },
+  { href: '/console/import-templates', label: '导入模板' },
 ] as const

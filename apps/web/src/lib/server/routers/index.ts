@@ -5,6 +5,8 @@ import { platformOpsRouter } from './platformOps'
 import { platformBasicsRouter } from './platformBasics'
 import { platformDictionariesRouter } from './platformDictionaries'
 import { platformCategoriesRouter } from './platformCategories'
+import { platformCarriersRouter } from './platformCarriers'
+import { platformImportTemplatesRouter } from './platformImportTemplates'
 import { platformShopsRouter } from './platformShops'
 import { platformUsersRouter } from './platformUsers'
 import { platformInvitationsRouter } from './platformInvitations'
@@ -20,6 +22,8 @@ export const appRouter = router({
   platformBasics: platformBasicsRouter,
   platformDictionaries: platformDictionariesRouter,
   platformCategories: platformCategoriesRouter,
+  platformCarriers: platformCarriersRouter,
+  platformImportTemplates: platformImportTemplatesRouter,
   platformShops: platformShopsRouter,
   platformUsers: platformUsersRouter,
   platformInvitations: platformInvitationsRouter,
