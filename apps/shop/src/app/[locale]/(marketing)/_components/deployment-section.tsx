@@ -47,7 +47,7 @@ export function DeploymentSection() {
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <h3 className="text-xl font-semibold text-foreground md:text-2xl">
+                    <h3 className="text-lg font-semibold text-foreground md:text-xl">
                       {option.title}
                     </h3>
                     <p className="text-sm text-muted-foreground md:text-base">

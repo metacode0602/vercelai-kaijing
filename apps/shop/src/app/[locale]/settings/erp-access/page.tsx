@@ -158,7 +158,7 @@ export default function AccessControlPage() {
       </ConsoleListSection>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="min-w-[35vw]">
           <DialogHeader>
             <DialogTitle>新建角色</DialogTitle>
             <DialogDescription>创建自定义角色后，可在详情页编辑权限矩阵、数据范围并绑定成员。</DialogDescription>

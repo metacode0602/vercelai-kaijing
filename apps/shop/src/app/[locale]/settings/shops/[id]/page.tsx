@@ -317,7 +317,7 @@ export default function ShopDetailPage({ params }: { params: Promise<{ id: strin
         ]}
       />
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="min-w-[35vw]">
           <form
             className="grid gap-3"
             onSubmit={(event) => {

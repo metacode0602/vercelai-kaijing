@@ -130,7 +130,7 @@ export default function SettingsMembersPage() {
       </ConsoleListSection>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="min-w-[35vw]">
           <DialogHeader>
             <DialogTitle>邀请成员</DialogTitle>
             <DialogDescription>

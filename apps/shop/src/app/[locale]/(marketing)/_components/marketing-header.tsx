@@ -177,13 +177,6 @@ export function MarketingHeader() {
               <Button
                 asChild
                 variant="ghost"
-                className="h-11 rounded-full px-4"
-              >
-                <LocaleLink href="/signin">登录</LocaleLink>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
                 className="h-11 rounded-full px-4 text-primary"
               >
                 <LocaleLink href="/console/dashboard" className="gap-2">
@@ -209,7 +202,7 @@ export function MarketingHeader() {
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="marketing-popover data-[side=right]:w-[86vw] max-w-[340px] data-[side=right]:sm:max-w-[340px] gap-0 overflow-hidden pt-[env(safe-area-inset-top)]"
+              className="marketing-popover min-w-[35vw] data-[side=right]:w-[86vw] max-w-[340px] data-[side=right]:sm:max-w-[340px] gap-0 overflow-hidden pt-[env(safe-area-inset-top)]"
             >
               <SheetHeader className="shrink-0 pb-2 pr-14">
                 <SheetTitle>菜单</SheetTitle>
@@ -269,9 +262,6 @@ export function MarketingHeader() {
                 </div>
               </nav>
               <div className="flex shrink-0 flex-col gap-2 border-t border-border/40 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-                <Button asChild variant="outline" className="h-11 w-full">
-                  <LocaleLink href="/signin">登录</LocaleLink>
-                </Button>
                 <Button asChild variant="outline" className="h-11 w-full gap-2">
                   <LocaleLink href="/console/dashboard">
                     <Monitor className="size-4" />

@@ -48,7 +48,7 @@ export function SiteMessagesPanel() {
             <BellIcon className="size-[18px]" />
           </Button>
         </SheetTrigger>
-        <SheetContent className="w-[400px] sm:w-[540px]">
+        <SheetContent className="min-w-[35vw] w-[400px] sm:w-[540px]">
           <SheetHeader>
             <SheetTitle>{t('title')}</SheetTitle>
           </SheetHeader>
@@ -63,7 +63,7 @@ export function SiteMessagesPanel() {
       </Sheet>
 
       <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="min-w-[35vw] max-w-lg">
           <DialogHeader>
             <DialogTitle>{selectedMessage?.title}</DialogTitle>
           </DialogHeader>

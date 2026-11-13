@@ -416,7 +416,7 @@ export default function PlatformFeeTemplatesPage() {
       ) : null}
 
       <Dialog open={headerOpen} onOpenChange={(open) => { setHeaderOpen(open); if (!open) setEditingId(null) }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="min-w-[35vw] max-h-[85vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{editingId ? '编辑默认费用模板' : '新增默认费用模板'}</DialogTitle>
             <DialogDescription>
@@ -540,7 +540,7 @@ export default function PlatformFeeTemplatesPage() {
       </Dialog>
 
       <Dialog open={Boolean(detailId)} onOpenChange={(open) => { if (!open) { setDetailId(null); setEditingVersionId(null); setVersionForm(emptyVersion()) } }}>
-        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+        <DialogContent className="min-w-[35vw] max-h-[85vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>版本与匹配规则</DialogTitle>
             <DialogDescription>

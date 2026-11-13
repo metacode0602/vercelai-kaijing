@@ -63,7 +63,7 @@ export function ConfirmReasonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" showCloseButton>
+      <DialogContent className="min-w-[35vw] max-w-4xl sm:max-w-4xl" showCloseButton>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

@@ -230,7 +230,7 @@ export default function PlatformInvitationsPage() {
       />
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="min-w-[35vw] max-w-4xl sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>邀请用户</DialogTitle>
             <DialogDescription>

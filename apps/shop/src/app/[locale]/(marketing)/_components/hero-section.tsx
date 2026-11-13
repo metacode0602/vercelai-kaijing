@@ -139,7 +139,7 @@ export function HeroSection() {
               </span>
             </div>
 
-            <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl md:text-5xl">
+            <h1 className="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl md:text-3xl">
               {heroContent.title}
             </h1>
 
