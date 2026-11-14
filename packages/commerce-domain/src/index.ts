@@ -17,7 +17,7 @@ export {
   normalizeMarketplacePlatform,
   normalizeMarketplaceSite,
 } from "./desktop-scope"
-export { DesktopScopeError, DomainError, NotFoundError } from "./errors"
+export { ConflictError, DesktopScopeError, DomainError, NotFoundError } from "./errors"
 export { currencyModeOf, sumMoneyByCurrency, uniqueCurrencies, type CurrencyMode } from "./money"
 export { maskSecret, redactRecord, redactUntrustedText } from "./redaction"
 export { DEFAULT_TIME_ZONE, dayBounds, timeMeta } from "./time"

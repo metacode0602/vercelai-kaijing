@@ -20,3 +20,12 @@ export class NotFoundError extends DomainError {
     this.name = "NotFoundError"
   }
 }
+
+export class ConflictError extends DomainError {
+  readonly pendingActionId?: string
+  constructor(message: string, pendingActionId?: string) {
+    super("conflict", message)
+    this.name = "ConflictError"
+    this.pendingActionId = pendingActionId
+  }
+}

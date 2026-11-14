@@ -400,32 +400,32 @@ buddy 文档里的 `/api/v1/mcp` **不再使用**，以免和带 CSRF 的 `/api/
 
 | 域 | 工具 | 对到的现有能力 | 注意 |
 |----|------|----------------|------|
-| Dashboard | `openshop.dashboard.kpis` / `.trends` / `.todos` / `.alerts` | `trpc.dashboard.*`（已有 currencyMode） | 原样对齐分币种口径 |
-| 商品 | `openshop.products.search` / `.get` | SPU=`products`（`spuCode`），内部 SKU=`product_variants`（`skuCode`） | 不要用含混的 “variants” 对外文案 |
-| 候选 | `openshop.candidates.list` / `.get` / `.stats` | `trpc.candidates` | |
-| 刊登 | `openshop.listings.list` / `.get` / `.stats` | `trpc.listings` | |
-| 订单 | `openshop.orders.list` / `.get` / `.exceptions` | `trpc.order` 等 | **必须脱敏**，见 §11 |
-| 库存 | `openshop.inventory.list` / `.alerts` | 库存余额 / 预警 | |
-| 财务 | `openshop.finance.overview` / `.settlements` / `.profits` / `.sku_costs` | `trpc.finance`、`sku_costs` | |
-| 运费 | `openshop.finance.freight` | 现有 `listFreightEstimates`：费用模板 ∪ 海运柜次 ∪ `commerce_freight_rate_cards` | **不要假设**已有 `freight_estimates` 表 |
-| 定价 | `openshop.pricing.suggest` / `.drafts` | `trpc.pricing.suggest`、定价建议草稿 | 只读建议与草稿；不写刊登售价 |
-| 店铺策略 | `openshop.settings.shop_policy` | 各店库存推送 / 改价回写开关（及只读售后策略） | 让 Agent 能解释「为什么没推送」；v1 不能改开关 |
-| 报表 | `openshop.reports.sell_through` / `.stock_risk` / `.attribution` | `trpc.reports` | |
-| 待审 | `openshop.pending.list` / `.get` | `trpc.pending` | 审批卡只读 + Web 深链 |
-| 同步 | `openshop.sync.tasks` | `trpc.sync` | 展示失败 / 已跳过，空数据不当 0 |
+| Dashboard | `openshop_dashboard.kpis` / `.trends` / `.todos` / `.alerts` | `trpc.dashboard.*`（已有 currencyMode） | 原样对齐分币种口径 |
+| 商品 | `openshop_products.search` / `.get` | SPU=`products`（`spuCode`），内部 SKU=`product_variants`（`skuCode`） | 不要用含混的 “variants” 对外文案 |
+| 候选 | `openshop_candidates.list` / `.get` / `.stats` | `trpc.candidates` | |
+| 刊登 | `openshop_listings.list` / `.get` / `.stats` | `trpc.listings` | |
+| 订单 | `openshop_orders.list` / `.get` / `.exceptions` | `trpc.order` 等 | **必须脱敏**，见 §11 |
+| 库存 | `openshop_inventory.list` / `.alerts` | 库存余额 / 预警 | |
+| 财务 | `openshop_finance.overview` / `.settlements` / `.profits` / `.sku_costs` | `trpc.finance`、`sku_costs` | |
+| 运费 | `openshop_finance.freight` | 现有 `listFreightEstimates`：费用模板 ∪ 海运柜次 ∪ `commerce_freight_rate_cards` | **不要假设**已有 `freight_estimates` 表 |
+| 定价 | `openshop_pricing.suggest` / `.drafts` | `trpc.pricing.suggest`、定价建议草稿 | 只读建议与草稿；不写刊登售价 |
+| 店铺策略 | `openshop_settings.shop_policy` | 各店库存推送 / 改价回写开关（及只读售后策略） | 让 Agent 能解释「为什么没推送」；v1 不能改开关 |
+| 报表 | `openshop_reports.sell_through` / `.stock_risk` / `.attribution` | `trpc.reports` | |
+| 待审 | `openshop_pending.list` / `.get` | `trpc.pending` | 审批卡只读 + Web 深链 |
+| 同步 | `openshop_sync.tasks` | `trpc.sync` | 展示失败 / 已跳过，空数据不当 0 |
 
 ### 10.2 写工具（审批门禁）
 
 | 工具 | 行为 | 首版 |
 |------|------|------|
-| `openshop.candidates.create` / `.update` | 写候选；待审 kind 纠正为 `sourcing_upsert`（或经迁移后的正式 kind），不再写未入枚举的 `candidate_review` | 开放 |
-| `openshop.candidates.accept` / `.reject` | 接受 → SPU 草稿 + `listing_submit`，不发布 | 开放 |
-| `openshop.pending.complete_listing_submit` | 补全必填，不确认 | 开放 |
-| `openshop.listings.create_draft` / `.submit_for_review` | 草稿 / 提交审核 | 开放 |
-| `openshop.pending.create_price_change` / `.create_inventory_push` | 只建待审 | 开放 |
-| `openshop.sync.request` | **仅读同步类型** | 开放 |
-| `openshop.pricing.save_draft` | 保存建议草稿，不改刊登价 | 开放 |
-| `openshop.pending.confirm` / `.reject` | — | **不开放**，工具不注册 |
+| `openshop_candidates.create` / `.update` | 写候选；待审 kind 纠正为 `sourcing_upsert`（或经迁移后的正式 kind），不再写未入枚举的 `candidate_review` | 开放 |
+| `openshop_candidates.accept` / `.reject` | 接受 → SPU 草稿 + `listing_submit`，不发布 | 开放 |
+| `openshop_pending.complete_listing_submit` | 补全必填，不确认 | 开放 |
+| `openshop_listings.create_draft` / `.submit_for_review` | 草稿 / 提交审核 | 开放 |
+| `openshop_pending.create_price_change` / `.create_inventory_push` | 只建待审 | 开放 |
+| `openshop_sync.request` | **仅读同步类型** | 开放 |
+| `openshop_pricing.save_draft` | 保存建议草稿，不改刊登价 | 开放 |
+| `openshop_pending.confirm` / `.reject` | — | **不开放**，工具不注册 |
 
 ### 10.3 明确延期或如实 unsupported
 

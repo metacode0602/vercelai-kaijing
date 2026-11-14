@@ -1,12 +1,12 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { timeout } from "hono/timeout"
+import { randomUUID } from "node:crypto"
 import {
   OPENSHOP_ISSUABLE_SCOPES,
 } from "@workspace/auth"
 import type { AppDatabase } from "@workspace/db"
-import { authenticateMcpRequest } from "./auth"
-import { wwwAuthenticate } from "./auth"
+import { authenticateMcpRequest, resolveOauthIssuer, wwwAuthenticate } from "./auth"
 import {
   MCP_PROTOCOL_VERSION,
   isJsonRpcNotification,
@@ -28,7 +28,7 @@ export type McpRouterOptions = {
 
 function protectedResourceMetadata(env: McpEnv) {
   const resource = env.OPENSHOP_MCP_RESOURCE || "https://localhost/mcp"
-  const issuer = env.OPENSHOP_OAUTH_ISSUER || env.BETTER_AUTH_URL
+  const issuer = resolveOauthIssuer(env)
   return {
     resource,
     authorization_servers: issuer ? [issuer] : [],
@@ -69,7 +69,16 @@ async function dispatch(
     if (!result.ok) {
       return {
         content: [{ type: "text", text: result.message }],
-        structuredContent: { error: result.message },
+        structuredContent: {
+          error: {
+            code: result.code,
+            message: result.message,
+            fieldErrors: result.fieldErrors,
+            retryable: result.retryable,
+            requestId: randomUUID(),
+            pendingActionId: result.pendingActionId,
+          },
+        },
         isError: true,
       }
     }

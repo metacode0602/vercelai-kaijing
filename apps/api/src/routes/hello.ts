@@ -1,4 +1,9 @@
-import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi"
+import {
+  createRoute,
+  OpenAPIHono,
+  z,
+  type RouteConfig,
+} from "@hono/zod-openapi"
 
 const MessageSchema = z
   .object({
@@ -6,7 +11,7 @@ const MessageSchema = z
   })
   .openapi("Message")
 
-const helloRoute = createRoute({
+const helloRoute: RouteConfig = createRoute({
   method: "get",
   path: "/",
   tags: ["Hello"],
