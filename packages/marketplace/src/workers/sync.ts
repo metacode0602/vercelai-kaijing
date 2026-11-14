@@ -12,6 +12,7 @@ import {
 } from "../adapters/factory"
 import type { MarketplaceConnector } from "../adapters/types"
 import type { MarketplacePlatform } from "../domain/types"
+import type { FetchLike } from "../fetch"
 import {
   decryptCredentialPayload,
   type CredentialPayload,
@@ -43,7 +44,7 @@ export interface SyncWorkerInput {
   appKey?: string
   appSecret?: string
   shopCipher?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
   /** Injected for tests / shop entry that has a DB client. */
   persistHooks?: SyncPersistHooks
   /** Lazily resolves/rotates access tokens (DB-backed in apps/shop). */

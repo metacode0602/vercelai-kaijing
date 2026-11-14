@@ -1,3 +1,4 @@
+import type { FetchLike } from "../fetch"
 import type { TokenProvider } from "../tokens/types"
 import type {
   DomainBrand,
@@ -45,7 +46,7 @@ export interface MarketplaceConnectorConfig {
   shopCipher?: string
   /** Optional absolute callback URL override. */
   callbackUrl?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
 }
 
 /**

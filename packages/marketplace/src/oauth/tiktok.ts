@@ -1,3 +1,4 @@
+import { resolveFetch, type FetchLike } from "../fetch"
 import { resolveTiktokEndpoints } from "../regions/endpoints"
 import { signTiktokRequest } from "../signing/tiktok"
 import type { OAuthTokenSet } from "../domain/types"
@@ -7,7 +8,7 @@ export interface TiktokOAuthAppConfig {
   appSecret: string
   region?: string
   callbackUrl?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
 }
 
 export function buildTiktokAuthorizeUrl(input: {
@@ -52,7 +53,7 @@ async function postToken(
   body: Record<string, string>,
 ): Promise<OAuthTokenSet> {
   const { authBase } = resolveTiktokEndpoints(cfg.region)
-  const fetchImpl = cfg.fetchImpl ?? fetch
+  const fetchImpl = resolveFetch(cfg.fetchImpl)
   const timestamp = String(Math.floor(Date.now() / 1000))
   const query: Record<string, string> = {
     app_key: cfg.appKey,

@@ -1,3 +1,4 @@
+import type { FetchLike } from "../fetch"
 import { LazopHttpClient, type LazopFamily } from "../clients/lazop-http"
 import {
   LAZOP_AUTH,
@@ -12,7 +13,7 @@ export interface LazopOAuthAppConfig {
   appSecret: string
   region?: string
   callbackUrl?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
 }
 
 export function buildLazopAuthorizeUrl(input: {

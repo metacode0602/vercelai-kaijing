@@ -2,6 +2,7 @@ import {
   createTokenProvider,
   refreshLazopToken,
   refreshTiktokToken,
+  type FetchLike,
   type MarketplacePlatform,
   type TokenProvider,
 } from '@workspace/marketplace'
@@ -15,7 +16,7 @@ export function createShopTokenProvider(input: {
   region?: string
   appKey: string
   appSecret: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
 }): TokenProvider {
   const store = createDbCredentialStore()
 
