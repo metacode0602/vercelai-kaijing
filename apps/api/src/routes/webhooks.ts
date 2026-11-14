@@ -34,15 +34,6 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined
 }
 
-function signatureFrom(headers: Headers): string | undefined {
-  return (
-    headers.get("authorization") ??
-    headers.get("x-signature") ??
-    headers.get("x-lazada-signature") ??
-    undefined
-  )
-}
-
 async function findShop(
   platform: LazopPlatform,
   sellerId: string,
@@ -127,7 +118,11 @@ webhooks.post("/lazop", async (c) => {
     return c.json({ ok: false, error: "unknown_app" }, 400)
   }
 
-  const signature = signatureFrom(c.req.raw.headers)
+  const signature = firstString(
+    c.req.header("authorization"),
+    c.req.header("x-signature"),
+    c.req.header("x-lazada-signature")
+  )
   const sellerId = firstString(body.seller_id, data.seller_id)
   const externalOrderId = firstString(
     data.trade_order_id,

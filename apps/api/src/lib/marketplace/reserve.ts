@@ -196,7 +196,7 @@ export async function maybeAutoReserveSyncedOrder(input: {
   for (const line of lines) {
     const sellerSku = line.sellerSku || line.sku || line.shopSku || ""
     const qtyParsed = parseReserveQty(line.qty)
-    if (!qtyParsed.ok) {
+    if ("reason" in qtyParsed) {
       await upsertReservationException({
         organizationId: input.organizationId,
         shopId: input.shopId,
@@ -303,7 +303,7 @@ export async function maybeAutoReserveSyncedOrder(input: {
           balances,
           requiredQty: item.qty,
         })
-        if (!picked.ok) {
+        if ("reason" in picked) {
           throw new Error(picked.reason)
         }
 
@@ -503,7 +503,7 @@ export async function maybeAutoReleaseCancelledOrder(input: {
     orderStatus: order.status,
     fulfillmentStatus: order.fulfillmentStatus,
   })
-  if (!gate.ok) return { released: false, reason: gate.reason }
+  if ("reason" in gate) return { released: false, reason: gate.reason }
 
   try {
     const result = await db.transaction(async (tx) => {

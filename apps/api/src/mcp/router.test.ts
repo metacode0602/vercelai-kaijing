@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import type { AppDatabase } from "@workspace/db"
 import { createMcpRouter } from "./router"
+import type { McpHeaderReader } from "./auth"
 import { toMcpToolList, isForbiddenToolName, listRegisteredTools, callRegisteredTool } from "./tools"
 import type { McpPrincipal } from "./types"
 import { McpHttpError } from "./types"
@@ -22,7 +23,7 @@ const reader: McpPrincipal = {
   clientId: "client_ok",
 }
 
-function router(authenticate: (headers: Headers) => Promise<McpPrincipal>, env = envOn) {
+function router(authenticate: (readHeader: McpHeaderReader) => Promise<McpPrincipal>, env = envOn) {
   return createMcpRouter({ db, env, authenticate })
 }
 
