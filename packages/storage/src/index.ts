@@ -158,16 +158,27 @@ export function resolveOssConfig(uri?: string): OssConfig {
 }
 
 /**
- * 对象请求基地址（path-style，形如 https://oss-cn-hangzhou.aliyuncs.com）。
- * 默认走 endpoint；启用内网时优先走 STORAGE_ENDPOINT（内网地址），否则自动拼 -internal。
+ * 对象请求基地址。
+ *
+ * 阿里云 OSS 只支持 Virtual Hosted Style（三级域名，形如
+ * `https://{bucket}.oss-cn-hangzhou.aliyuncs.com`），使用区域二级域名
+ * （`https://oss-cn-hangzhou.aliyuncs.com/{bucket}/...`）会被拒绝并返回
+ * `SecondLevelDomainForbidden`。因此当 endpoint 只配置了区域域名时，这里自动
+ * 补上 bucket 前缀；已包含 bucket 的 endpoint 或自定义 CNAME 保持原样。
  */
 function requestBase(cfg: OssConfig): string {
   const protocol = cfg.secure ? 'https' : 'http'
-  const host = cfg.internal ? cfg.internalEndpoint : cfg.endpoint
-  if (!/^https?:\/\//i.test(host)) {
-    return `${protocol}://${host}`
+  const raw = cfg.internal ? cfg.internalEndpoint : cfg.endpoint
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `${protocol}://${raw}`
+  const url = new URL(withProtocol)
+  if (
+    !url.hostname.startsWith(`${cfg.bucket}.`) &&
+    url.hostname.endsWith('.aliyuncs.com')
+  ) {
+    url.hostname = `${cfg.bucket}.${url.hostname}`
   }
-  return host.replace(/\/+$/, '')
+  const pathname = url.pathname.replace(/\/+$/, '')
+  return `${url.protocol}//${url.host}${pathname}`
 }
 
 export function buildOssAuthorization(
@@ -208,7 +219,7 @@ function signRequest(
   if (operation.contentType) {
     headers['Content-Type'] = operation.contentType
   }
-  return { url: `${base}/${cfg.bucket}/${objectKey}`, headers }
+  return { url: `${base}/${objectKey}`, headers }
 }
 
 export async function ossPut(
@@ -260,7 +271,7 @@ export async function ossListByPrefix(cfg: OssConfig, prefix: string): Promise<s
     })
     if (continuationToken) params.set('continuation-token', continuationToken)
 
-    const resource = `/${cfg.bucket}?${params.toString()}`
+    const resource = `/${cfg.bucket}/?${params.toString()}`
     const date = new Date().toUTCString()
     const authorization = buildOssAuthorization(
       'GET',
@@ -271,7 +282,7 @@ export async function ossListByPrefix(cfg: OssConfig, prefix: string): Promise<s
       cfg.accessKeySecret,
     )
 
-    const res = await fetch(`${base}/${cfg.bucket}?${params.toString()}`, {
+    const res = await fetch(`${base}/?${params.toString()}`, {
       method: 'GET',
       headers: { Authorization: authorization, Date: date },
     })
@@ -315,7 +326,7 @@ export function createOssPresignedPutUrl(
   const signature = createHmac('sha1', cfg.accessKeySecret).update(stringToSign).digest('base64')
   const base = requestBase(cfg)
   const url =
-    `${base}/${cfg.bucket}/${objectKey}` +
+    `${base}/${objectKey}` +
     `?OSSAccessKeyId=${encodeURIComponent(cfg.accessKeyId)}` +
     `&Expires=${expires}` +
     `&Signature=${encodeURIComponent(signature)}`
@@ -330,7 +341,7 @@ export function createOssPresignedGetUrl(cfg: OssConfig, objectKey: string, expi
   const signature = createHmac('sha1', cfg.accessKeySecret).update(stringToSign).digest('base64')
   const base = requestBase(cfg)
   return (
-    `${base}/${cfg.bucket}/${objectKey}` +
+    `${base}/${objectKey}` +
     `?OSSAccessKeyId=${encodeURIComponent(cfg.accessKeyId)}` +
     `&Expires=${expires}` +
     `&Signature=${encodeURIComponent(signature)}`
