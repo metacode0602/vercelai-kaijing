@@ -1,9 +1,10 @@
 {
-    "$schema": "https://openapi.vercel.sh/vercel.json",
-    "git": {
-      "deploymentEnabled": {
-        "*": false,
-        "main": true
-      }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "hono",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
     }
   }
+}
