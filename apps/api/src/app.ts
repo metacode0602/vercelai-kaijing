@@ -11,6 +11,7 @@ import { csrf } from "hono/csrf"
 import { auth } from "./lib/auth"
 import { env } from "./lib/env"
 import { AUTH_PATH } from "./lib/auth-path"
+import mcpApp from "./mcp-app"
 
 import health from "./routes/health"
 import hello from "./routes/hello"
@@ -74,4 +75,12 @@ apiV1.doc("/open-api", {
 
 app.route("/api/v1", apiV1)
 
-export default app
+/**
+ * 根应用：/mcp 先于现有 app 挂载，避免落入 5s timeout / CSRF。
+ * Vercel 等平台以本文件作为入口（default export）。
+ */
+const root = new Hono()
+root.route("/", mcpApp)
+root.route("/", app)
+
+export default root

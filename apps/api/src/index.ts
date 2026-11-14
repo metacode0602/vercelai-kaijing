@@ -1,7 +1,5 @@
 import { serve } from "@hono/node-server"
-import { Hono } from "hono"
 import app from "./app"
-import mcpApp from "./mcp-app"
 import { pool } from "./lib/db"
 import { env } from "./lib/env"
 import {
@@ -9,39 +7,39 @@ import {
   stopMarketplaceSyncCron,
 } from "./lib/marketplace/cron"
 
-const root = new Hono()
-// /mcp 必须先于现有 app 挂载，避免落入 5s timeout / CSRF。
-root.route("/", mcpApp)
-root.route("/", app)
+// Vercel 以 default export 作为 Hono 入口；本地/自托管才启动常驻 HTTP 服务。
+export default app
 
-const server = serve({ fetch: root.fetch, port: env.PORT }, (info) => {
-  console.log(`API running on http://localhost:${info.port}`)
-  startMarketplaceSyncCron()
-})
+if (!process.env.VERCEL) {
+  const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+    console.log(`API running on http://localhost:${info.port}`)
+    startMarketplaceSyncCron()
+  })
 
-function shutdown() {
-  stopMarketplaceSyncCron()
-  server.close(async (err) => {
-    if (err) {
-      console.error(err)
-      process.exit(1)
-      return
-    }
+  function shutdown() {
+    stopMarketplaceSyncCron()
+    server.close(async (err) => {
+      if (err) {
+        console.error(err)
+        process.exit(1)
+        return
+      }
 
-    try {
-      await pool.end()
-      process.exit(0)
-    } catch (error) {
-      console.error(error)
-      process.exit(1)
-    }
+      try {
+        await pool.end()
+        process.exit(0)
+      } catch (error) {
+        console.error(error)
+        process.exit(1)
+      }
+    })
+  }
+
+  process.on("SIGINT", () => {
+    shutdown()
+  })
+
+  process.on("SIGTERM", () => {
+    shutdown()
   })
 }
-
-process.on("SIGINT", () => {
-  shutdown()
-})
-
-process.on("SIGTERM", () => {
-  shutdown()
-})

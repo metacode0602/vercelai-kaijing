@@ -14,6 +14,12 @@ const commaSeparatedList = z
   )
 
 export const env = createEnv({
+  /*
+   * 纯服务端应用，不暴露客户端变量。显式声明空前缀与空 client，
+   * 避免 createEnv 在某些环境下把 TPrefix 推断为 string 而报错。
+   */
+  clientPrefix: "",
+  client: {},
   server: {
     PORT: z
       .string()
