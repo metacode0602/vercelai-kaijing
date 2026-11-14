@@ -78,8 +78,11 @@ export const env = createEnv({
       .optional()
       .default("false")
       .transform((value) => value === "true" || value === "1"),
-    /** Edge Agent REST API key（请求头 X-Agent-API-Key） */
-    AGENT_API_KEY: z.string().min(1),
+    /**
+     * Edge Agent REST API key（请求头 X-Agent-API-Key）。
+     * 可选：仅 Agent 相关端点需要，未配置时不应阻塞整个 API 启动。
+     */
+    AGENT_API_KEY: z.string().min(1).optional(),
     /** Agent 二进制版本号（/version 与 CDN 路径） */
     AGENT_VERSION: z.string().min(1).default("1.0.0"),
     /** Agent 二进制 CDN 根 URL；未设置时 /downloads 返回 501 stub */
