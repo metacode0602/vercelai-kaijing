@@ -3,10 +3,18 @@ import { and, eq } from "drizzle-orm"
 import { listings, pendingActions, type AppDatabase } from "@workspace/db"
 import { assertMcpWriteAllowed, type DomainActor } from "./actor"
 import { actorName, recordMcpAudit } from "./audit"
-import { NotFoundError } from "./errors"
+import { ConflictError, DomainError, NotFoundError } from "./errors"
 import { requireDesktopShop } from "./shops"
 
 const PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/** 解析客户端传入的乐观锁时间戳；未传返回 null，格式非法抛 validation_error。 */
+function parseExpectedUpdatedAt(value: string | undefined): Date | null {
+  if (value === undefined) return null
+  const ts = Date.parse(value)
+  if (Number.isNaN(ts)) throw new DomainError("validation_error", "expectedUpdatedAt 不是合法的 ISO 8601 时间")
+  return new Date(ts)
+}
 
 export type PendingWriteResult = {
   id: string
@@ -76,22 +84,27 @@ export async function createPriceChangePending(
     priceAmount: number
     currency?: string
     idempotencyKey?: string
+    expectedUpdatedAt?: string
   },
 ): Promise<PendingWriteResult> {
-  if (!(input.priceAmount > 0)) throw new Error("售价必须大于 0")
+  if (!(input.priceAmount > 0)) throw new DomainError("validation_error", "售价必须大于 0")
 
   const listing = await loadListing(db, actor.organizationId, input.listingId)
   const shopId = input.shopId?.trim() || listing.shopId
   if (input.shopId?.trim() && input.shopId.trim() !== listing.shopId) {
-    throw new Error("店铺与刊登不匹配")
+    throw new DomainError("validation_error", "店铺与刊登不匹配")
   }
   await requireDesktopShop(db, actor.organizationId, shopId)
 
+  const expected = parseExpectedUpdatedAt(input.expectedUpdatedAt)
   const now = new Date()
   const idempotencyKey =
     input.idempotencyKey?.trim() || `mcp:price_change:${listing.id}:${input.priceAmount}:${input.currency ?? ""}`
   const existing = await findByIdempotency(db, actor.organizationId, idempotencyKey)
   if (existing) {
+    if (expected && existing.updatedAt.getTime() !== expected.getTime()) {
+      throw new ConflictError("已存在的改价待审在你读取后被修改，请刷新后重试", existing.id)
+    }
     return toResult(existing, "已存在相同改价待审，未重复创建，也未改动刊登售价。", true)
   }
 
@@ -140,21 +153,26 @@ export async function createInventoryPushPending(
     shopId?: string
     qty: number
     idempotencyKey?: string
+    expectedUpdatedAt?: string
   },
 ): Promise<PendingWriteResult> {
-  if (!Number.isFinite(input.qty) || input.qty < 0) throw new Error("库存数量不能为负数")
+  if (!Number.isFinite(input.qty) || input.qty < 0) throw new DomainError("validation_error", "库存数量不能为负数")
 
   const listing = await loadListing(db, actor.organizationId, input.listingId)
   const shopId = input.shopId?.trim() || listing.shopId
   if (input.shopId?.trim() && input.shopId.trim() !== listing.shopId) {
-    throw new Error("店铺与刊登不匹配")
+    throw new DomainError("validation_error", "店铺与刊登不匹配")
   }
   await requireDesktopShop(db, actor.organizationId, shopId)
 
+  const expected = parseExpectedUpdatedAt(input.expectedUpdatedAt)
   const now = new Date()
   const idempotencyKey = input.idempotencyKey?.trim() || `mcp:inventory_push:${listing.id}:${input.qty}`
   const existing = await findByIdempotency(db, actor.organizationId, idempotencyKey)
   if (existing) {
+    if (expected && existing.updatedAt.getTime() !== expected.getTime()) {
+      throw new ConflictError("已存在的库存推送待审在你读取后被修改，请刷新后重试", existing.id)
+    }
     return toResult(existing, "已存在相同库存推送待审，未重复创建，也未向平台推送库存。", true)
   }
 
@@ -205,6 +223,7 @@ export type CompleteListingSubmitInput = {
   size?: string
   warehouseCode?: string
   logisticsChannel?: string
+  expectedUpdatedAt?: string
 }
 
 /**
@@ -223,10 +242,11 @@ export async function completeListingSubmitPending(
     )
     .limit(1)
   if (!row) throw new NotFoundError("待审单不存在")
-  if (row.kind !== "listing_submit") throw new Error("仅刊登提交待审单可补全")
-  if (row.status !== "pending") throw new Error("当前状态不可补全")
+  if (row.kind !== "listing_submit") throw new DomainError("validation_error", "仅刊登提交待审单可补全")
+  if (row.status !== "pending") throw new DomainError("validation_error", "当前状态不可补全")
   if (row.shopId) await requireDesktopShop(db, actor.organizationId, row.shopId)
 
+  const expected = parseExpectedUpdatedAt(input.expectedUpdatedAt)
   const payload = readPayload(row.payload)
   const patch: Record<string, unknown> = { ...payload }
   const fields: Array<keyof CompleteListingSubmitInput> = [
@@ -249,14 +269,23 @@ export async function completeListingSubmitPending(
     if (typeof value === "string" && value.trim()) patch[key] = value.trim()
   }
   if (input.sellPrice != null) {
-    if (!(input.sellPrice > 0)) throw new Error("售价必须大于 0")
+    if (!(input.sellPrice > 0)) throw new DomainError("validation_error", "售价必须大于 0")
     patch.sellPrice = input.sellPrice
   }
   const now = new Date()
-  await db
+  const conditions = [
+    eq(pendingActions.organizationId, actor.organizationId),
+    eq(pendingActions.id, row.id),
+  ]
+  if (expected) conditions.push(eq(pendingActions.updatedAt, expected))
+  const updatedRows = await db
     .update(pendingActions)
     .set({ payload: patch, updatedAt: now })
-    .where(and(eq(pendingActions.organizationId, actor.organizationId), eq(pendingActions.id, row.id)))
+    .where(and(...conditions))
+    .returning({ id: pendingActions.id })
+  if (expected && updatedRows.length === 0) {
+    throw new ConflictError("待审单已被他人修改（expectedUpdatedAt 不一致），请刷新后重试", row.id)
+  }
   const updated = await findByIdempotency(db, actor.organizationId, row.idempotencyKey)
   if (!updated) throw new Error("补全待审失败")
   await recordMcpAudit(db, actor, {

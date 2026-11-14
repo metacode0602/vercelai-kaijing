@@ -5,6 +5,8 @@ import {
   OPENSHOP_WRITE_PENDING_SCOPE,
 } from "@workspace/auth"
 import {
+  ConflictError,
+  DomainError,
   assertMcpWriteAllowed,
   acceptCandidateAsDraft,
   candidateStats,
@@ -77,6 +79,74 @@ export type ToolContext = {
   actor: DomainActor
 }
 
+/** C11 契约错误码。 */
+export type ToolErrorCode =
+  | "validation_error"
+  | "not_found"
+  | "conflict"
+  | "scope_denied"
+  | "tool_forbidden"
+  | "tool_not_found"
+  | "desktop_scope"
+  | "internal_error"
+
+export type ToolCallFailure = {
+  ok: false
+  code: ToolErrorCode
+  message: string
+  fieldErrors: Record<string, string>
+  retryable: boolean
+  pendingActionId: string | null
+}
+
+export type ToolCallOutcome = { ok: true; data: unknown } | ToolCallFailure
+
+class FieldValidationError extends Error {
+  readonly field: string
+  constructor(field: string, label: string, message?: string) {
+    super(message ?? `缺少${label}`)
+    this.name = "FieldValidationError"
+    this.field = field
+  }
+}
+
+const VALIDATION_MESSAGE_RE = /^(缺少|无效)/
+const VALIDATION_HINT_RE = /(必须|不匹配|不支持|不能|不可)/
+
+function failure(
+  code: ToolErrorCode,
+  message: string,
+  options: { fieldErrors?: Record<string, string>; retryable?: boolean; pendingActionId?: string | null } = {},
+): ToolCallFailure {
+  return {
+    ok: false,
+    code,
+    message,
+    fieldErrors: options.fieldErrors ?? {},
+    retryable: options.retryable ?? false,
+    pendingActionId: options.pendingActionId ?? null,
+  }
+}
+
+function classifyThrownError(error: unknown): ToolCallFailure {
+  const message = error instanceof Error ? error.message : String(error)
+  if (error instanceof FieldValidationError) {
+    return failure("validation_error", message, { fieldErrors: { [error.field]: message } })
+  }
+  if (error instanceof DomainError) {
+    const pendingActionId = error instanceof ConflictError ? (error.pendingActionId ?? null) : null
+    if (error.code === "not_found") return failure("not_found", message, { pendingActionId })
+    if (error.code === "conflict") return failure("conflict", message, { pendingActionId })
+    if (error.code === "validation_error") return failure("validation_error", message)
+    if (error.code === "desktop_scope") return failure("desktop_scope", message)
+    return failure("internal_error", message, { retryable: false })
+  }
+  if (VALIDATION_MESSAGE_RE.test(message) || VALIDATION_HINT_RE.test(message)) {
+    return failure("validation_error", message)
+  }
+  return failure("internal_error", message, { retryable: true })
+}
+
 function str(args: Record<string, unknown>, key: string): string | undefined {
   const value = args[key]
   return typeof value === "string" && value.trim() ? value.trim() : undefined
@@ -94,13 +164,13 @@ function num(args: Record<string, unknown>, key: string): number | undefined {
 
 function requireString(args: Record<string, unknown>, key: string, label: string): string {
   const value = str(args, key)
-  if (!value) throw new Error(`缺少${label}`)
+  if (!value) throw new FieldValidationError(key, label)
   return value
 }
 
 function requireNumber(args: Record<string, unknown>, key: string, label: string): number {
   const value = num(args, key)
-  if (value == null) throw new Error(`缺少或无效的${label}`)
+  if (value == null) throw new FieldValidationError(key, label, `缺少或无效的${label}`)
   return value
 }
 
@@ -161,121 +231,121 @@ function readTool(
 }
 
 const tools: ToolDef[] = [
-  readTool("openshop.dashboard.kpis", "读取今日订单、待审与低库存等 KPI（按币种，不跨币种合计）", (ctx, args) =>
+  readTool("openshop_dashboard_kpis", "读取今日订单、待审与低库存等 KPI（按币种，不跨币种合计）", (ctx, args) =>
     getDashboardKpis(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.dashboard.trends", "读取近几日订单趋势，按币种分列", (ctx, args) =>
+  readTool("openshop_dashboard_trends", "读取近几日订单趋势，按币种分列", (ctx, args) =>
     getDashboardTrends(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.dashboard.todos", "读取待办待审列表", (ctx, args) =>
+  readTool("openshop_dashboard_todos", "读取待办待审列表", (ctx, args) =>
     getDashboardTodos(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.dashboard.alerts", "读取库存预警与失败/已跳过的同步", (ctx, args) =>
+  readTool("openshop_dashboard_alerts", "读取库存预警与失败/已跳过的同步", (ctx, args) =>
     getDashboardAlerts(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.products.search", "搜索 SPU 商品目录", (ctx, args) =>
+  readTool("openshop_products_search", "搜索 SPU 商品目录", (ctx, args) =>
     searchProducts(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   readTool(
-    "openshop.products.get",
+    "openshop_products_get",
     "读取单个 SPU 及其内部 SKU",
     (ctx, args) => getProduct(ctx.db, ctx.principal.organizationId, requireString(args, "id", "商品 ID")),
     { id: { type: "string" } },
     ["id"],
   ),
-  readTool("openshop.candidates.list", "列出选品候选", (ctx, args) =>
+  readTool("openshop_candidates_list", "列出选品候选", (ctx, args) =>
     listCandidates(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   readTool(
-    "openshop.candidates.get",
+    "openshop_candidates_get",
     "读取单个选品候选",
     (ctx, args) => getCandidate(ctx.db, ctx.principal.organizationId, requireString(args, "id", "候选 ID")),
     { id: { type: "string" } },
     ["id"],
   ),
-  readTool("openshop.candidates.stats", "选品候选按状态统计", (ctx, args) =>
+  readTool("openshop_candidates_stats", "选品候选按状态统计", (ctx, args) =>
     candidateStats(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.listings.list", "列出 Daraz 斯里兰卡刊登", (ctx, args) =>
+  readTool("openshop_listings_list", "列出 Daraz 斯里兰卡刊登", (ctx, args) =>
     listListings(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   readTool(
-    "openshop.listings.get",
+    "openshop_listings_get",
     "读取单个刊登",
     (ctx, args) => getListing(ctx.db, ctx.principal.organizationId, requireString(args, "id", "刊登 ID")),
     { id: { type: "string" } },
     ["id"],
   ),
-  readTool("openshop.listings.stats", "刊登按状态统计", (ctx, args) =>
+  readTool("openshop_listings_stats", "刊登按状态统计", (ctx, args) =>
     listingStats(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.orders.list", "列出订单（买家信息已脱敏，不含 raw）", (ctx, args) =>
+  readTool("openshop_orders_list", "列出订单（买家信息已脱敏，不含 raw）", (ctx, args) =>
     listOrders(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   readTool(
-    "openshop.orders.get",
+    "openshop_orders_get",
     "读取单个订单（已脱敏）",
     (ctx, args) => getOrder(ctx.db, ctx.principal.organizationId, requireString(args, "id", "订单 ID")),
     { id: { type: "string" } },
     ["id"],
   ),
-  readTool("openshop.orders.exceptions", "列出取消待确认等异常订单", (ctx, args) =>
+  readTool("openshop_orders_exceptions", "列出取消待确认等异常订单", (ctx, args) =>
     listOrderExceptions(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.inventory.list", "列出库存余额与可售数量", (ctx, args) =>
+  readTool("openshop_inventory_list", "列出库存余额与可售数量", (ctx, args) =>
     listInventory(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.inventory.alerts", "列出未关闭的库存预警", (ctx, args) =>
+  readTool("openshop_inventory_alerts", "列出未关闭的库存预警", (ctx, args) =>
     listInventoryAlerts(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.finance.overview", "结算汇总（按币种，不是完整利润）", (ctx, args) =>
+  readTool("openshop_finance_overview", "结算汇总（按币种，不是完整利润）", (ctx, args) =>
     financeOverview(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.finance.settlements", "列出结算单", (ctx, args) =>
+  readTool("openshop_finance_settlements", "列出结算单", (ctx, args) =>
     listSettlements(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.finance.profits", "结算口径汇总；完整利润请在 Web 查看", (ctx, args) =>
+  readTool("openshop_finance_profits", "结算口径汇总；完整利润请在 Web 查看", (ctx, args) =>
     financeProfits(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.finance.sku_costs", "列出 SKU 成本", (ctx, args) =>
+  readTool("openshop_finance_sku_costs", "列出 SKU 成本", (ctx, args) =>
     listSkuCosts(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.finance.freight", "费用模板、海运柜次与运价卡三源只读合并（不做虚构估算，不存在 freight_estimates 表）", (ctx, args) =>
+  readTool("openshop_finance_freight", "费用模板、海运柜次与运价卡三源只读合并（不做虚构估算，不存在 freight_estimates 表）", (ctx, args) =>
     listFreight(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.pricing.suggest", "返回已保存的定价建议草稿，不现场虚构价格", (ctx, args) =>
+  readTool("openshop_pricing_suggest", "返回已保存的定价建议草稿，不现场虚构价格", (ctx, args) =>
     suggestPrices(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.pricing.drafts", "列出 Daraz LK 定价建议草稿", (ctx, args) =>
+  readTool("openshop_pricing_drafts", "列出 Daraz LK 定价建议草稿", (ctx, args) =>
     listPricingDrafts(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.settings.shop_policy", "查看店铺库存推送与改价回写开关（只读）", (ctx, args) =>
+  readTool("openshop_settings_shop_policy", "查看店铺库存推送与改价回写开关（只读）", (ctx, args) =>
     listShopPolicies(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.reports.sell_through", "按订单行汇总销量", (ctx, args) =>
+  readTool("openshop_reports_sell_through", "按订单行汇总销量", (ctx, args) =>
     reportSellThrough(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.reports.stock_risk", "库存预警与可售为 0 的风险", (ctx, args) =>
+  readTool("openshop_reports_stock_risk", "库存预警与可售为 0 的风险", (ctx, args) =>
     reportStockRisk(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.reports.attribution", "归因报表；暂无数据时如实说明", (ctx, args) =>
+  readTool("openshop_reports_attribution", "归因报表；暂无数据时如实说明", (ctx, args) =>
     reportAttribution(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
-  readTool("openshop.pending.list", "列出待审事项（只读）", (ctx, args) =>
+  readTool("openshop_pending_list", "列出待审事项（只读）", (ctx, args) =>
     listPending(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   readTool(
-    "openshop.pending.get",
+    "openshop_pending_get",
     "读取单个待审事项（只读，不能确认）",
     (ctx, args) => getPending(ctx.db, ctx.principal.organizationId, requireString(args, "id", "待审 ID")),
     { id: { type: "string" } },
     ["id"],
   ),
-  readTool("openshop.sync.tasks", "列出同步任务，失败/已跳过如实展示", (ctx, args) =>
+  readTool("openshop_sync_tasks", "列出同步任务，失败/已跳过如实展示", (ctx, args) =>
     listSyncTasks(ctx.db, ctx.principal.organizationId, queryArgs(args)),
   ),
   {
-    name: "openshop.pending.create_price_change",
+    name: "openshop_pending_create_price_change",
     description: "创建改价待审，不修改刊登售价，也不向平台回写。确认请在 /console/pending。",
     inputSchema: {
       type: "object",
@@ -285,6 +355,10 @@ const tools: ToolDef[] = [
         priceAmount: { type: "number" },
         currency: { type: "string" },
         idempotencyKey: { type: "string" },
+        expectedUpdatedAt: {
+          type: "string",
+          description: "可选乐观锁：命中已有待审时，其 updatedAt 必须等于该 ISO 8601 时间，否则返回 conflict",
+        },
       },
       required: ["listingId", "priceAmount"],
     },
@@ -298,10 +372,11 @@ const tools: ToolDef[] = [
         priceAmount: requireNumber(args, "priceAmount", "售价"),
         currency: str(args, "currency"),
         idempotencyKey: str(args, "idempotencyKey"),
+        expectedUpdatedAt: str(args, "expectedUpdatedAt"),
       }),
   },
   {
-    name: "openshop.pending.create_inventory_push",
+    name: "openshop_pending_create_inventory_push",
     description: "创建库存推送待审，不向平台推送库存。确认请在 /console/pending。",
     inputSchema: {
       type: "object",
@@ -310,6 +385,10 @@ const tools: ToolDef[] = [
         shopId: { type: "string" },
         qty: { type: "number" },
         idempotencyKey: { type: "string" },
+        expectedUpdatedAt: {
+          type: "string",
+          description: "可选乐观锁：命中已有待审时，其 updatedAt 必须等于该 ISO 8601 时间，否则返回 conflict",
+        },
       },
       required: ["listingId", "qty"],
     },
@@ -322,10 +401,11 @@ const tools: ToolDef[] = [
         shopId: str(args, "shopId"),
         qty: requireNumber(args, "qty", "库存数量"),
         idempotencyKey: str(args, "idempotencyKey"),
+        expectedUpdatedAt: str(args, "expectedUpdatedAt"),
       }),
   },
   {
-    name: "openshop.pending.complete_listing_submit",
+    name: "openshop_pending_complete_listing_submit",
     description: "补全刊登提交待审必填项，不确认、不发布到平台。",
     inputSchema: {
       type: "object",
@@ -346,6 +426,10 @@ const tools: ToolDef[] = [
         size: { type: "string" },
         warehouseCode: { type: "string" },
         logisticsChannel: { type: "string" },
+        expectedUpdatedAt: {
+          type: "string",
+          description: "可选乐观锁：待审单 updatedAt 必须等于该 ISO 8601 时间，否则返回 conflict",
+        },
       },
       required: [],
     },
@@ -369,10 +453,11 @@ const tools: ToolDef[] = [
         size: str(args, "size"),
         warehouseCode: str(args, "warehouseCode"),
         logisticsChannel: str(args, "logisticsChannel"),
+        expectedUpdatedAt: str(args, "expectedUpdatedAt"),
       }),
   },
   {
-    name: "openshop.candidates.create",
+    name: "openshop_candidates_create",
     description: "创建选品候选，并生成 sourcing_upsert 待审。不发布、不假装爬虫成功。",
     inputSchema: {
       type: "object",
@@ -408,7 +493,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.candidates.update",
+    name: "openshop_candidates_update",
     description: "更新仍为待审的选品候选，不确认待审。",
     inputSchema: {
       type: "object",
@@ -444,7 +529,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.candidates.accept",
+    name: "openshop_candidates_accept",
     description: "接受候选：创建 SPU 草稿和刊登提交待审，不发布到平台。",
     inputSchema: {
       type: "object",
@@ -470,7 +555,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.candidates.reject",
+    name: "openshop_candidates_reject",
     description: "拒绝选品候选并填写理由。不会由 MCP 确认或关闭待审。",
     inputSchema: {
       type: "object",
@@ -490,7 +575,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.listings.create_draft",
+    name: "openshop_listings_create_draft",
     description: "创建本地刊登草稿（未发布），不入队平台写入。",
     inputSchema: {
       type: "object",
@@ -534,7 +619,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.listings.submit_for_review",
+    name: "openshop_listings_submit_for_review",
     description: "提交刊登审核，只生成 listing_submit 待审，不发布到平台。",
     inputSchema: {
       type: "object",
@@ -553,7 +638,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.pricing.save_draft",
+    name: "openshop_pricing_save_draft",
     description: "保存 Daraz LK 定价建议草稿，不改刊登售价，不向平台回写。",
     inputSchema: {
       type: "object",
@@ -583,7 +668,7 @@ const tools: ToolDef[] = [
       }),
   },
   {
-    name: "openshop.sync.request",
+    name: "openshop_sync_request",
     description: "仅请求读同步（订单、刊登拉取、结算、物流、评论）。拒绝库存/改价/发布等写同步。",
     inputSchema: {
       type: "object",
@@ -638,6 +723,10 @@ const tools: ToolDef[] = [
 ]
 
 const FORBIDDEN_TOOL_NAMES = [
+  "openshop_pending_confirm",
+  "openshop_pending_reject",
+  "openshop_listings_publish",
+  // 兼容旧点号命名的调用方：仍按禁止工具处理，而不是「未注册工具」。
   "openshop.pending.confirm",
   "openshop.pending.reject",
   "openshop.listings.publish",
@@ -686,30 +775,30 @@ export async function callRegisteredTool(
   principal: McpPrincipal,
   name: string,
   args: Record<string, unknown>,
-): Promise<{ ok: true; data: unknown } | { ok: false; message: string }> {
-  if (isForbiddenToolName(name) || name.includes("confirm") && name.includes("pending")) {
+): Promise<ToolCallOutcome> {
+  const legacyConfirm = name === "openshop.pending.confirm" || name === "openshop_pending_confirm"
+  if (isForbiddenToolName(name) || (name.includes("confirm") && name.includes("pending"))) {
     if (name.includes("confirm") || name.includes("reject") || name.includes("publish")) {
       try {
         assertMcpWriteAllowed(createToolContext(db, principal).actor, name)
       } catch (error) {
-        return { ok: false, message: error instanceof Error ? error.message : String(error) }
+        return failure("tool_forbidden", error instanceof Error ? error.message : String(error))
       }
-      return { ok: false, message: "未注册该工具，且 MCP 不得确认待审或直接写平台。" }
+      return failure("tool_forbidden", "未注册该工具，且 MCP 不得确认待审或直接写平台。")
     }
   }
   const tool = tools.find((item) => item.name === name)
-  if (!tool) return { ok: false, message: `未注册工具：${name}` }
-  if (name === "openshop.pending.confirm" || tool.requiredScope === OPENSHOP_WRITE_CONFIRM_SCOPE) {
-    return { ok: false, message: "确认待审未向 Agent 开放，请在 /console/pending 处理。" }
+  if (!tool) return failure("tool_not_found", `未注册工具：${name}`)
+  if (legacyConfirm || tool.requiredScope === OPENSHOP_WRITE_CONFIRM_SCOPE) {
+    return failure("tool_forbidden", "确认待审未向 Agent 开放，请在 /console/pending 处理。")
   }
   if (!hasRequiredScope(principal.scopes, tool.requiredScope)) {
-    return {
-      ok: false,
-      message:
-        tool.kind === "write"
-          ? "当前令牌没有提交待审的授权范围（openshop:write.pending）"
-          : "当前令牌没有读取经营数据的授权范围（openshop:read）",
-    }
+    return failure(
+      "scope_denied",
+      tool.kind === "write"
+        ? "当前令牌没有提交待审的授权范围（openshop:write.pending）"
+        : "当前令牌没有读取经营数据的授权范围（openshop:read）",
+    )
   }
   // 忽略模型传入的 organization_id
   const { organization_id: _ignoredOrg, organizationId: _ignoredOrg2, ...safeArgs } = args
@@ -719,6 +808,6 @@ export async function callRegisteredTool(
     const data = await tool.handler(createToolContext(db, principal), safeArgs)
     return { ok: true, data }
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) }
+    return classifyThrownError(error)
   }
 }

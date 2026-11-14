@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { eq, or } from "drizzle-orm"
+import { and, eq, or } from "drizzle-orm"
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose"
 import {
   apiKeyHashesEqual,
@@ -11,6 +11,7 @@ import {
 } from "@workspace/auth"
 import {
   apiKeys,
+  member,
   oauthAccessToken,
   oauthClient,
   organizationSettings,
@@ -20,15 +21,29 @@ import { McpHttpError, type McpEnv, type McpPrincipal } from "./types"
 
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 
+/** Better Auth 挂载路径，与 packages/auth 的 AUTH_PATH 保持一致。 */
+const AUTH_BASE_PATH = "/api/auth"
+
+/**
+ * 归一化授权服务器 issuer：JWT `iss`、JWKS 地址、RFC 8414 discovery
+ * 都必须使用带 /api/auth 的完整 issuer（AS 实测 issuer = https://host/api/auth）。
+ * 配置里传 origin 或完整 issuer 均可。
+ */
+export function resolveOauthIssuer(env: McpEnv): string | null {
+  const raw = env.OPENSHOP_OAUTH_ISSUER || env.BETTER_AUTH_URL
+  if (!raw) return null
+  const trimmed = raw.replace(/\/+$/, "")
+  return trimmed.endsWith(AUTH_BASE_PATH) ? trimmed : `${trimmed}${AUTH_BASE_PATH}`
+}
+
 function issuerOf(env: McpEnv): string | null {
-  const issuer = env.OPENSHOP_OAUTH_ISSUER || env.BETTER_AUTH_URL
-  return issuer?.replace(/\/$/, "") || null
+  return resolveOauthIssuer(env)
 }
 
 function jwksFor(issuer: string) {
   const existing = jwksByIssuer.get(issuer)
   if (existing) return existing
-  const jwks = createRemoteJWKSet(new URL(`${issuer}/api/auth/jwks`))
+  const jwks = createRemoteJWKSet(new URL(`${issuer}/jwks`))
   jwksByIssuer.set(issuer, jwks)
   return jwks
 }
@@ -171,10 +186,24 @@ async function authenticateJwt(
     devOrganizationId: process.env.SHOP_DEV_ORGANIZATION_ID ?? null,
   })
   if (!decision.ok) deny(env, decision.status, decision.message)
+  // C7：每请求校验成员关系。成员被移除后，令牌在过期前也不能继续调用。
+  const userId = typeof claims.sub === "string" ? claims.sub : ""
+  if (!userId) deny(env, 401, "访问令牌缺少用户身份")
+  const [memberRow] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(
+      and(
+        eq(member.organizationId, decision.organizationId),
+        eq(member.userId, userId),
+      ),
+    )
+    .limit(1)
+  if (!memberRow) deny(env, 401, "已不是该组织成员")
   return {
     organizationId: decision.organizationId,
     scopes: scopesFromClaims(payload),
-    userId: typeof payload.sub === "string" ? payload.sub : undefined,
+    userId,
     clientId: clientId ?? undefined,
     tokenId: typeof payload.jti === "string" ? payload.jti : undefined,
     kind: "oauth",

@@ -101,3 +101,11 @@ export const env = createEnv({
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
 })
+
+// C3/C5 防呆：打开 MCP 时必须显式声明公网资源 URL。
+// Den 按 RFC 9728 做字符串完全相等校验，默认值 https://localhost/mcp 会导致线上 401 指错元数据。
+if (env.OPENSHOP_MCP_ENABLED && !env.OPENSHOP_MCP_RESOURCE) {
+  throw new Error(
+    "OPENSHOP_MCP_ENABLED=true 时必须同时配置 OPENSHOP_MCP_RESOURCE（MCP 公网 URL，须与 Den 连接的 serverUrl 完全一致，例如 https://api.example.com/mcp）",
+  )
+}
