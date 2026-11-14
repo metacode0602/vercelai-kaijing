@@ -6,7 +6,12 @@ import {
   OPENSHOP_ISSUABLE_SCOPES,
 } from "@workspace/auth"
 import type { AppDatabase } from "@workspace/db"
-import { authenticateMcpRequest, resolveOauthIssuer, wwwAuthenticate } from "./auth"
+import {
+  authenticateMcpRequest,
+  resolveOauthIssuer,
+  wwwAuthenticate,
+  type McpHeaderReader,
+} from "./auth"
 import {
   MCP_PROTOCOL_VERSION,
   isJsonRpcNotification,
@@ -23,7 +28,7 @@ const TEN_MINUTES_MS = 10 * 60 * 1000
 export type McpRouterOptions = {
   env: McpEnv
   db: AppDatabase
-  authenticate?: (headers: Headers) => Promise<McpPrincipal>
+  authenticate?: (readHeader: McpHeaderReader) => Promise<McpPrincipal>
 }
 
 function protectedResourceMetadata(env: McpEnv) {
@@ -66,7 +71,7 @@ async function dispatch(
         : {}
     if (!name) throw new Error("缺少工具名称")
     const result = await callRegisteredTool(ctx.db, ctx.principal, name, args)
-    if (!result.ok) {
+    if ("code" in result) {
       return {
         content: [{ type: "text", text: result.message }],
         structuredContent: {
@@ -96,7 +101,9 @@ async function dispatch(
 
 export function createMcpRouter(options: McpRouterOptions) {
   const { env, db } = options
-  const authenticate = options.authenticate ?? ((headers: Headers) => authenticateMcpRequest(db, env, headers))
+  const authenticate =
+    options.authenticate ??
+    ((readHeader: McpHeaderReader) => authenticateMcpRequest(db, env, readHeader))
   const app = new Hono()
   const hasExplicitOrigins = env.BETTER_AUTH_TRUSTED_ORIGINS.length > 0
 
@@ -124,7 +131,7 @@ export function createMcpRouter(options: McpRouterOptions) {
     if (!env.OPENSHOP_MCP_ENABLED) return c.notFound()
     let principal: McpPrincipal
     try {
-      principal = await authenticate(c.req.raw.headers)
+      principal = await authenticate((name) => c.req.header(name))
     } catch (error) {
       if (error instanceof McpHttpError) {
         if (error.wwwAuthenticate) c.header("WWW-Authenticate", error.wwwAuthenticate)

@@ -19,6 +19,8 @@ import {
 } from "@workspace/db"
 import { McpHttpError, type McpEnv, type McpPrincipal } from "./types"
 
+export type McpHeaderReader = (name: string) => string | null | undefined
+
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 
 /** Better Auth 挂载路径，与 packages/auth 的 AUTH_PATH 保持一致。 */
@@ -60,8 +62,8 @@ export function wwwAuthenticate(env: McpEnv): string {
   return `Bearer realm="Open Shop MCP", resource_metadata="${metadata}"`
 }
 
-function bearerFrom(headers: Headers): string | null {
-  const raw = headers.get("authorization") || headers.get("Authorization")
+function bearerFrom(readHeader: McpHeaderReader): string | null {
+  const raw = readHeader("authorization") || readHeader("Authorization")
   if (!raw) return null
   const match = raw.match(/^Bearer\s+(.+)$/i)
   return match?.[1]?.trim() || null
@@ -140,7 +142,7 @@ async function authenticateApiKey(
     requestOrgId: null,
     devOrganizationId: process.env.SHOP_DEV_ORGANIZATION_ID ?? null,
   })
-  if (!decision.ok) deny(env, decision.status, decision.message)
+  if ("status" in decision) deny(env, decision.status, decision.message)
   return {
     organizationId: decision.organizationId,
     scopes: row.scopes ?? [],
@@ -185,7 +187,7 @@ async function authenticateJwt(
     requestOrgId: null,
     devOrganizationId: process.env.SHOP_DEV_ORGANIZATION_ID ?? null,
   })
-  if (!decision.ok) deny(env, decision.status, decision.message)
+  if ("status" in decision) deny(env, decision.status, decision.message)
   // C7：每请求校验成员关系。成员被移除后，令牌在过期前也不能继续调用。
   const userId = typeof claims.sub === "string" ? claims.sub : ""
   if (!userId) deny(env, 401, "访问令牌缺少用户身份")
@@ -217,12 +219,12 @@ async function authenticateJwt(
 export async function authenticateMcpRequest(
   db: AppDatabase,
   env: McpEnv,
-  headers: Headers,
+  readHeader: McpHeaderReader,
 ): Promise<McpPrincipal> {
   if (!env.OPENSHOP_MCP_ENABLED) {
     throw new McpHttpError(404, "Not Found")
   }
-  const token = bearerFrom(headers)
+  const token = bearerFrom(readHeader)
   if (!token) deny(env, 401, "缺少访问令牌")
   if (isOpenshopApiKeyToken(token)) return authenticateApiKey(db, env, token)
   return authenticateJwt(db, env, token)
