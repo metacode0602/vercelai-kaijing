@@ -1,3 +1,4 @@
+import { resolveFetch, type FetchLike } from "../fetch"
 import { signTiktokRequest } from "../signing/tiktok"
 import { resolveTiktokEndpoints, type TiktokRegion } from "../regions/endpoints"
 import type { TokenProvider } from "../tokens/types"
@@ -10,7 +11,7 @@ export interface TiktokHttpClientOptions {
   tokenProvider?: TokenProvider
   shopCipher?: string
   apiBase?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
 }
 
 export interface TiktokCallOptions {
@@ -50,7 +51,7 @@ export class TiktokHttpClient {
   private accessToken?: string
   private readonly tokenProvider?: TokenProvider
   private shopCipher?: string
-  private readonly fetchImpl: typeof fetch
+  private readonly fetchImpl: FetchLike
 
   constructor(opts: TiktokHttpClientOptions) {
     this.region = (opts.region ?? "global").toLowerCase()
@@ -61,7 +62,7 @@ export class TiktokHttpClient {
     this.accessToken = opts.accessToken
     this.tokenProvider = opts.tokenProvider
     this.shopCipher = opts.shopCipher
-    this.fetchImpl = opts.fetchImpl ?? fetch
+    this.fetchImpl = resolveFetch(opts.fetchImpl)
   }
 
   setAccessToken(token: string | undefined) {

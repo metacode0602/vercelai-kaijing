@@ -1,3 +1,4 @@
+import { resolveFetch, type FetchLike } from "../fetch"
 import { signLazopRequest } from "../signing/lazop"
 import type { TokenProvider } from "../tokens/types"
 import {
@@ -19,7 +20,7 @@ export interface LazopHttpClientOptions {
   tokenProvider?: TokenProvider
   /** Override resolved REST base (include `/rest`). */
   baseUrl?: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: FetchLike
 }
 
 export interface LazopCallOptions {
@@ -74,7 +75,7 @@ export class LazopHttpClient {
   private readonly appSecret: string
   private accessToken?: string
   private readonly tokenProvider?: TokenProvider
-  private readonly fetchImpl: typeof fetch
+  private readonly fetchImpl: FetchLike
 
   constructor(opts: LazopHttpClientOptions) {
     this.family = opts.family
@@ -84,7 +85,7 @@ export class LazopHttpClient {
     this.appSecret = opts.appSecret
     this.accessToken = opts.accessToken
     this.tokenProvider = opts.tokenProvider
-    this.fetchImpl = opts.fetchImpl ?? fetch
+    this.fetchImpl = resolveFetch(opts.fetchImpl)
   }
 
   setAccessToken(token: string | undefined) {

@@ -1,4 +1,5 @@
 export * from "./domain/types"
+export * from "./fetch"
 export * from "./adapters/types"
 export * from "./adapters/factory"
 export * from "./adapters/ship-batch"
