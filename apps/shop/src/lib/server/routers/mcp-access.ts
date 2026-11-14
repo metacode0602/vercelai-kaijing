@@ -20,9 +20,19 @@ const paginationInput = z.object({
 })
 
 function wrapError(error: unknown): never {
+  const statusCode =
+    typeof error === 'object' && error !== null && 'statusCode' in error
+      ? error.statusCode
+      : undefined
+  if (statusCode === 401 || statusCode === 403) {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: '无权管理 MCP OAuth 客户端：请使用具备 settings.configure 权限的组织管理员账号，并先选择组织',
+    })
+  }
   throw new TRPCError({
     code: 'BAD_REQUEST',
-    message: error instanceof Error ? error.message : '请求失败',
+    message: error instanceof Error && error.message ? error.message : '请求失败',
   })
 }
 
