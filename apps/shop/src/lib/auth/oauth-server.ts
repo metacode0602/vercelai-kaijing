@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { member } from '@workspace/db'
 import { db } from '@/lib/db'
+import { LAST_ORGANIZATION_COOKIE, readCookieFromHeader } from '@/lib/organization/constants'
+import { listUserOrganizations } from '@/lib/server/dataaccess/organization-context'
 import { loadAccessSnapshot } from '@/lib/server/dataaccess/roles'
 import type { ShopOAuthSession } from '@workspace/auth/oauth'
 
@@ -31,13 +33,28 @@ export async function listOrganizationIdsForUser(userId: string): Promise<string
 export async function canManageOAuthClients(input: {
   user?: { id?: string } | null
   session?: ShopOAuthSession | null
+  headers?: Headers
 }): Promise<boolean> {
   const userId = input.user?.id ?? input.session?.userId
-  const organizationId = input.session?.activeOrganizationId
-  if (!userId || !organizationId) return false
-  const access = await loadAccessSnapshot(db, organizationId, {
+  if (!userId) return false
+  const activeOrganizationId = input.session?.activeOrganizationId ?? null
+  const lastOrganizationId = readCookieFromHeader(
+    input.headers?.get('cookie'),
+    LAST_ORGANIZATION_COOKIE,
+  )
+  const memberships = await listUserOrganizations(db, userId, activeOrganizationId)
+  const target =
+    (activeOrganizationId
+      ? memberships.find((row) => row.organizationId === activeOrganizationId)
+      : undefined) ??
+    (lastOrganizationId
+      ? memberships.find((row) => row.organizationId === lastOrganizationId)
+      : undefined) ??
+    (memberships.length === 1 ? memberships[0] : undefined)
+  if (!target) return false
+  const access = await loadAccessSnapshot(db, target.organizationId, {
     userId,
-    organizationRole: null,
+    organizationRole: target.role,
   })
   return access.isOwner || access.permissionSet.has('settings.configure')
 }

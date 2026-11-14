@@ -44,6 +44,7 @@ export type CreateShopOAuthProviderOptions = {
     user?: { id?: string } | null
     session?: ShopOAuthSession | null
     action: string
+    headers?: Headers
   }) => Promise<boolean> | boolean
 }
 
@@ -117,12 +118,13 @@ export function createShopOAuthProviderOptions(
     },
     customAccessTokenClaims: ({ referenceId, scopes }) =>
       buildAccessTokenClaims({ referenceId, scopes }),
-    clientPrivileges: async ({ user, session, action }) => {
+    clientPrivileges: async ({ user, session, action, headers }) => {
       if (!canManageClients) return false
       return canManageClients({
         user,
         session: session as ShopOAuthSession | null,
         action,
+        headers,
       })
     },
   }
