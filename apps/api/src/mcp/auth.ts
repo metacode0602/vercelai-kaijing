@@ -6,6 +6,7 @@ import {
   evaluateMcpAccess,
   hashApiKey,
   isOpenshopApiKeyToken,
+  OPENSHOP_ISSUABLE_SCOPES,
   parseScopeList,
   type AccessTokenOrgClaims,
 } from "@workspace/auth"
@@ -59,7 +60,9 @@ export function wwwAuthenticate(env: McpEnv): string {
   } catch {
     metadata = `${resource}/.well-known/oauth-protected-resource`
   }
-  return `Bearer realm="Open Shop MCP", resource_metadata="${metadata}"`
+  // scope= 让外部 MCP 客户端（OpenWork Den）的发现流程把全部可签发 scope
+  // 列为必需项，避免管理员建连接时漏勾 openshop:write.pending。
+  return `Bearer realm="Open Shop MCP", resource_metadata="${metadata}", scope="${OPENSHOP_ISSUABLE_SCOPES.join(" ")}"`
 }
 
 function bearerFrom(readHeader: McpHeaderReader): string | null {
