@@ -12,7 +12,7 @@ export function resolveMcpResourceUrl(): string {
   const apiBase = (
     process.env.NEXT_PUBLIC_API_URL ||
     process.env.API_URL ||
-    'http://localhost:8080'
+    (process.env.NODE_ENV === 'production' ? 'https://api.rungpu.cn' : 'http://localhost:8080')
   ).replace(/\/$/, '')
   return `${apiBase}/mcp`
 }

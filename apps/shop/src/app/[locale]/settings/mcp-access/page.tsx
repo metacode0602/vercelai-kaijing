@@ -20,6 +20,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@workspace/ui/components/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@workspace/ui/components/dialog'
 import { useTranslations } from 'next-intl'
 
 const PAGE_SIZE = 20
@@ -33,6 +41,8 @@ export default function McpAccessSettingsPage() {
   const keysQuery = trpc.mcpAccess.listApiKeys.useQuery({ page: keyPage, pageSize: PAGE_SIZE })
   const clientsQuery = trpc.mcpAccess.listClients.useQuery({ page: clientPage, pageSize: PAGE_SIZE })
   const [notice, setNotice] = React.useState('')
+  const [keyDialogOpen, setKeyDialogOpen] = React.useState(false)
+  const [clientDialogOpen, setClientDialogOpen] = React.useState(false)
   const [keyName, setKeyName] = React.useState('')
   const [keyScopes, setKeyScopes] = React.useState<Array<typeof OPENSHOP_READ_SCOPE | typeof OPENSHOP_WRITE_PENDING_SCOPE>>([OPENSHOP_READ_SCOPE])
   const [clientName, setClientName] = React.useState('')
@@ -40,6 +50,8 @@ export default function McpAccessSettingsPage() {
   const [confidential, setConfidential] = React.useState(false)
   const [applicationType, setApplicationType] = React.useState<'web' | 'native'>('native')
   const [revealedSecret, setRevealedSecret] = React.useState<string>()
+  const [copied, setCopied] = React.useState(false)
+  const [pendingEnabled, setPendingEnabled] = React.useState<boolean | null>(null)
   const [confirm, setConfirm] = React.useState<
     | { type: 'key'; id: string; name: string }
     | { type: 'client'; id: string; name: string }
@@ -55,6 +67,8 @@ export default function McpAccessSettingsPage() {
   })
   const createKey = trpc.mcpAccess.createApiKey.useMutation({
     onSuccess: async (result) => {
+      setKeyDialogOpen(false)
+      setCopied(false)
       setRevealedSecret(result.plaintext)
       setKeyName('')
       setNotice(t('keyCreated'))
@@ -72,6 +86,8 @@ export default function McpAccessSettingsPage() {
   })
   const createClient = trpc.mcpAccess.createClient.useMutation({
     onSuccess: async (result) => {
+      setClientDialogOpen(false)
+      setCopied(false)
       setRevealedSecret(
         result.clientSecret
           ? `${t('clientIdLabel')}: ${result.clientId}\n${t('clientSecretLabel')}: ${result.clientSecret}`
@@ -106,6 +122,17 @@ export default function McpAccessSettingsPage() {
     )
   }
 
+  async function copySecret() {
+    if (!revealedSecret) return
+    try {
+      await navigator.clipboard.writeText(revealedSecret)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setCopied(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
       <ConsoleBreadcrumbRegistration
@@ -135,44 +162,19 @@ export default function McpAccessSettingsPage() {
           <Switch
             checked={Boolean(status?.organizationEnabled)}
             disabled={!status || setEnabled.isPending}
-            onCheckedChange={(enabled) => setEnabled.mutate({ enabled })}
+            onCheckedChange={(enabled) => setPendingEnabled(enabled)}
           />
           {t('orgSwitch')}
         </label>
       </section>
 
       <section className="space-y-4 rounded-lg border p-4">
-        <h2 className="text-base font-semibold">{t('keysTitle')}</h2>
-        <p className="text-sm text-muted-foreground">{t('keysDescription')}</p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex-1 text-sm">
-            <span className="mb-1 block text-muted-foreground">{t('keyName')}</span>
-            <Input value={keyName} onChange={(event) => setKeyName(event.target.value)} />
-          </label>
-          <fieldset className="flex gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={keyScopes.includes(OPENSHOP_READ_SCOPE)}
-                onChange={(event) => toggleScope(OPENSHOP_READ_SCOPE, event.target.checked)}
-              />
-              {t('scopeRead')}
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={keyScopes.includes(OPENSHOP_WRITE_PENDING_SCOPE)}
-                onChange={(event) => toggleScope(OPENSHOP_WRITE_PENDING_SCOPE, event.target.checked)}
-              />
-              {t('scopeWritePending')}
-            </label>
-          </fieldset>
-          <Button
-            disabled={createKey.isPending || !keyName.trim() || keyScopes.length === 0}
-            onClick={() => createKey.mutate({ name: keyName, scopes: keyScopes })}
-          >
-            {t('createKey')}
-          </Button>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">{t('keysTitle')}</h2>
+            <p className="text-sm text-muted-foreground">{t('keysDescription')}</p>
+          </div>
+          <Button onClick={() => setKeyDialogOpen(true)}>{t('createKey')}</Button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -223,59 +225,12 @@ export default function McpAccessSettingsPage() {
       </section>
 
       <section className="space-y-4 rounded-lg border p-4">
-        <h2 className="text-base font-semibold">{t('clientsTitle')}</h2>
-        <p className="text-sm text-muted-foreground">{t('clientsDescription')}</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">{t('clientName')}</span>
-            <Input value={clientName} onChange={(event) => setClientName(event.target.value)} />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">{t('redirectUris')}</span>
-            <Textarea
-              rows={2}
-              value={redirectUris}
-              onChange={(event) => setRedirectUris(event.target.value)}
-              placeholder="http://127.0.0.1:1455/callback"
-            />
-          </label>
-        </div>
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={confidential}
-              onChange={(event) => setConfidential(event.target.checked)}
-            />
-            {t('confidential')}
-          </label>
-          <label className="flex items-center gap-2">
-            {t('applicationType')}
-            <select
-              className="rounded-md border bg-background px-2 py-1"
-              value={applicationType}
-              onChange={(event) => setApplicationType(event.target.value as 'web' | 'native')}
-            >
-              <option value="native">{t('native')}</option>
-              <option value="web">{t('web')}</option>
-            </select>
-          </label>
-          <Button
-            disabled={createClient.isPending || !clientName.trim() || !redirectUris.trim()}
-            onClick={() =>
-              createClient.mutate({
-                name: clientName,
-                redirectUris: redirectUris
-                  .split(/\s+/)
-                  .map((item) => item.trim())
-                  .filter(Boolean),
-                confidential,
-                applicationType,
-              })
-            }
-          >
-            {t('createClient')}
-          </Button>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">{t('clientsTitle')}</h2>
+            <p className="text-sm text-muted-foreground">{t('clientsDescription')}</p>
+          </div>
+          <Button onClick={() => setClientDialogOpen(true)}>{t('createClient')}</Button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -331,6 +286,29 @@ export default function McpAccessSettingsPage() {
         />
       </section>
 
+      <AlertDialog open={pendingEnabled !== null} onOpenChange={(open) => !open && setPendingEnabled(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('confirmToggleTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingEnabled ? t('confirmEnableOrg') : t('confirmDisableOrg')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingEnabled === null) return
+                setEnabled.mutate({ enabled: pendingEnabled })
+                setPendingEnabled(null)
+              }}
+            >
+              {t('confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={Boolean(confirm)} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -358,6 +336,118 @@ export default function McpAccessSettingsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('createKey')}</DialogTitle>
+            <DialogDescription>{t('keysDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted-foreground">{t('keyName')}</span>
+              <Input value={keyName} onChange={(event) => setKeyName(event.target.value)} />
+            </label>
+            <fieldset className="flex gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={keyScopes.includes(OPENSHOP_READ_SCOPE)}
+                  onChange={(event) => toggleScope(OPENSHOP_READ_SCOPE, event.target.checked)}
+                />
+                {t('scopeRead')}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={keyScopes.includes(OPENSHOP_WRITE_PENDING_SCOPE)}
+                  onChange={(event) =>
+                    toggleScope(OPENSHOP_WRITE_PENDING_SCOPE, event.target.checked)
+                  }
+                />
+                {t('scopeWritePending')}
+              </label>
+            </fieldset>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKeyDialogOpen(false)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              disabled={createKey.isPending || !keyName.trim() || keyScopes.length === 0}
+              onClick={() => createKey.mutate({ name: keyName, scopes: keyScopes })}
+            >
+              {t('createKey')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clientDialogOpen} onOpenChange={setClientDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('createClient')}</DialogTitle>
+            <DialogDescription>{t('clientsDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted-foreground">{t('clientName')}</span>
+              <Input value={clientName} onChange={(event) => setClientName(event.target.value)} />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted-foreground">{t('redirectUris')}</span>
+              <Textarea
+                rows={3}
+                value={redirectUris}
+                onChange={(event) => setRedirectUris(event.target.value)}
+                placeholder="http://127.0.0.1:1455/callback"
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={confidential}
+                  onChange={(event) => setConfidential(event.target.checked)}
+                />
+                {t('confidential')}
+              </label>
+              <label className="flex items-center gap-2">
+                {t('applicationType')}
+                <select
+                  className="rounded-md border bg-background px-2 py-1"
+                  value={applicationType}
+                  onChange={(event) => setApplicationType(event.target.value as 'web' | 'native')}
+                >
+                  <option value="native">{t('native')}</option>
+                  <option value="web">{t('web')}</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClientDialogOpen(false)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              disabled={createClient.isPending || !clientName.trim() || !redirectUris.trim()}
+              onClick={() =>
+                createClient.mutate({
+                  name: clientName,
+                  redirectUris: redirectUris
+                    .split(/\s+/)
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+                  confidential,
+                  applicationType,
+                })
+              }
+            >
+              {t('createClient')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={Boolean(revealedSecret)} onOpenChange={(open) => !open && setRevealedSecret(undefined)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -367,7 +457,12 @@ export default function McpAccessSettingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setRevealedSecret(undefined)}>{t('secretAck')}</AlertDialogAction>
+            <Button variant="outline" onClick={copySecret} disabled={!revealedSecret}>
+              {copied ? t('copied') : t('copy')}
+            </Button>
+            <AlertDialogAction onClick={() => setRevealedSecret(undefined)}>
+              {t('secretAck')}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
