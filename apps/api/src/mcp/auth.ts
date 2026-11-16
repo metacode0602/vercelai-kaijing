@@ -51,8 +51,12 @@ function jwksFor(issuer: string) {
   return jwks
 }
 
+export function resolveMcpAudience(env: McpEnv): string {
+  return env.OPENSHOP_MCP_RESOURCE || "https://localhost/mcp"
+}
+
 export function wwwAuthenticate(env: McpEnv): string {
-  const resource = env.OPENSHOP_MCP_RESOURCE || "https://localhost/mcp"
+  const resource = resolveMcpAudience(env)
   let metadata = resource
   try {
     const url = new URL(resource)
@@ -163,7 +167,11 @@ async function authenticateJwt(
   if (!issuer) deny(env, 401, "未配置授权服务器，无法校验访问令牌")
   let payload: JWTPayload
   try {
-    const verified = await jwtVerify(token, jwksFor(issuer), { issuer, clockTolerance: 5 })
+    const verified = await jwtVerify(token, jwksFor(issuer), {
+      issuer,
+      audience: resolveMcpAudience(env),
+      clockTolerance: 5,
+    })
     payload = verified.payload
   } catch {
     deny(env, 401, "访问令牌无效或已过期")

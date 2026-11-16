@@ -6,6 +6,7 @@ import { jwt, type JwtOptions } from "better-auth/plugins"
 import {
   oauthProvider,
   type OAuthOptions,
+  type OAuthProviderExtension,
   type Scope,
 } from "@better-auth/oauth-provider"
 import {
@@ -36,6 +37,7 @@ export type CreateShopOAuthProviderOptions = {
   postLoginPage?: string
   accessTokenExpiresIn?: number
   allowInsecureLocalRedirects?: boolean
+  extensions?: OAuthProviderExtension[]
   listOrganizationIds: (input: {
     userId: string
     headers: Headers
@@ -91,6 +93,7 @@ export function createShopOAuthProviderOptions(
     allowInsecureRedirectUri: options.allowInsecureLocalRedirects
       ? isLocalHttpRedirect
       : undefined,
+    extensions: options.extensions,
     postLogin: {
       page: postLoginPage,
       consentReferenceId: ({ session }) => {
