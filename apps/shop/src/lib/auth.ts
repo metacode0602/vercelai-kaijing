@@ -1,5 +1,6 @@
 import { AUTH_PATH, normalizeContactPhone } from '@/lib/auth/constants'
 import { canManageOAuthClients, listOrganizationIdsForUser, resolveMcpResourceUrl } from '@/lib/auth/oauth-server'
+import { createFederationTokenExchangeExtension } from '@/lib/auth/federation-token-exchange'
 import { sharedAuthOptions } from '@workspace/auth'
 import {
   createShopOAuthPlugins,
@@ -181,6 +182,12 @@ export const auth = betterAuth({
       allowInsecureLocalRedirects: !isProd,
       listOrganizationIds: ({ userId }) => listOrganizationIdsForUser(userId),
       canManageClients: canManageOAuthClients,
+      extensions: [
+        createFederationTokenExchangeExtension({
+          db,
+          mcpResource: resolveMcpResourceUrl(),
+        }),
+      ],
     }),
     nextCookies(),
   ],

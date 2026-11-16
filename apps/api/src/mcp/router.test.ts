@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import type { AppDatabase } from "@workspace/db"
 import { createMcpRouter } from "./router"
-import type { McpHeaderReader } from "./auth"
+import { wwwAuthenticate, type McpHeaderReader } from "./auth"
 import { toMcpToolList, isForbiddenToolName, listRegisteredTools, callRegisteredTool } from "./tools"
 import type { McpPrincipal } from "./types"
 import { McpHttpError } from "./types"
@@ -78,6 +78,23 @@ test("缺少令牌返回 401，并带 WWW-Authenticate 指向资源元数据", a
   assert.match(www, /resource_metadata/)
   const body = (await res.json()) as { message: string }
   assert.match(body.message, /令牌/)
+})
+
+test("默认 401 挑战携带 resource_metadata 与全部可签发 scope", () => {
+  const www = wwwAuthenticate(envOn)
+  assert.match(
+    www,
+    /resource_metadata="https:\/\/api\.example\.test\/\.well-known\/oauth-protected-resource"/,
+  )
+  const scope = www.match(/scope="([^"]*)"/)?.[1] ?? ""
+  assert.deepEqual(scope.split(" "), [
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "openshop:read",
+    "openshop:write.pending",
+  ])
 })
 
 test("已停用客户端或已吊销令牌即使未过期也不能调用工具", async () => {

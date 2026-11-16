@@ -6,6 +6,7 @@ import {
   evaluateMcpAccess,
   hashApiKey,
   isOpenshopApiKeyToken,
+  OPENSHOP_ISSUABLE_SCOPES,
   parseScopeList,
   type AccessTokenOrgClaims,
 } from "@workspace/auth"
@@ -50,8 +51,12 @@ function jwksFor(issuer: string) {
   return jwks
 }
 
+export function resolveMcpAudience(env: McpEnv): string {
+  return env.OPENSHOP_MCP_RESOURCE || "https://localhost/mcp"
+}
+
 export function wwwAuthenticate(env: McpEnv): string {
-  const resource = env.OPENSHOP_MCP_RESOURCE || "https://localhost/mcp"
+  const resource = resolveMcpAudience(env)
   let metadata = resource
   try {
     const url = new URL(resource)
@@ -59,7 +64,9 @@ export function wwwAuthenticate(env: McpEnv): string {
   } catch {
     metadata = `${resource}/.well-known/oauth-protected-resource`
   }
-  return `Bearer realm="Open Shop MCP", resource_metadata="${metadata}"`
+  // scope= 让外部 MCP 客户端（OpenWork Den）的发现流程把全部可签发 scope
+  // 列为必需项，避免管理员建连接时漏勾 openshop:write.pending。
+  return `Bearer realm="Open Shop MCP", resource_metadata="${metadata}", scope="${OPENSHOP_ISSUABLE_SCOPES.join(" ")}"`
 }
 
 function bearerFrom(readHeader: McpHeaderReader): string | null {
@@ -160,7 +167,11 @@ async function authenticateJwt(
   if (!issuer) deny(env, 401, "未配置授权服务器，无法校验访问令牌")
   let payload: JWTPayload
   try {
-    const verified = await jwtVerify(token, jwksFor(issuer), { issuer, clockTolerance: 5 })
+    const verified = await jwtVerify(token, jwksFor(issuer), {
+      issuer,
+      audience: resolveMcpAudience(env),
+      clockTolerance: 5,
+    })
     payload = verified.payload
   } catch {
     deny(env, 401, "访问令牌无效或已过期")
