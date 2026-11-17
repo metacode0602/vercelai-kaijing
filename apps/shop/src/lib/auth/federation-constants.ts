@@ -9,3 +9,8 @@ export const FEDERATION_ACTOR_TOKEN_USE = "federation_actor"
 export const FEDERATION_DEFAULT_ACTOR_SUBJECT = "service:openmcp-federation"
 export const FEDERATION_MAX_TOKEN_TTL_SECONDS = 600
 export const FEDERATION_CLOCK_SKEW_SECONDS = 30
+
+/** Stable federation client id: `openmcp-<externalOrgId>`, verbatim. */
+export function federationClientId(externalOrgId: string): string {
+  return `openmcp-${externalOrgId}`
+}
