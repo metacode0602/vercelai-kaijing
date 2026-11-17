@@ -10,7 +10,7 @@ import {
 import { auth } from "@/lib/auth"
 import { resolveMcpResourceUrl } from "@/lib/auth/oauth-server"
 import { db } from "@/lib/db"
-import { FEDERATION_TOKEN_EXCHANGE_GRANT_TYPE } from "@/lib/auth/federation-constants"
+import { FEDERATION_TOKEN_EXCHANGE_GRANT_TYPE, federationClientId } from "@/lib/auth/federation-constants"
 
 export type ProvisionFederationInput = {
   externalOrgId: string
@@ -62,6 +62,31 @@ function clientName(displayName: string): string {
   return `OpenMCP · ${displayName.trim()}`
 }
 
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false
+  const code = "code" in error ? error.code : undefined
+  return code === "23505"
+}
+
+async function removeClient(clientId: string): Promise<void> {
+  try {
+    await db.delete(oauthClient).where(eq(oauthClient.clientId, clientId))
+  } catch {
+    // The original provisioning error is more useful than cleanup failure.
+  }
+}
+
+async function disableClient(clientId: string): Promise<void> {
+  try {
+    await db
+      .update(oauthClient)
+      .set({ disabled: true, updatedAt: new Date() })
+      .where(eq(oauthClient.clientId, clientId))
+  } catch {
+    // The original provisioning error is more useful than cleanup failure.
+  }
+}
+
 async function createFederationClient(input: {
   headers: Headers
   displayName: string
@@ -91,20 +116,39 @@ async function createFederationClient(input: {
       "OpenShop 未能创建联邦 OAuth 客户端"
     )
   }
-  return {
-    clientId: created.client_id,
-    clientSecret: created.client_secret,
-  }
-}
 
-async function disableClient(clientId: string): Promise<void> {
+  const generatedClientId = created.client_id
+  const clientId = federationClientId(input.externalOrgId)
   try {
-    await db
+    const updated = await db
       .update(oauthClient)
-      .set({ disabled: true, updatedAt: new Date() })
-      .where(eq(oauthClient.clientId, clientId))
-  } catch {
-    // The original provisioning error is more useful than cleanup failure.
+      .set({ clientId, updatedAt: new Date() })
+      .where(eq(oauthClient.clientId, generatedClientId))
+      .returning({ id: oauthClient.id })
+    if (!updated) {
+      await disableClient(generatedClientId)
+      throw new FederationProvisioningError(
+        "client_creation_failed",
+        502,
+        "OpenShop 未能设置联邦 OAuth client_id"
+      )
+    }
+  } catch (error) {
+    if (error instanceof FederationProvisioningError) throw error
+    await disableClient(generatedClientId)
+    if (isUniqueViolation(error)) {
+      throw new FederationProvisioningError(
+        "client_id_conflict",
+        409,
+        `client_id 已存在: ${clientId}`
+      )
+    }
+    throw error
+  }
+
+  return {
+    clientId,
+    clientSecret: created.client_secret,
   }
 }
 
@@ -395,7 +439,8 @@ export async function provisionFederation(input: {
       createdAt: created.binding.createdAt.toISOString(),
     }
   } catch (error) {
-    await disableClient(client.clientId)
+    // Nothing committed: drop the client so a retry can reuse the stable id.
+    await removeClient(client.clientId)
     throw error
   }
 }
