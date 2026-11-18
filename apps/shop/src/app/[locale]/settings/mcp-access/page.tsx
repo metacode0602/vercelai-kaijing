@@ -52,6 +52,15 @@ export default function McpAccessSettingsPage() {
   const [revealedSecret, setRevealedSecret] = React.useState<string>()
   const [copied, setCopied] = React.useState(false)
   const [pendingEnabled, setPendingEnabled] = React.useState<boolean | null>(null)
+  const [fedName, setFedName] = React.useState('OpenWork')
+  const [fedExternalOrgId, setFedExternalOrgId] = React.useState('')
+  const [fedIssuer, setFedIssuer] = React.useState('')
+  const [fedJwks, setFedJwks] = React.useState('')
+  const [fedScopes, setFedScopes] = React.useState(
+    'openid profile email offline_access openshop:read openshop:write.pending',
+  )
+  const [fedJit, setFedJit] = React.useState(true)
+  const [fedPending, setFedPending] = React.useState(false)
   const [confirm, setConfirm] = React.useState<
     | { type: 'key'; id: string; name: string }
     | { type: 'client'; id: string; name: string }
@@ -108,6 +117,63 @@ export default function McpAccessSettingsPage() {
     },
     onError: (error) => setNotice(error.message),
   })
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const externalOrgId = params.get('fedExternalOrgId')?.trim()
+    const issuer = params.get('fedIssuer')?.trim()
+    const jwks = params.get('fedJwks')?.trim()
+    const name = params.get('fedName')?.trim()
+    if (externalOrgId) setFedExternalOrgId(externalOrgId)
+    if (issuer) {
+      setFedIssuer(issuer)
+      setFedJwks(jwks || `${issuer.replace(/\/+$/, '')}/jwks`)
+    }
+    if (name) setFedName(name)
+  }, [])
+
+  async function provisionFederation() {
+    setFedPending(true)
+    setNotice('')
+    try {
+      const response = await fetch('/api/v1/openmcp/provision', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          externalOrgId: fedExternalOrgId.trim(),
+          displayName: fedName.trim(),
+          denIssuer: fedIssuer.trim(),
+          denJwksUri: fedJwks.trim(),
+          requestedScopes: fedScopes
+            .split(/\s+/)
+            .map((scope) => scope.trim())
+            .filter(Boolean),
+          jitProvisioning: fedJit,
+        }),
+      })
+      const body: unknown = await response.json().catch(() => null)
+      if (!response.ok) {
+        setNotice(readFederationError(body) ?? `HTTP ${response.status}`)
+        return
+      }
+      const result = readFederationResult(body)
+      if (!result) {
+        setNotice(readFederationError(body) ?? `HTTP ${response.status}`)
+        return
+      }
+      setCopied(false)
+      setRevealedSecret(
+        result.clientSecret
+          ? `${t('clientIdLabel')}: ${result.clientId}\n${t('clientSecretLabel')}: ${result.clientSecret}`
+          : `${t('clientIdLabel')}: ${result.clientId}\n${t('fedSecretMissing')}`,
+      )
+      setNotice(t('fedProvisioned'))
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error))
+    } finally {
+      setFedPending(false)
+    }
+  }
 
   const status = statusQuery.data
   const keys = keysQuery.data
@@ -166,6 +232,67 @@ export default function McpAccessSettingsPage() {
           />
           {t('orgSwitch')}
         </label>
+      </section>
+
+      <section className="space-y-4 rounded-lg border p-4">
+        <div>
+          <h2 className="text-base font-semibold">{t('fedTitle')}</h2>
+          <p className="text-sm text-muted-foreground">{t('fedDescription')}</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted-foreground">{t('fedName')}</span>
+            <Input value={fedName} onChange={(event) => setFedName(event.target.value)} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted-foreground">{t('fedExternalOrgId')}</span>
+            <Input
+              value={fedExternalOrgId}
+              onChange={(event) => setFedExternalOrgId(event.target.value)}
+              placeholder="org_..."
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted-foreground">{t('fedIssuer')}</span>
+            <Input
+              value={fedIssuer}
+              onChange={(event) => setFedIssuer(event.target.value)}
+              placeholder="https://den.example.com/api/auth"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted-foreground">{t('fedJwks')}</span>
+            <Input
+              value={fedJwks}
+              onChange={(event) => setFedJwks(event.target.value)}
+              placeholder="https://den.example.com/api/auth/jwks"
+            />
+          </label>
+          <label className="block text-sm md:col-span-2">
+            <span className="mb-1 block text-muted-foreground">{t('fedScopes')}</span>
+            <Input value={fedScopes} onChange={(event) => setFedScopes(event.target.value)} />
+          </label>
+        </div>
+        <label className="flex items-center gap-3 text-sm">
+          <Switch checked={fedJit} onCheckedChange={setFedJit} />
+          {t('fedJit')}
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            disabled={
+              fedPending ||
+              !fedName.trim() ||
+              !fedExternalOrgId.trim() ||
+              !fedIssuer.trim() ||
+              !fedJwks.trim() ||
+              !fedScopes.trim()
+            }
+            onClick={provisionFederation}
+          >
+            {t('fedProvision')}
+          </Button>
+          <span className="text-xs text-muted-foreground">{t('fedHint')}</span>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-lg border p-4">
@@ -468,6 +595,23 @@ export default function McpAccessSettingsPage() {
       </AlertDialog>
     </div>
   )
+}
+
+function readFederationResult(value: unknown): { clientId: string; clientSecret: string | null } | null {
+  if (!value || typeof value !== 'object') return null
+  const oauthClient = (value as { oauthClient?: unknown }).oauthClient
+  if (!oauthClient || typeof oauthClient !== 'object') return null
+  const { clientId, clientSecret } = oauthClient as { clientId?: unknown; clientSecret?: unknown }
+  if (typeof clientId !== 'string' || !clientId) return null
+  return { clientId, clientSecret: typeof clientSecret === 'string' && clientSecret ? clientSecret : null }
+}
+
+function readFederationError(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const { error, error_description } = value as { error?: unknown; error_description?: unknown }
+  if (typeof error_description === 'string' && error_description) return error_description
+  if (typeof error === 'string' && error) return error
+  return null
 }
 
 function Pagination({
