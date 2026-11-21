@@ -11,6 +11,9 @@ import {
   type OnboardingSubjectType,
 } from '@workspace/db/schema'
 import type { AppDatabase } from '@workspace/db'
+import { assertOnboardingDocumentsReady } from '@workspace/db/onboarding-document-requirements'
+import { getOnboardingDocumentRequirements } from '@workspace/db/platform-settings'
+import type { OnboardingDocumentRequirements } from '@workspace/db/onboarding-document-requirements'
 
 type DbLike = AppDatabase | Parameters<Parameters<AppDatabase['transaction']>[0]>[0]
 
@@ -27,6 +30,7 @@ export type OnboardingStateDto = {
   canEdit: boolean
   bindingAllowed: boolean
   application: OnboardingApplicationDto | null
+  documentRequirements: OnboardingDocumentRequirements
 }
 
 export type SaveOnboardingStepInput = {
@@ -128,6 +132,7 @@ export async function getOnboardingState(
   userId: string,
   organizationId?: string | null,
 ): Promise<OnboardingStateDto> {
+  const documentRequirements = await getOnboardingDocumentRequirements(db)
   const membership = await loadMembershipWithApplication(db, userId, organizationId)
   if (!membership) {
     return {
@@ -140,6 +145,7 @@ export async function getOnboardingState(
       canEdit: true,
       bindingAllowed: false,
       application: null,
+      documentRequirements,
     }
   }
   const status = (membership.application?.status ?? 'not_started') as
@@ -155,6 +161,7 @@ export async function getOnboardingState(
     canEdit: status === 'draft' || status === 'rejected' || status === 'not_started',
     bindingAllowed: isShopBindingAllowed({ status }),
     application: membership.application,
+    documentRequirements,
   }
 }
 
@@ -367,52 +374,6 @@ export async function saveOnboardingStep(
   })
 }
 
-function assertApplicationReady(application: OnboardingApplicationDto) {
-  if (application.companyName.trim().length < 2) {
-    throw new Error('请输入有效的主体名称')
-  }
-  const registrationNo = application.registrationNo?.trim() ?? ''
-  const registrationNoMin = application.subjectType === 'enterprise' ? 8 : 4
-  if (registrationNo.length < registrationNoMin || registrationNo.length > 32) {
-    throw new Error(
-      application.subjectType === 'enterprise'
-        ? '企业注册号需为 8–32 位字母数字'
-        : '证件号需为 4–32 位字母数字',
-    )
-  }
-  if (!application.contactName.trim() || !application.contactPhone.trim()) {
-    throw new Error('请填写联系人姓名和电话')
-  }
-  if (!application.licenseFileKey) {
-    throw new Error('请上传营业执照 / 证件照片')
-  }
-  if (application.subjectType === 'enterprise') {
-    if (!application.legalRepresentative?.trim()) {
-      throw new Error('请填写法定代表人')
-    }
-    if (!application.handlerType || !['legal_rep', 'authorized_agent'].includes(application.handlerType)) {
-      throw new Error('请选择办理方式')
-    }
-    if (application.handlerType === 'legal_rep') {
-      if (
-        !application.legalRepIdNo?.trim() ||
-        !application.legalRepIdFrontKey ||
-        !application.legalRepIdBackKey
-      ) {
-        throw new Error('本人办理需填写法人身份证号并上传身份证正反面')
-      }
-    } else if (
-      !application.authorizationFileKey ||
-      !application.agentName?.trim() ||
-      !application.agentIdNo?.trim() ||
-      !application.agentIdFrontKey ||
-      !application.agentIdBackKey
-    ) {
-      throw new Error('授权办理需上传授权书、填写授权人信息并上传身份证正反面')
-    }
-  }
-}
-
 export async function submitOnboarding(
   db: AppDatabase,
   input: { userId: string; organizationId?: string | null; agreement: true },
@@ -433,7 +394,8 @@ export async function submitOnboarding(
     if (application.status !== 'draft' && application.status !== 'rejected') {
       throw new Error('当前申请不可提交')
     }
-    assertApplicationReady(application)
+    const documentRequirements = await getOnboardingDocumentRequirements(tx)
+    assertOnboardingDocumentsReady(application, documentRequirements)
 
     if (application.registrationNo) {
       const duplicates = await tx

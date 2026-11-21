@@ -25,6 +25,11 @@ import {
 import { Separator } from '@workspace/ui/components/separator'
 import { Spinner } from '@workspace/ui/components/spinner'
 import { cn } from '@workspace/ui/lib/utils'
+import {
+  assertOnboardingDocumentsReady,
+  DEFAULT_ONBOARDING_DOCUMENT_REQUIREMENTS,
+  type OnboardingDocumentRequirements,
+} from '@workspace/db/onboarding-document-requirements'
 
 type SubjectType = 'enterprise' | 'individual'
 type HandlerType = 'legal_rep' | 'authorized_agent'
@@ -267,6 +272,8 @@ export function OnboardingWizard() {
 
   const application = stateQuery.data?.application ?? null
   const status = stateQuery.data?.status ?? 'not_started'
+  const documentRequirements: OnboardingDocumentRequirements =
+    stateQuery.data?.documentRequirements ?? DEFAULT_ONBOARDING_DOCUMENT_REQUIREMENTS
 
   React.useEffect(() => {
     if (status === 'submitted' || status === 'approved' || status === 'suspended') {
@@ -318,32 +325,32 @@ export function OnboardingWizard() {
   }
 
   function validateStep2() {
-    if (form.companyName.trim().length < 2) return '请输入有效的主体名称'
-    const registrationMin = form.subjectType === 'enterprise' ? 8 : 4
-    if (form.registrationNo.trim().length < registrationMin) {
-      return form.subjectType === 'enterprise'
-        ? '企业注册号需为 8–32 位字母数字'
-        : '证件号需为 4–32 位字母数字'
+    try {
+      assertOnboardingDocumentsReady(
+        {
+          subjectType: form.subjectType,
+          companyName: form.companyName,
+          registrationNo: form.registrationNo,
+          contactName: form.contactName,
+          contactPhone: form.contactPhone,
+          licenseFileKey: form.licenseFile?.key,
+          legalRepresentative: form.legalRepresentative,
+          handlerType: form.handlerType,
+          legalRepIdNo: form.legalRepIdNo,
+          legalRepIdFrontKey: form.legalRepIdFront?.key,
+          legalRepIdBackKey: form.legalRepIdBack?.key,
+          authorizationFileKey: form.authorizationFile?.key,
+          agentName: form.agentName,
+          agentIdNo: form.agentIdNo,
+          agentIdFrontKey: form.agentIdFront?.key,
+          agentIdBackKey: form.agentIdBack?.key,
+        },
+        documentRequirements,
+      )
+      return ''
+    } catch (error) {
+      return error instanceof Error ? error.message : '请完善入驻资料'
     }
-    if (!form.contactName.trim() || !form.contactPhone.trim()) return '请填写联系人姓名和电话'
-    if (!form.licenseFile) return '请上传营业执照 / 证件照片'
-    if (form.subjectType === 'enterprise') {
-      if (!form.legalRepresentative.trim()) return '请填写法定代表人'
-      if (form.handlerType === 'legal_rep') {
-        if (!form.legalRepIdNo.trim() || !form.legalRepIdFront || !form.legalRepIdBack) {
-          return '本人办理需填写法人身份证号并上传身份证正反面'
-        }
-      } else if (
-        !form.authorizationFile ||
-        !form.agentName.trim() ||
-        !form.agentIdNo.trim() ||
-        !form.agentIdFront ||
-        !form.agentIdBack
-      ) {
-        return '授权办理需上传授权书、填写授权人信息并上传身份证正反面'
-      }
-    }
-    return ''
   }
 
   function goNext() {
@@ -546,7 +553,7 @@ export function OnboardingWizard() {
                   value={form.licenseFile}
                   onChange={(value) => update('licenseFile', value)}
                   onError={setError}
-                  required
+                  required={documentRequirements.requireLicenseFile}
                 />
               </section>
 
@@ -598,14 +605,14 @@ export function OnboardingWizard() {
                             value={form.legalRepIdFront}
                             onChange={(value) => update('legalRepIdFront', value)}
                             onError={setError}
-                            required
+                            required={documentRequirements.requireLegalRepIdImages}
                           />
                           <FileField
                             label="法人身份证国徽面"
                             value={form.legalRepIdBack}
                             onChange={(value) => update('legalRepIdBack', value)}
                             onError={setError}
-                            required
+                            required={documentRequirements.requireLegalRepIdImages}
                           />
                         </div>
                       </div>
@@ -630,7 +637,7 @@ export function OnboardingWizard() {
                           value={form.authorizationFile}
                           onChange={(value) => update('authorizationFile', value)}
                           onError={setError}
-                          required
+                          required={documentRequirements.requireAuthorizationFile}
                           hint="请下载模板填写并加盖企业公章后上传扫描件。"
                         />
                         <div className="flex flex-wrap gap-3 text-xs">
@@ -655,14 +662,14 @@ export function OnboardingWizard() {
                             value={form.agentIdFront}
                             onChange={(value) => update('agentIdFront', value)}
                             onError={setError}
-                            required
+                            required={documentRequirements.requireAgentIdImages}
                           />
                           <FileField
                             label="授权人身份证国徽面"
                             value={form.agentIdBack}
                             onChange={(value) => update('agentIdBack', value)}
                             onError={setError}
-                            required
+                            required={documentRequirements.requireAgentIdImages}
                           />
                         </div>
                       </div>

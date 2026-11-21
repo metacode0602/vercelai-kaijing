@@ -67,6 +67,12 @@
     "./platform-catalogs": {
       "default": "./src/platform-catalogs.ts"
     },
+    "./onboarding-document-requirements": {
+      "default": "./src/onboarding-document-requirements.ts"
+    },
+    "./platform-settings": {
+      "default": "./src/platform-settings.ts"
+    },
     "./merchant-purchase-price-sync": {
       "default": "./src/merchant-purchase-price-sync.ts"
     }

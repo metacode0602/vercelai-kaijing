@@ -1,125 +1,132 @@
 {
-    "version": "7",
-    "dialect": "postgresql",
-    "entries": [
-        {
-            "idx": 0,
-            "version": "7",
-            "when": 1794012666907,
-            "tag": "0000_flashy_silver_samurai",
-            "breakpoints": true
-        },
-        {
-            "idx": 1,
-            "version": "7",
-            "when": 1794015682973,
-            "tag": "0001_parched_namora",
-            "breakpoints": true
-        },
-        {
-            "idx": 2,
-            "version": "7",
-            "when": 1794114849148,
-            "tag": "0002_glamorous_bruce_banner",
-            "breakpoints": true
-        },
-        {
-            "idx": 3,
-            "version": "7",
-            "when": 1794318921958,
-            "tag": "0003_heavy_luke_cage",
-            "breakpoints": true
-        },
-        {
-            "idx": 4,
-            "version": "7",
-            "when": 1794320821806,
-            "tag": "0004_fixed_bug",
-            "breakpoints": true
-        },
-        {
-            "idx": 5,
-            "version": "7",
-            "when": 1794329044943,
-            "tag": "0005_organization_settings",
-            "breakpoints": true
-        },
-        {
-            "idx": 6,
-            "version": "7",
-            "when": 1794403200000,
-            "tag": "0006_compliance_attribution",
-            "breakpoints": true
-        },
-        {
-            "idx": 7,
-            "version": "7",
-            "when": 1794406800000,
-            "tag": "0007_clammy_union_jack",
-            "breakpoints": true
-        },
-        {
-            "idx": 8,
-            "version": "7",
-            "when": 1794410400000,
-            "tag": "0008_shop_binding_conflicts",
-            "breakpoints": true
-        },
-        {
-            "idx": 9,
-            "version": "7",
-            "when": 1794414000000,
-            "tag": "0009_platform_catalogs",
-            "breakpoints": true
-        },
-        {
-            "idx": 10,
-            "version": "7",
-            "when": 1794420000000,
-            "tag": "0010_pricing_calculator",
-            "breakpoints": true
-        },
-        {
-            "idx": 11,
-            "version": "7",
-            "when": 1794427200000,
-            "tag": "0011_pricing_suggestion_drafts",
-            "breakpoints": true
-        },
-        {
-            "idx": 12,
-            "version": "7",
-            "when": 1794434400000,
-            "tag": "0012_pricing_calculator_phase3",
-            "breakpoints": true
-        },
-        {
-            "idx": 13,
-            "version": "7",
-            "when": 1794441600000,
-            "tag": "0013_platform_tariff_fee_catalogs",
-            "breakpoints": true
-        },
-        {
-            "idx": 14,
-            "version": "7",
-            "when": 1794450000000,
-            "tag": "0014_shop_writeback_switches",
-            "breakpoints": true
-        },
-        {
-            "idx": 15,
-            "version": "7",
-            "when": 1794460000000,
-            "tag": "0015_desktop_mcp_oauth",
-            "breakpoints": true
-        },
-        {
-            "idx": 16,
-            "version": "7",
-            "when": 1794791679548,
-            "tag": "0016_federation_tables",
-            "breakpoints": true
-        }
-    ]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794012666907,
+      "tag": "0000_flashy_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794015682973,
+      "tag": "0001_parched_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794114849148,
+      "tag": "0002_glamorous_bruce_banner",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794318921958,
+      "tag": "0003_heavy_luke_cage",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794320821806,
+      "tag": "0004_fixed_bug",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794329044943,
+      "tag": "0005_organization_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794403200000,
+      "tag": "0006_compliance_attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794406800000,
+      "tag": "0007_clammy_union_jack",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794410400000,
+      "tag": "0008_shop_binding_conflicts",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794414000000,
+      "tag": "0009_platform_catalogs",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794420000000,
+      "tag": "0010_pricing_calculator",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794427200000,
+      "tag": "0011_pricing_suggestion_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794434400000,
+      "tag": "0012_pricing_calculator_phase3",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794441600000,
+      "tag": "0013_platform_tariff_fee_catalogs",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794450000000,
+      "tag": "0014_shop_writeback_switches",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794460000000,
+      "tag": "0015_desktop_mcp_oauth",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794791679548,
+      "tag": "0016_federation_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795184346737,
+      "tag": "0017_sleepy_thor_girl",
+      "breakpoints": true
+    }
+  ]
 }

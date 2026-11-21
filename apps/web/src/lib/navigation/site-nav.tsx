@@ -168,13 +168,12 @@ export const SETTINGS_NAV_GROUPS: SiteNavGroup[] = [
     items: SETTINGS_ACCOUNT_NAV,
   },
   {
-    title: '平台管理（即将上线）',
+    title: '平台管理',
     items: [
       {
         title: '平台配置',
         url: '/settings/platform-config',
         icon: <Settings className="size-4" />,
-        soon: true,
       },
       {
         title: '操作日志',

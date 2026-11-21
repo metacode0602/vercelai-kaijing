@@ -26,6 +26,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 import { organization } from "./auth-schema"
+import { DEFAULT_ONBOARDING_DOCUMENT_REQUIREMENTS } from "./onboarding-document-requirements"
+import type { OnboardingDocumentRequirements } from "./onboarding-document-requirements"
 
 // ---------------------------------------------------------------------------
 // 枚举常量（运行时校验用；列类型为 varchar）
@@ -3798,6 +3800,20 @@ export const inventoryPools = pgTable(
     check("inventory_pools_status_check", sql`${t.status} in ('active', 'disabled')`),
   ],
 )
+
+// ---------------------------------------------------------------------------
+// platform_settings — 单例平台配置（id = global）
+// ---------------------------------------------------------------------------
+
+export const platformSettings = pgTable("platform_settings", {
+  id: text("id").primaryKey(),
+  onboardingDocumentRequirements: jsonb("onboarding_document_requirements")
+    .$type<OnboardingDocumentRequirements>()
+    .notNull()
+    .default(DEFAULT_ONBOARDING_DOCUMENT_REQUIREMENTS),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+})
 
 // ---------------------------------------------------------------------------
 // organization_settings — 组织级偏好与通知配置（每组织一行）
