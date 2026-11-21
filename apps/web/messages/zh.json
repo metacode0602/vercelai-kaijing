@@ -1,10 +1,10 @@
 {
   "AboutPage": {
     "title": "关于我们",
-    "description": "共绩科技（北京）科技有限公司",
-    "authorName": "共绩科技（北京）科技有限公司",
+    "description": "开镜 · AI 短剧 / 漫剧制作工具",
+    "authorName": "开镜",
     "authorBio": "",
-    "introduction": "👋 **你好，这里是北京共绩科技（北京）科技有限公司！**\n\n",
+    "introduction": "开镜是开源的 AI 短剧 / 漫剧制作工具。一期交付桌面客户端和薄云控制面。\n\n",
     "talkWithMe": "联系我们",
     "followMe": "关注我们",
     "contactWeChat": "微信联系"
@@ -12,8 +12,8 @@
   "AuthPage": {
     "login": {
       "title": "登录",
-      "welcomeBack": "欢迎回来",
-      "description": "登录您的账号以继续",
+      "welcomeBack": "平台运营登录",
+      "description": "这里只登录平台运营账号。桌面用户请在工作台的云端账户页注册。",
       "email": "邮箱",
       "password": "密码",
       "rememberMe": "记住我",
@@ -31,8 +31,8 @@
     },
     "phoneLogin": {
       "title": "手机号登录",
-      "welcomeBack": "欢迎回来",
-      "description": "请输入您的手机号登录",
+      "welcomeBack": "平台运营登录",
+      "description": "这里只登录平台运营账号，不进入桌面用户的云端账户。",
       "phoneNumber": "手机号",
       "verificationCode": "验证码",
       "sendCode": "发送验证码",
@@ -187,9 +187,9 @@
     }
   },
   "Metadata": {
-    "name": "共绩CRM",
-    "title": "共绩CRM",
-    "description": "共绩CRM 是一个用于构建和部署 AI 应用的平台。"
+    "name": "开镜",
+    "title": "开镜",
+    "description": "开镜是开源的 AI 短剧 / 漫剧制作工具。一期是桌面客户端加薄云。"
   },
   "Mail": {
     "common": {
